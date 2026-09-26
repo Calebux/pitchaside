@@ -1,0 +1,52 @@
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from 'typeorm';
+import { Group } from '../../groups/entities/group.entity';
+import { Payment } from '../../payments/entities/payment.entity';
+
+export enum SessionStatus {
+  UPCOMING = 'upcoming',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+}
+
+@Entity('sessions')
+export class Session {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @ManyToOne(() => Group, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'group_id' })
+  group: Group;
+
+  @Column({ name: 'group_id' })
+  groupId: string;
+
+  @Column({ type: 'date' })
+  date: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  targetAmount: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  collectedAmount: number;
+
+  @Column({ type: 'enum', enum: SessionStatus, default: SessionStatus.UPCOMING })
+  status: SessionStatus;
+
+  @OneToMany(() => Payment, (payment) => payment.session)
+  payments: Payment[];
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
