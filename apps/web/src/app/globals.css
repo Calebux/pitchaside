@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pitch-50: #eff6ff;
+  --color-pitch-100: #dbeafe;
+  --color-pitch-200: #bfdbfe;
+  --color-pitch-300: #93c5fd;
+  --color-pitch-400: #60a5fa;
+  --color-pitch-500: #3b82f6;
+  --color-pitch-600: #2563eb;
+  --color-pitch-700: #1d4ed8;
+  --color-pitch-800: #1e40af;
+  --color-pitch-900: #1e3a8a;
+}
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
