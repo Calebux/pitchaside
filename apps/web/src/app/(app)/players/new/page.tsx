@@ -3,33 +3,67 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BackButton } from '@/components/back-button';
+import { useToast } from '@/components/toast';
 import { createPlayer } from '@/lib/api';
+
+type Errors = Record<string, string>;
+
+function validate(form: FormData): Errors | null {
+  const errors: Errors = {};
+  const firstName = (form.get('firstName') as string).trim();
+  const lastName = (form.get('lastName') as string).trim();
+  const phone = (form.get('phone') as string).trim();
+  const email = (form.get('email') as string).trim();
+
+  if (!firstName) errors.firstName = 'First name is required';
+  else if (firstName.length < 2) errors.firstName = 'Must be at least 2 characters';
+
+  if (!lastName) errors.lastName = 'Last name is required';
+  else if (lastName.length < 2) errors.lastName = 'Must be at least 2 characters';
+
+  if (!phone) errors.phone = 'Phone is required';
+  else if (!/^[+\d]/.test(phone) || phone.length < 7) errors.phone = 'Enter a valid phone number (min 7 characters)';
+
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address';
+
+  return Object.keys(errors).length ? errors : null;
+}
 
 export default function NewPlayerPage() {
   const router = useRouter();
+  const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [errors, setErrors] = useState<Errors>({});
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setSubmitting(true);
-    setError('');
-
     const form = new FormData(e.currentTarget);
+    const validationErrors = validate(form);
+    if (validationErrors) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors({});
+    setSubmitting(true);
 
     try {
       await createPlayer({
-        firstName: form.get('firstName') as string,
-        lastName: form.get('lastName') as string,
-        phone: form.get('phone') as string,
-        email: (form.get('email') as string) || undefined,
+        firstName: (form.get('firstName') as string).trim(),
+        lastName: (form.get('lastName') as string).trim(),
+        phone: (form.get('phone') as string).trim(),
+        email: (form.get('email') as string).trim() || undefined,
       });
       router.push('/players');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to register player');
+      toast.error(err instanceof Error ? err.message : 'Failed to register player');
       setSubmitting(false);
     }
   }
+
+  const inputClass = (field: string) =>
+    `w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent ${
+      errors[field] ? 'border-red-400' : 'border-gray-300'
+    }`;
 
   return (
     <div className="p-4 max-w-lg mx-auto">
@@ -46,9 +80,9 @@ export default function NewPlayerPage() {
               id="firstName"
               name="firstName"
               type="text"
-              required
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass('firstName')}
             />
+            {errors.firstName && <p className="text-xs text-red-600 mt-1">{errors.firstName}</p>}
           </div>
           <div>
             <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -58,9 +92,9 @@ export default function NewPlayerPage() {
               id="lastName"
               name="lastName"
               type="text"
-              required
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass('lastName')}
             />
+            {errors.lastName && <p className="text-xs text-red-600 mt-1">{errors.lastName}</p>}
           </div>
         </div>
 
@@ -72,10 +106,10 @@ export default function NewPlayerPage() {
             id="phone"
             name="phone"
             type="tel"
-            required
             placeholder="+234..."
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass('phone')}
           />
+          {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
         </div>
 
         <div>
@@ -87,13 +121,10 @@ export default function NewPlayerPage() {
             name="email"
             type="email"
             placeholder="Optional"
-            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass('email')}
           />
+          {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
         </div>
-
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</p>
-        )}
 
         <button
           type="submit"
