@@ -8,7 +8,9 @@ import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Session, Group, GroupMembership, Payment])],
+  imports: [
+    TypeOrmModule.forFeature([Session, Group, GroupMembership, Payment]),
+  ],
   controllers: [SessionsController],
   providers: [SessionsService],
   exports: [SessionsService],
