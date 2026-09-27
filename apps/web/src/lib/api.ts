@@ -261,6 +261,29 @@ export function exportSessionPaymentsCsv(sessionId: string) {
   return downloadCsv(`/sessions/${sessionId}/export`, 'session-payments.csv');
 }
 
+// ── Invite / Join ──
+
+export function getInviteCode(): Promise<{ inviteCode: string; link: string }> {
+  return http.get('/organizations/invite-code');
+}
+
+export function regenerateInviteCode(): Promise<{ inviteCode: string; link: string }> {
+  return http.post('/organizations/invite-code/regenerate');
+}
+
+export function getOrgByInviteCode(
+  code: string,
+): Promise<{ organizationId: string; organizationName: string }> {
+  return http.get(`/organizations/join/${code}`);
+}
+
+export function joinOrg(
+  code: string,
+  data: { firstName: string; lastName: string; phone: string; email?: string },
+): Promise<IPlayer> {
+  return http.post<IPlayer>(`/organizations/join/${code}`, data);
+}
+
 // ── Reminders ──
 
 export function sendReminders(sessionId: string): Promise<{ sent: number }> {
