@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Body, UseGuards, Query } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -6,6 +6,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { MailService } from '../mail/mail.service';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import * as bcrypt from 'bcrypt';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -14,6 +16,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly usersService: UsersService,
+    private readonly mailService: MailService,
   ) {}
 
   // ── Super Admin endpoints ──
@@ -26,8 +29,8 @@ export class AdminController {
 
   @Get('organizations')
   @Roles(UserRole.SUPER_ADMIN)
-  getAllOrganizations() {
-    return this.adminService.getAllOrganizations();
+  getAllOrganizations(@Query() query: PaginationDto) {
+    return this.adminService.getAllOrganizations(query);
   }
 
   @Get('organizations/:id')
@@ -38,8 +41,8 @@ export class AdminController {
 
   @Get('users')
   @Roles(UserRole.SUPER_ADMIN)
-  getAllUsers() {
-    return this.adminService.getAllUsers();
+  getAllUsers(@Query() query: PaginationDto) {
+    return this.adminService.getAllUsers(query);
   }
 
   // ── Org Admin endpoints ──
@@ -63,7 +66,7 @@ export class AdminController {
     @Body() body: { firstName: string; lastName: string; email: string; password: string },
   ) {
     const passwordHash = await bcrypt.hash(body.password, 10);
-    return this.usersService.create({
+    const newUser = await this.usersService.create({
       firstName: body.firstName,
       lastName: body.lastName,
       email: body.email,
@@ -71,5 +74,16 @@ export class AdminController {
       role: UserRole.MEMBER,
       organizationId: user.organizationId,
     });
+
+    // Send invite email
+    const orgName = user.organization?.name || 'your organization';
+    await this.mailService.sendMemberInvite(
+      body.email,
+      body.firstName,
+      orgName,
+      body.password,
+    );
+
+    return newUser;
   }
 }

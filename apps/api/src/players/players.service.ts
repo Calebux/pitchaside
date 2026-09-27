@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Player } from './entities/player.entity';
 import { CreatePlayerDto } from './dto/create-player.dto';
+import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class PlayersService {
@@ -17,6 +18,36 @@ export class PlayersService {
 
   findAll(organizationId: string) {
     return this.playersRepo.find({ where: { organizationId } });
+  }
+
+  async findAllPaginated(
+    organizationId: string,
+    query: PaginationDto,
+  ): Promise<PaginatedResult<Player>> {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+
+    const qb = this.playersRepo
+      .createQueryBuilder('player')
+      .where('player.organizationId = :organizationId', { organizationId });
+
+    if (query.search) {
+      qb.andWhere(
+        '(player.firstName ILIKE :s OR player.lastName ILIKE :s OR player.phone ILIKE :s)',
+        { s: `%${query.search}%` },
+      );
+    }
+
+    qb.orderBy('player.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string, organizationId: string) {

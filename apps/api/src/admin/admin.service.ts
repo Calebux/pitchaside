@@ -4,6 +4,7 @@ import { UsersService } from '../users/users.service';
 import { GroupsService } from '../groups/groups.service';
 import { PlayersService } from '../players/players.service';
 import { SessionsService } from '../sessions/sessions.service';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class AdminService {
@@ -25,16 +26,16 @@ export class AdminService {
     return { totalOrgs, totalUsers };
   }
 
-  getAllOrganizations() {
-    return this.orgsService.findAll();
+  getAllOrganizations(query: PaginationDto) {
+    return this.orgsService.findAllPaginated(query);
   }
 
   getOrganization(id: string) {
     return this.orgsService.findOne(id);
   }
 
-  getAllUsers() {
-    return this.usersService.findAll();
+  getAllUsers(query: PaginationDto) {
+    return this.usersService.findAllPaginated(query);
   }
 
   // ── Org Admin ──

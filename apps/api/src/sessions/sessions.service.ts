@@ -6,6 +6,7 @@ import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
 @Injectable()
 export class SessionsService {
@@ -62,6 +63,36 @@ export class SessionsService {
     }
 
     return qb.getMany();
+  }
+
+  async findAllPaginated(
+    organizationId: string,
+    query: PaginationDto,
+    groupId?: string,
+  ): Promise<PaginatedResult<Session>> {
+    const page = query.page || 1;
+    const limit = query.limit || 20;
+
+    const qb = this.sessionsRepo
+      .createQueryBuilder('session')
+      .innerJoinAndSelect('session.group', 'group')
+      .leftJoinAndSelect('session.payments', 'payment')
+      .leftJoinAndSelect('payment.player', 'player')
+      .where('group.organizationId = :organizationId', { organizationId })
+      .orderBy('session.date', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (groupId) {
+      qb.andWhere('session.groupId = :groupId', { groupId });
+    }
+
+    const [data, total] = await qb.getManyAndCount();
+
+    return {
+      data,
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async findOne(id: string, organizationId: string) {

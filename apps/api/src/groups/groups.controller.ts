@@ -1,7 +1,8 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -17,8 +18,8 @@ export class GroupsController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: User) {
-    return this.groupsService.findAll(user.organizationId);
+  findAll(@Query() query: PaginationDto, @CurrentUser() user: User) {
+    return this.groupsService.findAllPaginated(user.organizationId, query);
   }
 
   @Get(':id')

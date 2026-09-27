@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { PlayersService } from './players.service';
 import { CreatePlayerDto } from './dto/create-player.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -16,8 +17,8 @@ export class PlayersController {
   }
 
   @Get()
-  findAll(@CurrentUser() user: User) {
-    return this.playersService.findAll(user.organizationId);
+  findAll(@Query() query: PaginationDto, @CurrentUser() user: User) {
+    return this.playersService.findAllPaginated(user.organizationId, query);
   }
 
   @Get(':id')
