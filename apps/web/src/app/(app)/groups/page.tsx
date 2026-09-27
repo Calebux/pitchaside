@@ -4,24 +4,35 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
-import { getGroups, deleteGroup, formatCurrency, type IGroupWithMembers } from '@/lib/api';
+import { getGroupsPaginated, deleteGroup, exportGroupsCsv, formatCurrency, type IGroupWithMembers, type PaginatedResponse } from '@/lib/api';
 
 export default function GroupsPage() {
   const toast = useToast();
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
+  const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<IGroupWithMembers | null>(null);
 
-  function fetchGroups() {
-    return getGroups()
-      .then(setGroups)
+  function fetchGroups(p = page) {
+    return getGroupsPaginated(p, 10)
+      .then((res) => {
+        setGroups(res.data);
+        setMeta(res.meta);
+      })
       .catch(() => {});
   }
 
   useEffect(() => {
-    fetchGroups().finally(() => setLoading(false));
-  }, []);
+    fetchGroups(page).finally(() => setLoading(false));
+  }, [page]);
+
+  function handlePageChange(p: number) {
+    setPage(p);
+    setLoading(true);
+  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -29,7 +40,7 @@ export default function GroupsPage() {
     setDeleteTarget(null);
     try {
       await deleteGroup(deleteTarget.id);
-      await fetchGroups();
+      await fetchGroups(page);
       toast.success(`"${name}" deleted`);
     } catch {
       toast.error('Failed to delete group');
@@ -62,15 +73,25 @@ export default function GroupsPage() {
 
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Groups</h1>
-        <Link
-          href="/groups/new"
-          className="px-4 py-2 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
-        >
-          + New
-        </Link>
+        <div className="flex items-center gap-2">
+          {meta.total > 0 && (
+            <button
+              onClick={() => exportGroupsCsv().catch(() => toast.error('Export failed'))}
+              className="px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Export
+            </button>
+          )}
+          <Link
+            href="/groups/new"
+            className="px-4 py-2 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
+          >
+            + New
+          </Link>
+        </div>
       </div>
 
-      {groups.length === 0 ? (
+      {groups.length === 0 && meta.total === 0 ? (
         <EmptyState
           icon="users"
           title="No groups yet"
@@ -79,41 +100,50 @@ export default function GroupsPage() {
           actionHref="/groups/new"
         />
       ) : (
-        <div className="space-y-3">
-          {groups.map((group) => (
-            <div key={group.id} className="relative bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-              <Link
-                href={`/groups/${group.id}`}
-                className="block p-4"
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900">{group.name}</h3>
-                    {group.schedule && (
-                      <p className="text-xs text-gray-500 mt-0.5">{group.schedule}</p>
-                    )}
+        <>
+          <div className="space-y-3">
+            {groups.map((group) => (
+              <div key={group.id} className="relative bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <Link
+                  href={`/groups/${group.id}`}
+                  className="block p-4"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">{group.name}</h3>
+                      {group.schedule && (
+                        <p className="text-xs text-gray-500 mt-0.5">{group.schedule}</p>
+                      )}
+                    </div>
+                    <span className="text-xs font-medium text-pitch-600 bg-pitch-50 px-2 py-1 rounded-full">
+                      {formatCurrency(group.feePerPlayer)}/player
+                    </span>
                   </div>
-                  <span className="text-xs font-medium text-pitch-600 bg-pitch-50 px-2 py-1 rounded-full">
-                    {formatCurrency(group.feePerPlayer)}/player
-                  </span>
-                </div>
-                <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
-                  <span>{group.memberships?.length || 0} / {group.targetPlayers} players</span>
-                  <span className="capitalize">{group.paymentType.replace('_', ' ')}</span>
-                </div>
-              </Link>
-              <button
-                onClick={(e) => { e.preventDefault(); setDeleteTarget(group); }}
-                className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 transition-colors"
-                title="Delete group"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
+                  <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+                    <span>{group.memberships?.length || 0} / {group.targetPlayers} players</span>
+                    <span className="capitalize">{group.paymentType.replace('_', ' ')}</span>
+                  </div>
+                </Link>
+                <button
+                  onClick={(e) => { e.preventDefault(); setDeleteTarget(group); }}
+                  className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                  title="Delete group"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          <Pagination
+            page={meta.page}
+            totalPages={meta.totalPages}
+            total={meta.total}
+            limit={meta.limit}
+            onPageChange={handlePageChange}
+          />
+        </>
       )}
     </div>
   );

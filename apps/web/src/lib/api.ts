@@ -148,7 +148,12 @@ export function getSession(id: string): Promise<ISessionWithDetails> {
   return http.get<ISessionWithDetails>(`/sessions/${id}`);
 }
 
-export function createSession(data: { groupId: string; date: string }): Promise<ISession> {
+export function createSession(data: {
+  groupId: string;
+  date: string;
+  recurrenceType?: string;
+  recurrenceCount?: number;
+}): Promise<ISession> {
   return http.post<ISession>('/sessions', data);
 }
 
@@ -184,4 +189,119 @@ export function createPayment(data: {
 
 export function markPaid(paymentId: string): Promise<IPayment> {
   return http.patch<IPayment>(`/payments/${paymentId}/mark-paid`);
+}
+
+export function waivePayment(paymentId: string): Promise<IPayment> {
+  return http.patch<IPayment>(`/payments/${paymentId}/waive`);
+}
+
+export function bulkMarkPaid(paymentIds: string[]): Promise<IPayment[]> {
+  return http.patch<IPayment[]>('/payments/bulk-mark-paid', { paymentIds });
+}
+
+// ── Paginated functions ──
+
+export function getGroupsPaginated(
+  page = 1,
+  limit = 10,
+  search?: string,
+): Promise<PaginatedResponse<IGroupWithMembers>> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search) params.set('search', search);
+  return http.get<PaginatedResponse<IGroupWithMembers>>(`/groups?${params}`);
+}
+
+export function getPlayersPaginated(
+  page = 1,
+  limit = 10,
+  search?: string,
+): Promise<PaginatedResponse<IPlayer>> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search) params.set('search', search);
+  return http.get<PaginatedResponse<IPlayer>>(`/players?${params}`);
+}
+
+// ── Profile / Auth ──
+
+export function updateProfile(data: { firstName: string; lastName: string }): Promise<any> {
+  return http.patch('/auth/profile', data);
+}
+
+export function changePassword(data: { currentPassword: string; newPassword: string }): Promise<any> {
+  return http.post('/auth/change-password', data);
+}
+
+// ── CSV Export ──
+
+export async function downloadCsv(path: string, filename: string) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('pitchaside_token') : null;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+  const res = await fetch(`${baseUrl}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Export failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function exportGroupsCsv() {
+  return downloadCsv('/groups/export', 'groups.csv');
+}
+
+export function exportPlayersCsv() {
+  return downloadCsv('/players/export', 'players.csv');
+}
+
+export function exportSessionPaymentsCsv(sessionId: string) {
+  return downloadCsv(`/sessions/${sessionId}/export`, 'session-payments.csv');
+}
+
+// ── Reminders ──
+
+export function sendReminders(sessionId: string): Promise<{ sent: number }> {
+  return http.post<{ sent: number }>(`/sessions/${sessionId}/send-reminders`);
+}
+
+// ── Player Stats ──
+
+export function getPlayerStats(playerId: string): Promise<{
+  totalSessions: number;
+  totalPaid: number;
+  totalOwed: number;
+  paymentRate: number;
+}> {
+  return http.get(`/players/${playerId}/stats`);
+}
+
+// ── 2FA ──
+
+export function setup2FA(): Promise<{ qrCodeUrl: string; secret: string }> {
+  return http.post('/auth/2fa/setup');
+}
+
+export function verify2FA(code: string): Promise<{ message: string }> {
+  return http.post('/auth/2fa/verify', { code });
+}
+
+export function disable2FA(code: string): Promise<{ message: string }> {
+  return http.post('/auth/2fa/disable', { code });
+}
+
+export function validate2FALogin(userId: string, code: string): Promise<any> {
+  return http.post('/auth/2fa/validate', { userId, code });
+}
+
+export function getSessionsPaginated(
+  page = 1,
+  limit = 10,
+  groupId?: string,
+): Promise<PaginatedResponse<ISessionWithDetails>> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (groupId) params.set('groupId', groupId);
+  return http.get<PaginatedResponse<ISessionWithDetails>>(`/sessions?${params}`);
 }
