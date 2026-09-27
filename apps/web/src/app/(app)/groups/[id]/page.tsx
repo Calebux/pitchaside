@@ -16,10 +16,12 @@ import {
   createSession,
   deleteGroup,
   updateGroup,
+  formatCurrency,
   type IGroupWithMembers,
   type ISessionWithDetails,
 } from '@/lib/api';
-import type { IPlayer, PaymentType } from '@pitchaside/shared';
+import { PaymentType } from '@pitchaside/shared';
+import type { IPlayer } from '@pitchaside/shared';
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,6 +51,7 @@ export default function GroupDetailPage() {
     schedule: '',
     targetPlayers: 10,
     feePerPlayer: 10,
+    paymentType: PaymentType.PER_SESSION as string,
   });
   const [saving, setSaving] = useState(false);
 
@@ -80,6 +83,7 @@ export default function GroupDetailPage() {
       schedule: group.schedule || '',
       targetPlayers: group.targetPlayers,
       feePerPlayer: group.feePerPlayer,
+      paymentType: group.paymentType,
     });
     setEditing(true);
   }
@@ -93,6 +97,7 @@ export default function GroupDetailPage() {
         schedule: editData.schedule || undefined,
         targetPlayers: editData.targetPlayers,
         feePerPlayer: editData.feePerPlayer,
+        paymentType: editData.paymentType as PaymentType,
       });
       const updated = await getGroup(id);
       setGroup(updated);
@@ -254,6 +259,17 @@ export default function GroupDetailPage() {
               />
             </div>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+            <select
+              value={editData.paymentType}
+              onChange={(e) => setEditData({ ...editData, paymentType: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pitch-500"
+            >
+              <option value={PaymentType.PER_SESSION}>Per Session</option>
+              <option value={PaymentType.MONTHLY}>Monthly</option>
+            </select>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => setEditing(false)}
@@ -294,7 +310,7 @@ export default function GroupDetailPage() {
           )}
           <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
             {group.schedule && <span>{group.schedule}</span>}
-            <span>${group.feePerPlayer}/player</span>
+            <span>{formatCurrency(group.feePerPlayer)}/player</span>
             <span className="capitalize">{group.paymentType.replace('_', ' ')}</span>
             <span>{group.memberships?.length || 0}/{group.targetPlayers} players</span>
           </div>
@@ -368,8 +384,9 @@ export default function GroupDetailPage() {
 
           {!group.memberships?.length ? (
             <EmptyState
+              icon="users"
               title="No members yet"
-              description="Add players to this group."
+              description="Add players to this group so payments can be tracked."
             />
           ) : (
             <div className="space-y-2">
@@ -437,8 +454,9 @@ export default function GroupDetailPage() {
 
           {sessions.length === 0 ? (
             <EmptyState
+              icon="calendar"
               title="No sessions yet"
-              description="Create a session to start tracking payments."
+              description="Create a session to start tracking payments for this group."
             />
           ) : (
             <div className="space-y-2">
@@ -463,6 +481,7 @@ export default function GroupDetailPage() {
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
                         s.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
                         s.status === 'completed' ? 'bg-green-100 text-green-700' :
+                        s.status === 'cancelled' ? 'bg-red-100 text-red-600' :
                         'bg-gray-100 text-gray-500'
                       }`}>
                         {s.status}
@@ -475,7 +494,7 @@ export default function GroupDetailPage() {
                       />
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                      ${s.collectedAmount} / ${s.targetAmount} ({progress}%)
+                      {formatCurrency(s.collectedAmount)} / {formatCurrency(s.targetAmount)} ({progress}%)
                     </p>
                   </Link>
                 );
