@@ -7,18 +7,7 @@ import type {
   PaymentStatus,
   MemberRole,
 } from '@pitchaside/shared';
-import {
-  PaymentType as PT,
-  MemberRole as MR,
-  SessionStatus,
-  PaymentStatus as PS,
-} from '@pitchaside/shared';
-import {
-  players,
-  groups,
-  sessions,
-  payments,
-} from './mock-data';
+import { http } from './http';
 
 // ── Currency formatter ──
 
@@ -47,34 +36,17 @@ export interface ISessionWithDetails extends ISession {
   payments?: (IPayment & { player?: IPlayer })[];
 }
 
-// ── Helpers ──
-
-function uuid() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-function delay(ms = 120) {
-  return new Promise((r) => setTimeout(r, ms));
-}
-
 // ── Groups ──
 
-export async function getGroups(): Promise<IGroupWithMembers[]> {
-  await delay();
-  return groups;
+export function getGroups(): Promise<IGroupWithMembers[]> {
+  return http.get<IGroupWithMembers[]>('/groups');
 }
 
-export async function getGroup(id: string): Promise<IGroupWithMembers> {
-  await delay();
-  const group = groups.find((g) => g.id === id);
-  if (!group) throw new Error('Group not found');
-  return group;
+export function getGroup(id: string): Promise<IGroupWithMembers> {
+  return http.get<IGroupWithMembers>(`/groups/${id}`);
 }
 
-export async function createGroup(data: {
+export function createGroup(data: {
   name: string;
   description?: string;
   schedule?: string;
@@ -82,23 +54,10 @@ export async function createGroup(data: {
   feePerPlayer: number;
   paymentType?: PaymentType;
 }): Promise<IGroup> {
-  await delay();
-  const group: IGroupWithMembers = {
-    id: uuid(),
-    name: data.name,
-    description: data.description,
-    schedule: data.schedule,
-    targetPlayers: data.targetPlayers,
-    feePerPlayer: data.feePerPlayer,
-    paymentType: data.paymentType ?? PT.PER_SESSION,
-    createdAt: new Date().toISOString(),
-    memberships: [],
-  };
-  groups.push(group);
-  return group;
+  return http.post<IGroup>('/groups', data);
 }
 
-export async function updateGroup(
+export function updateGroup(
   id: string,
   data: Partial<{
     name: string;
@@ -107,255 +66,106 @@ export async function updateGroup(
     targetPlayers: number;
     feePerPlayer: number;
     paymentType: PaymentType;
-  }>
+  }>,
 ): Promise<IGroup> {
-  await delay();
-  const group = groups.find((g) => g.id === id);
-  if (!group) throw new Error('Group not found');
-  Object.assign(group, data);
-  return group;
+  return http.patch<IGroup>(`/groups/${id}`, data);
 }
 
-export async function deleteGroup(id: string): Promise<void> {
-  await delay();
-  const idx = groups.findIndex((g) => g.id === id);
-  if (idx !== -1) groups.splice(idx, 1);
+export function deleteGroup(id: string): Promise<void> {
+  return http.delete<void>(`/groups/${id}`);
 }
 
-export async function addMember(
+export function addMember(
   groupId: string,
-  data: { playerId: string; role?: MemberRole }
+  data: { playerId: string; role?: MemberRole },
 ): Promise<void> {
-  await delay();
-  const group = groups.find((g) => g.id === groupId);
-  if (!group) throw new Error('Group not found');
-  const player = players.find((p) => p.id === data.playerId);
-  if (!player) throw new Error('Player not found');
-  if (!group.memberships) group.memberships = [];
-  group.memberships.push({
-    id: uuid(),
-    role: data.role ?? MR.PLAYER,
-    player,
-    joinedAt: new Date().toISOString(),
-  });
+  return http.post<void>(`/groups/${groupId}/members`, data);
 }
 
-export async function removeMember(
-  groupId: string,
-  playerId: string
-): Promise<void> {
-  await delay();
-  const group = groups.find((g) => g.id === groupId);
-  if (!group || !group.memberships) return;
-  group.memberships = group.memberships.filter(
-    (m) => m.player.id !== playerId
-  );
+export function removeMember(groupId: string, playerId: string): Promise<void> {
+  return http.delete<void>(`/groups/${groupId}/members/${playerId}`);
 }
 
 // ── Players ──
 
-export async function getPlayers(): Promise<IPlayer[]> {
-  await delay();
-  return players;
+export function getPlayers(): Promise<IPlayer[]> {
+  return http.get<IPlayer[]>('/players');
 }
 
-export async function getPlayer(id: string): Promise<IPlayer> {
-  await delay();
-  const player = players.find((p) => p.id === id);
-  if (!player) throw new Error('Player not found');
-  return player;
+export function getPlayer(id: string): Promise<IPlayer> {
+  return http.get<IPlayer>(`/players/${id}`);
 }
 
-export async function createPlayer(data: {
+export function createPlayer(data: {
   firstName: string;
   lastName: string;
   phone: string;
   email?: string;
 }): Promise<IPlayer> {
-  await delay();
-  const player: IPlayer = {
-    id: uuid(),
-    firstName: data.firstName,
-    lastName: data.lastName,
-    phone: data.phone,
-    email: data.email,
-    createdAt: new Date().toISOString(),
-  };
-  players.push(player);
-  return player;
+  return http.post<IPlayer>('/players', data);
 }
 
-export async function updatePlayer(
+export function updatePlayer(
   id: string,
   data: Partial<{
     firstName: string;
     lastName: string;
     phone: string;
     email: string;
-  }>
+  }>,
 ): Promise<IPlayer> {
-  await delay();
-  const player = players.find((p) => p.id === id);
-  if (!player) throw new Error('Player not found');
-  Object.assign(player, data);
-  return player;
+  return http.patch<IPlayer>(`/players/${id}`, data);
 }
 
-export async function deletePlayer(id: string): Promise<void> {
-  await delay();
-  const idx = players.findIndex((p) => p.id === id);
-  if (idx !== -1) players.splice(idx, 1);
+export function deletePlayer(id: string): Promise<void> {
+  return http.delete<void>(`/players/${id}`);
 }
 
 // ── Sessions ──
 
-export async function getSessions(
-  groupId?: string
-): Promise<ISessionWithDetails[]> {
-  await delay();
-  if (groupId) return sessions.filter((s) => s.groupId === groupId);
-  return sessions;
+export function getSessions(groupId?: string): Promise<ISessionWithDetails[]> {
+  const query = groupId ? `?groupId=${groupId}` : '';
+  return http.get<ISessionWithDetails[]>(`/sessions${query}`);
 }
 
-export async function getSession(id: string): Promise<ISessionWithDetails> {
-  await delay();
-  const session = sessions.find((s) => s.id === id);
-  if (!session) throw new Error('Session not found');
-  return session;
+export function getSession(id: string): Promise<ISessionWithDetails> {
+  return http.get<ISessionWithDetails>(`/sessions/${id}`);
 }
 
-export async function createSession(data: {
-  groupId: string;
-  date: string;
-}): Promise<ISession> {
-  await delay();
-  const group = groups.find((g) => g.id === data.groupId);
-  const targetAmount = group
-    ? group.feePerPlayer * group.targetPlayers
-    : 0;
-  const sessionId = uuid();
-  const session: ISessionWithDetails = {
-    id: sessionId,
-    groupId: data.groupId,
-    date: data.date,
-    targetAmount,
-    collectedAmount: 0,
-    status: SessionStatus.UPCOMING,
-    group: group
-      ? {
-          id: group.id,
-          name: group.name,
-          description: group.description,
-          schedule: group.schedule,
-          targetPlayers: group.targetPlayers,
-          feePerPlayer: group.feePerPlayer,
-          paymentType: group.paymentType,
-          createdAt: group.createdAt,
-        }
-      : undefined,
-    payments: [],
-  };
-
-  // Auto-generate pending payments for each group member
-  if (group?.memberships) {
-    for (const m of group.memberships) {
-      const payment: IPayment & { player?: IPlayer } = {
-        id: uuid(),
-        sessionId,
-        playerId: m.player.id,
-        amount: group.feePerPlayer,
-        status: PS.PENDING,
-        player: m.player,
-      };
-      payments.push(payment);
-      session.payments!.push(payment);
-    }
-  }
-
-  sessions.push(session);
-  return session;
+export function createSession(data: { groupId: string; date: string }): Promise<ISession> {
+  return http.post<ISession>('/sessions', data);
 }
 
-export async function updateSessionStatus(
+export function updateSessionStatus(
   id: string,
-  status: 'upcoming' | 'completed' | 'cancelled'
+  status: 'upcoming' | 'completed' | 'cancelled',
 ): Promise<ISessionWithDetails> {
-  await delay();
-  const session = sessions.find((s) => s.id === id);
-  if (!session) throw new Error('Session not found');
-  session.status = status as ISession['status'];
-  return session;
+  return http.patch<ISessionWithDetails>(`/sessions/${id}/status`, { status });
 }
 
-export async function deleteSession(id: string): Promise<void> {
-  await delay();
-  const idx = sessions.findIndex((s) => s.id === id);
-  if (idx !== -1) sessions.splice(idx, 1);
+export function deleteSession(id: string): Promise<void> {
+  return http.delete<void>(`/sessions/${id}`);
 }
 
 // ── Payments ──
 
-export async function getSessionPayments(
-  sessionId: string
-): Promise<IPayment[]> {
-  await delay();
-  return payments.filter((p) => p.sessionId === sessionId);
+export function getSessionPayments(sessionId: string): Promise<IPayment[]> {
+  return http.get<IPayment[]>(`/payments/session/${sessionId}`);
 }
 
-export async function getPlayerPayments(
-  playerId: string
-): Promise<IPayment[]> {
-  await delay();
-  return payments.filter((p) => p.playerId === playerId);
+export function getPlayerPayments(playerId: string): Promise<IPayment[]> {
+  return http.get<IPayment[]>(`/payments/player/${playerId}`);
 }
 
-export async function createPayment(data: {
+export function createPayment(data: {
   sessionId: string;
   playerId: string;
   amount: number;
   status?: PaymentStatus;
 }): Promise<IPayment> {
-  await delay();
-  const player = players.find((p) => p.id === data.playerId);
-  const payment: IPayment & { player?: IPlayer } = {
-    id: uuid(),
-    sessionId: data.sessionId,
-    playerId: data.playerId,
-    amount: data.amount,
-    status: data.status ?? PS.PENDING,
-    player,
-  };
-  payments.push(payment);
-
-  // Update session's payments array and collectedAmount
-  const session = sessions.find((s) => s.id === data.sessionId);
-  if (session) {
-    if (!session.payments) session.payments = [];
-    session.payments.push(payment);
-    if (payment.status === PS.PAID) {
-      session.collectedAmount += payment.amount;
-    }
-  }
-
-  return payment;
+  return http.post<IPayment>('/payments', data);
 }
 
-export async function markPaid(paymentId: string): Promise<IPayment> {
-  await delay();
-  const payment = payments.find((p) => p.id === paymentId);
-  if (!payment) throw new Error('Payment not found');
-
-  const wasPaid = payment.status === PS.PAID;
-  payment.status = PS.PAID;
-  payment.paidAt = new Date().toISOString();
-
-  // Update session collectedAmount if it wasn't already paid
-  if (!wasPaid) {
-    const session = sessions.find((s) => s.id === payment.sessionId);
-    if (session) {
-      session.collectedAmount += payment.amount;
-    }
-  }
-
-  return payment;
+export function markPaid(paymentId: string): Promise<IPayment> {
+  return http.patch<IPayment>(`/payments/${paymentId}/mark-paid`);
 }
