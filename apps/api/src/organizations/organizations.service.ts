@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
+import { randomBytes } from 'crypto';
 import { Organization } from './entities/organization.entity';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
@@ -52,5 +53,24 @@ export class OrganizationsService {
 
   count() {
     return this.orgsRepo.count();
+  }
+
+  async getOrCreateInviteCode(orgId: string): Promise<string> {
+    const org = await this.findOne(orgId);
+    if (org.inviteCode) return org.inviteCode;
+    org.inviteCode = randomBytes(16).toString('hex');
+    await this.orgsRepo.save(org);
+    return org.inviteCode;
+  }
+
+  async regenerateInviteCode(orgId: string): Promise<string> {
+    const org = await this.findOne(orgId);
+    org.inviteCode = randomBytes(16).toString('hex');
+    await this.orgsRepo.save(org);
+    return org.inviteCode;
+  }
+
+  async findByInviteCode(code: string): Promise<Organization | null> {
+    return this.orgsRepo.findOne({ where: { inviteCode: code } });
   }
 }
