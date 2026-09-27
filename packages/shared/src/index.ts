@@ -95,6 +95,7 @@ export enum UserRole {
 export interface IOrganization {
   id: string;
   name: string;
+  inviteCode?: string;
   createdAt: string;
 }
 

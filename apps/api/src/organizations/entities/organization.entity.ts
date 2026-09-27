@@ -24,6 +24,9 @@ export class Organization {
   @Column({ nullable: true })
   state: string;
 
+  @Column({ unique: true, nullable: true })
+  inviteCode: string;
+
   @OneToMany(() => User, (user) => user.organization)
   users: User[];
 
