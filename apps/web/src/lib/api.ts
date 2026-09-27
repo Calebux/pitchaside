@@ -20,6 +20,17 @@ import {
   payments,
 } from './mock-data';
 
+// ── Currency formatter ──
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-NG', {
+    style: 'currency',
+    currency: 'NGN',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
 // ── Extended interfaces (unchanged — consumed by pages) ──
 
 export interface IGroupWithMembers extends IGroup {
@@ -222,8 +233,9 @@ export async function createSession(data: {
   const targetAmount = group
     ? group.feePerPlayer * group.targetPlayers
     : 0;
+  const sessionId = uuid();
   const session: ISessionWithDetails = {
-    id: uuid(),
+    id: sessionId,
     groupId: data.groupId,
     date: data.date,
     targetAmount,
@@ -243,7 +255,35 @@ export async function createSession(data: {
       : undefined,
     payments: [],
   };
+
+  // Auto-generate pending payments for each group member
+  if (group?.memberships) {
+    for (const m of group.memberships) {
+      const payment: IPayment & { player?: IPlayer } = {
+        id: uuid(),
+        sessionId,
+        playerId: m.player.id,
+        amount: group.feePerPlayer,
+        status: PS.PENDING,
+        player: m.player,
+      };
+      payments.push(payment);
+      session.payments!.push(payment);
+    }
+  }
+
   sessions.push(session);
+  return session;
+}
+
+export async function updateSessionStatus(
+  id: string,
+  status: 'upcoming' | 'completed' | 'cancelled'
+): Promise<ISessionWithDetails> {
+  await delay();
+  const session = sessions.find((s) => s.id === id);
+  if (!session) throw new Error('Session not found');
+  session.status = status as ISession['status'];
   return session;
 }
 
