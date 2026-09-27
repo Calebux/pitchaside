@@ -20,6 +20,18 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+// ── Pagination types ──
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 // ── Extended interfaces (unchanged — consumed by pages) ──
 
 export interface IGroupWithMembers extends IGroup {
@@ -38,8 +50,9 @@ export interface ISessionWithDetails extends ISession {
 
 // ── Groups ──
 
-export function getGroups(): Promise<IGroupWithMembers[]> {
-  return http.get<IGroupWithMembers[]>('/groups');
+export async function getGroups(): Promise<IGroupWithMembers[]> {
+  const res = await http.get<PaginatedResponse<IGroupWithMembers>>('/groups');
+  return res.data;
 }
 
 export function getGroup(id: string): Promise<IGroupWithMembers> {
@@ -88,8 +101,10 @@ export function removeMember(groupId: string, playerId: string): Promise<void> {
 
 // ── Players ──
 
-export function getPlayers(): Promise<IPlayer[]> {
-  return http.get<IPlayer[]>('/players');
+export async function getPlayers(search?: string): Promise<IPlayer[]> {
+  const query = search ? `?search=${encodeURIComponent(search)}` : '';
+  const res = await http.get<PaginatedResponse<IPlayer>>(`/players${query}`);
+  return res.data;
 }
 
 export function getPlayer(id: string): Promise<IPlayer> {
@@ -123,9 +138,10 @@ export function deletePlayer(id: string): Promise<void> {
 
 // ── Sessions ──
 
-export function getSessions(groupId?: string): Promise<ISessionWithDetails[]> {
+export async function getSessions(groupId?: string): Promise<ISessionWithDetails[]> {
   const query = groupId ? `?groupId=${groupId}` : '';
-  return http.get<ISessionWithDetails[]>(`/sessions${query}`);
+  const res = await http.get<PaginatedResponse<ISessionWithDetails>>(`/sessions${query}`);
+  return res.data;
 }
 
 export function getSession(id: string): Promise<ISessionWithDetails> {
