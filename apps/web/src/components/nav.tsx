@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
@@ -47,9 +48,23 @@ const tabs = [
 export function Nav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === UserRole.ORG_ADMIN || user?.role === UserRole.SUPER_ADMIN;
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase() : '';
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    }
+    if (mobileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [mobileMenuOpen]);
 
   const allTabs = isAdmin
     ? [
@@ -87,6 +102,48 @@ export function Nav() {
               </Link>
             );
           })}
+          {/* Mobile user menu */}
+          {user && (
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className={`flex flex-col items-center py-2 px-3 text-xs ${
+                  pathname.startsWith('/settings') ? 'text-pitch-600' : 'text-gray-500'
+                }`}
+              >
+                <div className="w-6 h-6 rounded-full bg-pitch-100 text-pitch-700 flex items-center justify-center text-[10px] font-semibold">
+                  {initials}
+                </div>
+                <span className="mt-1">More</span>
+              </button>
+              {mobileMenuOpen && (
+                <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {user.firstName} {user.lastName}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{user.organization?.name}</p>
+                  </div>
+                  <Link
+                    href="/settings"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Settings
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </nav>
 

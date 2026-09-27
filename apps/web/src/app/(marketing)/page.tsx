@@ -165,11 +165,6 @@ export default function LandingPage() {
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center max-w-3xl mx-auto">
-            <div className="animate-fade-in inline-flex items-center gap-2 px-3 py-1 rounded-full bg-pitch-50 border border-pitch-200 text-pitch-700 text-xs font-medium mb-8">
-              <span className="w-1.5 h-1.5 rounded-full bg-pitch-500 animate-pulse-soft" />
-              Now in early access
-            </div>
-
             <h1 className="animate-fade-in-up text-5xl sm:text-6xl lg:text-7xl font-extrabold text-gray-900 tracking-tight leading-[1.08]">
               Stop chasing<br className="hidden sm:block" /> payments.{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-pitch-600 to-pitch-400">

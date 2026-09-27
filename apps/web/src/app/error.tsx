@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function GlobalError({
   error,
   reset,
@@ -19,12 +21,20 @@ export default function GlobalError({
         <p className="text-sm text-gray-500 mb-6">
           {error.message || 'An unexpected error occurred.'}
         </p>
-        <button
-          onClick={reset}
-          className="px-6 py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
-        >
-          Try again
-        </button>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={reset}
+            className="px-6 py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
+          >
+            Try again
+          </button>
+          <Link
+            href="/"
+            className="px-6 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Go home
+          </Link>
+        </div>
       </div>
     </div>
   );

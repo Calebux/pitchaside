@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 export default function AppError({
   error,
   reset,
@@ -19,12 +21,20 @@ export default function AppError({
         <p className="text-sm text-gray-500 mb-4">
           {error.message || 'An unexpected error occurred.'}
         </p>
-        <button
-          onClick={reset}
-          className="px-5 py-2 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
-        >
-          Try again
-        </button>
+        <div className="flex items-center justify-center gap-3">
+          <button
+            onClick={reset}
+            className="px-5 py-2 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
+          >
+            Try again
+          </button>
+          <Link
+            href="/dashboard"
+            className="px-5 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            Go to dashboard
+          </Link>
+        </div>
       </div>
     </div>
   );
