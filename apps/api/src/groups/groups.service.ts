@@ -94,4 +94,8 @@ export class GroupsService {
   countByOrganization(organizationId: string) {
     return this.groupsRepo.count({ where: { organizationId } });
   }
+
+  countAll() {
+    return this.groupsRepo.count();
+  }
 }

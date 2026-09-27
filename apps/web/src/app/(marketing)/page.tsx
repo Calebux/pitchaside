@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 const features = [
@@ -99,6 +102,22 @@ const faqs = [
 ];
 
 export default function LandingPage() {
+  const [stats, setStats] = useState({ groups: '500+', players: '4,000+', sessions: '12,000+' });
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
+    fetch(`${apiUrl}/stats/public`)
+      .then((res) => res.json())
+      .then((data) => {
+        setStats({
+          groups: `${data.groups.toLocaleString()}+`,
+          players: `${data.players.toLocaleString()}+`,
+          sessions: `${data.sessions.toLocaleString()}+`,
+        });
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-white overflow-hidden">
       {/* ── Header ── */}
@@ -294,9 +313,9 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { stat: '500+', label: 'Groups created' },
-              { stat: '4,000+', label: 'Players tracked' },
-              { stat: '12,000+', label: 'Sessions logged' },
+              { stat: stats.groups, label: 'Groups created' },
+              { stat: stats.players, label: 'Players tracked' },
+              { stat: stats.sessions, label: 'Sessions logged' },
               { stat: '98%', label: 'Collection rate' },
             ].map((item) => (
               <div key={item.label}>

@@ -4,8 +4,9 @@ import { Repository } from 'typeorm';
 import { Session, SessionStatus } from './entities/session.entity';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
-import { Payment } from '../payments/entities/payment.entity';
-import { CreateSessionDto } from './dto/create-session.dto';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
+import { MailService } from '../mail/mail.service';
+import { CreateSessionDto, RecurrenceType } from './dto/create-session.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class SessionsService {
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
+    private mailService: MailService,
   ) {}
 
   async create(dto: CreateSessionDto, organizationId: string) {
@@ -23,30 +25,69 @@ export class SessionsService {
     });
     if (!group) throw new NotFoundException('Group not found');
 
-    const session = this.sessionsRepo.create({
-      groupId: dto.groupId,
-      date: dto.date,
-      targetAmount: group.targetPlayers * Number(group.feePerPlayer),
-    });
-    const saved = await this.sessionsRepo.save(session);
-
-    // Auto-generate pending payments for all group members
     const memberships = await this.membershipsRepo.find({
       where: { groupId: dto.groupId },
     });
 
-    if (memberships.length > 0) {
-      const payments = memberships.map((m) =>
-        this.paymentsRepo.create({
-          sessionId: saved.id,
-          playerId: m.playerId,
-          amount: Number(group.feePerPlayer),
-        }),
-      );
-      await this.paymentsRepo.save(payments);
+    const dates = this.generateDates(
+      dto.date,
+      dto.recurrenceType || RecurrenceType.NONE,
+      dto.recurrenceCount || 1,
+    );
+
+    let lastSession: Session | null = null;
+
+    for (const date of dates) {
+      const session = this.sessionsRepo.create({
+        groupId: dto.groupId,
+        date,
+        targetAmount: group.targetPlayers * Number(group.feePerPlayer),
+      });
+      const saved = await this.sessionsRepo.save(session);
+
+      if (memberships.length > 0) {
+        const payments = memberships.map((m) =>
+          this.paymentsRepo.create({
+            sessionId: saved.id,
+            playerId: m.playerId,
+            amount: Number(group.feePerPlayer),
+          }),
+        );
+        await this.paymentsRepo.save(payments);
+      }
+
+      lastSession = saved;
     }
 
-    return this.findOne(saved.id, organizationId);
+    // Return the first session (or the only one)
+    return this.findOne(dates.length > 1 ? lastSession!.id : lastSession!.id, organizationId);
+  }
+
+  private generateDates(startDate: string, recurrenceType: RecurrenceType, count: number): string[] {
+    if (recurrenceType === RecurrenceType.NONE || count <= 1) {
+      return [startDate];
+    }
+
+    const dates: string[] = [];
+    const start = new Date(startDate);
+
+    for (let i = 0; i < count; i++) {
+      const d = new Date(start);
+      switch (recurrenceType) {
+        case RecurrenceType.WEEKLY:
+          d.setDate(d.getDate() + i * 7);
+          break;
+        case RecurrenceType.BIWEEKLY:
+          d.setDate(d.getDate() + i * 14);
+          break;
+        case RecurrenceType.MONTHLY:
+          d.setMonth(d.getMonth() + i);
+          break;
+      }
+      dates.push(d.toISOString().split('T')[0]);
+    }
+
+    return dates;
   }
 
   async findAll(organizationId: string, groupId?: string) {
@@ -126,6 +167,32 @@ export class SessionsService {
       .innerJoin('session.group', 'group')
       .where('group.organizationId = :organizationId', { organizationId })
       .getCount();
+  }
+
+  countAll() {
+    return this.sessionsRepo.count();
+  }
+
+  async sendReminders(sessionId: string, organizationId: string) {
+    const session = await this.findOne(sessionId, organizationId);
+    const unpaidPayments = (session.payments || []).filter(
+      (p) => p.status === PaymentStatus.PENDING && p.player?.email,
+    );
+
+    let sent = 0;
+    for (const payment of unpaidPayments) {
+      if (!payment.player?.email) continue;
+      await this.mailService.sendPaymentReminder(
+        payment.player.email,
+        payment.player.firstName,
+        session.group?.name || 'your group',
+        payment.amount,
+        session.date,
+      );
+      sent++;
+    }
+
+    return { sent };
   }
 
   async totalCollectedByOrganization(organizationId: string): Promise<number> {
