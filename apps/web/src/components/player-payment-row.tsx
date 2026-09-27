@@ -1,6 +1,7 @@
 'use client';
 
 import { PaymentStatus } from '@pitchaside/shared';
+import { formatCurrency } from '@/lib/api';
 
 interface PlayerPaymentRowProps {
   playerName: string;
@@ -34,10 +35,10 @@ export function PlayerPaymentRow({ playerName, amount, status, onMarkPaid, loadi
       className={`flex items-center justify-between p-3 rounded-lg border ${
         canMarkPaid ? 'border-gray-200 bg-white cursor-pointer active:bg-gray-50' : 'border-gray-100 bg-gray-50'
       }`}
-      onClick={canMarkPaid ? onMarkPaid : undefined}
+      onClick={canMarkPaid && !loading ? onMarkPaid : undefined}
       role={canMarkPaid ? 'button' : undefined}
       tabIndex={canMarkPaid ? 0 : undefined}
-      onKeyDown={canMarkPaid ? (e) => { if (e.key === 'Enter') onMarkPaid(); } : undefined}
+      onKeyDown={canMarkPaid ? (e) => { if (e.key === 'Enter' && !loading) onMarkPaid(); } : undefined}
     >
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-full bg-pitch-100 text-pitch-700 flex items-center justify-center text-sm font-semibold">
@@ -45,23 +46,29 @@ export function PlayerPaymentRow({ playerName, amount, status, onMarkPaid, loadi
         </div>
         <div>
           <p className="text-sm font-medium text-gray-900">{playerName}</p>
-          <p className="text-xs text-gray-500">${amount.toFixed(2)}</p>
+          <p className="text-xs text-gray-500">{formatCurrency(amount)}</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.badge}`}>
-          {config.label}
-        </span>
-        {canMarkPaid && !loading && (
-          <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        )}
-        {loading && (
-          <svg className="w-4 h-4 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+        {loading ? (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-pitch-600">
+            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Marking...
+          </span>
+        ) : (
+          <>
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.badge}`}>
+              {config.label}
+            </span>
+            {canMarkPaid && (
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            )}
+          </>
         )}
       </div>
     </div>
