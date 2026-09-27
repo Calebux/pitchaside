@@ -1,4 +1,6 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+// In production, requests go through the Next.js rewrite proxy at /api
+// In development, NEXT_PUBLIC_API_URL can point directly at the backend
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 const TOKEN_KEY = 'pitchaside_token';
 
 function getToken(): string | null {
