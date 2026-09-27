@@ -4,15 +4,19 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { BackButton } from '@/components/back-button';
 import { PlayerPaymentRow } from '@/components/player-payment-row';
-import { getSession, markPaid, type ISessionWithDetails } from '@/lib/api';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useToast } from '@/components/toast';
+import { getSession, markPaid, deleteSession, type ISessionWithDetails } from '@/lib/api';
 import { PaymentStatus } from '@pitchaside/shared';
 
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const toast = useToast();
   const [session, setSession] = useState<ISessionWithDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -29,9 +33,22 @@ export default function SessionDetailPage() {
     try {
       await markPaid(paymentId);
       await fetchSession();
+      toast.success('Payment marked as paid');
     } catch {
+      toast.error('Failed to mark payment');
     } finally {
       setMarkingId(null);
+    }
+  }
+
+  async function handleDelete() {
+    setShowDeleteConfirm(false);
+    try {
+      await deleteSession(id);
+      toast.success('Session deleted');
+      router.push('/sessions');
+    } catch {
+      toast.error('Failed to delete session');
     }
   }
 
@@ -59,17 +76,35 @@ export default function SessionDetailPage() {
     <div className="p-4 max-w-lg mx-auto">
       <BackButton label="Sessions" />
 
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Session"
+        message="Are you sure you want to delete this session? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
       {/* Header */}
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-bold text-gray-900">Session</h1>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
-            session.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
-            session.status === 'completed' ? 'bg-green-100 text-green-700' :
-            'bg-gray-100 text-gray-500'
-          }`}>
-            {session.status}
-          </span>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Session</h1>
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
+              session.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
+              session.status === 'completed' ? 'bg-green-100 text-green-700' :
+              'bg-gray-100 text-gray-500'
+            }`}>
+              {session.status}
+            </span>
+          </div>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            Delete
+          </button>
         </div>
         <p className="text-sm text-gray-500">
           {new Date(session.date).toLocaleDateString('en-US', {

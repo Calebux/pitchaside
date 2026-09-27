@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BackButton } from '@/components/back-button';
 import { EmptyState } from '@/components/empty-state';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useToast } from '@/components/toast';
 import {
   getGroup,
   getSessions,
@@ -12,14 +14,17 @@ import {
   addMember,
   removeMember,
   createSession,
+  deleteGroup,
+  updateGroup,
   type IGroupWithMembers,
   type ISessionWithDetails,
 } from '@/lib/api';
-import type { IPlayer } from '@pitchaside/shared';
+import type { IPlayer, PaymentType } from '@pitchaside/shared';
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const toast = useToast();
   const [group, setGroup] = useState<IGroupWithMembers | null>(null);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
@@ -36,6 +41,26 @@ export default function GroupDetailPage() {
   const [sessionDate, setSessionDate] = useState('');
   const [creatingSess, setCreatingSess] = useState(false);
 
+  // Edit group state
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState({
+    name: '',
+    description: '',
+    schedule: '',
+    targetPlayers: 10,
+    feePerPlayer: 10,
+  });
+  const [saving, setSaving] = useState(false);
+
+  // Confirm dialog state
+  const [confirm, setConfirm] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    variant: 'danger' | 'default';
+    onConfirm: () => void;
+  } | null>(null);
+
   useEffect(() => {
     Promise.all([getGroup(id), getSessions(id), getPlayers()])
       .then(([g, s, p]) => {
@@ -47,6 +72,58 @@ export default function GroupDetailPage() {
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  function startEdit() {
+    if (!group) return;
+    setEditData({
+      name: group.name,
+      description: group.description || '',
+      schedule: group.schedule || '',
+      targetPlayers: group.targetPlayers,
+      feePerPlayer: group.feePerPlayer,
+    });
+    setEditing(true);
+  }
+
+  async function handleSaveEdit() {
+    setSaving(true);
+    try {
+      await updateGroup(id, {
+        name: editData.name,
+        description: editData.description || undefined,
+        schedule: editData.schedule || undefined,
+        targetPlayers: editData.targetPlayers,
+        feePerPlayer: editData.feePerPlayer,
+      });
+      const updated = await getGroup(id);
+      setGroup(updated);
+      setEditing(false);
+      toast.success('Group updated');
+    } catch {
+      toast.error('Failed to update group');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteGroup() {
+    setConfirm({
+      title: 'Delete Group',
+      message: `Are you sure you want to delete "${group?.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirm(null);
+        try {
+          await deleteGroup(id);
+          toast.success('Group deleted');
+          router.push('/groups');
+        } catch {
+          toast.error('Failed to delete group');
+        }
+      },
+    });
+  }
+
   async function handleAddMember() {
     if (!selectedPlayerId) return;
     setAddingMember(true);
@@ -56,18 +133,32 @@ export default function GroupDetailPage() {
       setGroup(updated);
       setShowAddMember(false);
       setSelectedPlayerId('');
+      toast.success('Member added');
     } catch {
+      toast.error('Failed to add member');
     } finally {
       setAddingMember(false);
     }
   }
 
-  async function handleRemoveMember(playerId: string) {
-    try {
-      await removeMember(id, playerId);
-      const updated = await getGroup(id);
-      setGroup(updated);
-    } catch {}
+  function handleRemoveMember(playerId: string, playerName: string) {
+    setConfirm({
+      title: 'Remove Member',
+      message: `Remove ${playerName} from this group?`,
+      confirmLabel: 'Remove',
+      variant: 'danger',
+      onConfirm: async () => {
+        setConfirm(null);
+        try {
+          await removeMember(id, playerId);
+          const updated = await getGroup(id);
+          setGroup(updated);
+          toast.success(`${playerName} removed`);
+        } catch {
+          toast.error('Failed to remove member');
+        }
+      },
+    });
   }
 
   async function handleCreateSession() {
@@ -75,8 +166,10 @@ export default function GroupDetailPage() {
     setCreatingSess(true);
     try {
       const session = await createSession({ groupId: id, date: sessionDate });
+      toast.success('Session created');
       router.push(`/sessions/${session.id}`);
     } catch {
+      toast.error('Failed to create session');
       setCreatingSess(false);
     }
   }
@@ -100,19 +193,113 @@ export default function GroupDetailPage() {
     <div className="p-4 max-w-lg mx-auto">
       <BackButton label="Groups" />
 
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.title ?? ''}
+        message={confirm?.message ?? ''}
+        confirmLabel={confirm?.confirmLabel}
+        variant={confirm?.variant}
+        onConfirm={confirm?.onConfirm ?? (() => {})}
+        onCancel={() => setConfirm(null)}
+      />
+
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
-        {group.description && (
-          <p className="text-sm text-gray-500 mt-1">{group.description}</p>
-        )}
-        <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
-          {group.schedule && <span>{group.schedule}</span>}
-          <span>${group.feePerPlayer}/player</span>
-          <span className="capitalize">{group.paymentType.replace('_', ' ')}</span>
-          <span>{group.memberships?.length || 0}/{group.targetPlayers} players</span>
+      {editing ? (
+        <div className="mb-6 bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Group Name</label>
+            <input
+              value={editData.name}
+              onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea
+              value={editData.description}
+              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+              rows={2}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 resize-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Schedule</label>
+            <input
+              value={editData.schedule}
+              onChange={(e) => setEditData({ ...editData, schedule: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Target Players</label>
+              <input
+                type="number"
+                min={1}
+                value={editData.targetPlayers}
+                onChange={(e) => setEditData({ ...editData, targetPlayers: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fee per Player</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={editData.feePerPlayer}
+                onChange={(e) => setEditData({ ...editData, feePerPlayer: Number(e.target.value) })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEditing(false)}
+              className="flex-1 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              disabled={saving || !editData.name.trim()}
+              className="flex-1 py-2 text-sm font-medium text-white bg-pitch-600 rounded-lg hover:bg-pitch-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="mb-6">
+          <div className="flex items-start justify-between">
+            <h1 className="text-2xl font-bold text-gray-900">{group.name}</h1>
+            <div className="flex gap-2">
+              <button
+                onClick={startEdit}
+                className="px-3 py-1.5 text-xs font-medium text-pitch-600 border border-pitch-200 rounded-lg hover:bg-pitch-50 transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={handleDeleteGroup}
+                className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+          {group.description && (
+            <p className="text-sm text-gray-500 mt-1">{group.description}</p>
+          )}
+          <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
+            {group.schedule && <span>{group.schedule}</span>}
+            <span>${group.feePerPlayer}/player</span>
+            <span className="capitalize">{group.paymentType.replace('_', ' ')}</span>
+            <span>{group.memberships?.length || 0}/{group.targetPlayers} players</span>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 mb-4">
@@ -203,7 +390,12 @@ export default function GroupDetailPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => handleRemoveMember(m.player.id)}
+                    onClick={() =>
+                      handleRemoveMember(
+                        m.player.id,
+                        `${m.player.firstName} ${m.player.lastName}`
+                      )
+                    }
                     className="text-xs text-red-500 hover:text-red-700 transition-colors"
                   >
                     Remove
