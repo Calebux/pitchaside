@@ -11,6 +11,8 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { MailModule } from './mail/mail.module';
+import { AuditModule } from './audit/audit.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { MailModule } from './mail/mail.module';
     SessionsModule,
     PaymentsModule,
     AdminModule,
+    AuditModule,
+    StatsModule,
   ],
 })
 export class AppModule {}

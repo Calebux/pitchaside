@@ -18,6 +18,7 @@ export default function AdminPage() {
   const [orgStats, setOrgStats] = useState<any>(null);
   const [platformStats, setPlatformStats] = useState<any>(null);
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Invite form state
@@ -35,6 +36,7 @@ export default function AdminPage() {
     const promises: Promise<void>[] = [
       http.get<any>('/admin/org/stats').then(setOrgStats),
       http.get<any[]>('/admin/org/members').then(setOrgMembers),
+      http.get<any>('/admin/org/audit-log?limit=10').then((res) => setAuditLogs(res.data || [])),
     ];
 
     if (isSuperAdmin) {
@@ -128,6 +130,38 @@ export default function AdminPage() {
                 minimumFractionDigits: 0,
               }).format(orgStats.totalCollected)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activity */}
+      {auditLogs.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Recent Activity</h2>
+          <div className="space-y-2">
+            {auditLogs.map((log: any) => (
+              <div
+                key={log.id}
+                className="bg-white rounded-lg p-3 border border-gray-100 text-sm"
+              >
+                <div className="flex justify-between items-start">
+                  <p className="text-gray-900 font-medium capitalize">
+                    {log.action.replace(/_/g, ' ')}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {new Date(log.createdAt).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {log.entityType} &middot; {log.entityId?.slice(0, 8)}...
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       )}

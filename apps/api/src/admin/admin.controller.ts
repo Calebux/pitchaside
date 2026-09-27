@@ -7,6 +7,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { UserRole, User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
+import { AuditService } from '../audit/audit.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import * as bcrypt from 'bcrypt';
 
@@ -17,6 +18,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly usersService: UsersService,
     private readonly mailService: MailService,
+    private readonly auditService: AuditService,
   ) {}
 
   // ── Super Admin endpoints ──
@@ -85,5 +87,11 @@ export class AdminController {
     );
 
     return newUser;
+  }
+
+  @Get('org/audit-log')
+  @Roles(UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
+  getAuditLog(@CurrentUser() user: User, @Query() query: PaginationDto) {
+    return this.auditService.findByOrganization(user.organizationId, query);
   }
 }
