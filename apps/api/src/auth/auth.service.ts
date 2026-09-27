@@ -6,6 +6,17 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import {
+  generateSecret,
+  generateURI,
+  verifySync,
+  NobleCryptoPlugin,
+  ScureBase32Plugin,
+} from 'otplib';
+import * as QRCode from 'qrcode';
+
+const otpCrypto = new NobleCryptoPlugin();
+const otpBase32 = new ScureBase32Plugin();
 import { UsersService } from '../users/users.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MailService } from '../mail/mail.service';
@@ -53,6 +64,10 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
+    if (user.twoFactorEnabled) {
+      return { requires2FA: true, userId: user.id };
+    }
+
     const token = this.jwtService.sign({ sub: user.id });
 
     return {
@@ -80,6 +95,81 @@ export class AuthService {
     return { message: 'If that email exists, a reset link has been sent.' };
   }
 
+  async updateProfile(userId: string, data: { firstName: string; lastName: string }) {
+    const user = await this.usersService.updateProfile(userId, data);
+    if (!user) throw new UnauthorizedException('User not found');
+    return this.sanitizeUser(user, user.organization);
+  }
+
+  async setup2FA(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const secret = generateSecret({ crypto: otpCrypto, base32: otpBase32 });
+    await this.usersService.update2FASecret(userId, secret);
+
+    const otpauthUrl = generateURI({ label: user.email, issuer: 'PitchAside', secret });
+    const qrCodeUrl = await QRCode.toDataURL(otpauthUrl);
+
+    return { qrCodeUrl, secret };
+  }
+
+  async verify2FA(userId: string, code: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.twoFactorSecret) {
+      throw new BadRequestException('2FA not set up');
+    }
+
+    const result = verifySync({ token: code, secret: user.twoFactorSecret, crypto: otpCrypto, base32: otpBase32 });
+    if (!result.valid) throw new BadRequestException('Invalid code');
+
+    await this.usersService.enable2FA(userId);
+    return { message: '2FA enabled successfully' };
+  }
+
+  async disable2FA(userId: string, code: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.twoFactorSecret) {
+      throw new BadRequestException('2FA not enabled');
+    }
+
+    const result = verifySync({ token: code, secret: user.twoFactorSecret, crypto: otpCrypto, base32: otpBase32 });
+    if (!result.valid) throw new BadRequestException('Invalid code');
+
+    await this.usersService.disable2FA(userId);
+    return { message: '2FA disabled successfully' };
+  }
+
+  async validate2FALogin(userId: string, code: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.twoFactorSecret) {
+      throw new UnauthorizedException('Invalid request');
+    }
+
+    const result = verifySync({ token: code, secret: user.twoFactorSecret, crypto: otpCrypto, base32: otpBase32 });
+    if (!result.valid) throw new UnauthorizedException('Invalid 2FA code');
+
+    const token = this.jwtService.sign({ sub: user.id });
+
+    return {
+      accessToken: token,
+      user: this.sanitizeUser(user, user.organization),
+    };
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new UnauthorizedException('Current password is incorrect');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.usersService.updatePassword(userId, passwordHash);
+
+    return { message: 'Password changed successfully.' };
+  }
+
   async resetPassword(token: string, newPassword: string) {
     const reset = await this.usersService.findValidResetToken(token);
     if (!reset) throw new BadRequestException('Invalid or expired reset token');
@@ -102,6 +192,7 @@ export class AuthService {
       organization: organization
         ? { id: organization.id, name: organization.name, createdAt: organization.createdAt }
         : undefined,
+      twoFactorEnabled: user.twoFactorEnabled || false,
       createdAt: user.createdAt,
     };
   }

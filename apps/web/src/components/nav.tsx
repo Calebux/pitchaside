@@ -130,6 +130,16 @@ export function Nav() {
                 <p className="text-xs text-gray-500 truncate">{user.organization?.name}</p>
               </div>
             </div>
+            <Link
+              href="/settings"
+              className={`block w-full mt-1 px-3 py-2 text-sm rounded-lg text-left transition-colors ${
+                pathname.startsWith('/settings')
+                  ? 'text-pitch-700 bg-pitch-50'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              Settings
+            </Link>
             <button
               onClick={logout}
               className="w-full mt-1 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg text-left transition-colors"

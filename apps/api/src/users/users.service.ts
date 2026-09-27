@@ -75,8 +75,28 @@ export class UsersService {
     return this.usersRepo.count({ where: { organizationId } });
   }
 
+  async updateProfile(userId: string, data: { firstName: string; lastName: string }) {
+    await this.usersRepo.update(userId, data);
+    return this.findById(userId);
+  }
+
   async updatePassword(userId: string, passwordHash: string) {
     await this.usersRepo.update(userId, { passwordHash });
+  }
+
+  async update2FASecret(userId: string, secret: string | null) {
+    await this.usersRepo.update(userId, { twoFactorSecret: secret });
+  }
+
+  async enable2FA(userId: string) {
+    await this.usersRepo.update(userId, { twoFactorEnabled: true });
+  }
+
+  async disable2FA(userId: string) {
+    await this.usersRepo.update(userId, {
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+    });
   }
 
   // ── Password Reset Tokens ──
