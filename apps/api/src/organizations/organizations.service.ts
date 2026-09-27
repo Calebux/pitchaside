@@ -10,8 +10,8 @@ export class OrganizationsService {
     @InjectRepository(Organization) private orgsRepo: Repository<Organization>,
   ) {}
 
-  create(name: string) {
-    const org = this.orgsRepo.create({ name });
+  create(name: string, country?: string, state?: string) {
+    const org = this.orgsRepo.create({ name, country, state });
     return this.orgsRepo.save(org);
   }
 

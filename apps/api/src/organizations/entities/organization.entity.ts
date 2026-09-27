@@ -18,6 +18,12 @@ export class Organization {
   @Column()
   name: string;
 
+  @Column({ nullable: true })
+  country: string;
+
+  @Column({ nullable: true })
+  state: string;
+
   @OneToMany(() => User, (user) => user.organization)
   users: User[];
 

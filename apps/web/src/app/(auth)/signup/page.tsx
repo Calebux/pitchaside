@@ -16,10 +16,12 @@ export default function SignUpPage() {
     lastName: '',
     email: '',
     password: '',
+    country: '',
+    state: '',
   });
   const [submitting, setSubmitting] = useState(false);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
@@ -33,6 +35,8 @@ export default function SignUpPage() {
         lastName: form.lastName,
         email: form.email,
         password: form.password,
+        country: form.country || undefined,
+        state: form.state || undefined,
       });
       router.push('/dashboard');
     } catch (err: any) {
@@ -67,6 +71,37 @@ export default function SignUpPage() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
             placeholder="e.g. Sunday League FC"
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
+              Country
+            </label>
+            <input
+              id="country"
+              name="country"
+              type="text"
+              value={form.country}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              placeholder="e.g. Nigeria"
+            />
+          </div>
+          <div>
+            <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
+              State
+            </label>
+            <input
+              id="state"
+              name="state"
+              type="text"
+              value={form.state}
+              onChange={handleChange}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              placeholder="e.g. Lagos"
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

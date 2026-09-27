@@ -37,7 +37,7 @@ export class AuthService {
     const existing = await this.usersService.findByEmail(dto.email);
     if (existing) throw new ConflictException('Email already registered');
 
-    const organization = await this.orgsService.create(dto.organizationName);
+    const organization = await this.orgsService.create(dto.organizationName, dto.country, dto.state);
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const user = await this.usersService.create({

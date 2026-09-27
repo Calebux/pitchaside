@@ -22,6 +22,8 @@ interface AuthContextValue {
     lastName: string;
     email: string;
     password: string;
+    country?: string;
+    state?: string;
   }) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
@@ -72,6 +74,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       lastName: string;
       email: string;
       password: string;
+      country?: string;
+      state?: string;
     }) => {
       const res = await http.post<IAuthResponse>('/auth/register', data);
       setToken(res.accessToken);
