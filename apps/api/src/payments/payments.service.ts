@@ -73,6 +73,54 @@ export class PaymentsService {
       .getMany();
   }
 
+  async waive(id: string, organizationId: string, waivedBy?: string) {
+    const payment = await this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoin('payment.session', 'session')
+      .innerJoin('session.group', 'group')
+      .where('payment.id = :id', { id })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getOne();
+    if (!payment) throw new NotFoundException('Payment not found');
+
+    payment.status = PaymentStatus.WAIVED;
+    if (waivedBy) payment.markedBy = waivedBy;
+    const saved = await this.paymentsRepo.save(payment);
+
+    await this.recalculateSessionTotal(payment.sessionId);
+    return saved;
+  }
+
+  async bulkMarkAsPaid(paymentIds: string[], organizationId: string, markedBy?: string) {
+    const payments: Payment[] = [];
+    const sessionIds = new Set<string>();
+
+    for (const id of paymentIds) {
+      const payment = await this.paymentsRepo
+        .createQueryBuilder('payment')
+        .innerJoin('payment.session', 'session')
+        .innerJoin('session.group', 'group')
+        .where('payment.id = :id', { id })
+        .andWhere('group.organizationId = :organizationId', { organizationId })
+        .getOne();
+      if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+
+      payment.status = PaymentStatus.PAID;
+      payment.paidAt = new Date();
+      if (markedBy) payment.markedBy = markedBy;
+      payments.push(payment);
+      sessionIds.add(payment.sessionId);
+    }
+
+    const saved = await this.paymentsRepo.save(payments);
+
+    for (const sessionId of sessionIds) {
+      await this.recalculateSessionTotal(sessionId);
+    }
+
+    return saved;
+  }
+
   private async recalculateSessionTotal(sessionId: string) {
     const payments = await this.paymentsRepo.find({
       where: { sessionId, status: PaymentStatus.PAID },

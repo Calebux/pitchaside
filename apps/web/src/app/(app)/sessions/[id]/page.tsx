@@ -7,7 +7,7 @@ import { PlayerPaymentRow } from '@/components/player-payment-row';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmptyState } from '@/components/empty-state';
 import { useToast } from '@/components/toast';
-import { getSession, markPaid, deleteSession, updateSessionStatus, formatCurrency, type ISessionWithDetails } from '@/lib/api';
+import { getSession, markPaid, waivePayment, bulkMarkPaid, deleteSession, updateSessionStatus, exportSessionPaymentsCsv, sendReminders, formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
 
 export default function SessionDetailPage() {
@@ -19,6 +19,9 @@ export default function SessionDetailPage() {
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMarking, setBulkMarking] = useState(false);
+  const [sendingReminders, setSendingReminders] = useState(false);
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -41,6 +44,43 @@ export default function SessionDetailPage() {
     } finally {
       setMarkingId(null);
     }
+  }
+
+  async function handleWaive(paymentId: string) {
+    setMarkingId(paymentId);
+    try {
+      await waivePayment(paymentId);
+      await fetchSession();
+      toast.success('Payment waived');
+    } catch {
+      toast.error('Failed to waive payment');
+    } finally {
+      setMarkingId(null);
+    }
+  }
+
+  async function handleBulkMarkPaid() {
+    if (selectedIds.size === 0) return;
+    setBulkMarking(true);
+    try {
+      await bulkMarkPaid(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      await fetchSession();
+      toast.success(`${selectedIds.size} payment(s) marked as paid`);
+    } catch {
+      toast.error('Failed to mark payments');
+    } finally {
+      setBulkMarking(false);
+    }
+  }
+
+  function handleToggle(paymentId: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(paymentId)) next.delete(paymentId);
+      else next.add(paymentId);
+      return next;
+    });
   }
 
   async function handleDelete() {
@@ -83,6 +123,7 @@ export default function SessionDetailPage() {
 
   const payments = session.payments || [];
   const paidCount = payments.filter((p) => p.status === PaymentStatus.PAID).length;
+  const pendingPayments = payments.filter((p) => p.status === PaymentStatus.PENDING);
   const progress = session.targetAmount > 0
     ? Math.round((session.collectedAmount / session.targetAmount) * 100)
     : 0;
@@ -115,12 +156,37 @@ export default function SessionDetailPage() {
               {session.status}
             </span>
           </div>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-          >
-            Delete
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportSessionPaymentsCsv(id).catch(() => toast.error('Export failed'))}
+              className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Export
+            </button>
+            <button
+              onClick={async () => {
+                setSendingReminders(true);
+                try {
+                  const result = await sendReminders(id);
+                  toast.success(`Reminders sent to ${result.sent} player(s)`);
+                } catch {
+                  toast.error('Failed to send reminders');
+                } finally {
+                  setSendingReminders(false);
+                }
+              }}
+              disabled={sendingReminders}
+              className="px-3 py-1.5 text-xs font-medium text-pitch-600 border border-pitch-200 rounded-lg hover:bg-pitch-50 disabled:opacity-50 transition-colors"
+            >
+              {sendingReminders ? 'Sending...' : 'Send Reminders'}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              Delete
+            </button>
+          </div>
         </div>
         <p className="text-sm text-gray-500">
           {new Date(session.date).toLocaleDateString('en-US', {
@@ -184,7 +250,29 @@ export default function SessionDetailPage() {
       </div>
 
       {/* Payment tracker */}
-      <h2 className="text-sm font-semibold text-gray-900 mb-3">Payment Tracker</h2>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-gray-900">Payment Tracker</h2>
+        {pendingPayments.length > 0 && (
+          <button
+            onClick={() => {
+              if (selectedIds.size > 0) {
+                handleBulkMarkPaid();
+              } else {
+                // Select all pending
+                setSelectedIds(new Set(pendingPayments.map((p) => p.id)));
+              }
+            }}
+            disabled={bulkMarking}
+            className="px-3 py-1.5 text-xs font-medium text-pitch-600 border border-pitch-200 rounded-lg hover:bg-pitch-50 disabled:opacity-50 transition-colors"
+          >
+            {bulkMarking
+              ? 'Marking...'
+              : selectedIds.size > 0
+                ? `Mark ${selectedIds.size} Paid`
+                : 'Mark All Paid'}
+          </button>
+        )}
+      </div>
       {payments.length === 0 ? (
         <EmptyState
           icon="receipt"
@@ -204,7 +292,10 @@ export default function SessionDetailPage() {
               amount={payment.amount}
               status={payment.status}
               onMarkPaid={() => handleMarkPaid(payment.id)}
+              onWaive={() => handleWaive(payment.id)}
               loading={markingId === payment.id}
+              selected={selectedIds.has(payment.id)}
+              onToggle={() => handleToggle(payment.id)}
             />
           ))}
         </div>

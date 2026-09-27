@@ -8,7 +8,10 @@ interface PlayerPaymentRowProps {
   amount: number;
   status: PaymentStatus;
   onMarkPaid: () => void;
+  onWaive?: () => void;
   loading?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
 }
 
 const statusConfig = {
@@ -26,21 +29,34 @@ const statusConfig = {
   },
 };
 
-export function PlayerPaymentRow({ playerName, amount, status, onMarkPaid, loading }: PlayerPaymentRowProps) {
+export function PlayerPaymentRow({
+  playerName,
+  amount,
+  status,
+  onMarkPaid,
+  onWaive,
+  loading,
+  selected,
+  onToggle,
+}: PlayerPaymentRowProps) {
   const config = statusConfig[status];
-  const canMarkPaid = status === PaymentStatus.PENDING;
+  const canAct = status === PaymentStatus.PENDING;
 
   return (
     <div
       className={`flex items-center justify-between p-3 rounded-lg border ${
-        canMarkPaid ? 'border-gray-200 bg-white cursor-pointer active:bg-gray-50' : 'border-gray-100 bg-gray-50'
+        canAct ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50'
       }`}
-      onClick={canMarkPaid && !loading ? onMarkPaid : undefined}
-      role={canMarkPaid ? 'button' : undefined}
-      tabIndex={canMarkPaid ? 0 : undefined}
-      onKeyDown={canMarkPaid ? (e) => { if (e.key === 'Enter' && !loading) onMarkPaid(); } : undefined}
     >
       <div className="flex items-center gap-3">
+        {onToggle !== undefined && canAct && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            className="w-4 h-4 rounded border-gray-300 text-pitch-600 focus:ring-pitch-500"
+          />
+        )}
         <div className="w-8 h-8 rounded-full bg-pitch-100 text-pitch-700 flex items-center justify-center text-sm font-semibold">
           {playerName.charAt(0)}
         </div>
@@ -56,19 +72,29 @@ export function PlayerPaymentRow({ playerName, amount, status, onMarkPaid, loadi
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Marking...
+            Updating...
           </span>
-        ) : (
-          <>
-            <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.badge}`}>
-              {config.label}
-            </span>
-            {canMarkPaid && (
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-              </svg>
+        ) : canAct ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={onMarkPaid}
+              className="px-2.5 py-1 text-xs font-medium text-green-700 bg-green-50 rounded-md hover:bg-green-100 transition-colors"
+            >
+              Paid
+            </button>
+            {onWaive && (
+              <button
+                onClick={onWaive}
+                className="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
+              >
+                Waive
+              </button>
             )}
-          </>
+          </div>
+        ) : (
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${config.badge}`}>
+            {config.label}
+          </span>
         )}
       </div>
     </div>
