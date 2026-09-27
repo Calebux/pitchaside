@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
-import { getPlayersPaginated, deletePlayer, exportPlayersCsv, type PaginatedResponse } from '@/lib/api';
+import { getPlayersPaginated, deletePlayer, exportPlayersCsv, getInviteCode, regenerateInviteCode, type PaginatedResponse } from '@/lib/api';
 import type { IPlayer } from '@pitchaside/shared';
 
 export default function PlayersPage() {
@@ -18,6 +18,10 @@ export default function PlayersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<IPlayer | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
 
   function fetchPlayers(p = page, s = debouncedSearch) {
@@ -64,6 +68,46 @@ export default function PlayersPage() {
     }
   }
 
+  async function handleGetInviteLink() {
+    setInviteLoading(true);
+    try {
+      const res = await getInviteCode();
+      setInviteLink(res.link);
+    } catch {
+      toast.error('Failed to get invite link');
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  async function handleRegenerate() {
+    setShowRegenConfirm(false);
+    setInviteLoading(true);
+    try {
+      const res = await regenerateInviteCode();
+      setInviteLink(res.link);
+      toast.success('Invite link regenerated');
+    } catch {
+      toast.error('Failed to regenerate link');
+    } finally {
+      setInviteLoading(false);
+    }
+  }
+
+  function handleCopy() {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleShareWhatsApp() {
+    if (!inviteLink) return;
+    const text = encodeURIComponent(`Join our team on PitchAside! Register here: ${inviteLink}`);
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  }
+
   if (loading && players.length === 0) {
     return (
       <div className="p-4 max-w-lg mx-auto">
@@ -89,6 +133,16 @@ export default function PlayersPage() {
         onCancel={() => setDeleteTarget(null)}
       />
 
+      <ConfirmDialog
+        open={showRegenConfirm}
+        title="Regenerate Invite Link"
+        message="This will invalidate the current invite link. Anyone with the old link will no longer be able to join. Continue?"
+        confirmLabel="Regenerate"
+        variant="danger"
+        onConfirm={handleRegenerate}
+        onCancel={() => setShowRegenConfirm(false)}
+      />
+
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Players</h1>
         <div className="flex items-center gap-2">
@@ -107,6 +161,53 @@ export default function PlayersPage() {
             + New
           </Link>
         </div>
+      </div>
+
+      {/* Invite Players Section */}
+      <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-sm font-semibold text-gray-900">Invite Players</h2>
+          {inviteLink && (
+            <button
+              onClick={() => setShowRegenConfirm(true)}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Regenerate
+            </button>
+          )}
+        </div>
+        {!inviteLink ? (
+          <button
+            onClick={handleGetInviteLink}
+            disabled={inviteLoading}
+            className="w-full py-2 text-sm font-medium text-pitch-600 border border-pitch-200 rounded-lg hover:bg-pitch-50 transition-colors disabled:opacity-50"
+          >
+            {inviteLoading ? 'Generating...' : 'Get invite link'}
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <input
+              type="text"
+              readOnly
+              value={inviteLink}
+              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600 truncate"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopy}
+                className="flex-1 py-2 text-sm font-medium text-white bg-pitch-600 rounded-lg hover:bg-pitch-700 transition-colors"
+              >
+                {copied ? 'Copied!' : 'Copy Link'}
+              </button>
+              <button
+                onClick={handleShareWhatsApp}
+                className="flex-1 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+              >
+                Share on WhatsApp
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <input
