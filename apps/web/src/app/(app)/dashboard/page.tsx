@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { StatCard } from '@/components/stat-card';
 import { EmptyState } from '@/components/empty-state';
-import { getGroups, getSessions, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
+import { getGroups, getSessions, formatCurrency, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
 import { SessionStatus } from '@pitchaside/shared';
 
 export default function Dashboard() {
@@ -75,6 +75,7 @@ export default function Dashboard() {
       <h2 className="text-sm font-semibold text-gray-900 mb-3">Upcoming Sessions</h2>
       {upcomingSessions.length === 0 ? (
         <EmptyState
+          icon="calendar"
           title="No upcoming sessions"
           description="Create a session from a group page to get started."
         />
@@ -106,7 +107,7 @@ export default function Dashboard() {
                     </p>
                   </div>
                   <span className="text-xs font-medium text-pitch-600">
-                    ${session.collectedAmount} / ${session.targetAmount}
+                    {formatCurrency(session.collectedAmount)} / {formatCurrency(session.targetAmount)}
                   </span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
