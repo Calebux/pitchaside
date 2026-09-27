@@ -3,21 +3,31 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/toast';
 
 export default function SignInPage() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    email: '',
-    password: '',
-  });
+  const { login } = useAuth();
+  const toast = useToast();
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    router.push('/dashboard');
+    setSubmitting(true);
+    try {
+      await login(form.email, form.password);
+      router.push('/dashboard');
+    } catch (err: any) {
+      toast.error(err.message || 'Sign in failed');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -39,6 +49,7 @@ export default function SignInPage() {
             id="email"
             name="email"
             type="email"
+            required
             value={form.email}
             onChange={handleChange}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
@@ -54,6 +65,7 @@ export default function SignInPage() {
             id="password"
             name="password"
             type="password"
+            required
             value={form.password}
             onChange={handleChange}
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
@@ -62,9 +74,10 @@ export default function SignInPage() {
 
         <button
           type="submit"
-          className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
+          disabled={submitting}
+          className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
         >
-          Sign In
+          {submitting ? 'Signing in...' : 'Sign In'}
         </button>
       </form>
 
