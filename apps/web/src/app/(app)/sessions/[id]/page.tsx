@@ -5,9 +5,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { BackButton } from '@/components/back-button';
 import { PlayerPaymentRow } from '@/components/player-payment-row';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { EmptyState } from '@/components/empty-state';
 import { useToast } from '@/components/toast';
-import { getSession, markPaid, deleteSession, type ISessionWithDetails } from '@/lib/api';
-import { PaymentStatus } from '@pitchaside/shared';
+import { getSession, markPaid, deleteSession, updateSessionStatus, formatCurrency, type ISessionWithDetails } from '@/lib/api';
+import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
 
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ export default function SessionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [markingId, setMarkingId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -49,6 +51,19 @@ export default function SessionDetailPage() {
       router.push('/sessions');
     } catch {
       toast.error('Failed to delete session');
+    }
+  }
+
+  async function handleStatusChange(status: 'upcoming' | 'completed' | 'cancelled') {
+    setUpdatingStatus(true);
+    try {
+      await updateSessionStatus(id, status);
+      await fetchSession();
+      toast.success(`Session marked as ${status}`);
+    } catch {
+      toast.error('Failed to update status');
+    } finally {
+      setUpdatingStatus(false);
     }
   }
 
@@ -94,6 +109,7 @@ export default function SessionDetailPage() {
             <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
               session.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
               session.status === 'completed' ? 'bg-green-100 text-green-700' :
+              session.status === 'cancelled' ? 'bg-red-100 text-red-600' :
               'bg-gray-100 text-gray-500'
             }`}>
               {session.status}
@@ -114,6 +130,37 @@ export default function SessionDetailPage() {
             year: 'numeric',
           })}
         </p>
+
+        {/* Status workflow buttons */}
+        <div className="flex gap-2 mt-3">
+          {session.status !== SessionStatus.COMPLETED && (
+            <button
+              onClick={() => handleStatusChange('completed')}
+              disabled={updatingStatus}
+              className="px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50 disabled:opacity-50 transition-colors"
+            >
+              {updatingStatus ? 'Updating...' : 'Mark Completed'}
+            </button>
+          )}
+          {session.status !== SessionStatus.CANCELLED && (
+            <button
+              onClick={() => handleStatusChange('cancelled')}
+              disabled={updatingStatus}
+              className="px-3 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {updatingStatus ? 'Updating...' : 'Cancel Session'}
+            </button>
+          )}
+          {session.status !== SessionStatus.UPCOMING && (
+            <button
+              onClick={() => handleStatusChange('upcoming')}
+              disabled={updatingStatus}
+              className="px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50 transition-colors"
+            >
+              {updatingStatus ? 'Updating...' : 'Reopen'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Progress summary */}
@@ -122,8 +169,8 @@ export default function SessionDetailPage() {
           <div>
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Collected</p>
             <p className="text-xl font-bold text-gray-900">
-              ${session.collectedAmount}
-              <span className="text-sm font-normal text-gray-400"> / ${session.targetAmount}</span>
+              {formatCurrency(session.collectedAmount)}
+              <span className="text-sm font-normal text-gray-400"> / {formatCurrency(session.targetAmount)}</span>
             </p>
           </div>
           <p className="text-sm font-medium text-pitch-600">{paidCount}/{payments.length} paid</p>
@@ -139,7 +186,11 @@ export default function SessionDetailPage() {
       {/* Payment tracker */}
       <h2 className="text-sm font-semibold text-gray-900 mb-3">Payment Tracker</h2>
       {payments.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-8">No payments for this session.</p>
+        <EmptyState
+          icon="receipt"
+          title="No payments yet"
+          description="Payments are auto-generated when a session is created from a group with members."
+        />
       ) : (
         <div className="space-y-2">
           {payments.map((payment) => (
