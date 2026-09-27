@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { GroupMembership } from './group-membership.entity';
+import { Organization } from '../../organizations/entities/organization.entity';
 
 export enum PaymentType {
   PER_SESSION = 'per_session',
@@ -35,6 +38,13 @@ export class Group {
 
   @Column({ type: 'enum', enum: PaymentType, default: PaymentType.PER_SESSION })
   paymentType: PaymentType;
+
+  @ManyToOne(() => Organization, (org) => org.groups, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organization_id' })
+  organization: Organization;
+
+  @Column({ name: 'organization_id' })
+  organizationId: string;
 
   @OneToMany(() => GroupMembership, (membership) => membership.group)
   memberships: GroupMembership[];

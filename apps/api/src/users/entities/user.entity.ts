@@ -4,16 +4,19 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { GroupMembership } from '../../groups/entities/group-membership.entity';
-import { Payment } from '../../payments/entities/payment.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 
-@Entity('players')
-export class Player {
+export enum UserRole {
+  SUPER_ADMIN = 'super_admin',
+  ORG_ADMIN = 'org_admin',
+  MEMBER = 'member',
+}
+
+@Entity('users')
+export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -24,23 +27,20 @@ export class Player {
   lastName: string;
 
   @Column({ unique: true })
-  phone: string;
-
-  @Column({ nullable: true, unique: true })
   email: string;
 
-  @ManyToOne(() => Organization, (org) => org.players, { onDelete: 'CASCADE' })
+  @Column()
+  passwordHash: string;
+
+  @Column({ type: 'enum', enum: UserRole, default: UserRole.MEMBER })
+  role: UserRole;
+
+  @ManyToOne(() => Organization, (org) => org.users, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;
 
   @Column({ name: 'organization_id' })
   organizationId: string;
-
-  @OneToMany(() => GroupMembership, (membership) => membership.player)
-  memberships: GroupMembership[];
-
-  @OneToMany(() => Payment, (payment) => payment.player)
-  payments: Payment[];
 
   @CreateDateColumn()
   createdAt: Date;
