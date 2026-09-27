@@ -5,6 +5,10 @@ import { GroupsModule } from './groups/groups.module';
 import { PlayersModule } from './players/players.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { PaymentsModule } from './payments/payments.module';
+import { OrganizationsModule } from './organizations/organizations.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -23,10 +27,14 @@ import { PaymentsModule } from './payments/payments.module';
         synchronize: true, // disable in production
       }),
     }),
+    OrganizationsModule,
+    UsersModule,
+    AuthModule,
     GroupsModule,
     PlayersModule,
     SessionsModule,
     PaymentsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
