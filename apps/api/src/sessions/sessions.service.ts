@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Session } from './entities/session.entity';
+import { Session, SessionStatus } from './entities/session.entity';
 import { Group } from '../groups/entities/group.entity';
 import { CreateSessionDto } from './dto/create-session.dto';
 
@@ -12,8 +12,10 @@ export class SessionsService {
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
   ) {}
 
-  async create(dto: CreateSessionDto) {
-    const group = await this.groupsRepo.findOne({ where: { id: dto.groupId } });
+  async create(dto: CreateSessionDto, organizationId: string) {
+    const group = await this.groupsRepo.findOne({
+      where: { id: dto.groupId, organizationId },
+    });
     if (!group) throw new NotFoundException('Group not found');
 
     const session = this.sessionsRepo.create({
@@ -24,26 +26,62 @@ export class SessionsService {
     return this.sessionsRepo.save(session);
   }
 
-  findAll(groupId?: string) {
-    const where = groupId ? { groupId } : {};
-    return this.sessionsRepo.find({
-      where,
-      relations: ['payments', 'payments.player'],
-      order: { date: 'DESC' },
-    });
+  async findAll(organizationId: string, groupId?: string) {
+    const qb = this.sessionsRepo
+      .createQueryBuilder('session')
+      .innerJoinAndSelect('session.group', 'group')
+      .leftJoinAndSelect('session.payments', 'payment')
+      .leftJoinAndSelect('payment.player', 'player')
+      .where('group.organizationId = :organizationId', { organizationId })
+      .orderBy('session.date', 'DESC');
+
+    if (groupId) {
+      qb.andWhere('session.groupId = :groupId', { groupId });
+    }
+
+    return qb.getMany();
   }
 
-  async findOne(id: string) {
-    const session = await this.sessionsRepo.findOne({
-      where: { id },
-      relations: ['group', 'payments', 'payments.player'],
-    });
+  async findOne(id: string, organizationId: string) {
+    const session = await this.sessionsRepo
+      .createQueryBuilder('session')
+      .innerJoinAndSelect('session.group', 'group')
+      .leftJoinAndSelect('session.payments', 'payment')
+      .leftJoinAndSelect('payment.player', 'player')
+      .where('session.id = :id', { id })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getOne();
+
     if (!session) throw new NotFoundException('Session not found');
     return session;
   }
 
-  async remove(id: string) {
-    const result = await this.sessionsRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException('Session not found');
+  async updateStatus(id: string, status: string, organizationId: string) {
+    const session = await this.findOne(id, organizationId);
+    session.status = status as SessionStatus;
+    return this.sessionsRepo.save(session);
+  }
+
+  async remove(id: string, organizationId: string) {
+    const session = await this.findOne(id, organizationId);
+    await this.sessionsRepo.remove(session);
+  }
+
+  async countByOrganization(organizationId: string) {
+    return this.sessionsRepo
+      .createQueryBuilder('session')
+      .innerJoin('session.group', 'group')
+      .where('group.organizationId = :organizationId', { organizationId })
+      .getCount();
+  }
+
+  async totalCollectedByOrganization(organizationId: string): Promise<number> {
+    const result = await this.sessionsRepo
+      .createQueryBuilder('session')
+      .innerJoin('session.group', 'group')
+      .select('COALESCE(SUM(session.collectedAmount), 0)', 'total')
+      .where('group.organizationId = :organizationId', { organizationId })
+      .getRawOne();
+    return Number(result.total);
   }
 }

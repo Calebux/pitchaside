@@ -12,7 +12,16 @@ export class PaymentsService {
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
   ) {}
 
-  async create(dto: CreatePaymentDto) {
+  async create(dto: CreatePaymentDto, organizationId: string) {
+    // Verify session belongs to org
+    const session = await this.sessionsRepo
+      .createQueryBuilder('session')
+      .innerJoin('session.group', 'group')
+      .where('session.id = :id', { id: dto.sessionId })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getOne();
+    if (!session) throw new NotFoundException('Session not found');
+
     const payment = this.paymentsRepo.create(dto);
     if (dto.status === PaymentStatus.PAID) {
       payment.paidAt = new Date();
@@ -23,8 +32,14 @@ export class PaymentsService {
     return saved;
   }
 
-  async markAsPaid(id: string, markedBy?: string) {
-    const payment = await this.paymentsRepo.findOne({ where: { id } });
+  async markAsPaid(id: string, organizationId: string, markedBy?: string) {
+    const payment = await this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoin('payment.session', 'session')
+      .innerJoin('session.group', 'group')
+      .where('payment.id = :id', { id })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getOne();
     if (!payment) throw new NotFoundException('Payment not found');
 
     payment.status = PaymentStatus.PAID;
@@ -36,19 +51,26 @@ export class PaymentsService {
     return saved;
   }
 
-  findBySession(sessionId: string) {
-    return this.paymentsRepo.find({
-      where: { sessionId },
-      relations: ['player'],
-    });
+  async findBySession(sessionId: string, organizationId: string) {
+    return this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoin('payment.session', 'session')
+      .innerJoin('session.group', 'group')
+      .leftJoinAndSelect('payment.player', 'player')
+      .where('payment.sessionId = :sessionId', { sessionId })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getMany();
   }
 
-  findByPlayer(playerId: string) {
-    return this.paymentsRepo.find({
-      where: { playerId },
-      relations: ['session', 'session.group'],
-      order: { createdAt: 'DESC' },
-    });
+  async findByPlayer(playerId: string, organizationId: string) {
+    return this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoinAndSelect('payment.session', 'session')
+      .innerJoinAndSelect('session.group', 'group')
+      .where('payment.playerId = :playerId', { playerId })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .orderBy('payment.createdAt', 'DESC')
+      .getMany();
   }
 
   private async recalculateSessionTotal(sessionId: string) {

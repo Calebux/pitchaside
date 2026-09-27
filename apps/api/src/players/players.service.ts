@@ -10,26 +10,36 @@ export class PlayersService {
     @InjectRepository(Player) private playersRepo: Repository<Player>,
   ) {}
 
-  create(dto: CreatePlayerDto) {
-    const player = this.playersRepo.create(dto);
+  create(dto: CreatePlayerDto, organizationId: string) {
+    const player = this.playersRepo.create({ ...dto, organizationId });
     return this.playersRepo.save(player);
   }
 
-  findAll() {
-    return this.playersRepo.find();
+  findAll(organizationId: string) {
+    return this.playersRepo.find({ where: { organizationId } });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, organizationId: string) {
     const player = await this.playersRepo.findOne({
-      where: { id },
+      where: { id, organizationId },
       relations: ['memberships', 'memberships.group'],
     });
     if (!player) throw new NotFoundException('Player not found');
     return player;
   }
 
-  async remove(id: string) {
-    const result = await this.playersRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException('Player not found');
+  async update(id: string, dto: Partial<CreatePlayerDto>, organizationId: string) {
+    const player = await this.findOne(id, organizationId);
+    Object.assign(player, dto);
+    return this.playersRepo.save(player);
+  }
+
+  async remove(id: string, organizationId: string) {
+    const player = await this.findOne(id, organizationId);
+    await this.playersRepo.remove(player);
+  }
+
+  countByOrganization(organizationId: string) {
+    return this.playersRepo.count({ where: { organizationId } });
   }
 }
