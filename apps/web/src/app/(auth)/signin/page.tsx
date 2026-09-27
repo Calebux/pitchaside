@@ -8,10 +8,12 @@ import { useToast } from '@/components/toast';
 
 export default function SignInPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, validate2FA } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState({ email: '', password: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [twoFA, setTwoFA] = useState<{ required: boolean; userId: string }>({ required: false, userId: '' });
+  const [code, setCode] = useState('');
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -21,13 +23,81 @@ export default function SignInPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await login(form.email, form.password);
-      router.push('/dashboard');
+      const result = await login(form.email, form.password);
+      if (result.requires2FA) {
+        setTwoFA({ required: true, userId: result.userId });
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       toast.error(err.message || 'Sign in failed');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handle2FASubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await validate2FA(twoFA.userId, code);
+      router.push('/dashboard');
+    } catch (err: any) {
+      toast.error(err.message || 'Invalid 2FA code');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (twoFA.required) {
+    return (
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Link href="/" className="text-2xl font-bold text-pitch-700">
+            PitchAside
+          </Link>
+          <h1 className="mt-4 text-xl font-semibold text-gray-900">Two-Factor Authentication</h1>
+          <p className="mt-1 text-sm text-gray-500">Enter the 6-digit code from your authenticator app</p>
+        </div>
+
+        <form onSubmit={handle2FASubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+          <div>
+            <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1">
+              Authentication Code
+            </label>
+            <input
+              id="code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              required
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-center tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              placeholder="000000"
+              autoFocus
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting || code.length !== 6}
+            className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          >
+            {submitting ? 'Verifying...' : 'Verify'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setTwoFA({ required: false, userId: '' }); setCode(''); }}
+            className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Back to sign in
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

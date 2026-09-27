@@ -42,6 +42,12 @@ export class User {
   @Column({ name: 'organization_id' })
   organizationId: string;
 
+  @Column({ nullable: true, name: 'two_factor_secret', type: 'varchar' })
+  twoFactorSecret: string | null;
+
+  @Column({ default: false, name: 'two_factor_enabled' })
+  twoFactorEnabled: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
