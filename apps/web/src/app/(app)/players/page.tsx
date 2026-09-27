@@ -3,20 +3,40 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
-import { getPlayers } from '@/lib/api';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { useToast } from '@/components/toast';
+import { getPlayers, deletePlayer } from '@/lib/api';
 import type { IPlayer } from '@pitchaside/shared';
 
 export default function PlayersPage() {
+  const toast = useToast();
   const [players, setPlayers] = useState<IPlayer[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<IPlayer | null>(null);
+
+  function fetchPlayers() {
+    return getPlayers()
+      .then(setPlayers)
+      .catch(() => {});
+  }
 
   useEffect(() => {
-    getPlayers()
-      .then(setPlayers)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetchPlayers().finally(() => setLoading(false));
   }, []);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const name = `${deleteTarget.firstName} ${deleteTarget.lastName}`;
+    setDeleteTarget(null);
+    try {
+      await deletePlayer(deleteTarget.id);
+      await fetchPlayers();
+      toast.success(`${name} deleted`);
+    } catch {
+      toast.error('Failed to delete player');
+    }
+  }
 
   const filtered = players.filter((p) => {
     const q = search.toLowerCase();
@@ -42,6 +62,16 @@ export default function PlayersPage() {
 
   return (
     <div className="p-4 max-w-lg mx-auto">
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Player"
+        message={`Delete ${deleteTarget?.firstName} ${deleteTarget?.lastName}? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Players</h1>
         <Link
@@ -78,15 +108,29 @@ export default function PlayersPage() {
               key={player.id}
               className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-100"
             >
-              <div className="w-10 h-10 rounded-full bg-pitch-100 text-pitch-700 flex items-center justify-center text-sm font-semibold shrink-0">
-                {player.firstName.charAt(0)}{player.lastName.charAt(0)}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">
-                  {player.firstName} {player.lastName}
-                </p>
-                <p className="text-xs text-gray-500 truncate">{player.phone}</p>
-              </div>
+              <Link
+                href={`/players/${player.id}`}
+                className="flex items-center gap-3 flex-1 min-w-0"
+              >
+                <div className="w-10 h-10 rounded-full bg-pitch-100 text-pitch-700 flex items-center justify-center text-sm font-semibold shrink-0">
+                  {player.firstName.charAt(0)}{player.lastName.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">
+                    {player.firstName} {player.lastName}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">{player.phone}</p>
+                </div>
+              </Link>
+              <button
+                onClick={() => setDeleteTarget(player)}
+                className="text-gray-400 hover:text-red-500 transition-colors shrink-0 p-1"
+                title="Delete player"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </button>
             </div>
           ))}
         </div>
