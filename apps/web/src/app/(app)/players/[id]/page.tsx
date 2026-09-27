@@ -11,11 +11,13 @@ import {
   getPlayer,
   getGroups,
   getPlayerPayments,
+  getPlayerStats,
   updatePlayer,
   deletePlayer,
   formatCurrency,
   type IGroupWithMembers,
 } from '@/lib/api';
+import { StatCard } from '@/components/stat-card';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
 
 export default function PlayerDetailPage() {
@@ -25,6 +27,7 @@ export default function PlayerDetailPage() {
   const [player, setPlayer] = useState<IPlayer | null>(null);
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [payments, setPayments] = useState<IPayment[]>([]);
+  const [stats, setStats] = useState<{ totalSessions: number; totalPaid: number; totalOwed: number; paymentRate: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Edit state
@@ -41,11 +44,12 @@ export default function PlayerDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    Promise.all([getPlayer(id), getGroups(), getPlayerPayments(id)])
-      .then(([p, g, pay]) => {
+    Promise.all([getPlayer(id), getGroups(), getPlayerPayments(id), getPlayerStats(id)])
+      .then(([p, g, pay, s]) => {
         setPlayer(p);
         setGroups(g);
         setPayments(pay);
+        setStats(s);
       })
       .catch(() => router.push('/players'))
       .finally(() => setLoading(false));
@@ -222,6 +226,16 @@ export default function PlayerDetailPage() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      {stats && (
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <StatCard label="Sessions" value={stats.totalSessions} />
+          <StatCard label="Payment Rate" value={`${stats.paymentRate}%`} />
+          <StatCard label="Total Paid" value={formatCurrency(stats.totalPaid)} />
+          <StatCard label="Outstanding" value={formatCurrency(stats.totalOwed)} />
         </div>
       )}
 
