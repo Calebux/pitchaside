@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/toast';
 import { http } from '@/lib/http';
 import { StatCard } from '@/components/stat-card';
 import { UserRole } from '@pitchaside/shared';
@@ -11,12 +12,18 @@ import { UserRole } from '@pitchaside/shared';
 export default function AdminPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
   const [orgStats, setOrgStats] = useState<any>(null);
   const [platformStats, setPlatformStats] = useState<any>(null);
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Invite form state
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -38,6 +45,22 @@ export default function AdminPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, router, isSuperAdmin]);
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setInviting(true);
+    try {
+      const newMember = await http.post<any>('/admin/org/members', inviteForm);
+      setOrgMembers((prev) => [...prev, newMember]);
+      setInviteForm({ firstName: '', lastName: '', email: '', password: '' });
+      setShowInvite(false);
+      toast.success('Member added successfully');
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add member');
+    } finally {
+      setInviting(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -111,7 +134,64 @@ export default function AdminPage() {
 
       {/* Org Members */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Team Members</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
+          <button
+            onClick={() => setShowInvite(!showInvite)}
+            className="text-sm font-medium text-pitch-600 hover:text-pitch-700"
+          >
+            {showInvite ? 'Cancel' : '+ Add Member'}
+          </button>
+        </div>
+
+        {/* Invite form */}
+        {showInvite && (
+          <form onSubmit={handleInvite} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="text"
+                placeholder="First name"
+                required
+                value={inviteForm.firstName}
+                onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              />
+              <input
+                type="text"
+                placeholder="Last name"
+                required
+                value={inviteForm.lastName}
+                onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              />
+            </div>
+            <input
+              type="email"
+              placeholder="Email address"
+              required
+              value={inviteForm.email}
+              onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            />
+            <input
+              type="password"
+              placeholder="Temporary password"
+              required
+              minLength={6}
+              value={inviteForm.password}
+              onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            />
+            <button
+              type="submit"
+              disabled={inviting}
+              className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+            >
+              {inviting ? 'Adding...' : 'Add Member'}
+            </button>
+          </form>
+        )}
+
         <div className="space-y-2">
           {orgMembers.map((member: any) => (
             <div
@@ -140,6 +220,10 @@ export default function AdminPage() {
               </span>
             </div>
           ))}
+
+          {orgMembers.length === 0 && (
+            <p className="text-sm text-gray-500 text-center py-8">No team members yet.</p>
+          )}
         </div>
       </div>
     </div>
