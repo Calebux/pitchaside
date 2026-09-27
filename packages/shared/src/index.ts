@@ -60,3 +60,33 @@ export interface IPayment {
   markedBy?: string;
   player?: IPlayer;
 }
+
+// ── Auth & Multi-tenancy ──
+
+export enum UserRole {
+  SUPER_ADMIN = 'super_admin',
+  ORG_ADMIN = 'org_admin',
+  MEMBER = 'member',
+}
+
+export interface IOrganization {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface IUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: UserRole;
+  organizationId: string;
+  organization?: IOrganization;
+  createdAt: string;
+}
+
+export interface IAuthResponse {
+  accessToken: string;
+  user: IUser;
+}
