@@ -1,8 +1,10 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength } from 'class-validator';
 import { PaymentType } from '../entities/group.entity';
 
 export class CreateGroupDto {
   @IsString()
+  @IsNotEmpty()
+  @MinLength(2)
   name: string;
 
   @IsOptional()

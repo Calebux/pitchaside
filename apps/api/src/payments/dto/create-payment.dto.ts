@@ -1,11 +1,11 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min } from 'class-validator';
+import { IsUUID, IsNumber, IsEnum, IsOptional, Min } from 'class-validator';
 import { PaymentStatus } from '../entities/payment.entity';
 
 export class CreatePaymentDto {
-  @IsString()
+  @IsUUID()
   sessionId: string;
 
-  @IsString()
+  @IsUUID()
   playerId: string;
 
   @IsNumber()

@@ -1,8 +1,9 @@
-import { IsString, IsEnum, IsOptional } from 'class-validator';
+import { IsUUID, IsEnum, IsOptional, IsNotEmpty } from 'class-validator';
 import { MemberRole } from '../entities/group-membership.entity';
 
 export class AddMemberDto {
-  @IsString()
+  @IsUUID()
+  @IsNotEmpty()
   playerId: string;
 
   @IsOptional()
