@@ -79,6 +79,15 @@ export default function SignInPage() {
         >
           {submitting ? 'Signing in...' : 'Sign In'}
         </button>
+
+        <div className="text-right">
+          <Link
+            href="/forgot-password"
+            className="text-sm text-pitch-600 font-medium hover:text-pitch-700"
+          >
+            Forgot password?
+          </Link>
+        </div>
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-500">
