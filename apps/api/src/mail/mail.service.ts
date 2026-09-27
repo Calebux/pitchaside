@@ -73,4 +73,29 @@ export class MailService {
 
     await this.transporter.sendMail({ from: this.from, to, subject, html });
   }
+
+  async sendPaymentReminder(to: string, name: string, groupName: string, amount: number, date: string) {
+    const formattedDate = new Date(date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    const subject = `Payment reminder for ${groupName}`;
+    const html = `
+      <p>Hi ${name},</p>
+      <p>This is a reminder that your payment of <strong>${amount}</strong> for the <strong>${groupName}</strong> session on <strong>${formattedDate}</strong> is still outstanding.</p>
+      <p>Please make your payment at your earliest convenience.</p>
+      <p>— PitchAside</p>
+    `;
+
+    if (!this.transporter) {
+      this.logger.log(`[DEV EMAIL] To: ${to} | Subject: ${subject}`);
+      this.logger.log(`[DEV EMAIL] Reminder for ${groupName}, amount: ${amount}`);
+      return;
+    }
+
+    await this.transporter.sendMail({ from: this.from, to, subject, html });
+  }
 }
