@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Session, SessionStatus } from './entities/session.entity';
 import { Group } from '../groups/entities/group.entity';
+import { GroupMembership } from '../groups/entities/group-membership.entity';
+import { Payment } from '../payments/entities/payment.entity';
 import { CreateSessionDto } from './dto/create-session.dto';
 
 @Injectable()
@@ -10,6 +12,8 @@ export class SessionsService {
   constructor(
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
+    @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
+    @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
   ) {}
 
   async create(dto: CreateSessionDto, organizationId: string) {
@@ -23,7 +27,25 @@ export class SessionsService {
       date: dto.date,
       targetAmount: group.targetPlayers * Number(group.feePerPlayer),
     });
-    return this.sessionsRepo.save(session);
+    const saved = await this.sessionsRepo.save(session);
+
+    // Auto-generate pending payments for all group members
+    const memberships = await this.membershipsRepo.find({
+      where: { groupId: dto.groupId },
+    });
+
+    if (memberships.length > 0) {
+      const payments = memberships.map((m) =>
+        this.paymentsRepo.create({
+          sessionId: saved.id,
+          playerId: m.playerId,
+          amount: Number(group.feePerPlayer),
+        }),
+      );
+      await this.paymentsRepo.save(payments);
+    }
+
+    return this.findOne(saved.id, organizationId);
   }
 
   async findAll(organizationId: string, groupId?: string) {
