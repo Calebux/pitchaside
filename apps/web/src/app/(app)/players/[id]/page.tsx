@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { BackButton } from '@/components/back-button';
+import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
 import {
@@ -11,6 +13,7 @@ import {
   getPlayerPayments,
   updatePlayer,
   deletePlayer,
+  formatCurrency,
   type IGroupWithMembers,
 } from '@/lib/api';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
@@ -106,6 +109,10 @@ export default function PlayerDetailPage() {
     g.memberships?.some((m) => m.player.id === id)
   );
 
+  // Strip non-digit except leading +
+  const cleanPhone = player.phone.replace(/[^\d+]/g, '');
+  const whatsappNumber = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone;
+
   return (
     <div className="p-4 max-w-lg mx-auto">
       <BackButton label="Players" />
@@ -192,9 +199,26 @@ export default function PlayerDetailPage() {
                   Edit
                 </button>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">{player.phone}</p>
+              <div className="flex items-center gap-3 mt-1">
+                <a
+                  href={`tel:${player.phone}`}
+                  className="text-sm text-pitch-600 hover:underline"
+                >
+                  {player.phone}
+                </a>
+                <a
+                  href={`https://wa.me/${whatsappNumber}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-green-600 hover:underline font-medium"
+                >
+                  WhatsApp
+                </a>
+              </div>
               {player.email && (
-                <p className="text-sm text-gray-500">{player.email}</p>
+                <a href={`mailto:${player.email}`} className="text-sm text-gray-500 hover:underline block mt-0.5">
+                  {player.email}
+                </a>
               )}
             </div>
           </div>
@@ -205,11 +229,15 @@ export default function PlayerDetailPage() {
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Groups</h2>
         {playerGroups.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">Not a member of any group.</p>
+          <EmptyState
+            icon="users"
+            title="No groups"
+            description="This player isn't a member of any group yet."
+          />
         ) : (
           <div className="space-y-2">
             {playerGroups.map((g) => (
-              <a
+              <Link
                 key={g.id}
                 href={`/groups/${g.id}`}
                 className="block bg-white p-3 rounded-lg border border-gray-100 hover:shadow-sm transition-shadow"
@@ -218,7 +246,7 @@ export default function PlayerDetailPage() {
                 {g.schedule && (
                   <p className="text-xs text-gray-500">{g.schedule}</p>
                 )}
-              </a>
+              </Link>
             ))}
           </div>
         )}
@@ -228,7 +256,11 @@ export default function PlayerDetailPage() {
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Payment History</h2>
         {payments.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No payment history.</p>
+          <EmptyState
+            icon="receipt"
+            title="No payments"
+            description="Payment records will appear here once sessions are created."
+          />
         ) : (
           <div className="space-y-2">
             {payments.map((payment) => (
@@ -237,7 +269,7 @@ export default function PlayerDetailPage() {
                 className="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100"
               >
                 <div>
-                  <p className="text-sm font-medium text-gray-900">${payment.amount}</p>
+                  <p className="text-sm font-medium text-gray-900">{formatCurrency(payment.amount)}</p>
                   {payment.paidAt && (
                     <p className="text-xs text-gray-500">
                       {new Date(payment.paidAt).toLocaleDateString('en-US', {

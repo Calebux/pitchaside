@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -12,8 +12,10 @@ export default function PlayersPage() {
   const toast = useToast();
   const [players, setPlayers] = useState<IPlayer[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<IPlayer | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
 
   function fetchPlayers() {
     return getPlayers()
@@ -23,6 +25,18 @@ export default function PlayersPage() {
 
   useEffect(() => {
     fetchPlayers().finally(() => setLoading(false));
+  }, []);
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(value);
+    }, 300);
+  }
+
+  useEffect(() => {
+    return () => clearTimeout(debounceTimer.current);
   }, []);
 
   async function handleDelete() {
@@ -39,7 +53,8 @@ export default function PlayersPage() {
   }
 
   const filtered = players.filter((p) => {
-    const q = search.toLowerCase();
+    const q = debouncedSearch.toLowerCase();
+    if (!q) return true;
     return (
       p.firstName.toLowerCase().includes(q) ||
       p.lastName.toLowerCase().includes(q) ||
@@ -87,20 +102,25 @@ export default function PlayersPage() {
           type="text"
           placeholder="Search players..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
         />
       )}
 
       {players.length === 0 ? (
         <EmptyState
+          icon="users"
           title="No players registered"
-          description="Register players so you can add them to groups."
+          description="Register players so you can add them to groups and track payments."
           actionLabel="Register Player"
           actionHref="/players/new"
         />
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-8">No players match your search.</p>
+        <EmptyState
+          icon="users"
+          title="No results"
+          description="No players match your search. Try a different term."
+        />
       ) : (
         <div className="space-y-2">
           {filtered.map((player) => (
@@ -119,7 +139,13 @@ export default function PlayersPage() {
                   <p className="text-sm font-medium text-gray-900">
                     {player.firstName} {player.lastName}
                   </p>
-                  <p className="text-xs text-gray-500 truncate">{player.phone}</p>
+                  <a
+                    href={`tel:${player.phone}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs text-pitch-600 hover:underline truncate block"
+                  >
+                    {player.phone}
+                  </a>
                 </div>
               </Link>
               <button
