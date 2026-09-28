@@ -16,19 +16,24 @@ function ResetPasswordForm() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+
   if (!token) {
     return (
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-pitch-700">
-            PitchAside
+          <Link href="/" className="inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-center">
+        <div className="text-center">
           <p className="text-sm text-gray-500 mb-4">Invalid or missing reset token.</p>
           <Link
             href="/forgot-password"
-            className="text-sm text-pitch-600 font-medium hover:text-pitch-700"
+            className="text-sm text-pitch-600 font-semibold hover:text-pitch-700"
           >
             Request a new reset link
           </Link>
@@ -39,25 +44,28 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-pitch-700">
-            PitchAside
+          <Link href="/" className="inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 text-center">
-          <div className="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-2xl bg-pitch-50 text-pitch-600 flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Password reset</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="text-lg font-bold text-gray-900 mb-2">Password reset</h2>
+          <p className="text-sm text-gray-500 mb-6">
             Your password has been updated successfully.
           </p>
           <Link
             href="/signin"
-            className="inline-block py-2.5 px-6 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors"
+            className="inline-block py-3 px-8 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors"
           >
             Sign in
           </Link>
@@ -84,19 +92,22 @@ function ResetPasswordForm() {
   }
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <Link href="/" className="text-2xl font-bold text-pitch-700">
-          PitchAside
+        <Link href="/" className="inline-flex items-center gap-2">
+          <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-sm">P</span>
+          </div>
+          <span className="text-xl font-bold text-gray-900">PitchAside</span>
         </Link>
-        <h1 className="mt-4 text-xl font-semibold text-gray-900">Set new password</h1>
+        <h1 className="mt-6 text-xl font-bold text-gray-900">Set new password</h1>
         <p className="mt-1 text-sm text-gray-500">Enter your new password below</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            New password
+          <label htmlFor="password" className="block text-xs font-medium text-gray-500 mb-1.5">
+            New Password
           </label>
           <input
             id="password"
@@ -105,13 +116,13 @@ function ResetPasswordForm() {
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
           />
         </div>
 
         <div>
-          <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 mb-1">
-            Confirm password
+          <label htmlFor="confirm" className="block text-xs font-medium text-gray-500 mb-1.5">
+            Confirm Password
           </label>
           <input
             id="confirm"
@@ -120,14 +131,14 @@ function ResetPasswordForm() {
             minLength={6}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
           />
         </div>
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
         >
           {submitting ? 'Resetting...' : 'Reset Password'}
         </button>
@@ -140,7 +151,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full max-w-md flex justify-center">
+        <div className="w-full max-w-sm flex justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pitch-600" />
         </div>
       }

@@ -46,20 +46,25 @@ export default function SignUpPage() {
     }
   }
 
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <Link href="/" className="text-2xl font-bold text-pitch-700">
-          PitchAside
+        <Link href="/" className="inline-flex items-center gap-2">
+          <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-sm">P</span>
+          </div>
+          <span className="text-xl font-bold text-gray-900">PitchAside</span>
         </Link>
-        <h1 className="mt-4 text-xl font-semibold text-gray-900">Create your account</h1>
-        <p className="mt-1 text-sm text-gray-500">Get started managing your pitch</p>
+        <h1 className="mt-6 text-xl font-bold text-gray-900">Create your account</h1>
+        <p className="mt-1 text-sm text-gray-500">Start managing your pitch</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="teamName" className="block text-sm font-medium text-gray-700 mb-1">
-            Team / Organization name
+          <label htmlFor="teamName" className="block text-xs font-medium text-gray-500 mb-1.5">
+            Team / Organization *
           </label>
           <input
             id="teamName"
@@ -68,46 +73,15 @@ export default function SignUpPage() {
             required
             value={form.teamName}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
             placeholder="e.g. Sunday League FC"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="country" className="block text-sm font-medium text-gray-700 mb-1">
-              Country
-            </label>
-            <input
-              id="country"
-              name="country"
-              type="text"
-              value={form.country}
-              onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
-              placeholder="e.g. Nigeria"
-            />
-          </div>
-          <div>
-            <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
-              State
-            </label>
-            <input
-              id="state"
-              name="state"
-              type="text"
-              value={form.state}
-              onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
-              placeholder="e.g. Lagos"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-              First name
+            <label htmlFor="firstName" className="block text-xs font-medium text-gray-500 mb-1.5">
+              First Name *
             </label>
             <input
               id="firstName"
@@ -116,12 +90,12 @@ export default function SignUpPage() {
               required
               value={form.firstName}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass}
             />
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-              Last name
+            <label htmlFor="lastName" className="block text-xs font-medium text-gray-500 mb-1.5">
+              Last Name *
             </label>
             <input
               id="lastName"
@@ -130,14 +104,45 @@ export default function SignUpPage() {
               required
               value={form.lastName}
               onChange={handleChange}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor="country" className="block text-xs font-medium text-gray-500 mb-1.5">
+              Country
+            </label>
+            <input
+              id="country"
+              name="country"
+              type="text"
+              value={form.country}
+              onChange={handleChange}
+              className={inputClass}
+              placeholder="e.g. Nigeria"
+            />
+          </div>
+          <div>
+            <label htmlFor="state" className="block text-xs font-medium text-gray-500 mb-1.5">
+              State
+            </label>
+            <input
+              id="state"
+              name="state"
+              type="text"
+              value={form.state}
+              onChange={handleChange}
+              className={inputClass}
+              placeholder="e.g. Lagos"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
+          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+            Email *
           </label>
           <input
             id="email"
@@ -146,14 +151,14 @@ export default function SignUpPage() {
             required
             value={form.email}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
             placeholder="you@example.com"
           />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
+          <label htmlFor="password" className="block text-xs font-medium text-gray-500 mb-1.5">
+            Password *
           </label>
           <input
             id="password"
@@ -163,7 +168,7 @@ export default function SignUpPage() {
             minLength={6}
             value={form.password}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
             placeholder="At least 6 characters"
           />
         </div>
@@ -171,7 +176,7 @@ export default function SignUpPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
         >
           {submitting ? 'Creating account...' : 'Create Account'}
         </button>
@@ -179,7 +184,7 @@ export default function SignUpPage() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Already have an account?{' '}
-        <Link href="/signin" className="text-pitch-600 font-medium hover:text-pitch-700">
+        <Link href="/signin" className="text-pitch-600 font-semibold hover:text-pitch-700">
           Sign in
         </Link>
       </p>

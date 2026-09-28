@@ -20,7 +20,7 @@ export default function AuthLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pitch-600" />
       </div>
     );
@@ -29,7 +29,7 @@ export default function AuthLayout({
   if (user) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12">
       {children}
     </div>
   );

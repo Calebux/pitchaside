@@ -49,20 +49,25 @@ export default function SignInPage() {
     }
   }
 
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+
   if (twoFA.required) {
     return (
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-pitch-700">
-            PitchAside
+          <Link href="/" className="inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
-          <h1 className="mt-4 text-xl font-semibold text-gray-900">Two-Factor Authentication</h1>
+          <h1 className="mt-6 text-xl font-bold text-gray-900">Two-Factor Authentication</h1>
           <p className="mt-1 text-sm text-gray-500">Enter the 6-digit code from your authenticator app</p>
         </div>
 
-        <form onSubmit={handle2FASubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+        <form onSubmit={handle2FASubmit} className="space-y-4">
           <div>
-            <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="code" className="block text-xs font-medium text-gray-500 mb-1.5">
               Authentication Code
             </label>
             <input
@@ -74,7 +79,7 @@ export default function SignInPage() {
               maxLength={6}
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-center tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={`${inputClass} text-center tracking-[0.3em] font-mono`}
               placeholder="000000"
               autoFocus
             />
@@ -83,7 +88,7 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={submitting || code.length !== 6}
-            className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+            className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
           >
             {submitting ? 'Verifying...' : 'Verify'}
           </button>
@@ -91,7 +96,7 @@ export default function SignInPage() {
           <button
             type="button"
             onClick={() => { setTwoFA({ required: false, userId: '' }); setCode(''); }}
-            className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            className="w-full py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
           >
             Back to sign in
           </button>
@@ -101,18 +106,21 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="w-full max-w-md">
+    <div className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <Link href="/" className="text-2xl font-bold text-pitch-700">
-          PitchAside
+        <Link href="/" className="inline-flex items-center gap-2">
+          <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+            <span className="text-white font-bold text-sm">P</span>
+          </div>
+          <span className="text-xl font-bold text-gray-900">PitchAside</span>
         </Link>
-        <h1 className="mt-4 text-xl font-semibold text-gray-900">Welcome back</h1>
+        <h1 className="mt-6 text-xl font-bold text-gray-900">Welcome back</h1>
         <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
             Email
           </label>
           <input
@@ -122,15 +130,23 @@ export default function SignInPage() {
             required
             value={form.email}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
             placeholder="you@example.com"
           />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label htmlFor="password" className="block text-xs font-medium text-gray-500">
+              Password
+            </label>
+            <Link
+              href="/forgot-password"
+              className="text-xs text-pitch-600 font-medium hover:text-pitch-700"
+            >
+              Forgot?
+            </Link>
+          </div>
           <input
             id="password"
             name="password"
@@ -138,31 +154,22 @@ export default function SignInPage() {
             required
             value={form.password}
             onChange={handleChange}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className={inputClass}
           />
         </div>
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
         >
           {submitting ? 'Signing in...' : 'Sign In'}
         </button>
-
-        <div className="text-right">
-          <Link
-            href="/forgot-password"
-            className="text-sm text-pitch-600 font-medium hover:text-pitch-700"
-          >
-            Forgot password?
-          </Link>
-        </div>
       </form>
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Don&apos;t have an account?{' '}
-        <Link href="/signup" className="text-pitch-600 font-medium hover:text-pitch-700">
+        <Link href="/signup" className="text-pitch-600 font-semibold hover:text-pitch-700">
           Sign up
         </Link>
       </p>
