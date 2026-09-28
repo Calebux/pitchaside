@@ -16,6 +16,12 @@ const statusFilters = [
   { label: 'Cancelled', value: SessionStatus.CANCELLED },
 ];
 
+const statusStyles: Record<string, string> = {
+  upcoming: 'bg-pitch-50 text-pitch-700',
+  completed: 'bg-gray-100 text-gray-600',
+  cancelled: 'bg-red-50 text-red-600',
+};
+
 export default function SessionsPage() {
   const toast = useToast();
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
@@ -64,13 +70,14 @@ export default function SessionsPage() {
     return (
       <div className="p-4 max-w-lg mx-auto">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-32" />
+          <div className="h-6 bg-gray-200 rounded w-28" />
           <div className="flex gap-2">
-            <div className="h-8 bg-gray-200 rounded-full w-16" />
-            <div className="h-8 bg-gray-200 rounded-full w-20" />
-            <div className="h-8 bg-gray-200 rounded-full w-24" />
+            <div className="h-8 bg-gray-100 rounded-full w-14" />
+            <div className="h-8 bg-gray-100 rounded-full w-20" />
+            <div className="h-8 bg-gray-100 rounded-full w-22" />
           </div>
-          <div className="h-24 bg-gray-200 rounded-xl" />
+          <div className="h-28 bg-gray-200 rounded-xl" />
+          <div className="h-28 bg-gray-200 rounded-xl" />
         </div>
       </div>
     );
@@ -81,25 +88,25 @@ export default function SessionsPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Session"
-        message="Delete this session? This cannot be undone."
+        message="Delete this session and all its payment records? This cannot be undone."
         confirmLabel="Delete"
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Sessions</h1>
+      <h1 className="text-xl font-bold text-gray-900 mb-4">Sessions</h1>
 
       {/* Filters */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
         {statusFilters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-full whitespace-nowrap transition-colors ${
               filter === f.value
-                ? 'bg-pitch-600 text-white'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-gray-900 text-white'
+                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
             }`}
           >
             {f.label}
@@ -111,7 +118,7 @@ export default function SessionsPage() {
         <EmptyState
           icon="calendar"
           title="No sessions yet"
-          description="Create sessions from a group page to start tracking payments."
+          description="Create sessions from a group page to start tracking game payments."
           actionLabel="Go to Groups"
           actionHref="/groups"
         />
@@ -123,59 +130,68 @@ export default function SessionsPage() {
         />
       ) : (
         <>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {filtered.map((session) => {
               const group = groupMap.get(session.groupId);
               const progress = session.targetAmount > 0
                 ? Math.round((session.collectedAmount / session.targetAmount) * 100)
                 : 0;
+              const paidCount = session.payments?.filter((p) => p.status === 'paid').length ?? 0;
+              const totalCount = session.payments?.length ?? 0;
 
               return (
-                <div key={session.id} className="relative bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div key={session.id} className="relative bg-white rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
                   <Link
                     href={`/sessions/${session.id}`}
                     className="block p-4"
                   >
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start mb-3">
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          {group?.name || 'Unknown Group'}
+                          {group?.name || 'Game'}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-400 mt-0.5">
                           {new Date(session.date).toLocaleDateString('en-US', {
-                            weekday: 'long',
+                            weekday: 'short',
                             month: 'short',
                             day: 'numeric',
-                            year: 'numeric',
                           })}
                         </p>
                       </div>
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${
-                        session.status === 'upcoming' ? 'bg-blue-100 text-blue-700' :
-                        session.status === 'completed' ? 'bg-green-100 text-green-700' :
-                        session.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                        'bg-gray-100 text-gray-500'
+                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide ${
+                        statusStyles[session.status] || 'bg-gray-100 text-gray-500'
                       }`}>
                         {session.status}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
+
+                    {/* Progress bar */}
+                    <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
                       <div
-                        className="bg-pitch-500 h-2 rounded-full transition-all"
+                        className={`h-1.5 rounded-full transition-all ${
+                          progress >= 100 ? 'bg-pitch-500' :
+                          progress >= 50 ? 'bg-pitch-400' :
+                          'bg-amber-400'
+                        }`}
                         style={{ width: `${Math.min(progress, 100)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>{formatCurrency(session.collectedAmount)} / {formatCurrency(session.targetAmount)}</span>
-                      <span>{progress}%</span>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs text-gray-500 tabular-nums">
+                        {formatCurrency(session.collectedAmount)} / {formatCurrency(session.targetAmount)}
+                      </span>
+                      <span className="text-xs font-medium text-gray-400 tabular-nums">
+                        {totalCount > 0 ? `${paidCount}/${totalCount} paid` : `${progress}%`}
+                      </span>
                     </div>
                   </Link>
                   <button
                     onClick={(e) => { e.preventDefault(); setDeleteTarget(session); }}
-                    className="absolute top-3 right-3 p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                    className="absolute top-3 right-12 p-1.5 text-gray-300 hover:text-red-500 transition-colors"
                     title="Delete session"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
                   </button>
