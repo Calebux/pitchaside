@@ -426,6 +426,31 @@ export function setRsvpForPlayer(sessionId: string, playerId: string, status: 'i
   return http.post(`/sessions/${sessionId}/rsvp`, { playerId, status });
 }
 
+// ── Match day: bibs & score ──
+
+export type Side = 'bibs' | 'non_bibs';
+
+export interface Lineup {
+  scoreBibs: number | null;
+  scoreNonBibs: number | null;
+  squad: (SquadMember & { team: Side | null; ovr: number | null })[];
+}
+
+export function getLineup(sessionId: string): Promise<Lineup> {
+  return http.get(`/sessions/${sessionId}/lineup`);
+}
+
+export function saveLineup(
+  sessionId: string,
+  data: { teams?: Record<string, Side | null>; score?: { bibs: number; nonBibs: number } | null },
+): Promise<Lineup> {
+  return http.put(`/sessions/${sessionId}/lineup`, data);
+}
+
+export function balanceLineup(sessionId: string): Promise<Lineup> {
+  return http.post(`/sessions/${sessionId}/lineup/balance`);
+}
+
 // ── Messages outbox & organiser push ──
 
 export interface OutboundMessage {
@@ -492,6 +517,7 @@ export interface PlayerRatings {
   ballotsSeen: number;
   votes: Record<VoteCategory, number>;
   potmWins: number;
+  record: { w: number; d: number; l: number };
   points: number;
   ovr: number | null;
   attributes: Record<Attribute, number | null>;

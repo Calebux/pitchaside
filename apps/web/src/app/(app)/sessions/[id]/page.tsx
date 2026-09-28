@@ -12,6 +12,7 @@ import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
 import { Trophy } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { SessionVotingCard } from '@/components/ratings';
+import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
@@ -263,6 +264,10 @@ export default function SessionDetailPage() {
 
       {session.kind !== 'dues' && session.status === SessionStatus.UPCOMING && (
         <TeamSheet sessionId={id} onChange={fetchSession} />
+      )}
+
+      {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (
+        <LineupCard sessionId={id} />
       )}
 
       {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (

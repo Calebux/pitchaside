@@ -266,7 +266,7 @@ export default function PlayerDetailPage() {
                   <AttributeRow ratings={ratings} dark />
                   <p className="text-[10px] text-white/40 mt-1.5">
                     {ratings.games > 0
-                      ? `From teammates' votes over ${ratings.games} game${ratings.games === 1 ? '' : 's'}${ratings.potmWins ? ` · ★ ${ratings.potmWins}× Player of the Match` : ''}`
+                      ? `From teammates' votes over ${ratings.games} game${ratings.games === 1 ? '' : 's'}${ratings.record.w + ratings.record.d + ratings.record.l ? ` · W${ratings.record.w} D${ratings.record.d} L${ratings.record.l}` : ''}${ratings.potmWins ? ` · ★ ${ratings.potmWins}× POTM` : ''}`
                       : 'Ratings appear after their first voted game'}
                   </p>
                 </div>

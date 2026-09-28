@@ -232,6 +232,9 @@ export default function PlayerHomePage() {
                   ? `#${firstTable.me.rank} in ${firstTable.groupName} · ${firstTable.me.points} pts`
                   : 'Play and get votes to build your card'}
                 {home.ratings.potmWins > 0 ? ` · ★ ${home.ratings.potmWins} POTM` : ''}
+                {home.ratings.record.w + home.ratings.record.d + home.ratings.record.l > 0
+                  ? ` · W${home.ratings.record.w} D${home.ratings.record.d} L${home.ratings.record.l}`
+                  : ''}
               </p>
             </div>
           </div>
