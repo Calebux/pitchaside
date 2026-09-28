@@ -55,6 +55,10 @@ export class Session {
   @Column({ nullable: true })
   label: string;
 
+  /** Public code for the post-match vote link (/v/:token); created on first use. */
+  @Column({ name: 'voting_token', nullable: true, unique: true })
+  votingToken: string;
+
   @OneToMany(() => Payment, (payment) => payment.session)
   payments: Payment[];
 

@@ -410,3 +410,95 @@ export function joinGroup(
 ): Promise<PublicGroup & { paymentRef: string; firstName: string; alreadyMember: boolean }> {
   return http.post(`/public/groups/${code}/join`, data);
 }
+
+// ── Post-match voting, ratings & league table ──
+
+export type VoteCategory = 'potm' | 'pace' | 'shooting' | 'passing' | 'defending';
+export type Attribute = 'PAC' | 'SHO' | 'PAS' | 'DEF';
+
+export interface SquadMember {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface VoteResults {
+  ballots: number;
+  squadSize: number;
+  categories: {
+    key: VoteCategory;
+    title: string;
+    standings: { playerId: string; count: number; player: SquadMember }[];
+  }[];
+}
+
+export interface SessionVoting extends VoteResults {
+  token: string;
+  link: string;
+  open: boolean;
+  notYet: boolean;
+  closesAt: string;
+}
+
+export interface Ballot {
+  groupName?: string;
+  date: string;
+  open: boolean;
+  notYet: boolean;
+  closesAt: string;
+  categories: { key: VoteCategory; title: string }[];
+  squad: SquadMember[];
+  ballots: number;
+  squadSize: number;
+}
+
+export interface PlayerRatings {
+  games: number;
+  ballotsSeen: number;
+  votes: Record<VoteCategory, number>;
+  potmWins: number;
+  points: number;
+  ovr: number | null;
+  attributes: Record<Attribute, number | null>;
+}
+
+export interface LeagueTable {
+  games: number;
+  points: { potmVote: number; attrVote: number; potmWin: number };
+  rows: (PlayerRatings & { player: SquadMember })[];
+}
+
+export function getSessionVoting(sessionId: string): Promise<SessionVoting> {
+  return http.get(`/sessions/${sessionId}/voting`);
+}
+
+export function getGroupTable(groupId: string): Promise<LeagueTable> {
+  return http.get(`/groups/${groupId}/table`);
+}
+
+export function getPlayerRatings(playerId: string): Promise<PlayerRatings> {
+  return http.get(`/players/${playerId}/ratings`);
+}
+
+export function getBallot(token: string): Promise<Ballot> {
+  return http.get(`/public/votes/${token}`);
+}
+
+export function identifyVoter(
+  token: string,
+  phone: string,
+): Promise<{ playerId: string; firstName: string; picks: Partial<Record<VoteCategory, string>> }> {
+  return http.post(`/public/votes/${token}/identify`, { phone });
+}
+
+export function submitVotes(
+  token: string,
+  phone: string,
+  picks: Partial<Record<VoteCategory, string>>,
+): Promise<VoteResults> {
+  return http.post(`/public/votes/${token}`, { phone, picks });
+}
+
+export function getVoteResults(token: string): Promise<VoteResults> {
+  return http.get(`/public/votes/${token}/results`);
+}

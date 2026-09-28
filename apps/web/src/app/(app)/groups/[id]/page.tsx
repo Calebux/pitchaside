@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { JerseyBadge, kitFor } from '@/components/illustrations';
 import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
 import { frequencyLabel, frequencyOptions } from '@/lib/billing';
+import { LeagueTableView } from '@/components/ratings';
 import {
   getGroup,
   getSessions,
@@ -21,8 +22,10 @@ import {
   updateGroup,
   formatCurrency,
   getGroupBilling,
+  getGroupTable,
   getGroupTransfers,
   type BankTransfer,
+  type LeagueTable,
   type GroupBilling,
   type IGroupWithMembers,
   type ISessionWithDetails,
@@ -44,7 +47,8 @@ export default function GroupDetailPage() {
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'members' | 'sessions' | 'transfers'>('members');
+  const [tab, setTab] = useState<'members' | 'sessions' | 'table' | 'transfers'>('members');
+  const [table, setTable] = useState<LeagueTable | null>(null);
   const [billing, setBilling] = useState<GroupBilling | null>(null);
   const [transfers, setTransfers] = useState<BankTransfer[]>([]);
 
@@ -93,6 +97,7 @@ export default function GroupDetailPage() {
     // Billing loads separately so a Payrep hiccup never blocks the page.
     getGroupBilling(id).then(setBilling).catch(() => {});
     getGroupTransfers(id).then(setTransfers).catch(() => {});
+    getGroupTable(id).then(setTable).catch(() => {});
   }, [id, router]);
 
   async function refreshPayments() {
@@ -420,6 +425,14 @@ export default function GroupDetailPage() {
           {group.paymentType === PaymentType.PER_SESSION ? 'Sessions' : 'Dues'} ({sessions.length})
         </button>
         <button
+          onClick={() => setTab('table')}
+          className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors ${
+            tab === 'table' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
+          }`}
+        >
+          Table
+        </button>
+        <button
           onClick={() => setTab('transfers')}
           className={`relative flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors ${
             tab === 'transfers' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
@@ -433,6 +446,8 @@ export default function GroupDetailPage() {
           )}
         </button>
       </div>
+
+      {tab === 'table' && (table ? <LeagueTableView table={table} /> : <div className="h-40 bg-gray-100 rounded-3xl animate-pulse" />)}
 
       {tab === 'transfers' && (
         <TransfersPanel
