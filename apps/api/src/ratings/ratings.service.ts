@@ -42,11 +42,6 @@ export interface PlayerRatings {
   attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null; GK: number | null };
 }
 
-/** Last 10 digits, so "0803 123 4567" and "+234 803 123 4567" match. */
-function phoneKey(phone: string) {
-  return phone.replace(/\D/g, '').slice(-10);
-}
-
 function emptyVotes(): Record<VoteCategory, number> {
   return { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0 };
 }
@@ -125,12 +120,19 @@ export class RatingsService {
 
   // ── Admin ──
 
-  async getSessionVoting(sessionId: string, organizationId: string) {
-    const session = await this.loadSession(sessionId, organizationId);
+  /** Creates the vote link for a game on first use. */
+  async ensureVotingToken(sessionId: string) {
+    const session = await this.sessionsRepo.findOneOrFail({ where: { id: sessionId } });
     if (!session.votingToken) {
       session.votingToken = randomBytes(6).toString('base64url');
       await this.sessionsRepo.update(session.id, { votingToken: session.votingToken });
     }
+    return session.votingToken;
+  }
+
+  async getSessionVoting(sessionId: string, organizationId: string) {
+    const session = await this.loadSession(sessionId, organizationId);
+    session.votingToken = await this.ensureVotingToken(session.id);
     const w = this.window(session);
     return {
       token: session.votingToken,
@@ -139,6 +141,22 @@ export class RatingsService {
       closesAt: w.closesAt,
       ...(await this.results(session)),
     };
+  }
+
+  /** Games this player can vote in right now, and whether they already have. */
+  async openVotesFor(playerId: string, organizationId: string) {
+    const sessions = await this.gamesQuery(organizationId)
+      .innerJoin('session.payments', 'mine', 'mine.playerId = :playerId', { playerId })
+      .leftJoinAndSelect('session.group', 'g')
+      .getMany();
+    const open = sessions.filter((s) => this.window(s).open);
+    const result = [];
+    for (const s of open) {
+      const token = await this.ensureVotingToken(s.id);
+      const voted = await this.votesRepo.count({ where: { sessionId: s.id, voterId: playerId } });
+      result.push({ token, sessionId: s.id, groupName: s.group?.name, date: s.date, voted: voted > 0 });
+    }
+    return result;
   }
 
   // ── Public ballot ──
@@ -160,18 +178,16 @@ export class RatingsService {
     };
   }
 
-  private async identify(session: Session, phone: string) {
-    const key = phoneKey(phone);
-    const voter = (session.payments ?? []).find((p) => p.player && phoneKey(p.player.phone) === key)?.player;
-    if (!voter) {
-      throw new ForbiddenException("That number isn't on the team sheet for this game");
-    }
+  private voterIn(session: Session, playerId: string) {
+    const voter = (session.payments ?? []).find((p) => p.playerId === playerId)?.player;
+    if (!voter) throw new ForbiddenException("You're not on the team sheet for this game");
     return voter;
   }
 
-  async identifyVoter(token: string, phone: string) {
+  /** The signed-in player's existing picks for this game. */
+  async myBallot(token: string, playerId: string) {
     const session = await this.loadSessionByToken(token);
-    const voter = await this.identify(session, phone);
+    const voter = this.voterIn(session, playerId);
     const existing = await this.votesRepo.find({ where: { sessionId: session.id, voterId: voter.id } });
     return {
       playerId: voter.id,
@@ -180,12 +196,12 @@ export class RatingsService {
     };
   }
 
-  async submitVotes(token: string, phone: string, picks: Record<string, string>) {
+  async submitVotes(token: string, playerId: string, picks: Record<string, string>) {
     const session = await this.loadSessionByToken(token);
     const w = this.window(session);
     if (!w.open) throw new BadRequestException(w.notYet ? 'Voting opens on match day' : 'Voting has closed for this game');
 
-    const voter = await this.identify(session, phone);
+    const voter = this.voterIn(session, playerId);
     const squadIds = new Set(this.squad(session).map((p) => p.id));
     const valid = new Set<string>(Object.values(VoteCategory));
 

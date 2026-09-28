@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Session, SessionStatus } from './entities/session.entity';
+import { Session, SessionKind, SessionStatus } from './entities/session.entity';
+import { RsvpService } from '../rsvp/rsvp.service';
+import { RatingsService } from '../ratings/ratings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
@@ -17,6 +20,9 @@ export class SessionsService {
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     private mailService: MailService,
+    private rsvp: RsvpService,
+    private ratings: RatingsService,
+    private notifications: NotificationsService,
   ) {}
 
   async create(dto: CreateSessionDto, organizationId: string) {
@@ -45,7 +51,8 @@ export class SessionsService {
       });
       const saved = await this.sessionsRepo.save(session);
 
-      if (memberships.length > 0) {
+      // RSVP groups bill players as they confirm, not up front.
+      if (memberships.length > 0 && !group.requireRsvp) {
         const payments = memberships.map((m) =>
           this.paymentsRepo.create({
             sessionId: saved.id,
@@ -57,6 +64,11 @@ export class SessionsService {
       }
 
       lastSession = saved;
+    }
+
+    if (group.requireRsvp) {
+      const first = await this.sessionsRepo.findOne({ where: { groupId: dto.groupId, date: dates[0] } });
+      if (first) this.notifications.later(() => this.rsvp.announceGame(first.id));
     }
 
     // Return the first session (or the only one)
@@ -152,8 +164,26 @@ export class SessionsService {
 
   async updateStatus(id: string, status: string, organizationId: string) {
     const session = await this.findOne(id, organizationId);
+    const wasCompleted = session.status === SessionStatus.COMPLETED;
     session.status = status as SessionStatus;
-    return this.sessionsRepo.save(session);
+    const saved = await this.sessionsRepo.save(session);
+
+    // Full-time: invite the squad to vote.
+    if (!wasCompleted && saved.status === SessionStatus.COMPLETED && saved.kind !== SessionKind.DUES) {
+      this.notifications.later(async () => {
+        const token = await this.ratings.ensureVotingToken(saved.id);
+        await this.notifications.notifyPlayers(
+          (session.payments ?? []).map((p) => p.playerId),
+          {
+            kind: 'vote_open',
+            title: `Who was Player of the Match? 🏆`,
+            body: `${session.group.name} — cast your votes in 30 seconds.`,
+            url: `/v/${token}`,
+          },
+        );
+      });
+    }
+    return saved;
   }
 
   async remove(id: string, organizationId: string) {

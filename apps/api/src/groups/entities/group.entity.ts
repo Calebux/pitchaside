@@ -42,6 +42,13 @@ export class Group {
   @Column({ type: 'enum', enum: PaymentType, default: PaymentType.PER_SESSION })
   paymentType: PaymentType;
 
+  /**
+   * Players confirm each game ("I'm in"); only confirmed players are billed and
+   * the game caps at targetPlayers with a waitlist. Off = everyone is billed.
+   */
+  @Column({ name: 'require_rsvp', default: false })
+  requireRsvp: boolean;
+
   /** Public code used in the group's join / pay link. */
   @Column({ name: 'invite_code', nullable: true, unique: true })
   inviteCode: string;

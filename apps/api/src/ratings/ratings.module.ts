@@ -10,5 +10,6 @@ import { PublicRatingsController, RatingsController } from './ratings.controller
   imports: [TypeOrmModule.forFeature([Vote, Session, Group])],
   controllers: [RatingsController, PublicRatingsController],
   providers: [RatingsService],
+  exports: [RatingsService],
 })
 export class RatingsModule {}

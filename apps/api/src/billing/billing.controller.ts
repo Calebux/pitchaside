@@ -11,10 +11,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Request } from 'express';
 import { BillingService } from './billing.service';
-import { JoinGroupDto } from './dto/join-group.dto';
 import { AssignTransferDto, SimulateTransferDto } from './dto/transfer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -76,7 +74,7 @@ export class BillingController {
   }
 }
 
-/** Unauthenticated endpoints: the shareable group link and the Payrep webhook. */
+/** Unauthenticated endpoints: the shareable group link and the Payrep webhook. (Joining lives in player-portal.) */
 @Controller()
 export class PublicBillingController {
   constructor(private readonly billing: BillingService) {}
@@ -84,13 +82,6 @@ export class PublicBillingController {
   @Get('public/groups/:code')
   getGroup(@Param('code') code: string) {
     return this.billing.getPublicGroup(code);
-  }
-
-  @UseGuards(ThrottlerGuard)
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
-  @Post('public/groups/:code/join')
-  join(@Param('code') code: string, @Body() dto: JoinGroupDto) {
-    return this.billing.joinGroup(code, dto);
   }
 
   @Post('payrep/webhook')

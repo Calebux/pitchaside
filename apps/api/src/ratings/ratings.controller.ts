@@ -1,8 +1,7 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { RatingsService } from './ratings.service';
-import { IdentifyVoterDto, SubmitVotesDto } from './dto/vote.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -42,18 +41,6 @@ export class PublicRatingsController {
   @Get(':token')
   ballot(@Param('token') token: string) {
     return this.ratings.getBallot(token);
-  }
-
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
-  @Post(':token/identify')
-  identify(@Param('token') token: string, @Body() dto: IdentifyVoterDto) {
-    return this.ratings.identifyVoter(token, dto.phone);
-  }
-
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
-  @Post(':token')
-  submit(@Param('token') token: string, @Body() dto: SubmitVotesDto) {
-    return this.ratings.submitVotes(token, dto.phone, dto.picks);
   }
 
   @Get(':token/results')

@@ -15,6 +15,9 @@ import { AuditModule } from './audit/audit.module';
 import { StatsModule } from './stats/stats.module';
 import { BillingModule } from './billing/billing.module';
 import { RatingsModule } from './ratings/ratings.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { RsvpModule } from './rsvp/rsvp.module';
+import { PlayerPortalModule } from './player-portal/player-portal.module';
 import { LoggerMiddleware } from './common/middleware/logger.middleware';
 
 @Module({
@@ -51,6 +54,9 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     StatsModule,
     BillingModule,
     RatingsModule,
+    NotificationsModule,
+    RsvpModule,
+    PlayerPortalModule,
   ],
 })
 export class AppModule implements NestModule {

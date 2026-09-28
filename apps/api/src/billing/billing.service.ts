@@ -21,7 +21,8 @@ import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { IncomingTransfer, PAYREP_CLIENT, PayrepClient } from './payrep/payrep.client';
 import { MockPayrepClient } from './payrep/mock-payrep.client';
-import { JoinGroupDto } from './dto/join-group.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { naira, phoneKey } from '../common/format.util';
 
 const PERIODIC_TYPES = [
   PaymentType.WEEKLY,
@@ -54,6 +55,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(BankTransfer) private transfersRepo: Repository<BankTransfer>,
     @Inject(PAYREP_CLIENT) private payrep: PayrepClient,
     private paymentsService: PaymentsService,
+    private notifications: NotificationsService,
   ) {}
 
   // ── Lifecycle: open new dues periods as time rolls over ──
@@ -165,6 +167,20 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           this.paymentsRepo.create({ sessionId: session.id, playerId: m.playerId, amount: fee }),
         ),
       );
+      this.notifications.later(() =>
+        this.notifications.notifyPlayers(
+          memberships.map((m) => m.playerId),
+          {
+            kind: 'dues_open',
+            title: `${group.name}: ${period.label} dues are open`,
+            body: `${naira(fee)} — tap for the account details and your reference.`,
+            url: '/me',
+            message: group.accountNumber
+              ? `⚽ ${group.name} — ${period.label} dues: ${naira(fee)}\nPay to ${group.bankName} ${group.accountNumber} (${group.accountName}) with your PitchAside reference in the narration.\n${this.notifications.appUrl('/me')}`
+              : undefined,
+          },
+        ),
+      );
     }
     return session;
   }
@@ -232,31 +248,52 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async joinGroup(code: string, dto: JoinGroupDto) {
+  /** New or returning player whose phone number was just verified by one-time code. */
+  async joinGroup(code: string, input: { phone: string; firstName?: string; lastName?: string; email?: string }) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This link is invalid or has expired');
 
-    const phone = dto.phone.trim();
-    let player = await this.playersRepo.findOne({ where: { phone } });
+    const key = phoneKey(input.phone);
+    let player = await this.playersRepo
+      .createQueryBuilder('p')
+      .where(`regexp_replace(p.phone, '\\D', '', 'g') LIKE :suffix`, { suffix: `%${key}` })
+      .getOne();
     if (player && player.organizationId !== group.organizationId) {
       throw new ConflictException('This phone number is already registered with another team');
     }
     if (!player) {
-      if (dto.email) {
-        const emailOwner = await this.playersRepo.findOne({ where: { email: dto.email } });
+      if (!input.firstName?.trim() || !input.lastName?.trim()) {
+        throw new BadRequestException('First and last name are required');
+      }
+      if (input.email) {
+        const emailOwner = await this.playersRepo.findOne({ where: { email: input.email } });
         if (emailOwner) throw new ConflictException('This email is already registered');
       }
       player = await this.playersRepo.save(
         this.playersRepo.create({
-          firstName: dto.firstName.trim(),
-          lastName: dto.lastName.trim(),
-          phone,
-          email: dto.email?.trim() || undefined,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          phone: input.phone.trim(),
+          email: input.email?.trim() || undefined,
           organizationId: group.organizationId,
         }),
       );
     }
+    return { playerId: player.id, ...(await this.addToGroup(group, player)) };
+  }
 
+  /** Signed-in player tapping a group link. */
+  async joinGroupAsPlayer(code: string, playerId: string) {
+    const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
+    if (!group) throw new NotFoundException('This link is invalid or has expired');
+    const player = await this.playersRepo.findOneOrFail({ where: { id: playerId } });
+    if (player.organizationId !== group.organizationId) {
+      throw new ConflictException('Your number is registered with another team');
+    }
+    return this.addToGroup(group, player);
+  }
+
+  private async addToGroup(group: Group, player: Player) {
     let membership = await this.membershipsRepo.findOne({
       where: { groupId: group.id, playerId: player.id },
     });
@@ -265,6 +302,14 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       membership = await this.membershipsRepo.save(
         this.membershipsRepo.create({ groupId: group.id, playerId: player.id, role: MemberRole.PLAYER }),
       );
+      this.notifications.later(() =>
+        this.notifications.notifyOrganisers(group.organizationId, {
+          kind: 'member_joined',
+          title: `${player.firstName} ${player.lastName} joined ${group.name}`,
+          body: 'Joined with the group link.',
+          url: `/groups/${group.id}`,
+        }),
+      );
     }
     await this.onMemberAdded(membership);
 
@@ -272,7 +317,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       alreadyMember,
       firstName: player.firstName,
       paymentRef: membership.paymentRef,
-      ...(await this.getPublicGroup(code)),
+      ...(await this.getPublicGroup(group.inviteCode)),
     };
   }
 
@@ -312,6 +357,15 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Transfer ${incoming.providerTransactionId} to unknown account ${incoming.accountNumber}`);
       return { received: true, status: transfer.status };
     }
+    const notifyUnmatched = () =>
+      this.notifications.later(() =>
+        this.notifications.notifyOrganisers(group.organizationId, {
+          kind: 'transfer_unmatched',
+          title: `${naira(incoming.amount)} needs matching`,
+          body: `From ${incoming.senderName ?? 'unknown sender'} into ${group.name}. Tap to assign it.`,
+          url: `/groups/${group.id}?tab=transfers`,
+        }),
+      );
 
     await this.ensureCurrentPeriod(group);
     const playerId = await this.identifyPayer(group.id, incoming);
@@ -323,6 +377,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         await this.transfersRepo.save(transfer);
       }
     }
+    if (transfer.status === TransferStatus.UNMATCHED) notifyUnmatched();
     return { received: true, status: transfer.status };
   }
 
@@ -388,6 +443,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     for (const sessionId of new Set(payments.map((p) => p.sessionId))) {
       await this.paymentsService.recalculateSessionTotal(sessionId);
     }
+    this.notifications.later(() => this.paymentsService.sendReceipts(payments.map((p) => p.id), 'transfer'));
   }
 
   async listTransfers(groupId: string, organizationId: string) {

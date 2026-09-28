@@ -7,6 +7,7 @@ import { Session } from '../sessions/entities/session.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
 import { PaymentsModule } from '../payments/payments.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { BankTransfer } from './entities/bank-transfer.entity';
 import { BillingService } from './billing.service';
 import { BillingController, PublicBillingController } from './billing.controller';
@@ -18,6 +19,7 @@ import { HttpPayrepClient } from './payrep/http-payrep.client';
   imports: [
     TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer]),
     PaymentsModule,
+    NotificationsModule,
   ],
   controllers: [BillingController, PublicBillingController],
   providers: [
