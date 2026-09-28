@@ -13,6 +13,8 @@ interface PlayerPaymentRowProps {
   loading?: boolean;
   selected?: boolean;
   onToggle?: () => void;
+  /** Paid by bank transfer into the group account (auto-matched). */
+  viaTransfer?: boolean;
 }
 
 const statusConfig = {
@@ -54,6 +56,7 @@ export function PlayerPaymentRow({
   loading,
   selected,
   onToggle,
+  viaTransfer,
 }: PlayerPaymentRowProps) {
   const config = statusConfig[status];
   const canAct = status === PaymentStatus.PENDING;
@@ -83,7 +86,12 @@ export function PlayerPaymentRow({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink truncate">{playerName}</p>
-          <p className="text-xs text-gray-500 tabular-nums">{formatCurrency(amount)}</p>
+          <p className="text-xs text-gray-500 tabular-nums">
+            {formatCurrency(amount)}
+            {viaTransfer && status === PaymentStatus.PAID && (
+              <span className="ml-1.5 text-[10px] font-bold text-pitch-600">· via bank transfer</span>
+            )}
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 ml-3">

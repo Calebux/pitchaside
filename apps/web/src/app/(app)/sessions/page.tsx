@@ -163,9 +163,11 @@ export default function SessionsPage() {
                             {group?.name || 'Game'}
                           </p>
                           <p className="text-xs text-gray-500 mt-0.5">
-                            {new Date(session.date).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                            })}
+                            {session.kind === 'dues' && session.label
+                              ? `${session.label} dues`
+                              : new Date(session.date).toLocaleDateString('en-US', {
+                                  weekday: 'long',
+                                })}
                           </p>
                         </div>
                       </div>

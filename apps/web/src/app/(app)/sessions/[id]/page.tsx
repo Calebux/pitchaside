@@ -165,11 +165,13 @@ export default function SessionDetailPage() {
           <div className="flex items-start justify-between mb-5 gap-3">
             <div className="min-w-0">
               <p className="text-white/60 text-xs font-semibold">
-                {new Date(session.date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                {session.kind === 'dues' && session.label
+                  ? `${session.label} dues`
+                  : new Date(session.date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
               </p>
               <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1 line-clamp-2">
                 {session.group?.name || 'Game Session'}
@@ -386,6 +388,7 @@ export default function SessionDetailPage() {
               }
               amount={payment.amount}
               status={payment.status}
+              viaTransfer={payment.source === 'transfer'}
               onMarkPaid={() => handleMarkPaid(payment.id)}
               onWaive={() => handleWaive(payment.id)}
               loading={markingId === payment.id}

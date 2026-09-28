@@ -1,0 +1,58 @@
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
+import {
+  CreateAccountInput,
+  IncomingTransfer,
+  PayrepClient,
+  ProvisionedAccount,
+} from './payrep.client';
+
+/**
+ * Local stand-in for Payrep. Account numbers are deterministic per group so
+ * re-provisioning is stable, and webhooks use a simple HMAC-SHA256 signature
+ * over the raw body with PAYREP_WEBHOOK_SECRET.
+ */
+export class MockPayrepClient implements PayrepClient {
+  readonly mode = 'mock' as const;
+
+  constructor(private readonly webhookSecret: string) {}
+
+  async createAccount(input: CreateAccountInput): Promise<ProvisionedAccount> {
+    const digest = createHash('sha256').update(input.reference).digest();
+    // 10-digit NUBAN-style number; leading 8 keeps it visibly "test".
+    const digits = Array.from(digest.subarray(0, 9), (b) => String(b % 10)).join('');
+    return {
+      accountNumber: `8${digits}`,
+      accountName: input.accountName,
+      bankName: 'Payrep MFB (test)',
+      providerReference: `mock_${digest.toString('hex').slice(0, 16)}`,
+    };
+  }
+
+  sign(rawBody: string) {
+    return createHmac('sha256', this.webhookSecret).update(rawBody).digest('hex');
+  }
+
+  verifyWebhook(rawBody: string, signature: string | undefined): boolean {
+    if (!signature) return false;
+    const expected = Buffer.from(this.sign(rawBody));
+    const given = Buffer.from(signature);
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  }
+
+  parseWebhook(payload: unknown): IncomingTransfer | null {
+    const p = payload as Record<string, any>;
+    if (!p || p.event !== 'transfer.received' || !p.data) return null;
+    const d = p.data;
+    return {
+      providerTransactionId: String(d.transactionId),
+      accountNumber: String(d.accountNumber),
+      amount: Number(d.amount),
+      senderName: d.senderName,
+      senderAccount: d.senderAccount,
+      senderBank: d.senderBank,
+      narration: d.narration,
+      receivedAt: d.receivedAt ? new Date(d.receivedAt) : new Date(),
+      raw: payload,
+    };
+  }
+}

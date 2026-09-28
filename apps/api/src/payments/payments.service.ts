@@ -44,6 +44,7 @@ export class PaymentsService {
 
     payment.status = PaymentStatus.PAID;
     payment.paidAt = new Date();
+    payment.source = 'manual';
     if (markedBy) payment.markedBy = markedBy;
     const saved = await this.paymentsRepo.save(payment);
 
@@ -107,6 +108,7 @@ export class PaymentsService {
 
       payment.status = PaymentStatus.PAID;
       payment.paidAt = new Date();
+      payment.source = 'manual';
       if (markedBy) payment.markedBy = markedBy;
       payments.push(payment);
       sessionIds.add(payment.sessionId);
@@ -121,7 +123,7 @@ export class PaymentsService {
     return saved;
   }
 
-  private async recalculateSessionTotal(sessionId: string) {
+  async recalculateSessionTotal(sessionId: string) {
     const payments = await this.paymentsRepo.find({
       where: { sessionId, status: PaymentStatus.PAID },
     });

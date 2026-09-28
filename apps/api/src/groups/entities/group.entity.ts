@@ -13,7 +13,10 @@ import { Organization } from '../../organizations/entities/organization.entity';
 
 export enum PaymentType {
   PER_SESSION = 'per_session',
+  WEEKLY = 'weekly',
   MONTHLY = 'monthly',
+  QUARTERLY = 'quarterly',
+  ANNUALLY = 'annually',
 }
 
 @Entity('groups')
@@ -38,6 +41,24 @@ export class Group {
 
   @Column({ type: 'enum', enum: PaymentType, default: PaymentType.PER_SESSION })
   paymentType: PaymentType;
+
+  /** Public code used in the group's join / pay link. */
+  @Column({ name: 'invite_code', nullable: true, unique: true })
+  inviteCode: string;
+
+  /** Dedicated collection account provisioned with Payrep for this group. */
+  @Column({ name: 'account_number', nullable: true, unique: true })
+  accountNumber: string;
+
+  @Column({ name: 'account_name', nullable: true })
+  accountName: string;
+
+  @Column({ name: 'bank_name', nullable: true })
+  bankName: string;
+
+  /** Provider-side identifier for the account (for support / reconciliation). */
+  @Column({ name: 'account_reference', nullable: true })
+  accountReference: string;
 
   @ManyToOne(() => Organization, (org) => org.groups, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organization_id' })

@@ -17,6 +17,13 @@ export enum SessionStatus {
   CANCELLED = 'cancelled',
 }
 
+export enum SessionKind {
+  /** A match day. */
+  GAME = 'game',
+  /** A billing period for weekly / monthly / quarterly / annual groups. */
+  DUES = 'dues',
+}
+
 @Entity('sessions')
 export class Session {
   @PrimaryGeneratedColumn('uuid')
@@ -40,6 +47,13 @@ export class Session {
 
   @Column({ type: 'enum', enum: SessionStatus, default: SessionStatus.UPCOMING })
   status: SessionStatus;
+
+  @Column({ type: 'enum', enum: SessionKind, default: SessionKind.GAME })
+  kind: SessionKind;
+
+  /** Human label for dues periods, e.g. "October 2026". */
+  @Column({ nullable: true })
+  label: string;
 
   @OneToMany(() => Payment, (payment) => payment.session)
   payments: Payment[];

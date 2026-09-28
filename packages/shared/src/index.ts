@@ -1,6 +1,14 @@
 export enum PaymentType {
   PER_SESSION = 'per_session',
+  WEEKLY = 'weekly',
   MONTHLY = 'monthly',
+  QUARTERLY = 'quarterly',
+  ANNUALLY = 'annually',
+}
+
+export enum SessionKind {
+  GAME = 'game',
+  DUES = 'dues',
 }
 
 export enum MemberRole {
@@ -28,6 +36,10 @@ export interface IGroup {
   targetPlayers: number;
   feePerPlayer: number;
   paymentType: PaymentType;
+  inviteCode?: string;
+  accountNumber?: string;
+  accountName?: string;
+  bankName?: string;
   createdAt: string;
 }
 
@@ -47,6 +59,8 @@ export interface ISession {
   targetAmount: number;
   collectedAmount: number;
   status: SessionStatus;
+  kind?: SessionKind;
+  label?: string;
   payments?: IPayment[];
 }
 
@@ -58,6 +72,7 @@ export interface IPayment {
   status: PaymentStatus;
   paidAt?: string;
   markedBy?: string;
+  source?: 'manual' | 'transfer';
   player?: IPlayer;
 }
 

@@ -5,7 +5,8 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody lets the Payrep webhook verify its signature over the exact bytes sent.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.setGlobalPrefix('api');
   app.use(helmet());
   app.enableCors({

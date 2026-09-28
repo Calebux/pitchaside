@@ -59,8 +59,9 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Dues periods aren't games — keep them out of "next game" / "coming up".
   const upcomingSessions = sessions
-    .filter((s) => s.status === SessionStatus.UPCOMING)
+    .filter((s) => s.status === SessionStatus.UPCOMING && s.kind !== 'dues')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const nextSession = upcomingSessions[0];
   const nextGroup = nextSession ? groups.find((g) => g.id === nextSession.groupId) : null;
