@@ -69,6 +69,18 @@ export class PlayerAuthController {
     private readonly billing: BillingService,
   ) {}
 
+  @Get('player-auth/mode')
+  mode() {
+    return { mode: this.auth.mode };
+  }
+
+  /** Number-only sign-in (PLAYER_AUTH_MODE=phone). */
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('player-auth/phone')
+  signInWithPhone(@Body() dto: RequestCodeDto) {
+    return this.auth.signInWithPhone(dto.phone, dto.groupCode);
+  }
+
   @Throttle({ default: { ttl: 60000, limit: 6 } })
   @Post('player-auth/request-code')
   requestCode(@Body() dto: RequestCodeDto) {

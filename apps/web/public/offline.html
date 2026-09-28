@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0f1a14" />
+    <title>Offline · PitchAside</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px;
+        background: #ffffff; color: #0f1a14; text-align: center;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      }
+      img { width: 72px; height: 72px; border-radius: 20px; }
+      h1 { font-size: 26px; margin: 20px 0 6px; letter-spacing: -0.02em; }
+      p { color: #5a584c; margin: 0 0 24px; max-width: 280px; }
+      button {
+        background: #0f1a14; color: #e3fb6c; border: 0; border-radius: 12px;
+        padding: 14px 22px; font-weight: 700; font-size: 15px; cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>You're offline</h1>
+      <p>Looks like the Wi-Fi went off the pitch. Reconnect and try again.</p>
+      <button onclick="location.reload()">Try again</button>
+    </main>
+  </body>
+</html>

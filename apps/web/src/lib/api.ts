@@ -66,6 +66,7 @@ export function createGroup(data: {
   targetPlayers: number;
   feePerPlayer: number;
   paymentType?: PaymentType;
+  requireRsvp?: boolean;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -79,6 +80,7 @@ export function updateGroup(
     targetPlayers: number;
     feePerPlayer: number;
     paymentType: PaymentType;
+    requireRsvp: boolean;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);
@@ -404,11 +406,44 @@ export function getPublicGroup(code: string): Promise<PublicGroup> {
   return http.get(`/public/groups/${code}`);
 }
 
-export function joinGroup(
-  code: string,
-  data: { firstName: string; lastName: string; phone: string; email?: string },
-): Promise<PublicGroup & { paymentRef: string; firstName: string; alreadyMember: boolean }> {
-  return http.post(`/public/groups/${code}/join`, data);
+
+// ── RSVP team sheet ──
+
+export interface RsvpBoard {
+  capacity: number;
+  requireRsvp: boolean;
+  in: SquadMember[];
+  waitlist: SquadMember[];
+  out: SquadMember[];
+  noReply: SquadMember[];
+}
+
+export function getRsvpBoard(sessionId: string): Promise<RsvpBoard> {
+  return http.get(`/sessions/${sessionId}/rsvp`);
+}
+
+export function setRsvpForPlayer(sessionId: string, playerId: string, status: 'in' | 'out'): Promise<RsvpBoard> {
+  return http.post(`/sessions/${sessionId}/rsvp`, { playerId, status });
+}
+
+// ── Messages outbox & organiser push ──
+
+export interface OutboundMessage {
+  id: string;
+  channel: string;
+  to: string;
+  kind: string;
+  body: string;
+  status: string;
+  createdAt: string;
+}
+
+export function getMessages(): Promise<{ mode: 'mock' | 'live'; messages: OutboundMessage[] }> {
+  return http.get('/messages');
+}
+
+export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
+  return http.post('/push/subscribe', sub);
 }
 
 // ── Post-match voting, ratings & league table ──
@@ -484,20 +519,7 @@ export function getBallot(token: string): Promise<Ballot> {
   return http.get(`/public/votes/${token}`);
 }
 
-export function identifyVoter(
-  token: string,
-  phone: string,
-): Promise<{ playerId: string; firstName: string; picks: Partial<Record<VoteCategory, string>> }> {
-  return http.post(`/public/votes/${token}/identify`, { phone });
-}
 
-export function submitVotes(
-  token: string,
-  phone: string,
-  picks: Partial<Record<VoteCategory, string>>,
-): Promise<VoteResults> {
-  return http.post(`/public/votes/${token}`, { phone, picks });
-}
 
 export function getVoteResults(token: string): Promise<VoteResults> {
   return http.get(`/public/votes/${token}/results`);

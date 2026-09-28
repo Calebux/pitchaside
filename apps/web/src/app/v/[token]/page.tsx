@@ -6,14 +6,9 @@ import { Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { Avatar, VoteResultsList, categoryMeta } from '@/components/ratings';
-import {
-  getBallot,
-  identifyVoter,
-  submitVotes,
-  type Ballot,
-  type VoteCategory,
-  type VoteResults,
-} from '@/lib/api';
+import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
+import { PhoneSignIn, type VerifiedPhone } from '@/components/phone-sign-in';
+import { getMyBallot, getPlayerToken, setPlayerToken, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
 type Stage = 'phone' | 'ballot' | 'done';
 
@@ -22,38 +17,49 @@ export default function VotePage() {
   const [ballot, setBallot] = useState<Ballot | null>(null);
   const [invalid, setInvalid] = useState(false);
   const [stage, setStage] = useState<Stage>('phone');
-  const [phone, setPhone] = useState('');
   const [voter, setVoter] = useState<{ playerId: string; firstName: string } | null>(null);
   const [picks, setPicks] = useState<Partial<Record<VoteCategory, string>>>({});
   const [results, setResults] = useState<VoteResults | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    getBallot(token).then(setBallot).catch(() => setInvalid(true));
-  }, [token]);
-
-  async function handleIdentify(e: React.FormEvent) {
-    e.preventDefault();
+  async function loadMyBallot() {
     setBusy(true);
     setError(null);
     try {
-      const v = await identifyVoter(token, phone.trim());
+      const v = await getMyBallot(token);
       setVoter({ playerId: v.playerId, firstName: v.firstName });
       setPicks(v.picks);
       setStage('ballot');
     } catch (err: any) {
-      setError(err.message || 'Could not find you on the team sheet');
+      // Signed out, or signed in as someone who didn't play: back to the number step.
+      setError(err instanceof PlayerAuthError ? null : err.message);
+      setStage('phone');
     } finally {
       setBusy(false);
     }
+  }
+
+  useEffect(() => {
+    getBallot(token).then(setBallot).catch(() => setInvalid(true));
+    if (getPlayerToken()) loadMyBallot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function onVerified(v: VerifiedPhone) {
+    if (!v.token) {
+      setError("That number isn't registered with this team yet.");
+      return;
+    }
+    setPlayerToken(v.token);
+    await loadMyBallot();
   }
 
   async function handleSubmit() {
     setBusy(true);
     setError(null);
     try {
-      const res = await submitVotes(token, phone.trim(), picks);
+      const res = await submitMyVotes(token, picks);
       setResults(res);
       setBallot((b) => (b ? { ...b, ballots: res.ballots } : b));
       setStage('done');
@@ -129,38 +135,21 @@ export default function VotePage() {
             </p>
           </div>
         ) : stage === 'phone' ? (
-          <form onSubmit={handleIdentify} className="mt-6 bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-4">
-            <div>
-              <h2 className="text-xl font-extrabold text-ink">Who were the stars?</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Five quick picks. Your votes build everyone&apos;s player rating and the league table.
-              </p>
-            </div>
+          <div className="mt-6 space-y-3">
             {error && <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
-            <div>
-              <label htmlFor="phone" className="block text-xs font-bold text-gray-700 mb-1.5">
-                Your phone number
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className={input}
-                placeholder="The number your organiser has for you"
-                autoFocus
+            {busy ? (
+              <div className="py-10 flex justify-center">
+                <BallSpinner className="w-8 h-8" />
+              </div>
+            ) : (
+              <PhoneSignIn
+                title="Who were the stars?"
+                subtitle="Six quick picks — they build everyone's player rating and the league table. First, confirm it's you."
+                cta="Start voting"
+                onVerified={onVerified}
               />
-            </div>
-            <button
-              type="submit"
-              disabled={busy || phone.trim().length < 7}
-              className="w-full py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {busy && <BallSpinner />}
-              Start voting
-            </button>
-          </form>
+            )}
+          </div>
         ) : stage === 'ballot' ? (
           <div className="mt-6 space-y-5">
             <p className="text-sm text-gray-600">

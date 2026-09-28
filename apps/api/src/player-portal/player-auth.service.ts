@@ -64,6 +64,24 @@ export class PlayerAuthService {
       .getOne();
   }
 
+  /** 'phone' = number is enough to sign in (current default); 'otp' = one-time code required. */
+  get mode(): 'phone' | 'otp' {
+    return this.config.get('PLAYER_AUTH_MODE', 'phone') === 'otp' ? 'otp' : 'phone';
+  }
+
+  /** Phone-only sign-in. Only allowed while PLAYER_AUTH_MODE=phone. */
+  async signInWithPhone(phone: string, groupCode?: string) {
+    if (this.mode !== 'phone') throw new UnauthorizedException('A confirmation code is required');
+    const key = phoneKey(phone);
+    if (key.length < 10) throw new BadRequestException('Enter your full phone number');
+    const player = await this.findPlayerByPhone(phone);
+    const group = groupCode ? await this.groupsRepo.findOne({ where: { inviteCode: groupCode } }) : null;
+    if (!player && !group) {
+      throw new NotFoundException("We couldn't find a player with that number. Ask your organiser for your group link.");
+    }
+    return this.issueSignIn(phone, key, player);
+  }
+
   async requestCode(phone: string, groupCode?: string) {
     const key = phoneKey(phone);
     if (key.length < 10) throw new BadRequestException('Enter your full phone number');
@@ -120,7 +138,10 @@ export class PlayerAuthService {
     otp.usedAt = new Date();
     await this.otpRepo.save(otp);
 
-    const player = await this.findPlayerByPhone(phone);
+    return this.issueSignIn(phone, key, await this.findPlayerByPhone(phone));
+  }
+
+  private issueSignIn(phone: string, key: string, player: Player | null) {
     const phoneProof = this.jwt.sign({ typ: 'phone', key, phone: phone.trim() } satisfies PhoneClaims, {
       secret: this.secret,
       expiresIn: '30m',

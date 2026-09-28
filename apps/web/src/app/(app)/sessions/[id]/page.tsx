@@ -12,6 +12,7 @@ import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
 import { Trophy } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { SessionVotingCard } from '@/components/ratings';
+import { TeamSheet } from '@/components/team-sheet';
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
   upcoming: { bg: 'bg-volt-400', text: 'text-ink' },
@@ -258,6 +259,10 @@ export default function SessionDetailPage() {
             <p className="text-xs text-ink/70 mt-1">No chasing needed for this one.</p>
           </div>
         </div>
+      )}
+
+      {session.kind !== 'dues' && session.status === SessionStatus.UPCOMING && (
+        <TeamSheet sessionId={id} onChange={fetchSession} />
       )}
 
       {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (
