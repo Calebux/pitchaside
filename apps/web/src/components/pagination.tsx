@@ -28,31 +28,34 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
   }
 
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
-      <p className="text-xs text-gray-500">
-        Showing {start}-{end} of {total}
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-6">
+      <p className="text-xs text-gray-400 tabular-nums">
+        {start}–{end} of {total}
       </p>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
-          className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-2 text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          aria-label="Previous page"
         >
-          Prev
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
         </button>
         {pages.map((p, i) =>
           p === '...' ? (
-            <span key={`dots-${i}`} className="px-2 text-xs text-gray-400">
+            <span key={`dots-${i}`} className="px-1.5 text-xs text-gray-300">
               ...
             </span>
           ) : (
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`w-8 h-8 text-xs font-medium rounded-lg transition-colors ${
+              className={`w-8 h-8 text-xs font-semibold rounded-lg transition-colors tabular-nums ${
                 p === page
-                  ? 'bg-pitch-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-500 hover:bg-gray-100'
               }`}
             >
               {p}
@@ -62,9 +65,12 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
-          className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-2 text-gray-500 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          aria-label="Next page"
         >
-          Next
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
         </button>
       </div>
     </div>
