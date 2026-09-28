@@ -124,10 +124,8 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-pitch-600 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
+            <div className="w-8 h-8 rounded-xl bg-pitch-600 flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
             </div>
             <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
@@ -147,7 +145,7 @@ export default function LandingPage() {
             </Link>
             <Link
               href="/signup"
-              className="px-4 py-2 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors shadow-sm shadow-pitch-600/20"
+              className="px-4 py-2 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors shadow-sm shadow-pitch-600/20"
             >
               Get Started
             </Link>
@@ -474,10 +472,8 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-md bg-pitch-600 flex items-center justify-center">
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                </svg>
+              <div className="w-6 h-6 rounded-lg bg-pitch-600 flex items-center justify-center">
+                <span className="text-white font-bold text-[10px]">P</span>
               </div>
               <span className="text-sm font-semibold text-gray-900">PitchAside</span>
             </div>

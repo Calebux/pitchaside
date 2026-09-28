@@ -57,9 +57,11 @@ export default function JoinPage() {
     }
   }
 
+  const inputClass = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pitch-600" />
       </div>
     );
@@ -67,18 +69,21 @@ export default function JoinPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md text-center">
-          <Link href="/" className="text-2xl font-bold text-pitch-700">
-            PitchAside
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center">
+          <Link href="/" className="inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
-          <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          <div className="mt-8">
+            <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
               </svg>
             </div>
-            <h1 className="text-lg font-semibold text-gray-900 mb-1">Invalid Invite Link</h1>
+            <h1 className="text-lg font-bold text-gray-900 mb-2">Invalid Invite Link</h1>
             <p className="text-sm text-gray-500">
               This invite link is invalid or has expired. Please ask your organizer for a new link.
             </p>
@@ -90,20 +95,23 @@ export default function JoinPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md text-center">
-          <Link href="/" className="text-2xl font-bold text-pitch-700">
-            PitchAside
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center">
+          <Link href="/" className="inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
-          <div className="mt-6 bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          <div className="mt-8">
+            <div className="w-14 h-14 bg-pitch-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <svg className="w-7 h-7 text-pitch-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             </div>
-            <h1 className="text-lg font-semibold text-gray-900 mb-1">You&apos;re in!</h1>
+            <h1 className="text-lg font-bold text-gray-900 mb-2">You&apos;re in!</h1>
             <p className="text-sm text-gray-500">
-              You&apos;ve been added to <span className="font-medium text-gray-700">{orgName}</span>. The organizer will see you in their player list.
+              You&apos;ve been added to <span className="font-semibold text-gray-900">{orgName}</span>. The organizer will see you in their player list.
             </p>
           </div>
         </div>
@@ -112,13 +120,16 @@ export default function JoinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12">
+      <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="text-2xl font-bold text-pitch-700">
-            PitchAside
+          <Link href="/" className="inline-flex items-center gap-2">
+            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-sm">P</span>
+            </div>
+            <span className="text-xl font-bold text-gray-900">PitchAside</span>
           </Link>
-          <h1 className="mt-4 text-xl font-semibold text-gray-900">
+          <h1 className="mt-6 text-xl font-bold text-gray-900">
             Join {orgName}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -126,48 +137,47 @@ export default function JoinPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {formError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-3 py-2">
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
               {formError}
             </div>
           )}
 
-          <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-              First Name
-            </label>
-            <input
-              id="firstName"
-              name="firstName"
-              type="text"
-              required
-              value={form.firstName}
-              onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
-              placeholder="John"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="firstName" className="block text-xs font-medium text-gray-500 mb-1.5">
+                First Name *
+              </label>
+              <input
+                id="firstName"
+                name="firstName"
+                type="text"
+                required
+                value={form.firstName}
+                onChange={handleChange}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label htmlFor="lastName" className="block text-xs font-medium text-gray-500 mb-1.5">
+                Last Name *
+              </label>
+              <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                required
+                value={form.lastName}
+                onChange={handleChange}
+                className={inputClass}
+              />
+            </div>
           </div>
 
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-              Last Name
-            </label>
-            <input
-              id="lastName"
-              name="lastName"
-              type="text"
-              required
-              value={form.lastName}
-              onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
-              placeholder="Doe"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-              Phone Number
+            <label htmlFor="phone" className="block text-xs font-medium text-gray-500 mb-1.5">
+              Phone Number *
             </label>
             <input
               id="phone"
@@ -176,14 +186,14 @@ export default function JoinPage() {
               required
               value={form.phone}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass}
               placeholder="+234 800 000 0000"
             />
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email <span className="text-gray-400 font-normal">(optional)</span>
+            <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+              Email <span className="text-gray-300">(optional)</span>
             </label>
             <input
               id="email"
@@ -191,7 +201,7 @@ export default function JoinPage() {
               type="email"
               value={form.email}
               onChange={handleChange}
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass}
               placeholder="john@example.com"
             />
           </div>
@@ -199,7 +209,7 @@ export default function JoinPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+            className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
           >
             {submitting ? 'Joining...' : 'Join Team'}
           </button>
