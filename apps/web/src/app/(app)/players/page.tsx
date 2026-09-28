@@ -8,6 +8,7 @@ import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
 import { PageHeader } from '@/components/brand';
 import { kitFor } from '@/components/illustrations';
+import { VotePrompt } from '@/components/ratings';
 import { getPlayersPaginated, deletePlayer, exportPlayersCsv, getInviteCode, regenerateInviteCode, type PaginatedResponse } from '@/lib/api';
 import type { IPlayer } from '@pitchaside/shared';
 
@@ -178,6 +179,8 @@ export default function PlayersPage() {
         </>
         }
       />
+
+      <VotePrompt />
 
       {/* Invite Players Section */}
       <div className="relative bg-pitch-800 text-white rounded-3xl p-5 mb-4 overflow-hidden">

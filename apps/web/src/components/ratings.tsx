@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import {
+  getSessions,
   getSessionVoting,
+  type ISessionWithDetails,
   type LeagueTable,
   type PlayerRatings,
   type SessionVoting,
@@ -248,6 +250,60 @@ export function SessionVotingCard({
         )}
       </div>
     </section>
+  );
+}
+
+/** True while a game is inside its match-day + 7 days voting window. */
+export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' | 'status'>) {
+  if (session.kind === 'dues' || session.status === 'cancelled') return false;
+  const day = new Date(`${session.date.slice(0, 10)}T00:00:00`).getTime();
+  const today = new Date().setHours(0, 0, 0, 0);
+  return day <= today && day >= today - 7 * 86400000;
+}
+
+/** Slim prompt linking to the latest open vote — sits on the Players page. */
+export function VotePrompt() {
+  const [game, setGame] = useState<ISessionWithDetails | null>(null);
+  const [voting, setVoting] = useState<SessionVoting | null>(null);
+
+  useEffect(() => {
+    getSessions()
+      .then((all) => {
+        const latest = all.filter(isVotingOpen).sort((a, b) => b.date.localeCompare(a.date))[0];
+        if (!latest) return;
+        setGame(latest);
+        return getSessionVoting(latest.id).then(setVoting);
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!game) return null;
+  const date = new Date(`${game.date.slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+
+  return (
+    <Link
+      href={`/sessions/${game.id}/vote`}
+      className="group flex items-center gap-3 mb-4 rounded-2xl bg-sun-400 border-2 border-ink px-4 py-3 hover:-translate-y-0.5 hover:shadow-sticker transition-all"
+    >
+      <span className="w-9 h-9 rounded-xl bg-ink text-sun-400 flex items-center justify-center font-display font-extrabold shrink-0">★</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-extrabold text-ink leading-tight">Post-match vote is open</span>
+        <span className="block text-xs text-ink/70 truncate">
+          {game.group?.name ?? 'Last game'} · {date}
+          {voting ? ` · ${voting.ballots}/${voting.squadSize} voted` : ''}
+        </span>
+      </span>
+      <span className="text-xs font-bold text-ink shrink-0 flex items-center gap-1">
+        Open
+        <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </span>
+    </Link>
   );
 }
 

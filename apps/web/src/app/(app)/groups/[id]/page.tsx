@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { BackButton } from '@/components/back-button';
 import { EmptyState } from '@/components/empty-state';
@@ -47,7 +47,11 @@ export default function GroupDetailPage() {
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'members' | 'sessions' | 'table' | 'transfers'>('members');
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const [tab, setTab] = useState<'members' | 'sessions' | 'table' | 'transfers'>(
+    initialTab === 'sessions' || initialTab === 'table' || initialTab === 'transfers' ? initialTab : 'members',
+  );
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [billing, setBilling] = useState<GroupBilling | null>(null);
   const [transfers, setTransfers] = useState<BankTransfer[]>([]);
