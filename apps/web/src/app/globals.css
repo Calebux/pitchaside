@@ -1,28 +1,36 @@
 @import "tailwindcss";
 
 @theme {
-  --color-pitch-50: #eff6ff;
-  --color-pitch-100: #dbeafe;
-  --color-pitch-200: #bfdbfe;
-  --color-pitch-300: #93c5fd;
-  --color-pitch-400: #60a5fa;
-  --color-pitch-500: #3b82f6;
-  --color-pitch-600: #2563eb;
-  --color-pitch-700: #1d4ed8;
-  --color-pitch-800: #1e40af;
-  --color-pitch-900: #1e3a8a;
+  /* Primary — Emerald green: sporty + financially trustworthy */
+  --color-pitch-50: #ecfdf5;
+  --color-pitch-100: #d1fae5;
+  --color-pitch-200: #a7f3d0;
+  --color-pitch-300: #6ee7b7;
+  --color-pitch-400: #34d399;
+  --color-pitch-500: #10b981;
+  --color-pitch-600: #059669;
+  --color-pitch-700: #047857;
+  --color-pitch-800: #065f46;
+  --color-pitch-900: #064e3b;
 
-  --animate-fade-in: fade-in 0.6s ease-out both;
-  --animate-fade-in-up: fade-in-up 0.6s ease-out both;
-  --animate-slide-up: slide-up 0.5s ease-out both;
+  /* Animations */
+  --animate-fade-in: fade-in 0.5s ease-out both;
+  --animate-fade-in-up: fade-in-up 0.5s ease-out both;
+  --animate-slide-up: slide-up 0.4s ease-out both;
   --animate-float: float 6s ease-in-out infinite;
   --animate-pulse-soft: pulse-soft 3s ease-in-out infinite;
-  --animate-slide-down: slide-down 0.3s ease-out both;
+  --animate-slide-down: slide-down 0.25s ease-out both;
+  --animate-progress: progress-fill 0.8s ease-out both;
 }
 
 @layer base {
   body {
     @apply bg-gray-50 text-gray-900 antialiased;
+  }
+
+  /* Strong number rendering for financial data */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -32,12 +40,12 @@
 }
 
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(20px); }
+  from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slide-up {
-  from { opacity: 0; transform: translateY(40px); }
+  from { opacity: 0; transform: translateY(32px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -54,4 +62,8 @@
 @keyframes slide-down {
   from { opacity: 0; transform: translateY(-12px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes progress-fill {
+  from { width: 0; }
 }
