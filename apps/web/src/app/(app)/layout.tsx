@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Nav } from '@/components/nav';
 import { useAuth } from '@/lib/auth';
+import { BallLoader } from '@/components/skeleton';
 
 export default function AppLayout({
   children,
@@ -22,7 +23,7 @@ export default function AppLayout({
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pitch-600" />
+        <BallLoader />
       </div>
     );
   }
@@ -31,7 +32,7 @@ export default function AppLayout({
 
   return (
     <>
-      <main className="min-h-screen pb-20 md:pb-6 md:pl-56">
+      <main className="min-h-screen pb-28 md:pb-10 md:pl-60 md:pt-4">
         {children}
       </main>
       <Nav />

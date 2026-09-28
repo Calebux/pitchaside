@@ -7,6 +7,7 @@ import { BackButton } from '@/components/back-button';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
+import { JerseyBadge, kitFor } from '@/components/illustrations';
 import {
   getGroup,
   getSessions,
@@ -24,9 +25,9 @@ import { PaymentType } from '@pitchaside/shared';
 import type { IPlayer } from '@pitchaside/shared';
 
 const statusStyles: Record<string, string> = {
-  upcoming: 'bg-pitch-50 text-pitch-700',
-  completed: 'bg-gray-100 text-gray-600',
-  cancelled: 'bg-red-50 text-red-600',
+  upcoming: 'bg-volt-300 text-ink',
+  completed: 'bg-ink text-white',
+  cancelled: 'bg-kit-500/15 text-kit-600',
 };
 
 export default function GroupDetailPage() {
@@ -197,7 +198,7 @@ export default function GroupDetailPage() {
 
   if (loading || !group) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-5 bg-gray-200 rounded w-20" />
           <div className="h-32 bg-gray-100 rounded-2xl" />
@@ -214,7 +215,7 @@ export default function GroupDetailPage() {
   const memberCount = group.memberships?.length || 0;
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Groups" />
 
       <ConfirmDialog
@@ -229,62 +230,62 @@ export default function GroupDetailPage() {
 
       {/* Header */}
       {editing ? (
-        <div className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div className="mb-6 bg-white border border-gray-100 shadow-card rounded-3xl p-5 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Group Name</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Group Name</label>
             <input
               value={editData.name}
               onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Description</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Description</label>
             <textarea
               value={editData.description}
               onChange={(e) => setEditData({ ...editData, description: e.target.value })}
               rows={2}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent resize-none"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 resize-none"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Schedule</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Schedule</label>
             <input
               value={editData.schedule}
               onChange={(e) => setEditData({ ...editData, schedule: e.target.value })}
               placeholder="e.g. Every Saturday, 4pm"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Target Players</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">Target Players</label>
               <input
                 type="number"
                 min={1}
                 value={editData.targetPlayers}
                 onChange={(e) => setEditData({ ...editData, targetPlayers: Number(e.target.value) })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Fee per Player</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">Fee per Player</label>
               <input
                 type="number"
                 min={0}
                 step="0.01"
                 value={editData.feePerPlayer}
                 onChange={(e) => setEditData({ ...editData, feePerPlayer: Number(e.target.value) })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Payment Type</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Payment Type</label>
             <select
               value={editData.paymentType}
               onChange={(e) => setEditData({ ...editData, paymentType: e.target.value })}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             >
               <option value={PaymentType.PER_SESSION}>Per Session</option>
               <option value={PaymentType.MONTHLY}>Monthly</option>
@@ -300,23 +301,20 @@ export default function GroupDetailPage() {
             <button
               onClick={handleSaveEdit}
               disabled={saving || !editData.name.trim()}
-              className="flex-1 py-2.5 text-sm font-semibold text-white bg-pitch-600 rounded-xl hover:bg-pitch-700 disabled:opacity-50 transition-colors"
+              className="flex-1 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
       ) : (
-        <div className="mb-6">
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex items-start gap-3">
-              <div className="w-12 h-12 bg-pitch-50 rounded-2xl flex items-center justify-center shrink-0">
-                <span className="text-base font-bold text-pitch-600">
-                  {group.name.charAt(0)}
-                </span>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{group.name}</h1>
+        <div className="relative mb-6 bg-white rounded-3xl border border-gray-100 shadow-card p-5 overflow-hidden">
+          <div className="absolute inset-0 chalk-dots opacity-70 pointer-events-none" />
+          <div className="relative flex items-start justify-between mb-4 gap-3">
+            <div className="flex items-start gap-3.5 min-w-0">
+              <JerseyBadge label={group.name.charAt(0).toUpperCase()} name={group.name} className="w-16 h-16 shrink-0 -mt-1" />
+              <div className="min-w-0">
+                <h1 className="text-[28px] leading-tight font-extrabold text-ink">{group.name}</h1>
                 {group.description && (
                   <p className="text-sm text-gray-500 mt-0.5">{group.description}</p>
                 )}
@@ -325,7 +323,7 @@ export default function GroupDetailPage() {
             <div className="flex gap-1.5 shrink-0">
               <button
                 onClick={startEdit}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-2.5 text-gray-500 bg-white border border-gray-200 rounded-xl hover:text-ink hover:border-gray-300 transition-colors"
                 title="Edit group"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -334,7 +332,7 @@ export default function GroupDetailPage() {
               </button>
               <button
                 onClick={handleDeleteGroup}
-                className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                className="p-2.5 text-gray-500 bg-white border border-gray-200 rounded-xl hover:text-kit-600 hover:border-kit-400 transition-colors"
                 title="Delete group"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -345,25 +343,25 @@ export default function GroupDetailPage() {
           </div>
 
           {/* Meta pills */}
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="relative flex flex-wrap gap-2 text-xs">
             {group.schedule && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-chalk border border-gray-200 text-gray-700 font-semibold rounded-full">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                 </svg>
                 {group.schedule}
               </span>
             )}
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full tabular-nums">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-chalk border border-gray-200 text-gray-700 font-semibold rounded-full tabular-nums">
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
               {memberCount}/{group.targetPlayers}
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full font-medium tabular-nums">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-volt-300 border border-volt-400 text-ink font-bold rounded-full tabular-nums">
               {formatCurrency(group.feePerPlayer)}/player
             </span>
-            <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full capitalize">
+            <span className="px-2.5 py-1 bg-chalk border border-gray-200 text-gray-700 font-semibold rounded-full capitalize">
               {group.paymentType.replace('_', ' ')}
             </span>
           </div>
@@ -371,19 +369,19 @@ export default function GroupDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 mb-4">
+      <div className="flex p-1 bg-white border border-gray-200 rounded-2xl mb-4">
         <button
           onClick={() => setTab('members')}
-          className={`flex-1 pb-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            tab === 'members' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400'
+          className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors ${
+            tab === 'members' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
           }`}
         >
           Members ({memberCount})
         </button>
         <button
           onClick={() => setTab('sessions')}
-          className={`flex-1 pb-2.5 text-sm font-semibold border-b-2 transition-colors ${
-            tab === 'sessions' ? 'border-gray-900 text-gray-900' : 'border-transparent text-gray-400'
+          className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors ${
+            tab === 'sessions' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
           }`}
         >
           Sessions ({sessions.length})
@@ -395,13 +393,13 @@ export default function GroupDetailPage() {
         <div>
           <button
             onClick={() => setShowAddMember(!showAddMember)}
-            className="w-full mb-3 py-2.5 text-sm font-semibold text-pitch-700 border border-pitch-200 rounded-xl hover:bg-pitch-50 transition-colors"
+            className="w-full mb-3 py-3 text-sm font-bold text-ink border-2 border-dashed border-gray-300 rounded-2xl hover:border-ink hover:bg-white transition-colors"
           >
             + Add Member
           </button>
 
           {showAddMember && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-3 space-y-3">
+            <div className="bg-white border border-gray-100 shadow-card rounded-3xl p-5 mb-3 space-y-3 animate-fade-in-up">
               {availablePlayers.length === 0 ? (
                 <p className="text-sm text-gray-500">
                   No available players.{' '}
@@ -414,7 +412,7 @@ export default function GroupDetailPage() {
                   <select
                     value={selectedPlayerId}
                     onChange={(e) => setSelectedPlayerId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
                   >
                     <option value="">Select a player...</option>
                     {availablePlayers.map((p) => (
@@ -426,7 +424,7 @@ export default function GroupDetailPage() {
                   <button
                     onClick={handleAddMember}
                     disabled={!selectedPlayerId || addingMember}
-                    className="w-full py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 disabled:opacity-50 transition-colors"
+                    className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
                   >
                     {addingMember ? 'Adding...' : 'Add to Group'}
                   </button>
@@ -442,18 +440,18 @@ export default function GroupDetailPage() {
               description="Add players to this group so payments can be tracked."
             />
           ) : (
-            <div className="space-y-2">
+            <div className="grid sm:grid-cols-2 gap-2">
               {group.memberships.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between bg-white p-3.5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+                  className="flex items-center justify-between bg-white p-3 rounded-2xl border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-semibold">
+                    <div className={`w-10 h-10 rounded-full ${kitFor(`${m.player.firstName} ${m.player.lastName}`).bg} ${kitFor(`${m.player.firstName} ${m.player.lastName}`).fg} flex items-center justify-center text-sm font-extrabold font-display`}>
                       {m.player.firstName.charAt(0)}
                     </div>
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-bold text-ink">
                         {m.player.firstName} {m.player.lastName}
                       </p>
                       <p className="text-xs text-gray-400 capitalize">{m.role}</p>
@@ -466,7 +464,7 @@ export default function GroupDetailPage() {
                         `${m.player.firstName} ${m.player.lastName}`
                       )
                     }
-                    className="p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                    className="p-1.5 text-gray-300 hover:text-kit-600 transition-colors"
                     title="Remove member"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -485,29 +483,29 @@ export default function GroupDetailPage() {
         <div>
           <button
             onClick={() => setShowCreateSession(!showCreateSession)}
-            className="w-full mb-3 py-2.5 text-sm font-semibold text-pitch-700 border border-pitch-200 rounded-xl hover:bg-pitch-50 transition-colors"
+            className="w-full mb-3 py-3 text-sm font-bold text-ink border-2 border-dashed border-gray-300 rounded-2xl hover:border-ink hover:bg-white transition-colors"
           >
             + Create Session
           </button>
 
           {showCreateSession && (
-            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-3 space-y-3">
+            <div className="bg-white border border-gray-100 shadow-card rounded-3xl p-5 mb-3 space-y-3 animate-fade-in-up">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Game Date</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">Game Date</label>
                 <input
                   type="date"
                   value={sessionDate}
                   onChange={(e) => setSessionDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                  className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1.5">Recurrence</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Recurrence</label>
                   <select
                     value={recurrenceType}
                     onChange={(e) => setRecurrenceType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
                   >
                     <option value="none">None</option>
                     <option value="weekly">Weekly</option>
@@ -517,14 +515,14 @@ export default function GroupDetailPage() {
                 </div>
                 {recurrenceType !== 'none' && (
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5">Count</label>
+                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Count</label>
                     <input
                       type="number"
                       min={2}
                       max={52}
                       value={recurrenceCount}
                       onChange={(e) => setRecurrenceCount(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                      className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
                     />
                   </div>
                 )}
@@ -532,7 +530,7 @@ export default function GroupDetailPage() {
               <button
                 onClick={handleCreateSession}
                 disabled={!sessionDate || creatingSess}
-                className="w-full py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 disabled:opacity-50 transition-colors"
+                className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
               >
                 {creatingSess
                   ? 'Creating...'
@@ -560,26 +558,26 @@ export default function GroupDetailPage() {
                   <Link
                     key={s.id}
                     href={`/sessions/${s.id}`}
-                    className="block bg-white p-4 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+                    className="block bg-white p-4 rounded-2xl border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
                   >
                     <div className="flex justify-between items-center mb-2.5">
-                      <p className="text-sm font-semibold text-gray-900">
+                      <p className="text-sm font-bold text-ink">
                         {new Date(s.date).toLocaleDateString('en-US', {
                           weekday: 'short',
                           month: 'short',
                           day: 'numeric',
                         })}
                       </p>
-                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide ${sStyle}`}>
+                      <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${sStyle}`}>
                         {s.status}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
+                    <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
                       <div
-                        className={`h-1.5 rounded-full transition-all ${
-                          progress >= 100 ? 'bg-pitch-500' :
-                          progress >= 50 ? 'bg-pitch-400' :
-                          'bg-amber-400'
+                        className={`h-2 rounded-full transition-all ${
+                          progress >= 100 ? 'bg-volt-500' :
+                          progress >= 50 ? 'bg-pitch-500' :
+                          'bg-sun-400'
                         }`}
                         style={{ width: `${Math.min(progress, 100)}%` }}
                       />

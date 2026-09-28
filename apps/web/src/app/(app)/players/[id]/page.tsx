@@ -18,11 +18,12 @@ import {
   type IGroupWithMembers,
 } from '@/lib/api';
 import { StatCard } from '@/components/stat-card';
+import { Player, Ball, JerseyBadge, kitFor, skins } from '@/components/illustrations';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
 
 const paymentStatusStyles: Record<string, string> = {
-  paid: 'bg-pitch-50 text-pitch-700',
-  pending: 'bg-amber-50 text-amber-700',
+  paid: 'bg-volt-300 text-ink',
+  pending: 'bg-sun-400/25 text-amber-800',
   waived: 'bg-gray-100 text-gray-500',
 };
 
@@ -105,7 +106,7 @@ export default function PlayerDetailPage() {
 
   if (loading || !player) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-5 bg-gray-200 rounded w-20" />
           <div className="flex items-center gap-3">
@@ -132,7 +133,7 @@ export default function PlayerDetailPage() {
   const whatsappNumber = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone;
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Players" />
 
       <ConfirmDialog
@@ -150,37 +151,37 @@ export default function PlayerDetailPage() {
         <div className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">First Name</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">First Name</label>
               <input
                 value={editData.firstName}
                 onChange={(e) => setEditData({ ...editData, firstName: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Last Name</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">Last Name</label>
               <input
                 value={editData.lastName}
                 onChange={(e) => setEditData({ ...editData, lastName: e.target.value })}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
               />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Phone</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Phone</label>
             <input
               value={editData.phone}
               onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Email</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
             <input
               value={editData.email}
               onChange={(e) => setEditData({ ...editData, email: e.target.value })}
               placeholder="Optional"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             />
           </div>
           <div className="flex gap-3 pt-1">
@@ -193,27 +194,50 @@ export default function PlayerDetailPage() {
             <button
               onClick={handleSaveEdit}
               disabled={saving || !editData.firstName.trim() || !editData.lastName.trim() || !editData.phone.trim()}
-              className="flex-1 py-2.5 text-sm font-semibold text-white bg-pitch-600 rounded-xl hover:bg-pitch-700 disabled:opacity-50 transition-colors"
+              className="flex-1 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
       ) : (
-        <div className="mb-6">
-          <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-lg font-bold shrink-0">
-              {player.firstName.charAt(0)}{player.lastName.charAt(0)}
+        <div className="relative mb-6 rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
+          <div className="absolute inset-0 turf-stripes" />
+          <div className="relative grid grid-cols-[auto_1fr] gap-4 sm:gap-6 p-5 sm:p-6">
+            {/* Trading-card style portrait */}
+            <div className="relative w-28 sm:w-32 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
+              <div className="absolute top-2 left-2.5 leading-none">
+                <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{stats ? stats.paymentRate : '–'}</p>
+                <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">PAY%</p>
+              </div>
+              <svg viewBox="0 0 100 150" className="w-full h-auto mt-3" aria-hidden>
+                <Player
+                  x={50}
+                  y={146}
+                  scale={0.82}
+                  pose="stand"
+                  kit={kitFor(`${player.firstName} ${player.lastName}`).hex}
+                  numberColor={kitFor(`${player.firstName} ${player.lastName}`).text}
+                  skin={skins[(player.firstName.length + player.lastName.length) % skins.length]}
+                  hair={(['short', 'afro', 'buzz', 'bun'] as const)[player.lastName.length % 4]}
+                  number={player.firstName.charAt(0) + player.lastName.charAt(0)}
+                />
+                <Ball x={84} y={138} r={8} />
+              </svg>
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between">
-                <h1 className="text-xl font-bold text-gray-900">
-                  {player.firstName} {player.lastName}
-                </h1>
-                <div className="flex gap-1 shrink-0">
+
+            <div className="min-w-0 flex flex-col">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Player profile</p>
+                  <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1">
+                    {player.firstName} {player.lastName}
+                  </h1>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
                   <button
                     onClick={startEdit}
-                    className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="p-2.5 text-white/70 bg-white/10 rounded-xl hover:text-white hover:bg-white/15 transition-colors"
                     title="Edit player"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -222,7 +246,7 @@ export default function PlayerDetailPage() {
                   </button>
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                    className="p-2.5 text-white/70 bg-white/10 rounded-xl hover:text-white hover:bg-kit-500 transition-colors"
                     title="Delete player"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -231,31 +255,32 @@ export default function PlayerDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 mt-1.5">
+
+              <div className="mt-auto pt-4 space-y-2">
                 <a
                   href={`tel:${player.phone}`}
-                  className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
+                  className="block text-sm font-semibold text-white/80 hover:text-white transition-colors tabular-nums"
                 >
                   {player.phone}
                 </a>
+                {player.email && (
+                  <a href={`mailto:${player.email}`} className="block text-xs text-white/50 hover:text-white/80 transition-colors truncate">
+                    {player.email}
+                  </a>
+                )}
                 <a
                   href={`https://wa.me/${whatsappNumber}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-pitch-700 bg-pitch-50 px-2 py-0.5 rounded-full hover:bg-pitch-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#25D366] px-3 py-1.5 rounded-full hover:brightness-95 transition"
                 >
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                     <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.496A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.594-.822-6.343-2.2l-.444-.355-3.187 1.07 1.07-3.187-.355-.444A9.955 9.955 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/>
                   </svg>
                   WhatsApp
                 </a>
               </div>
-              {player.email && (
-                <a href={`mailto:${player.email}`} className="text-xs text-gray-400 hover:text-gray-600 block mt-1 transition-colors">
-                  {player.email}
-                </a>
-              )}
             </div>
           </div>
         </div>
@@ -265,15 +290,15 @@ export default function PlayerDetailPage() {
       {stats && (
         <div className="grid grid-cols-2 gap-3 mb-6">
           <StatCard label="Sessions" value={stats.totalSessions} />
-          <StatCard label="Payment Rate" value={`${stats.paymentRate}%`} />
+          <StatCard label="Payment Rate" value={`${stats.paymentRate}%`} tone="volt" />
           <StatCard label="Total Paid" value={formatCurrency(stats.totalPaid)} />
-          <StatCard label="Outstanding" value={formatCurrency(stats.totalOwed)} />
+          <StatCard label="Outstanding" value={formatCurrency(stats.totalOwed)} tone={Number(stats.totalOwed) > 0 ? 'ink' : 'white'} />
         </div>
       )}
 
       {/* Groups */}
       <div className="mb-6">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Groups</h2>
+        <h2 className="text-lg font-bold text-ink mb-3">Groups</h2>
         {playerGroups.length === 0 ? (
           <EmptyState
             icon="users"
@@ -286,14 +311,12 @@ export default function PlayerDetailPage() {
               <Link
                 key={g.id}
                 href={`/groups/${g.id}`}
-                className="flex items-center justify-between bg-white p-3.5 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+                className="flex items-center justify-between bg-white p-3 rounded-2xl border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-pitch-50 rounded-lg flex items-center justify-center">
-                    <span className="text-xs font-bold text-pitch-600">{g.name.charAt(0)}</span>
-                  </div>
+                  <JerseyBadge label={g.name.charAt(0).toUpperCase()} name={g.name} className="w-10 h-10" />
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{g.name}</p>
+                    <p className="text-sm font-bold text-ink">{g.name}</p>
                     {g.schedule && (
                       <p className="text-xs text-gray-400">{g.schedule}</p>
                     )}
@@ -310,7 +333,7 @@ export default function PlayerDetailPage() {
 
       {/* Payment History */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Payment History</h2>
+        <h2 className="text-lg font-bold text-ink mb-3">Payment History</h2>
         {payments.length === 0 ? (
           <EmptyState
             icon="receipt"
@@ -322,10 +345,10 @@ export default function PlayerDetailPage() {
             {payments.map((payment) => (
               <div
                 key={payment.id}
-                className="flex items-center justify-between bg-white p-3.5 rounded-xl border border-gray-100"
+                className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-gray-100 shadow-card"
               >
                 <div>
-                  <p className="text-sm font-medium text-gray-900 tabular-nums">{formatCurrency(payment.amount)}</p>
+                  <p className="text-sm font-bold text-ink tabular-nums">{formatCurrency(payment.amount)}</p>
                   {payment.paidAt && (
                     <p className="text-xs text-gray-400">
                       {new Date(payment.paidAt).toLocaleDateString('en-US', {
@@ -337,7 +360,7 @@ export default function PlayerDetailPage() {
                   )}
                 </div>
                 <span
-                  className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide ${
+                  className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${
                     paymentStatusStyles[payment.status] || 'bg-gray-100 text-gray-500'
                   }`}
                 >

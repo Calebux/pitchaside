@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
+import { PageHeader } from '@/components/brand';
 import { getSessionsPaginated, getGroups, deleteSession, formatCurrency, type ISessionWithDetails, type IGroupWithMembers, type PaginatedResponse } from '@/lib/api';
 import { SessionStatus } from '@pitchaside/shared';
 
@@ -17,9 +18,9 @@ const statusFilters = [
 ];
 
 const statusStyles: Record<string, string> = {
-  upcoming: 'bg-pitch-50 text-pitch-700',
-  completed: 'bg-gray-100 text-gray-600',
-  cancelled: 'bg-red-50 text-red-600',
+  upcoming: 'bg-volt-300 text-ink',
+  completed: 'bg-ink text-white',
+  cancelled: 'bg-kit-500/15 text-kit-600',
 };
 
 export default function SessionsPage() {
@@ -68,7 +69,7 @@ export default function SessionsPage() {
 
   if (loading && sessions.length === 0) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-gray-200 rounded w-28" />
           <div className="flex gap-2">
@@ -84,7 +85,7 @@ export default function SessionsPage() {
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Session"
@@ -95,18 +96,22 @@ export default function SessionsPage() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      <h1 className="text-xl font-bold text-gray-900 mb-4">Sessions</h1>
+      <PageHeader
+        eyebrow="Fixtures"
+        title="Sessions"
+        subtitle={meta.total > 0 ? `${meta.total} match day${meta.total === 1 ? '' : 's'} logged` : undefined}
+      />
 
       {/* Filters */}
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1">
+      <div className="inline-flex gap-1 p-1 mb-5 bg-white border border-gray-200 rounded-2xl overflow-x-auto max-w-full">
         {statusFilters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}
-            className={`px-3.5 py-1.5 text-xs font-semibold rounded-full whitespace-nowrap transition-colors ${
+            className={`px-4 py-2 text-xs font-bold rounded-xl whitespace-nowrap transition-colors ${
               filter === f.value
-                ? 'bg-gray-900 text-white'
-                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                ? 'bg-ink text-volt-300'
+                : 'text-gray-500 hover:text-ink hover:bg-chalk'
             }`}
           >
             {f.label}
@@ -140,25 +145,31 @@ export default function SessionsPage() {
               const totalCount = session.payments?.length ?? 0;
 
               return (
-                <div key={session.id} className="relative bg-white rounded-xl border border-gray-100 hover:border-gray-200 transition-colors">
+                <div key={session.id} className="relative bg-white rounded-2xl shadow-card border border-gray-100 hover:border-gray-200 transition-colors">
                   <Link
                     href={`/sessions/${session.id}`}
                     className="block p-4"
                   >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {group?.name || 'Game'}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {new Date(session.date).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </p>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-gray-200 text-center bg-white">
+                          <div className={`${session.status === 'cancelled' ? 'bg-gray-400' : 'bg-kit-500'} text-white text-[9px] font-extrabold uppercase tracking-wider py-0.5`}>
+                            {new Date(session.date).toLocaleDateString('en-US', { month: 'short' })}
+                          </div>
+                          <div className="font-display text-lg font-extrabold text-ink leading-7">{new Date(session.date).getDate()}</div>
+                        </div>
+                        <div>
+                          <p className="text-base font-bold text-ink">
+                            {group?.name || 'Game'}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {new Date(session.date).toLocaleDateString('en-US', {
+                              weekday: 'long',
+                            })}
+                          </p>
+                        </div>
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide ${
+                      <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider mr-7 ${
                         statusStyles[session.status] || 'bg-gray-100 text-gray-500'
                       }`}>
                         {session.status}
@@ -166,12 +177,12 @@ export default function SessionsPage() {
                     </div>
 
                     {/* Progress bar */}
-                    <div className="w-full bg-gray-100 rounded-full h-1.5 mb-2">
+                    <div className="w-full bg-gray-100 rounded-full h-2 mb-2">
                       <div
-                        className={`h-1.5 rounded-full transition-all ${
-                          progress >= 100 ? 'bg-pitch-500' :
-                          progress >= 50 ? 'bg-pitch-400' :
-                          'bg-amber-400'
+                        className={`h-2 rounded-full transition-all ${
+                          progress >= 100 ? 'bg-volt-500' :
+                          progress >= 50 ? 'bg-pitch-500' :
+                          'bg-sun-400'
                         }`}
                         style={{ width: `${Math.min(progress, 100)}%` }}
                       />
@@ -179,7 +190,7 @@ export default function SessionsPage() {
 
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-gray-500 tabular-nums">
-                        {formatCurrency(session.collectedAmount)} / {formatCurrency(session.targetAmount)}
+                        <span className="font-bold text-ink">{formatCurrency(session.collectedAmount)}</span> / {formatCurrency(session.targetAmount)}
                       </span>
                       <span className="text-xs font-medium text-gray-400 tabular-nums">
                         {totalCount > 0 ? `${paidCount}/${totalCount} paid` : `${progress}%`}
@@ -188,7 +199,7 @@ export default function SessionsPage() {
                   </Link>
                   <button
                     onClick={(e) => { e.preventDefault(); setDeleteTarget(session); }}
-                    className="absolute top-3 right-12 p-1.5 text-gray-300 hover:text-red-500 transition-colors"
+                    className="absolute top-3.5 right-3 p-1.5 text-gray-300 hover:text-kit-600 transition-colors"
                     title="Delete session"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
