@@ -84,7 +84,7 @@
   }
 
   body {
-    @apply bg-chalk text-ink antialiased;
+    @apply bg-white text-ink antialiased;
   }
 
   h1,

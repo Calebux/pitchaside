@@ -129,9 +129,9 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-chalk overflow-hidden">
+    <div className="min-h-screen bg-white overflow-hidden">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-50 bg-chalk/80 backdrop-blur-lg border-b border-ink/5">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-ink/5">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <Logo />
 
@@ -222,7 +222,7 @@ export default function LandingPage() {
                 {heroPlayers.map((n) => {
                   const k = kitFor(n);
                   return (
-                    <div key={n} className={`w-9 h-9 rounded-full ring-[3px] ring-chalk ${k.bg} ${k.fg} flex items-center justify-center text-[11px] font-extrabold font-display`}>
+                    <div key={n} className={`w-9 h-9 rounded-full ring-[3px] ring-white ${k.bg} ${k.fg} flex items-center justify-center text-[11px] font-extrabold font-display`}>
                       {n.split(' ').map((p) => p[0]).join('')}
                     </div>
                   );

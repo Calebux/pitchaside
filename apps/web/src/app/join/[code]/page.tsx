@@ -64,7 +64,7 @@ export default function JoinPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-chalk flex items-center justify-center px-4">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <BallLoader label="Checking your invite…" />
       </div>
     );
@@ -72,7 +72,7 @@ export default function JoinPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-chalk flex items-center justify-center px-4">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
           <Logo />
           <div className="mt-8">
@@ -89,7 +89,7 @@ export default function JoinPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-chalk flex items-center justify-center px-4">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
           <Logo />
           <div className="mt-8">
@@ -105,7 +105,7 @@ export default function JoinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-chalk flex items-center justify-center px-4 py-10">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6">
           <Logo />

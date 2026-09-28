@@ -22,7 +22,7 @@ export default function AuthLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-chalk flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <BallLoader />
       </div>
     );
@@ -31,7 +31,7 @@ export default function AuthLayout({
   if (user) return null;
 
   return (
-    <div className="min-h-screen bg-chalk lg:grid lg:grid-cols-[1fr_1.05fr]">
+    <div className="min-h-screen bg-white lg:grid lg:grid-cols-[1fr_1.05fr]">
       <div className="min-h-screen flex items-center justify-center px-5 py-12 relative">
         <div className="absolute inset-0 chalk-dots opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_75%)] pointer-events-none" />
         <div className="relative w-full max-w-sm flex flex-col items-center animate-fade-in-up">
