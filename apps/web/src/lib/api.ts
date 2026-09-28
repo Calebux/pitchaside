@@ -413,8 +413,8 @@ export function joinGroup(
 
 // ── Post-match voting, ratings & league table ──
 
-export type VoteCategory = 'potm' | 'pace' | 'shooting' | 'passing' | 'defending';
-export type Attribute = 'PAC' | 'SHO' | 'PAS' | 'DEF';
+export type VoteCategory = 'potm' | 'pace' | 'shooting' | 'passing' | 'defending' | 'keeper';
+export type Attribute = 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK';
 
 export interface SquadMember {
   id: string;

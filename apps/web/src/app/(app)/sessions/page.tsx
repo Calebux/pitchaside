@@ -171,6 +171,17 @@ export default function SessionsPage() {
                           </p>
                         </div>
                       </div>
+                      {session.kind !== 'dues' &&
+                        session.status !== 'cancelled' &&
+                        (() => {
+                          const day = new Date(`${session.date.slice(0, 10)}T00:00:00`).getTime();
+                          const today = new Date().setHours(0, 0, 0, 0);
+                          return day <= today && day >= today - 7 * 86400000;
+                        })() && (
+                          <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-sun-400 text-ink ml-auto mr-2 whitespace-nowrap">
+                            ★ Vote open
+                          </span>
+                        )}
                       <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider mr-7 ${
                         statusStyles[session.status] || 'bg-gray-100 text-gray-500'
                       }`}>

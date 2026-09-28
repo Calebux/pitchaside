@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { getGroups, getSessions, formatCurrency, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
 import { SessionStatus } from '@pitchaside/shared';
 import { Celebration, Player, Ball, BallIcon, kitFor, palette, skins } from '@/components/illustrations';
+import { SessionVotingCard } from '@/components/ratings';
 
 const onboardingSteps = [
   {
@@ -64,6 +65,17 @@ export default function Dashboard() {
     .filter((s) => s.status === SessionStatus.UPCOMING && s.kind !== 'dues')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const nextSession = upcomingSessions[0];
+
+  // Most recent game still inside its 7-day voting window.
+  const todayStart = new Date().setHours(0, 0, 0, 0);
+  const lastGame = sessions
+    .filter((s) => {
+      if (s.kind === 'dues' || s.status === SessionStatus.CANCELLED) return false;
+      const day = new Date(`${s.date.slice(0, 10)}T00:00:00`).getTime();
+      return day <= todayStart && day >= todayStart - 7 * 86400000;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date))[0];
+  const lastGameGroup = lastGame ? groups.find((g) => g.id === lastGame.groupId) : null;
   const nextGroup = nextSession ? groups.find((g) => g.id === nextSession.groupId) : null;
 
   // Amounts arrive from Postgres DECIMAL columns as strings; coerce before summing.
@@ -264,6 +276,17 @@ export default function Dashboard() {
               <p className="text-base font-bold text-ink mb-0.5">No upcoming sessions</p>
               <p className="text-xs text-gray-500">Create a session from a group to get started.</p>
             </div>
+          )}
+
+          {lastGame && (
+            <SessionVotingCard
+              sessionId={lastGame.id}
+              groupName={lastGameGroup?.name ?? 'Game'}
+              context={{
+                label: `${lastGameGroup?.name ?? 'Last game'} · ${new Date(`${lastGame.date.slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`,
+                href: `/sessions/${lastGame.id}`,
+              }}
+            />
           )}
 
           {/* Still to pay for the next game */}

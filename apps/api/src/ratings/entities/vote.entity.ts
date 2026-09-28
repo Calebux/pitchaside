@@ -21,6 +21,8 @@ export enum VoteCategory {
   PASSING = 'passing',
   /** Rock at the back → DEF */
   DEFENDING = 'defending',
+  /** Best goalkeeper → GK */
+  KEEPER = 'keeper',
 }
 
 /** One player's pick for one category in one game. */

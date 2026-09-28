@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import {
@@ -18,6 +19,7 @@ export const categoryMeta: Record<VoteCategory, { short: string; tone: string; c
   shooting: { short: 'SHO', tone: 'bg-kit-500 text-white', chip: 'bg-kit-500', attr: 'SHO' },
   passing: { short: 'PAS', tone: 'bg-volt-400 text-ink', chip: 'bg-volt-400', attr: 'PAS' },
   defending: { short: 'DEF', tone: 'bg-ink text-volt-300', chip: 'bg-ink', attr: 'DEF' },
+  keeper: { short: 'GK', tone: 'bg-pitch-600 text-white', chip: 'bg-pitch-600', attr: 'GK' },
 };
 
 export function Avatar({ name, className = 'w-9 h-9 text-xs' }: { name: string; className?: string }) {
@@ -146,7 +148,16 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
 }
 
 /** Organiser's view of a game's vote: share link, turnout and live results. */
-export function SessionVotingCard({ sessionId, groupName }: { sessionId: string; groupName: string }) {
+export function SessionVotingCard({
+  sessionId,
+  groupName,
+  context,
+}: {
+  sessionId: string;
+  groupName: string;
+  /** Shown on the dashboard so it's clear which game the vote is for. */
+  context?: { label: string; href: string };
+}) {
   const toast = useToast();
   const [voting, setVoting] = useState<SessionVoting | null>(null);
 
@@ -175,6 +186,11 @@ export function SessionVotingCard({ sessionId, groupName }: { sessionId: string;
           <div>
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-ink/60">Post-match vote</p>
             <h2 className="text-xl font-extrabold text-ink leading-tight mt-0.5">Who were the stars?</h2>
+            {context && (
+              <Link href={context.href} className="text-xs font-bold text-ink/70 underline decoration-ink/30 underline-offset-2 hover:text-ink">
+                {context.label}
+              </Link>
+            )}
           </div>
           <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-ink text-sun-400 tabular-nums whitespace-nowrap">
             {voting.ballots}/{voting.squadSize} voted
@@ -199,12 +215,23 @@ export function SessionVotingCard({ sessionId, groupName }: { sessionId: string;
           </>
         )}
 
-        <div className="grid grid-cols-[1fr_auto] gap-2 mt-4">
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mt-4">
+          <a
+            href={voting.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`py-3 text-sm font-bold text-center rounded-xl border-2 border-ink transition-colors ${
+              voting.notYet ? 'bg-white/50 text-ink/50 pointer-events-none' : 'bg-white text-ink hover:bg-volt-300'
+            }`}
+            aria-disabled={voting.notYet}
+          >
+            Vote now
+          </a>
           <button
             onClick={share}
             className="py-3 text-sm font-bold text-white bg-[#25D366] rounded-xl border-2 border-ink hover:brightness-95 transition"
           >
-            Share vote link
+            Share link
           </button>
           <button
             onClick={copy}
@@ -227,11 +254,11 @@ export function SessionVotingCard({ sessionId, groupName }: { sessionId: string;
 /** PAC / SHO / PAS / DEF row for the player card. */
 export function AttributeRow({ ratings, dark = false }: { ratings: PlayerRatings; dark?: boolean }) {
   return (
-    <div className="grid grid-cols-4 gap-1.5">
-      {(['PAC', 'SHO', 'PAS', 'DEF'] as const).map((a) => {
+    <div className="grid grid-cols-5 gap-1">
+      {(['PAC', 'SHO', 'PAS', 'DEF', 'GK'] as const).map((a) => {
         const v = ratings.attributes[a];
         return (
-          <div key={a} className={`rounded-xl px-2 py-1.5 text-center ${dark ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}>
+          <div key={a} className={`rounded-xl px-1 py-1.5 text-center ${dark ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}>
             <p className={`font-display text-lg font-extrabold tabular-nums leading-none ${dark ? 'text-white' : 'text-ink'}`}>
               {v ?? '–'}
             </p>

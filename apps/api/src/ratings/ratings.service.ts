@@ -15,12 +15,13 @@ import { Vote, VoteCategory } from './entities/vote.entity';
 /** Votes stay open for a week after kick-off. */
 const VOTING_WINDOW_DAYS = 7;
 
-export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' }[] = [
+export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK' }[] = [
   { key: VoteCategory.POTM, title: 'Player of the Match' },
   { key: VoteCategory.PACE, title: 'Fastest on the pitch', attr: 'PAC' },
   { key: VoteCategory.SHOOTING, title: 'Best finisher', attr: 'SHO' },
   { key: VoteCategory.PASSING, title: 'Best passer', attr: 'PAS' },
   { key: VoteCategory.DEFENDING, title: 'Rock at the back', attr: 'DEF' },
+  { key: VoteCategory.KEEPER, title: 'Best goalkeeper', attr: 'GK' },
 ];
 
 /** Ratings need a few games of votes before they reach the extremes. */
@@ -38,7 +39,7 @@ export interface PlayerRatings {
   potmWins: number;
   points: number;
   ovr: number | null;
-  attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null };
+  attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null; GK: number | null };
 }
 
 /** Last 10 digits, so "0803 123 4567" and "+234 803 123 4567" match. */
@@ -47,7 +48,7 @@ function phoneKey(phone: string) {
 }
 
 function emptyVotes(): Record<VoteCategory, number> {
-  return { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0 };
+  return { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0 };
 }
 
 @Injectable()
@@ -240,7 +241,7 @@ export class RatingsService {
           potmWins: 0,
           points: 0,
           ovr: null,
-          attributes: { PAC: null, SHO: null, PAS: null, DEF: null },
+          attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
         };
         s.games += 1;
         s.ballotsSeen += voters.size - (voters.has(member.id) ? 1 : 0);
@@ -251,7 +252,7 @@ export class RatingsService {
     }
 
     for (const s of stats.values()) {
-      const attrVotes = s.votes.pace + s.votes.shooting + s.votes.passing + s.votes.defending;
+      const attrVotes = s.votes.pace + s.votes.shooting + s.votes.passing + s.votes.defending + s.votes.keeper;
       s.points = s.votes.potm * POINTS.potmVote + attrVotes * POINTS.attrVote + s.potmWins * POINTS.potmWin;
       if (s.ballotsSeen > 0) {
         // Share of teammates' ballots that picked you, mapped onto a 55–99 card rating.
@@ -263,8 +264,10 @@ export class RatingsService {
           SHO: rate(s.votes.shooting),
           PAS: rate(s.votes.passing),
           DEF: rate(s.votes.defending),
+          GK: rate(s.votes.keeper),
         };
-        const a = Object.values(s.attributes) as number[];
+        // OVR uses a player's best four attributes, so keepers aren't dragged down by SHO and vice versa.
+        const a = (Object.values(s.attributes) as number[]).sort((x, y) => y - x).slice(0, 4);
         const potmBoost = Math.min(6, Math.round((s.votes.potm / s.ballotsSeen) * 12));
         s.ovr = Math.min(99, Math.round(a.reduce((x, y) => x + y, 0) / a.length) + potmBoost);
       }
@@ -310,7 +313,7 @@ export class RatingsService {
       potmWins: 0,
       points: 0,
       ovr: null,
-      attributes: { PAC: null, SHO: null, PAS: null, DEF: null },
+      attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
     };
   }
 }

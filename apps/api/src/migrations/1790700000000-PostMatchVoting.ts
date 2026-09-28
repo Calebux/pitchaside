@@ -9,7 +9,7 @@ export class PostMatchVoting1790700000000 implements MigrationInterface {
     await q.query(`CREATE UNIQUE INDEX IF NOT EXISTS "UQ_sessions_voting_token" ON "sessions" ("voting_token")`);
 
     await q.query(`DO $$ BEGIN
-      CREATE TYPE "public"."votes_category_enum" AS ENUM('potm', 'pace', 'shooting', 'passing', 'defending');
+      CREATE TYPE "public"."votes_category_enum" AS ENUM('potm', 'pace', 'shooting', 'passing', 'defending', 'keeper');
     EXCEPTION WHEN duplicate_object THEN NULL; END $$`);
     await q.query(`CREATE TABLE IF NOT EXISTS "votes" (
       "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
