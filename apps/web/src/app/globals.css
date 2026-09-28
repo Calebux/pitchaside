@@ -75,6 +75,7 @@
   --animate-progress: progress-fill 0.8s ease-out both;
   --animate-bounce-ball: bounce-ball 1.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
   --animate-spin-slow: spin 14s linear infinite;
+  --animate-spin-ball: spin 1.1s linear infinite;
   --animate-marquee: marquee 40s linear infinite;
 }
 

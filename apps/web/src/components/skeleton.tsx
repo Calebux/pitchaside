@@ -25,12 +25,17 @@ export function CardSkeleton() {
   );
 }
 
-/** Full-page loading state: a bouncing ball with its shadow. */
+/** The matchday ball, spinning — our loading indicator at any size. */
+export function BallSpinner({ className = 'w-4 h-4' }: { className?: string }) {
+  return <BallIcon className={`${className} animate-spin-ball`} />;
+}
+
+/** Full-page loading state: the spinning ball with its shadow. */
 export function BallLoader({ label = 'Warming up…' }: { label?: string }) {
   return (
     <div className="flex flex-col items-center gap-2" role="status">
-      <BallIcon className="w-10 h-10 animate-bounce-ball" />
-      <div className="w-8 h-1.5 rounded-full bg-ink/15 animate-pulse-soft" />
+      <BallSpinner className="w-12 h-12" />
+      <div className="w-9 h-1.5 rounded-full bg-ink/15" />
       <p className="text-xs font-semibold text-gray-500 mt-2">{label}</p>
     </div>
   );
