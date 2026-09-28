@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Logo } from '@/components/brand';
 import { useState } from 'react';
 import { http } from '@/lib/http';
 import { useToast } from '@/components/toast';
@@ -28,15 +29,10 @@ export default function ForgotPasswordPage() {
     return (
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">PitchAside</span>
-          </Link>
+          <Logo />
         </div>
         <div className="text-center">
-          <div className="w-12 h-12 rounded-2xl bg-pitch-50 text-pitch-600 flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-volt-300 text-ink border-2 border-ink shadow-sticker flex items-center justify-center mx-auto mb-4">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
@@ -59,13 +55,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <Link href="/" className="inline-flex items-center gap-2">
-          <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-sm">P</span>
-          </div>
-          <span className="text-xl font-bold text-gray-900">PitchAside</span>
-        </Link>
-        <h1 className="mt-6 text-xl font-bold text-gray-900">Forgot password?</h1>
+        <Logo />
+        <h1 className="mt-6 text-[28px] leading-tight font-extrabold text-ink">Forgot password?</h1>
         <p className="mt-1 text-sm text-gray-500">
           Enter your email and we&apos;ll send a reset link
         </p>
@@ -73,7 +64,7 @@ export default function ForgotPasswordPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
             Email
           </label>
           <input
@@ -82,7 +73,7 @@ export default function ForgotPasswordPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className="w-full rounded-xl border border-gray-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             placeholder="you@example.com"
           />
         </div>
@@ -90,7 +81,7 @@ export default function ForgotPasswordPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
           {submitting ? 'Sending...' : 'Send Reset Link'}
         </button>

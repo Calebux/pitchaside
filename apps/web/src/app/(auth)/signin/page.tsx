@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Logo } from '@/components/brand';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -49,25 +50,20 @@ export default function SignInPage() {
     }
   }
 
-  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
 
   if (twoFA.required) {
     return (
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">PitchAside</span>
-          </Link>
-          <h1 className="mt-6 text-xl font-bold text-gray-900">Two-Factor Authentication</h1>
+          <Logo />
+          <h1 className="mt-6 text-[28px] leading-tight font-extrabold text-ink">Two-Factor Authentication</h1>
           <p className="mt-1 text-sm text-gray-500">Enter the 6-digit code from your authenticator app</p>
         </div>
 
         <form onSubmit={handle2FASubmit} className="space-y-4">
           <div>
-            <label htmlFor="code" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="code" className="block text-xs font-bold text-gray-700 mb-1.5">
               Authentication Code
             </label>
             <input
@@ -88,7 +84,7 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={submitting || code.length !== 6}
-            className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+            className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
           >
             {submitting ? 'Verifying...' : 'Verify'}
           </button>
@@ -108,19 +104,14 @@ export default function SignInPage() {
   return (
     <div className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <Link href="/" className="inline-flex items-center gap-2">
-          <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-sm">P</span>
-          </div>
-          <span className="text-xl font-bold text-gray-900">PitchAside</span>
-        </Link>
-        <h1 className="mt-6 text-xl font-bold text-gray-900">Welcome back</h1>
+        <Logo />
+        <h1 className="mt-6 text-[28px] leading-tight font-extrabold text-ink">Welcome back</h1>
         <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
             Email
           </label>
           <input
@@ -137,7 +128,7 @@ export default function SignInPage() {
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label htmlFor="password" className="block text-xs font-medium text-gray-500">
+            <label htmlFor="password" className="block text-xs font-bold text-gray-700">
               Password
             </label>
             <Link
@@ -161,7 +152,7 @@ export default function SignInPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
           {submitting ? 'Signing in...' : 'Sign In'}
         </button>
