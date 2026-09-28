@@ -3,6 +3,7 @@ import { IsObject, IsString, IsUrl } from 'class-validator';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { User } from '../users/entities/user.entity';
 
 export class PushSubscriptionDto {
@@ -18,6 +19,7 @@ export class UnsubscribeDto {
   endpoint: string;
 }
 
+@AllowTreasurer()
 @Controller()
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}

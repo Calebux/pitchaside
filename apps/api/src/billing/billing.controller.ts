@@ -16,6 +16,7 @@ import { BillingService } from './billing.service';
 import { AssignTransferDto, SimulateTransferDto } from './dto/transfer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { User } from '../users/entities/user.entity';
 
 /** Admin endpoints for a group's account, invite link and incoming transfers. */
@@ -63,11 +64,13 @@ export class BillingController {
     return this.billing.simulateTransfer(id, user.organizationId, dto);
   }
 
+  @AllowTreasurer()
   @Post('transfers/:id/assign')
   assign(@Param('id') id: string, @Body() dto: AssignTransferDto, @CurrentUser() user: User) {
     return this.billing.assignTransfer(id, dto.paymentId, user.organizationId);
   }
 
+  @AllowTreasurer()
   @Post('transfers/:id/ignore')
   ignore(@Param('id') id: string, @CurrentUser() user: User) {
     return this.billing.ignoreTransfer(id, user.organizationId);

@@ -9,9 +9,11 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { TwoFactorVerifyDto, TwoFactorValidateDto } from './dto/two-factor.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { AllowTreasurer } from './decorators/allow-treasurer.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 
 @UseGuards(ThrottlerGuard)
+@AllowTreasurer()
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

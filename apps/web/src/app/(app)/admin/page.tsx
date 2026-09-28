@@ -25,7 +25,7 @@ export default function AdminPage() {
 
   // Invite form state
   const [showInvite, setShowInvite] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
+  const [inviteForm, setInviteForm] = useState({ firstName: '', lastName: '', email: '', password: '', role: 'member' });
   const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function AdminPage() {
     try {
       const newMember = await http.post<any>('/admin/org/members', inviteForm);
       setOrgMembers((prev) => [...prev, newMember]);
-      setInviteForm({ firstName: '', lastName: '', email: '', password: '' });
+      setInviteForm({ firstName: '', lastName: '', email: '', password: '', role: 'member' });
       setShowInvite(false);
       toast.success('Member added successfully');
     } catch (err: any) {
@@ -182,7 +182,10 @@ export default function AdminPage() {
       {/* Org Members */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-bold text-ink">Team Members</h2>
+          <div>
+            <h2 className="text-lg font-bold text-ink">Co-admins</h2>
+            <p className="text-xs text-gray-500">People who help you run the group.</p>
+          </div>
           <button
             onClick={() => setShowInvite(!showInvite)}
             className="text-sm font-semibold text-pitch-600 hover:text-pitch-700"
@@ -220,6 +223,27 @@ export default function AdminPage() {
               onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
               className={inputClass}
             />
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Access">
+              {[
+                { value: 'member', title: 'Co-organiser', hint: 'Everything except this Admin page' },
+                { value: 'treasurer', title: 'Treasurer', hint: 'Sees everything, only records payments' },
+              ].map((r) => (
+                <label key={r.value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value={r.value}
+                    checked={inviteForm.role === r.value}
+                    onChange={() => setInviteForm({ ...inviteForm, role: r.value })}
+                    className="peer sr-only"
+                  />
+                  <span className="block h-full rounded-xl border-2 border-gray-200 px-3 py-2.5 peer-checked:border-ink peer-checked:bg-volt-300 transition-colors">
+                    <span className="block text-sm font-bold text-ink">{r.title}</span>
+                    <span className="block text-[11px] text-gray-500 leading-tight mt-0.5">{r.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
             <input
               type="password"
               placeholder="Temporary password"
@@ -234,7 +258,7 @@ export default function AdminPage() {
               disabled={inviting}
               className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
             >
-              {inviting ? 'Adding...' : 'Add Member'}
+              {inviting ? 'Adding...' : inviteForm.role === 'treasurer' ? 'Add treasurer' : 'Add co-organiser'}
             </button>
           </form>
         )}
@@ -261,9 +285,17 @@ export default function AdminPage() {
                   ? 'bg-purple-50 text-purple-700'
                   : member.role === 'org_admin'
                     ? 'bg-volt-300 text-ink'
-                    : 'bg-gray-100 text-gray-600'
+                    : member.role === 'treasurer'
+                      ? 'bg-sun-400/30 text-amber-800'
+                      : 'bg-gray-100 text-gray-600'
               }`}>
-                {member.role === 'super_admin' ? 'Super Admin' : member.role === 'org_admin' ? 'Admin' : 'Member'}
+                {member.role === 'super_admin'
+                  ? 'Super Admin'
+                  : member.role === 'org_admin'
+                    ? 'Admin'
+                    : member.role === 'treasurer'
+                      ? 'Treasurer'
+                      : 'Co-organiser'}
               </span>
             </div>
           ))}

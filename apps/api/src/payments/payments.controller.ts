@@ -6,9 +6,11 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/entities/audit-log.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { User } from '../users/entities/user.entity';
 
 @UseGuards(JwtAuthGuard)
+@AllowTreasurer()
 @Controller('payments')
 export class PaymentsController {
   constructor(

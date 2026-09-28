@@ -5,6 +5,7 @@ export class PlayersRsvpNotifications1790800000000 implements MigrationInterface
   name = 'PlayersRsvpNotifications1790800000000';
 
   public async up(q: QueryRunner): Promise<void> {
+    await q.query(`ALTER TYPE "public"."users_role_enum" ADD VALUE IF NOT EXISTS 'treasurer'`);
     await q.query(`ALTER TABLE "groups" ADD COLUMN IF NOT EXISTS "require_rsvp" boolean NOT NULL DEFAULT false`);
     await q.query(`ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "reminder_sent_at" TIMESTAMP WITH TIME ZONE`);
     await q.query(`ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "score_bibs" integer`);
