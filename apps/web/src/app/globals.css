@@ -1,36 +1,145 @@
 @import "tailwindcss";
 
+/*
+ * PitchAside — "Matchday" design system
+ * Turf greens, chalk paper, volt highlights. Neutrals are warm and slightly
+ * olive so the whole app feels like it lives on grass, not in a spreadsheet.
+ */
 @theme {
-  /* Primary — Emerald green: sporty + financially trustworthy */
-  --color-pitch-50: #ecfdf5;
-  --color-pitch-100: #d1fae5;
-  --color-pitch-200: #a7f3d0;
-  --color-pitch-300: #6ee7b7;
-  --color-pitch-400: #34d399;
-  --color-pitch-500: #10b981;
-  --color-pitch-600: #059669;
-  --color-pitch-700: #047857;
-  --color-pitch-800: #065f46;
-  --color-pitch-900: #064e3b;
+  /* Fonts (wired up via next/font in app/layout.tsx) */
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-heading), var(--font-body), ui-sans-serif, system-ui, sans-serif;
+
+  /* Primary — turf green */
+  --color-pitch-50: #eef8ef;
+  --color-pitch-100: #d6efd9;
+  --color-pitch-200: #addfb5;
+  --color-pitch-300: #7cc78a;
+  --color-pitch-400: #4dab62;
+  --color-pitch-500: #2f8f48;
+  --color-pitch-600: #1f743a;
+  --color-pitch-700: #185c2f;
+  --color-pitch-800: #134927;
+  --color-pitch-900: #0d331c;
+  --color-pitch-950: #071f10;
+
+  /* Accent — volt (high-vis bib yellow-green) */
+  --color-volt-100: #f7ffd1;
+  --color-volt-200: #efffa3;
+  --color-volt-300: #e3fb6c;
+  --color-volt-400: #d4f53c;
+  --color-volt-500: #bde31f;
+  --color-volt-600: #93b30f;
+
+  /* Illustration + highlight accents */
+  --color-kit-400: #ff8a5c;
+  --color-kit-500: #ff6a3d;
+  --color-kit-600: #e5501f;
+  --color-sky-300: #9fd6fb;
+  --color-sun-400: #ffc93c;
+
+  /* Surfaces */
+  --color-chalk: #f5f3ea;
+  --color-ink: #0f1a14;
+
+  /* Warm olive neutrals (replace Tailwind's cool grays app-wide) */
+  --color-gray-50: #f8f7f1;
+  --color-gray-100: #efede4;
+  --color-gray-200: #e2dfd3;
+  --color-gray-300: #cac6b7;
+  --color-gray-400: #9f9b8c;
+  --color-gray-500: #767365;
+  --color-gray-600: #5a584c;
+  --color-gray-700: #414037;
+  --color-gray-800: #2a2b24;
+  --color-gray-900: #151b16;
+
+  /* Radius — slightly chunkier everywhere */
+  --radius-xl: 0.9rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.75rem;
+
+  /* Soft, grounded shadows */
+  --shadow-card: 0 1px 0 rgb(15 26 20 / 0.04), 0 8px 24px -12px rgb(15 26 20 / 0.12);
+  --shadow-lift: 0 2px 0 rgb(15 26 20 / 0.05), 0 18px 40px -18px rgb(15 26 20 / 0.28);
+  --shadow-sticker: 3px 3px 0 0 var(--color-ink);
 
   /* Animations */
   --animate-fade-in: fade-in 0.5s ease-out both;
   --animate-fade-in-up: fade-in-up 0.5s ease-out both;
   --animate-slide-up: slide-up 0.4s ease-out both;
   --animate-float: float 6s ease-in-out infinite;
+  --animate-float-slow: float 9s ease-in-out infinite;
   --animate-pulse-soft: pulse-soft 3s ease-in-out infinite;
   --animate-slide-down: slide-down 0.25s ease-out both;
   --animate-progress: progress-fill 0.8s ease-out both;
+  --animate-bounce-ball: bounce-ball 1.6s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  --animate-spin-slow: spin 14s linear infinite;
+  --animate-marquee: marquee 40s linear infinite;
 }
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    @apply bg-chalk text-ink antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: var(--color-volt-300);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-pitch-500);
+    outline-offset: 2px;
+  }
+
+  input,
+  select,
+  textarea {
+    @apply bg-white;
   }
 
   /* Strong number rendering for financial data */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  /* Mown-grass stripes for dark hero surfaces */
+  .turf-stripes {
+    background-image: repeating-linear-gradient(
+      90deg,
+      rgb(255 255 255 / 0.035) 0 28px,
+      transparent 28px 56px
+    );
+  }
+
+  /* Faint chalk dot grid for light surfaces */
+  .chalk-dots {
+    background-image: radial-gradient(rgb(15 26 20 / 0.07) 1px, transparent 1px);
+    background-size: 18px 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -66,4 +175,14 @@
 
 @keyframes progress-fill {
   from { width: 0; }
+}
+
+@keyframes bounce-ball {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }

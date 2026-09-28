@@ -1,10 +1,19 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Bricolage_Grotesque, DM_Sans } from 'next/font/google';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const heading = Bricolage_Grotesque({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
+  variable: '--font-heading',
+});
+
+const body = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-body',
+});
 
 export const metadata: Metadata = {
   title: 'PitchAside',
@@ -17,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className={`${heading.variable} ${body.variable}`}>
+      <body className="font-sans">
         <ToastProvider>
           <AuthProvider>{children}</AuthProvider>
         </ToastProvider>

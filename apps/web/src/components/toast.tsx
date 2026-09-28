@@ -40,18 +40,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl text-sm font-medium shadow-lg animate-slide-down ${
+            className={`pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-2xl text-sm font-semibold shadow-lift animate-slide-down ${
               toast.variant === 'success'
-                ? 'bg-gray-900 text-white'
-                : 'bg-red-600 text-white'
+                ? 'bg-ink text-white ring-1 ring-volt-400/30'
+                : 'bg-kit-600 text-white'
             }`}
           >
             {toast.variant === 'success' ? (
-              <svg className="w-4 h-4 text-pitch-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <svg className="w-5 h-5 p-0.5 rounded-full bg-volt-400 text-ink shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
               </svg>
             ) : (
-              <svg className="w-4 h-4 text-red-200 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <svg className="w-4 h-4 text-white/80 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
               </svg>
             )}

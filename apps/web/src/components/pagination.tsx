@@ -52,10 +52,10 @@ export function Pagination({ page, totalPages, total, limit, onPageChange }: Pag
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`w-8 h-8 text-xs font-semibold rounded-lg transition-colors tabular-nums ${
+              className={`w-9 h-9 text-xs font-bold rounded-xl transition-colors tabular-nums ${
                 p === page
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-500 hover:bg-gray-100'
+                  ? 'bg-ink text-volt-300'
+                  : 'text-gray-500 hover:bg-white hover:shadow-card'
               }`}
             >
               {p}
