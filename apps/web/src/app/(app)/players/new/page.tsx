@@ -61,19 +61,19 @@ export default function NewPlayerPage() {
   }
 
   const inputClass = (field: string) =>
-    `w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent ${
-      errors[field] ? 'border-red-400' : 'border-gray-300'
+    `w-full px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent ${
+      errors[field] ? 'border-red-400' : 'border-gray-200'
     }`;
 
   return (
     <div className="p-4 max-w-lg mx-auto">
       <BackButton label="Players" />
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Register Player</h1>
+      <h1 className="text-xl font-bold text-gray-900 mb-6">Register Player</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="firstName" className="block text-xs font-medium text-gray-500 mb-1.5">
               First Name *
             </label>
             <input
@@ -85,7 +85,7 @@ export default function NewPlayerPage() {
             {errors.firstName && <p className="text-xs text-red-600 mt-1">{errors.firstName}</p>}
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="lastName" className="block text-xs font-medium text-gray-500 mb-1.5">
               Last Name *
             </label>
             <input
@@ -99,7 +99,7 @@ export default function NewPlayerPage() {
         </div>
 
         <div>
-          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="phone" className="block text-xs font-medium text-gray-500 mb-1.5">
             Phone *
           </label>
           <input
@@ -113,7 +113,7 @@ export default function NewPlayerPage() {
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
             Email
           </label>
           <input
@@ -129,7 +129,7 @@ export default function NewPlayerPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-pitch-600 text-white font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 bg-pitch-600 text-white font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Registering...' : 'Register Player'}
         </button>
