@@ -31,9 +31,10 @@ export default function AdminOrganizationsPage() {
     return (
       <div className="p-4 max-w-lg mx-auto">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-48" />
-          <div className="h-20 bg-gray-200 rounded-xl" />
-          <div className="h-20 bg-gray-200 rounded-xl" />
+          <div className="h-5 bg-gray-200 rounded w-20" />
+          <div className="h-6 bg-gray-200 rounded w-40" />
+          <div className="h-20 bg-gray-100 rounded-xl" />
+          <div className="h-20 bg-gray-100 rounded-xl" />
         </div>
       </div>
     );
@@ -42,23 +43,23 @@ export default function AdminOrganizationsPage() {
   return (
     <div className="p-4 max-w-lg mx-auto">
       <BackButton />
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Organizations</h1>
-      <p className="text-sm text-gray-500 mb-6">All organizations on the platform</p>
+      <h1 className="text-xl font-bold text-gray-900 mb-1">Organizations</h1>
+      <p className="text-xs text-gray-400 mb-6">All organizations on the platform</p>
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {orgs.map((org) => (
           <div
             key={org.id}
-            className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm"
+            className="bg-white rounded-xl p-4 border border-gray-100"
           >
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-semibold text-gray-900">{org.name}</p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-400 mt-0.5">
                   Created {new Date(org.createdAt).toLocaleDateString()}
                 </p>
               </div>
-              <div className="text-right text-xs text-gray-500">
+              <div className="text-right text-xs text-gray-500 tabular-nums">
                 <p>{org.users?.length || 0} users</p>
                 <p>{org.groups?.length || 0} groups</p>
               </div>
@@ -67,7 +68,7 @@ export default function AdminOrganizationsPage() {
         ))}
 
         {orgs.length === 0 && (
-          <p className="text-sm text-gray-500 text-center py-8">No organizations yet.</p>
+          <p className="text-sm text-gray-400 text-center py-12">No organizations yet.</p>
         )}
       </div>
     </div>

@@ -64,16 +64,18 @@ export default function AdminPage() {
     }
   }
 
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+
   if (loading) {
     return (
       <div className="p-4 max-w-lg mx-auto">
         <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-48" />
+          <div className="h-6 bg-gray-200 rounded w-24" />
           <div className="grid grid-cols-2 gap-3">
-            <div className="h-20 bg-gray-200 rounded-xl" />
-            <div className="h-20 bg-gray-200 rounded-xl" />
-            <div className="h-20 bg-gray-200 rounded-xl" />
-            <div className="h-20 bg-gray-200 rounded-xl" />
+            <div className="h-20 bg-gray-100 rounded-xl" />
+            <div className="h-20 bg-gray-100 rounded-xl" />
+            <div className="h-20 bg-gray-100 rounded-xl" />
+            <div className="h-20 bg-gray-100 rounded-xl" />
           </div>
         </div>
       </div>
@@ -82,8 +84,8 @@ export default function AdminPage() {
 
   return (
     <div className="p-4 max-w-lg mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Admin</h1>
-      <p className="text-sm text-gray-500 mb-6">
+      <h1 className="text-xl font-bold text-gray-900 mb-1">Admin</h1>
+      <p className="text-xs text-gray-400 mb-6">
         {isSuperAdmin ? 'Platform administration' : 'Organization management'}
       </p>
 
@@ -98,13 +100,13 @@ export default function AdminPage() {
           <div className="flex gap-3">
             <Link
               href="/admin/organizations"
-              className="flex-1 text-center py-2.5 px-4 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="flex-1 text-center py-2.5 px-4 text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
             >
               All Organizations
             </Link>
             <Link
               href="/admin/users"
-              className="flex-1 text-center py-2.5 px-4 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="flex-1 text-center py-2.5 px-4 text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
             >
               All Users
             </Link>
@@ -116,7 +118,7 @@ export default function AdminPage() {
       {orgStats && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">
-            {user?.organization?.name || 'Organization'} Stats
+            {user?.organization?.name || 'Organization'}
           </h2>
           <div className="grid grid-cols-2 gap-3">
             <StatCard label="Groups" value={orgStats.totalGroups} />
@@ -142,7 +144,7 @@ export default function AdminPage() {
             {auditLogs.map((log: any) => (
               <div
                 key={log.id}
-                className="bg-white rounded-lg p-3 border border-gray-100 text-sm"
+                className="bg-white rounded-xl p-3.5 border border-gray-100 text-sm"
               >
                 <div className="flex justify-between items-start">
                   <p className="text-gray-900 font-medium capitalize">
@@ -157,7 +159,7 @@ export default function AdminPage() {
                     })}
                   </p>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5">
                   {log.entityType} &middot; {log.entityId?.slice(0, 8)}...
                 </p>
               </div>
@@ -172,15 +174,15 @@ export default function AdminPage() {
           <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
           <button
             onClick={() => setShowInvite(!showInvite)}
-            className="text-sm font-medium text-pitch-600 hover:text-pitch-700"
+            className="text-sm font-semibold text-pitch-600 hover:text-pitch-700"
           >
-            {showInvite ? 'Cancel' : '+ Add Member'}
+            {showInvite ? 'Cancel' : '+ Add'}
           </button>
         </div>
 
         {/* Invite form */}
         {showInvite && (
-          <form onSubmit={handleInvite} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-4 space-y-3">
+          <form onSubmit={handleInvite} className="bg-white rounded-2xl border border-gray-200 p-4 mb-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <input
                 type="text"
@@ -188,7 +190,7 @@ export default function AdminPage() {
                 required
                 value={inviteForm.firstName}
                 onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                className={inputClass}
               />
               <input
                 type="text"
@@ -196,7 +198,7 @@ export default function AdminPage() {
                 required
                 value={inviteForm.lastName}
                 onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+                className={inputClass}
               />
             </div>
             <input
@@ -205,7 +207,7 @@ export default function AdminPage() {
               required
               value={inviteForm.email}
               onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass}
             />
             <input
               type="password"
@@ -214,12 +216,12 @@ export default function AdminPage() {
               minLength={6}
               value={inviteForm.password}
               onChange={(e) => setInviteForm({ ...inviteForm, password: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+              className={inputClass}
             />
             <button
               type="submit"
               disabled={inviting}
-              className="w-full py-2.5 bg-pitch-600 text-white text-sm font-medium rounded-lg hover:bg-pitch-700 transition-colors disabled:opacity-50"
+              className="w-full py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
             >
               {inviting ? 'Adding...' : 'Add Member'}
             </button>
@@ -230,24 +232,24 @@ export default function AdminPage() {
           {orgMembers.map((member: any) => (
             <div
               key={member.id}
-              className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm flex items-center justify-between"
+              className="bg-white rounded-xl p-3.5 border border-gray-100 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-pitch-100 text-pitch-700 flex items-center justify-center text-sm font-semibold">
+                <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-semibold">
                   {member.firstName[0]}{member.lastName[0]}
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-900">
                     {member.firstName} {member.lastName}
                   </p>
-                  <p className="text-xs text-gray-500">{member.email}</p>
+                  <p className="text-xs text-gray-400">{member.email}</p>
                 </div>
               </div>
-              <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+              <span className={`text-[10px] font-semibold px-2 py-1 rounded-full uppercase tracking-wide ${
                 member.role === 'super_admin'
-                  ? 'bg-purple-100 text-purple-700'
+                  ? 'bg-purple-50 text-purple-700'
                   : member.role === 'org_admin'
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-pitch-50 text-pitch-700'
                     : 'bg-gray-100 text-gray-600'
               }`}>
                 {member.role === 'super_admin' ? 'Super Admin' : member.role === 'org_admin' ? 'Admin' : 'Member'}
@@ -256,7 +258,7 @@ export default function AdminPage() {
           ))}
 
           {orgMembers.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-8">No team members yet.</p>
+            <p className="text-sm text-gray-400 text-center py-8">No team members yet.</p>
           )}
         </div>
       </div>
