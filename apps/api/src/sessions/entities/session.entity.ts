@@ -55,12 +55,9 @@ export class Session {
   @Column({ nullable: true })
   label: string;
 
-  /** Final score, once the organiser records it. */
-  @Column({ name: 'score_bibs', type: 'int', nullable: true })
-  scoreBibs: number | null;
-
-  @Column({ name: 'score_non_bibs', type: 'int', nullable: true })
-  scoreNonBibs: number | null;
+  /** How many sides the squad is split into on match day (2–6). */
+  @Column({ name: 'team_count', type: 'int', default: 2 })
+  teamCount: number;
 
   /** Set once the day-before reminder has gone out. */
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })

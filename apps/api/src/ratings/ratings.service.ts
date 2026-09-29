@@ -11,6 +11,11 @@ import { Session, SessionKind, SessionStatus } from '../sessions/entities/sessio
 import { Group } from '../groups/entities/group.entity';
 import { Player } from '../players/entities/player.entity';
 import { Vote, VoteCategory } from './entities/vote.entity';
+import { SessionGame } from './entities/session-game.entity';
+
+/** Sides on match day. Colours live in the UI (Orange, Yellow, Blue, White, Green, Red). */
+export const TEAM_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+type TeamKey = (typeof TEAM_KEYS)[number];
 
 /** Votes stay open for a week after kick-off. */
 const VOTING_WINDOW_DAYS = 7;
@@ -39,6 +44,8 @@ export interface PlayerRatings {
   potmWins: number;
   /** Results from games with bibs + score recorded. */
   record: { w: number; d: number; l: number };
+  /** Match days finished top of the day's table. */
+  teamOfDay: number;
   points: number;
   ovr: number | null;
   attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null; GK: number | null };
@@ -52,6 +59,7 @@ function emptyVotes(): Record<VoteCategory, number> {
 export class RatingsService {
   constructor(
     @InjectRepository(Vote) private votesRepo: Repository<Vote>,
+    @InjectRepository(SessionGame) private gamesRepo: Repository<SessionGame>,
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
   ) {}
@@ -230,61 +238,131 @@ export class RatingsService {
     return this.results(session);
   }
 
-  // ── Match day: bibs & score ──
+  // ── Match day: teams on the day + short games ──
+
+  /** Per-side table for one match day: 3 for a win, 1 for a draw. */
+  private standings(teamCount: number, games: SessionGame[]) {
+    const rows = TEAM_KEYS.slice(0, teamCount).map((team) => ({ team: team as string, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }));
+    const by = new Map<string, (typeof rows)[number]>(rows.map((r) => [r.team, r]));
+    for (const g of games) {
+      const a = by.get(g.teamA);
+      const b = by.get(g.teamB);
+      if (!a || !b) continue;
+      a.p++; b.p++;
+      a.gf += g.scoreA; a.ga += g.scoreB;
+      b.gf += g.scoreB; b.ga += g.scoreA;
+      if (g.scoreA > g.scoreB) { a.w++; b.l++; a.pts += 3; }
+      else if (g.scoreA < g.scoreB) { b.w++; a.l++; b.pts += 3; }
+      else { a.d++; b.d++; a.pts++; b.pts++; }
+    }
+    rows.sort((x, y) => y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || x.team.localeCompare(y.team));
+    const top = rows[0];
+    // Team of the Day only once games are played and there's a clear leader.
+    const teamOfTheDay =
+      top && top.p > 0 && (!rows[1] || rows[1].pts < top.pts || (rows[1].gf - rows[1].ga) < (top.gf - top.ga)) ? top.team : null;
+    return { rows, teamOfTheDay };
+  }
 
   async getLineup(sessionId: string, organizationId: string) {
     const session = await this.loadSession(sessionId, organizationId);
-    const ovr = await this.ovrMap(organizationId);
+    const [ovr, games] = await Promise.all([
+      this.ovrMap(organizationId),
+      this.gamesRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
+    ]);
+    const table = this.standings(session.teamCount, games);
     return {
-      scoreBibs: session.scoreBibs,
-      scoreNonBibs: session.scoreNonBibs,
+      teamCount: session.teamCount,
       squad: (session.payments ?? [])
         .filter((p) => p.player)
         .map((p) => ({
           id: p.player.id,
           firstName: p.player.firstName,
           lastName: p.player.lastName,
-          team: (p.team as 'bibs' | 'non_bibs' | null) ?? null,
+          team: p.team && TEAM_KEYS.indexOf(p.team as TeamKey) < session.teamCount ? p.team : null,
           ovr: ovr.get(p.player.id) ?? null,
         })),
+      games: games.map((g) => ({ id: g.id, teamA: g.teamA, teamB: g.teamB, scoreA: g.scoreA, scoreB: g.scoreB })),
+      standings: table.rows,
+      teamOfTheDay: table.teamOfTheDay,
     };
   }
 
   async setLineup(
     sessionId: string,
     organizationId: string,
-    input: { teams?: Record<string, 'bibs' | 'non_bibs' | null>; score?: { bibs: number; nonBibs: number } | null },
+    input: { teamCount?: number; teams?: Record<string, string | null> },
   ) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.kind === SessionKind.DUES) throw new BadRequestException('Dues periods don’t have a lineup');
+    let count = session.teamCount;
+    if (input.teamCount !== undefined) {
+      count = Math.max(2, Math.min(TEAM_KEYS.length, Math.round(input.teamCount)));
+      await this.sessionsRepo.update(session.id, { teamCount: count });
+      // Anyone on a side that no longer exists goes back to "not picked".
+      const dropped = (session.payments ?? []).filter((p) => p.team && TEAM_KEYS.indexOf(p.team as TeamKey) >= count);
+      for (const p of dropped) p.team = null;
+      if (dropped.length) await this.sessionsRepo.manager.save(dropped);
+      await this.gamesRepo
+        .createQueryBuilder()
+        .delete()
+        .where('session_id = :sid', { sid: session.id })
+        .andWhere('(team_a IN (:...gone) OR team_b IN (:...gone))', { gone: TEAM_KEYS.slice(count) })
+        .execute();
+    }
     if (input.teams) {
+      const valid = new Set<string>(TEAM_KEYS.slice(0, count));
       const changed = (session.payments ?? []).filter((p) => p.playerId in input.teams!);
       for (const p of changed) {
         const t = input.teams[p.playerId];
-        p.team = t === 'bibs' || t === 'non_bibs' ? t : null;
+        p.team = t && valid.has(t) ? t : null;
       }
       await this.sessionsRepo.manager.save(changed);
-    }
-    if (input.score !== undefined) {
-      const clean = (n: number) => Math.max(0, Math.min(99, Math.round(n)));
-      await this.sessionsRepo.update(session.id, {
-        scoreBibs: input.score ? clean(input.score.bibs) : null,
-        scoreNonBibs: input.score ? clean(input.score.nonBibs) : null,
-      });
     }
     return this.getLineup(sessionId, organizationId);
   }
 
-  /** Snake draft by OVR so both sides get a fair share of the best players. */
-  async balanceTeams(sessionId: string, organizationId: string) {
+  /** Snake draft by OVR across N sides so each gets a fair share of the best players. */
+  async balanceTeams(sessionId: string, organizationId: string, teamCount?: number) {
+    if (teamCount) await this.setLineup(sessionId, organizationId, { teamCount });
     const lineup = await this.getLineup(sessionId, organizationId);
+    const n = lineup.teamCount;
     const sorted = [...lineup.squad].sort((a, b) => (b.ovr ?? 60) - (a.ovr ?? 60) || a.firstName.localeCompare(b.firstName));
-    const teams: Record<string, 'bibs' | 'non_bibs'> = {};
+    const teams: Record<string, string> = {};
     sorted.forEach((p, i) => {
-      // 0→bibs, 1→non, 2→non, 3→bibs, 4→bibs, 5→non ...
-      teams[p.id] = i % 4 === 0 || i % 4 === 3 ? 'bibs' : 'non_bibs';
+      const round = Math.floor(i / n);
+      const pos = i % n;
+      teams[p.id] = TEAM_KEYS[round % 2 === 0 ? pos : n - 1 - pos];
     });
     return this.setLineup(sessionId, organizationId, { teams });
+  }
+
+  async addGame(
+    sessionId: string,
+    organizationId: string,
+    input: { teamA: string; teamB: string; scoreA: number; scoreB: number },
+  ) {
+    const session = await this.loadSession(sessionId, organizationId);
+    const valid = new Set<string>(TEAM_KEYS.slice(0, session.teamCount));
+    if (!valid.has(input.teamA) || !valid.has(input.teamB) || input.teamA === input.teamB) {
+      throw new BadRequestException('Pick two different teams');
+    }
+    const clean = (n: number) => Math.max(0, Math.min(99, Math.round(Number(n) || 0)));
+    await this.gamesRepo.save(
+      this.gamesRepo.create({
+        sessionId: session.id,
+        teamA: input.teamA,
+        teamB: input.teamB,
+        scoreA: clean(input.scoreA),
+        scoreB: clean(input.scoreB),
+      }),
+    );
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  async deleteGame(sessionId: string, gameId: string, organizationId: string) {
+    await this.loadSession(sessionId, organizationId);
+    await this.gamesRepo.delete({ id: gameId, sessionId });
+    return this.getLineup(sessionId, organizationId);
   }
 
   private async ovrMap(organizationId: string) {
@@ -300,6 +378,12 @@ export class RatingsService {
     if (!sessions.length) return stats;
 
     const votes = await this.votesRepo.find({ where: { sessionId: In(sessions.map((s) => s.id)) } });
+    const allGames = await this.gamesRepo.find({ where: { sessionId: In(sessions.map((s) => s.id)) } });
+    const gamesBySession = new Map<string, SessionGame[]>();
+    for (const g of allGames) gamesBySession.set(g.sessionId, [...(gamesBySession.get(g.sessionId) ?? []), g]);
+    const dayWinner = new Map(
+      sessions.map((s) => [s.id, this.standings(s.teamCount, gamesBySession.get(s.id) ?? []).teamOfTheDay] as const),
+    );
     const votesBySession = new Map<string, Vote[]>();
     for (const v of votes) votesBySession.set(v.sessionId, [...(votesBySession.get(v.sessionId) ?? []), v]);
 
@@ -320,6 +404,7 @@ export class RatingsService {
           votes: emptyVotes(),
           potmWins: 0,
           record: { w: 0, d: 0, l: 0 },
+          teamOfDay: 0,
           points: 0,
           ovr: null,
           attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
@@ -329,12 +414,16 @@ export class RatingsService {
         for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
         if (top > 0 && potmCounts.get(member.id) === top) s.potmWins += 1;
         const team = session.payments?.find((p) => p.playerId === member.id)?.team;
-        if (team && session.scoreBibs != null && session.scoreNonBibs != null) {
-          const mine = team === 'bibs' ? session.scoreBibs : session.scoreNonBibs;
-          const theirs = team === 'bibs' ? session.scoreNonBibs : session.scoreBibs;
-          if (mine > theirs) s.record.w += 1;
-          else if (mine === theirs) s.record.d += 1;
-          else s.record.l += 1;
+        if (team) {
+          for (const g of gamesBySession.get(session.id) ?? []) {
+            if (g.teamA !== team && g.teamB !== team) continue;
+            const mine = g.teamA === team ? g.scoreA : g.scoreB;
+            const theirs = g.teamA === team ? g.scoreB : g.scoreA;
+            if (mine > theirs) s.record.w += 1;
+            else if (mine === theirs) s.record.d += 1;
+            else s.record.l += 1;
+          }
+          if (dayWinner.get(session.id) === team) s.teamOfDay += 1;
         }
         stats.set(member.id, s);
       }
@@ -401,6 +490,7 @@ export class RatingsService {
       votes: emptyVotes(),
       potmWins: 0,
       record: { w: 0, d: 0, l: 0 },
+          teamOfDay: 0,
       points: 0,
       ovr: null,
       attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },

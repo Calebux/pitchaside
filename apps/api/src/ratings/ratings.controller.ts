@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { IsObject, IsOptional } from 'class-validator';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { IsIn, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { RatingsService } from './ratings.service';
@@ -8,14 +8,43 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 
 export class LineupDto {
-  /** playerId → 'bibs' | 'non_bibs' | null */
+  /** 2–6 sides. */
+  @IsOptional()
+  @IsInt()
+  @Min(2)
+  @Max(6)
+  teamCount?: number;
+
+  /** playerId → 'A'…'F' | null */
   @IsOptional()
   @IsObject()
-  teams?: Record<string, 'bibs' | 'non_bibs' | null>;
+  teams?: Record<string, string | null>;
+}
 
-  /** { bibs, nonBibs } or null to clear. */
+export class BalanceDto {
   @IsOptional()
-  score?: { bibs: number; nonBibs: number } | null;
+  @IsInt()
+  @Min(2)
+  @Max(6)
+  teamCount?: number;
+}
+
+export class GameDto {
+  @IsIn(['A', 'B', 'C', 'D', 'E', 'F'])
+  teamA: string;
+
+  @IsIn(['A', 'B', 'C', 'D', 'E', 'F'])
+  teamB: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  scoreA: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  scoreB: number;
 }
 
 /** Organiser views: vote link + results per game, league table, player ratings. */
@@ -44,8 +73,18 @@ export class RatingsController {
   }
 
   @Post('sessions/:id/lineup/balance')
-  balance(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.ratings.balanceTeams(id, user.organizationId);
+  balance(@Param('id') id: string, @Body() dto: BalanceDto, @CurrentUser() user: User) {
+    return this.ratings.balanceTeams(id, user.organizationId, dto.teamCount);
+  }
+
+  @Post('sessions/:id/games')
+  addGame(@Param('id') id: string, @Body() dto: GameDto, @CurrentUser() user: User) {
+    return this.ratings.addGame(id, user.organizationId, dto);
+  }
+
+  @Delete('sessions/:id/games/:gameId')
+  deleteGame(@Param('id') id: string, @Param('gameId') gameId: string, @CurrentUser() user: User) {
+    return this.ratings.deleteGame(id, gameId, user.organizationId);
   }
 
   @Get('groups/:id/table')
