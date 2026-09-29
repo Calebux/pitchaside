@@ -38,7 +38,7 @@ const tabs = [
 ];
 
 /** Playing ⇄ Organising. Organising needs the organiser's email + password (it handles money). */
-export function ModeSwitch({ organiser }: { organiser: PlayerProfile['organiser'] }) {
+export function ModeSwitch({ organiser, tone = 'light' }: { organiser: PlayerProfile['organiser']; tone?: 'light' | 'dark' }) {
   const router = useRouter();
   if (!organiser) return null;
   const goOrganise = () => {
@@ -51,11 +51,24 @@ export function ModeSwitch({ organiser }: { organiser: PlayerProfile['organiser'
     router.push(signedIn ? '/dashboard' : `/signin?email=${encodeURIComponent(organiser.email)}`);
   };
   return (
-    <div className="flex items-center rounded-full bg-chalk border border-gray-200 p-0.5 text-[11px] font-bold" role="tablist" aria-label="Mode">
-      <span className="px-2.5 py-1 rounded-full bg-ink text-volt-300" role="tab" aria-selected>
+    <div
+      className={`flex items-center rounded-full p-0.5 text-[11px] font-bold ${tone === 'dark' ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}
+      role="tablist"
+      aria-label="Mode"
+    >
+      <span
+        className={`flex-1 text-center px-2.5 py-1.5 rounded-full ${tone === 'dark' ? 'bg-volt-400 text-ink' : 'bg-ink text-volt-300'}`}
+        role="tab"
+        aria-selected
+      >
         Playing
       </span>
-      <button onClick={goOrganise} className="px-2.5 py-1 rounded-full text-gray-600 hover:text-ink" role="tab" aria-selected={false}>
+      <button
+        onClick={goOrganise}
+        className={`flex-1 px-2.5 py-1.5 rounded-full ${tone === 'dark' ? 'text-white/60 hover:text-white' : 'text-gray-600 hover:text-ink'}`}
+        role="tab"
+        aria-selected={false}
+      >
         Organising
       </button>
     </div>
@@ -93,38 +106,94 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const isActive = (href: string) => (href === '/me' ? pathname === '/me' : pathname.startsWith(href));
+  const initials = `${profile.player.firstName[0] ?? ''}${profile.player.lastName[0] ?? ''}`.toUpperCase();
+
   return (
     <ProfileContext.Provider value={{ profile, refresh }}>
-      <div className="min-h-screen pb-28">
-        <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-lg border-b border-ink/5">
+      {/* Desktop sidebar — same frame as the organiser app */}
+      <nav className="hidden md:flex fixed left-0 top-0 bottom-0 w-60 bg-ink turf-stripes text-white flex-col z-50">
+        <div className="px-5 pt-6 pb-6">
+          <Logo href="/me" tone="light" />
+          {profile.organiser && (
+            <div className="mt-4">
+              <ModeSwitch organiser={profile.organiser} tone="dark" />
+            </div>
+          )}
+        </div>
+        <p className="px-6 mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Playing</p>
+        <div className="flex-1 px-3 space-y-1">
+          {tabs.map((t) => (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                isActive(t.href)
+                  ? 'bg-volt-400 text-ink shadow-[0_6px_20px_-8px_rgba(212,245,60,0.6)]'
+                  : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
+              }`}
+              aria-current={isActive(t.href) ? 'page' : undefined}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={isActive(t.href) ? 2.2 : 1.6} stroke="currentColor" aria-hidden>
+                {t.icon}
+              </svg>
+              {t.label}
+            </Link>
+          ))}
+        </div>
+        {!profile.organiser && (
+          <Link
+            href="/me/start-group"
+            className="mx-3 mb-3 rounded-2xl bg-pitch-800/70 border border-white/10 p-4 hover:bg-pitch-800 transition-colors"
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-volt-300">Run your own games?</p>
+            <p className="text-xs text-white/70 mt-1.5 leading-relaxed">Start a group — collect payments, RSVPs and votes.</p>
+          </Link>
+        )}
+        <div className="p-3 border-t border-white/10">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-9 h-9 rounded-full bg-volt-400 text-ink flex items-center justify-center text-xs font-extrabold shrink-0">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold truncate">
+                {profile.player.firstName} {profile.player.lastName}
+              </p>
+              <p className="text-xs text-white/45 truncate">{profile.player.phone}</p>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <div className="min-h-screen pb-28 md:pb-12 md:pl-60">
+        {/* Phone header */}
+        <header className="md:hidden sticky top-0 z-40 bg-white/85 backdrop-blur-lg border-b border-ink/5">
           <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <Logo href="/me" size="sm" />
             <ModeSwitch organiser={profile.organiser} />
           </div>
         </header>
-        <main className="max-w-md mx-auto px-4 pt-5">{children}</main>
+        <main className="max-w-md md:max-w-5xl mx-auto px-4 md:px-8 pt-5 md:pt-10">{children}</main>
       </div>
 
-      <nav className="fixed bottom-0 inset-x-0 z-50 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pointer-events-none">
+      {/* Phone tab bar */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pointer-events-none">
         <div className="pointer-events-auto max-w-md mx-auto flex justify-around items-center bg-ink/95 backdrop-blur-xl rounded-[22px] px-1.5 py-1.5 shadow-lift">
-          {tabs.map((t) => {
-            const active = t.href === '/me' ? pathname === '/me' : pathname.startsWith(t.href);
-            return (
-              <Link
-                key={t.href}
-                href={t.href}
-                className={`flex flex-col items-center justify-center rounded-2xl h-12 flex-1 transition-all ${
-                  active ? 'bg-volt-400 text-ink' : 'text-white/55'
-                }`}
-                aria-current={active ? 'page' : undefined}
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={active ? 2.2 : 1.6} stroke="currentColor" aria-hidden>
-                  {t.icon}
-                </svg>
-                <span className={`text-[10px] mt-0.5 ${active ? 'font-bold' : 'font-medium'}`}>{t.label}</span>
-              </Link>
-            );
-          })}
+          {tabs.map((t) => (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`flex flex-col items-center justify-center rounded-2xl h-12 flex-1 transition-all ${
+                isActive(t.href) ? 'bg-volt-400 text-ink' : 'text-white/55'
+              }`}
+              aria-current={isActive(t.href) ? 'page' : undefined}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={isActive(t.href) ? 2.2 : 1.6} stroke="currentColor" aria-hidden>
+                {t.icon}
+              </svg>
+              <span className={`text-[10px] mt-0.5 ${isActive(t.href) ? 'font-bold' : 'font-medium'}`}>{t.label}</span>
+            </Link>
+          ))}
         </div>
       </nav>
     </ProfileContext.Provider>

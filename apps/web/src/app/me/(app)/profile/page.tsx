@@ -33,7 +33,7 @@ export default function PlayerProfilePage() {
         caption={profile.player.phone}
       />
 
-      <div className="grid grid-cols-3 gap-2 mt-4">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4">
         <Stat label="Games" value={r.games} />
         <Stat label="W-D-L" value={`${r.record.w}-${r.record.d}-${r.record.l}`} />
         <Stat label="Points" value={r.points} />
@@ -42,6 +42,8 @@ export default function PlayerProfilePage() {
         <Stat label="Votes got" value={Object.values(r.votes).reduce((a, b) => a + b, 0)} />
       </div>
 
+      <div className="md:grid md:grid-cols-2 md:gap-8 md:items-start">
+      <div>
       {profile.clubs.length > 0 && (
         <Section title="My clubs">
           <div className="space-y-2">
@@ -98,6 +100,8 @@ export default function PlayerProfilePage() {
         )}
       </Section>
 
+      </div>
+      <div>
       <Section title="Account">
         <PlayerAccountSettings
           firstName={profile.player.firstName}
@@ -122,6 +126,8 @@ export default function PlayerProfilePage() {
           </button>
         </div>
       </Section>
+      </div>
+      </div>
     </>
   );
 }

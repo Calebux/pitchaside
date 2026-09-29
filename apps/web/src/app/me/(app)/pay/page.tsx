@@ -40,6 +40,7 @@ export default function PlayerPayPage() {
         {total > 0 && <p className="text-xs text-white/60 mt-1">Put your reference in the transfer narration and it’s marked paid automatically.</p>}
       </div>
 
+      <div className="md:grid md:grid-cols-2 md:gap-6">
       {owedGroups.map((g) => {
         const items = data.owed.filter((o) => o.groupId === g.id);
         return (
@@ -58,6 +59,8 @@ export default function PlayerPayPage() {
           </Section>
         );
       })}
+
+      </div>
 
       <Section title="History">
         {data.paid.length === 0 ? (
@@ -85,7 +88,7 @@ export default function PlayerPayPage() {
 
       {data.groups.length > 0 && owedGroups.length === 0 && (
         <Section title="Where to pay">
-          <div className="space-y-3">
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
             {data.groups.map((g) => (
               <div key={g.id}>
                 <p className="text-xs font-bold text-gray-500 mb-1.5">{g.name}</p>
