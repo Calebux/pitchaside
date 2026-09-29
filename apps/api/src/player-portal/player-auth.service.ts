@@ -23,6 +23,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { phoneKey } from '../common/format.util';
 import { PhoneOtp } from './entities/phone-otp.entity';
 import { PlayerAccount } from './entities/player-account.entity';
+import { Organization } from '../organizations/entities/organization.entity';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_AFTER_MS = 30 * 1000;
@@ -67,6 +68,7 @@ export class PlayerAuthService {
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(PlayerAccount) private accountsRepo: Repository<PlayerAccount>,
+    @InjectRepository(Organization) private orgsRepo: Repository<Organization>,
     private jwt: JwtService,
     private config: ConfigService,
     private notifications: NotificationsService,
@@ -150,6 +152,37 @@ export class PlayerAuthService {
         lastName: input.lastName.trim(),
         email: input.email?.trim() || null,
         passwordHash: await bcrypt.hash(input.password, 10),
+      }),
+    );
+  }
+
+  /** Club invite link (/join/:code): the club behind it, or a 404. */
+  async clubByInviteCode(code: string) {
+    const org = await this.orgsRepo.findOne({ where: { inviteCode: code } });
+    if (!org) throw new NotFoundException('This invite link is invalid or has expired');
+    return org;
+  }
+
+  /** This person's player record in a club, created from their account if they're new there. */
+  async ensurePlayerInClub(organizationId: string, key: string) {
+    const existing = await this.playersRepo
+      .createQueryBuilder('p')
+      .where('p.organizationId = :org', { org: organizationId })
+      .andWhere(PHONE_MATCH, { suffix: `%${key}` })
+      .getOne();
+    if (existing) return existing;
+    const account = await this.accountFor(key);
+    if (!account) throw new NotFoundException('Account not found');
+    const emailTaken = account.email
+      ? await this.playersRepo.findOne({ where: { email: account.email, organizationId } })
+      : null;
+    return this.playersRepo.save(
+      this.playersRepo.create({
+        firstName: account.firstName,
+        lastName: account.lastName,
+        phone: account.phone,
+        email: emailTaken ? undefined : account.email ?? undefined,
+        organizationId,
       }),
     );
   }

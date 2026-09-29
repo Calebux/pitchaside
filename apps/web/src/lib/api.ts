@@ -281,13 +281,6 @@ export function getOrgByInviteCode(
   return http.get(`/organizations/join/${code}`);
 }
 
-export function joinOrg(
-  code: string,
-  data: { firstName: string; lastName: string; phone: string; email?: string },
-): Promise<IPlayer> {
-  return http.post<IPlayer>(`/organizations/join/${code}`, data);
-}
-
 // ── Reminders ──
 
 export function sendReminders(sessionId: string): Promise<{ sent: number; missed: number }> {

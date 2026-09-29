@@ -7,7 +7,8 @@ import { Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { PayIntoCard } from '@/components/account-card';
-import { PasswordField, PasswordSignIn } from '@/components/password-sign-in';
+import { PasswordSignIn } from '@/components/password-sign-in';
+import { PlayerSignupForm, type SignupData } from '@/components/player-signup-form';
 import { formatCurrency, getPublicGroup, type PublicGroup } from '@/lib/api';
 import { frequencyShort } from '@/lib/billing';
 import { getPlayerToken, joinAsPlayer, setPlayerToken, signupFromLink, type JoinResult } from '@/lib/player';
@@ -20,7 +21,7 @@ export default function GroupLinkPage() {
   const [notFound, setNotFound] = useState(false);
   const [stage, setStage] = useState<Stage>('signup');
   const [signedIn, setSignedIn] = useState(false);
-  const [form, setForm] = useState({ phone: '', firstName: '', lastName: '', email: '', password: '' });
+  const [lastPhone, setLastPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<JoinResult | null>(null);
@@ -59,26 +60,14 @@ export default function GroupLinkPage() {
     await joinSignedIn();
   }
 
-  async function signup(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
+  async function signup(data: SignupData) {
     setError(null);
     try {
-      done(
-        await signupFromLink(code, {
-          phone: form.phone.trim(),
-          firstName: form.firstName.trim(),
-          lastName: form.lastName.trim(),
-          email: form.email.trim() || undefined,
-          password: form.password,
-        }),
-      );
+      done(await signupFromLink(code, data));
     } catch (err: any) {
       setError(err.message);
       // Number already has an account: send them to sign in instead.
       if (/sign in/i.test(err.message)) setStage('signin');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -208,7 +197,7 @@ export default function GroupLinkPage() {
               title="Welcome back"
               subtitle={`Sign in and we'll add you to ${group.groupName}.`}
               cta={`Sign in & join`}
-              initialPhone={form.phone}
+              initialPhone={lastPhone}
               onSignedIn={onSignedIn}
               footer={
                 <button onClick={() => { setError(null); setStage('signup'); }} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
@@ -217,60 +206,16 @@ export default function GroupLinkPage() {
               }
             />
           ) : (
-            <form onSubmit={signup} className="bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-4">
-              <div>
-                <h2 className="text-xl font-extrabold text-ink">Join the squad</h2>
-                <p className="text-sm text-gray-500 mt-1">Create your PitchAside account — you&apos;ll get your payment reference straight after.</p>
-              </div>
-              <div>
-                <label htmlFor="phone" className="block text-xs font-bold text-gray-700 mb-1.5">Phone number *</label>
-                <input
-                  id="phone"
-                  type="tel"
-                  required
-                  autoComplete="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  className={input}
-                  placeholder="0803 123 4567"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="firstName" className="block text-xs font-bold text-gray-700 mb-1.5">First name *</label>
-                  <input id="firstName" required minLength={2} autoComplete="given-name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className={input} />
-                </div>
-                <div>
-                  <label htmlFor="lastName" className="block text-xs font-bold text-gray-700 mb-1.5">Last name *</label>
-                  <input id="lastName" required minLength={2} autoComplete="family-name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className={input} />
-                </div>
-              </div>
-              <div>
-                <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
-                  Email <span className="text-gray-400 font-medium">(optional)</span>
-                </label>
-                <input id="email" type="email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={input} />
-              </div>
-              <PasswordField
-                id="password"
-                label="Password *"
-                value={form.password}
-                onChange={(v) => setForm({ ...form, password: v })}
-                autoComplete="new-password"
-                hint="At least 6 characters. You'll sign in with your phone number and this password."
-              />
-              <button
-                type="submit"
-                disabled={busy}
-                className="w-full py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {busy && <BallSpinner />}
-                Join & get payment details
-              </button>
-              <button type="button" onClick={() => { setError(null); setStage('signin'); }} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
-                Already on PitchAside? Sign in
-              </button>
-            </form>
+            <PlayerSignupForm
+              subtitle="Create your PitchAside account — you'll get your payment reference straight after."
+              cta="Join & get payment details"
+              onSubmit={signup}
+              onPhoneChange={setLastPhone}
+              onSwitchToSignIn={() => {
+                setError(null);
+                setStage('signin');
+              }}
+            />
           )}
         </div>
 

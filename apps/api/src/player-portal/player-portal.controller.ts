@@ -183,6 +183,16 @@ export class PlayerAuthController {
     return { ...joined, token: this.auth.issuePersonToken(dto.phone) };
   }
 
+  /** Club invite link (no specific group): create the account and join the club. */
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('public/clubs/:code/signup')
+  async clubSignup(@Param('code') code: string, @Body() dto: SignupDto) {
+    const club = await this.auth.clubByInviteCode(code);
+    const account = await this.auth.createAccount(dto);
+    await this.auth.ensurePlayerInClub(club.id, account.phoneKey);
+    return { clubName: club.name, firstName: account.firstName, token: this.auth.issuePersonToken(dto.phone) };
+  }
+
   /** Number-only sign-in (PLAYER_AUTH_MODE=phone). */
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('player-auth/phone')
@@ -260,6 +270,14 @@ export class PlayerPortalController {
   @Post('sessions/:id/rsvp')
   setRsvp(@Param('id') id: string, @Body() dto: RsvpDto, @CurrentPerson() person: Person) {
     return this.portal.setRsvp(person, id, dto.status);
+  }
+
+  /** Signed-in person opening a club invite link. */
+  @Post('clubs/:code/join')
+  async joinClub(@Param('code') code: string, @CurrentPerson() person: Person) {
+    const club = await this.playerAuth.clubByInviteCode(code);
+    await this.playerAuth.ensurePlayerInClub(club.id, person.key);
+    return { clubName: club.name, firstName: person.firstName };
   }
 
   @Post('groups/:code/join')

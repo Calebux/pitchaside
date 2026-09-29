@@ -1,66 +1,75 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
 import { Logo } from '@/components/brand';
-import { OffsideFlag, Trophy, NightStadium } from '@/components/illustrations';
-import { BallLoader } from '@/components/skeleton';
-import { getOrgByInviteCode, joinOrg } from '@/lib/api';
+import { OffsideFlag, NightStadium } from '@/components/illustrations';
+import { BallLoader, BallSpinner } from '@/components/skeleton';
+import { PasswordSignIn } from '@/components/password-sign-in';
+import { PlayerSignupForm, type SignupData } from '@/components/player-signup-form';
+import { useToast } from '@/components/toast';
+import { getOrgByInviteCode } from '@/lib/api';
+import { getPlayerToken, joinClubAsPlayer, setPlayerToken, signupFromClubLink } from '@/lib/player';
 
+/** Club invite link: create an account (or sign in), join the club, land in the player app. */
 export default function JoinPage() {
-  const params = useParams<{ code: string }>();
-  const code = params.code;
+  const { code } = useParams<{ code: string }>();
+  const router = useRouter();
+  const toast = useToast();
 
   const [orgName, setOrgName] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
-    phone: '',
-    email: '',
-  });
-  const [formError, setFormError] = useState<string | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [stage, setStage] = useState<'signup' | 'signin'>('signup');
+  const [lastPhone, setLastPhone] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    setSignedIn(!!getPlayerToken());
     getOrgByInviteCode(code)
       .then((res) => setOrgName(res.organizationName))
-      .catch(() => setError('Invalid or expired invite link'))
+      .catch(() => setInvalid(true))
       .finally(() => setLoading(false));
   }, [code]);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setFormError(null);
+  function welcome(firstName: string, clubName: string) {
+    toast.success(`Welcome to ${clubName}, ${firstName}!`);
+    router.replace('/me');
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.phone.trim()) {
-      setFormError('First name, last name, and phone are required.');
-      return;
-    }
-    setSubmitting(true);
-    setFormError(null);
+  async function signup(data: SignupData) {
+    setError(null);
     try {
-      await joinOrg(code, {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim() || undefined,
-      });
-      setSuccess(true);
+      const res = await signupFromClubLink(code, data);
+      if (res.token) setPlayerToken(res.token);
+      welcome(res.firstName, res.clubName);
     } catch (err: any) {
-      setFormError(err.message || 'Failed to join. Please try again.');
-    } finally {
-      setSubmitting(false);
+      setError(err.message);
+      // Number already has an account: send them to sign in instead.
+      if (/sign in/i.test(err.message)) setStage('signin');
     }
   }
 
-  const inputClass = "w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
+  async function joinSignedIn() {
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await joinClubAsPlayer(code);
+      welcome(res.firstName, res.clubName);
+    } catch (err: any) {
+      setError(err.message);
+      setSignedIn(!!getPlayerToken());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSignedIn(token: string) {
+    setPlayerToken(token);
+    await joinSignedIn();
+  }
 
   if (loading) {
     return (
@@ -70,7 +79,7 @@ export default function JoinPage() {
     );
   }
 
-  if (error) {
+  if (invalid) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
@@ -79,24 +88,7 @@ export default function JoinPage() {
             <OffsideFlag className="w-48 h-40 mx-auto mb-2" />
             <h1 className="text-2xl font-extrabold text-ink mb-2">Invalid invite link</h1>
             <p className="text-sm text-gray-500">
-              This invite link is invalid or has expired. Please ask your organizer for a new link.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <Logo />
-          <div className="mt-8">
-            <Trophy className="w-52 h-44 mx-auto mb-2" />
-            <h1 className="text-3xl font-extrabold text-ink mb-2">You&apos;re in the squad!</h1>
-            <p className="text-sm text-gray-500">
-              You&apos;ve been added to <span className="font-bold text-ink">{orgName}</span>. The organizer will see you in their player list.
+              This invite link is invalid or has expired. Please ask your organiser for a new link.
             </p>
           </div>
         </div>
@@ -118,87 +110,60 @@ export default function JoinPage() {
             <h1 className="font-display text-2xl font-extrabold text-white leading-tight truncate">Join {orgName}</h1>
           </div>
         </div>
-        <p className="text-sm text-gray-600 mb-5 text-center">
-          Register as a player so your organiser can track your games and payments.
-        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {formError && (
-            <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">
-              {formError}
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="firstName" className="block text-xs font-bold text-gray-700 mb-1.5">
-                First Name *
-              </label>
-              <input
-                id="firstName"
-                name="firstName"
-                type="text"
-                required
-                value={form.firstName}
-                onChange={handleChange}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label htmlFor="lastName" className="block text-xs font-bold text-gray-700 mb-1.5">
-                Last Name *
-              </label>
-              <input
-                id="lastName"
-                name="lastName"
-                type="text"
-                required
-                value={form.lastName}
-                onChange={handleChange}
-                className={inputClass}
-              />
-            </div>
+        {error && (
+          <div role="alert" className="mb-4 bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">
+            {error}
           </div>
+        )}
 
-          <div>
-            <label htmlFor="phone" className="block text-xs font-bold text-gray-700 mb-1.5">
-              Phone Number *
-            </label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              required
-              value={form.phone}
-              onChange={handleChange}
-              className={inputClass}
-              placeholder="+234 800 000 0000"
-            />
+        {signedIn ? (
+          <div className="bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-3">
+            <h2 className="text-xl font-extrabold text-ink">Join the squad</h2>
+            <p className="text-sm text-gray-500">You&apos;re signed in on this phone.</p>
+            <button
+              onClick={joinSignedIn}
+              disabled={busy}
+              className="w-full py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {busy && <BallSpinner />}
+              Join {orgName}
+            </button>
+            <button onClick={() => setSignedIn(false)} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
+              Not you? Use another account
+            </button>
           </div>
-
-          <div>
-            <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
-              Email <span className="text-gray-300">(optional)</span>
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              className={inputClass}
-              placeholder="john@example.com"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
-          >
-            {submitting ? 'Joining...' : 'Join Team'}
-          </button>
-        </form>
+        ) : stage === 'signin' ? (
+          <PasswordSignIn
+            title="Welcome back"
+            subtitle={`Sign in and we'll add you to ${orgName}.`}
+            cta="Sign in & join"
+            initialPhone={lastPhone}
+            onSignedIn={onSignedIn}
+            footer={
+              <button
+                onClick={() => {
+                  setError(null);
+                  setStage('signup');
+                }}
+                className="w-full text-xs font-semibold text-gray-500 hover:text-ink"
+              >
+                New to PitchAside? Create an account
+              </button>
+            }
+          />
+        ) : (
+          <PlayerSignupForm
+            subtitle="Create your PitchAside account to see your games, pay and vote."
+            cta="Join the squad"
+            onSubmit={signup}
+            onPhoneChange={setLastPhone}
+            onSwitchToSignIn={() => {
+              setError(null);
+              setStage('signin');
+            }}
+          />
+        )}
       </div>
     </div>
   );

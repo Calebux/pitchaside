@@ -93,6 +93,21 @@ export function signupFromLink(
   return request<JoinResult>('POST', `/public/groups/${code}/signup`, data, false);
 }
 
+export type ClubJoinResult = { clubName: string; firstName: string; token?: string };
+
+/** Club invite link (/join/:code): create the account and join the club in one go. */
+export function signupFromClubLink(
+  code: string,
+  data: { phone: string; firstName: string; lastName: string; email?: string; password: string },
+) {
+  return request<ClubJoinResult>('POST', `/public/clubs/${code}/signup`, data, false);
+}
+
+/** Club invite link for someone already signed in. */
+export function joinClubAsPlayer(code: string) {
+  return request<ClubJoinResult>('POST', `/me/clubs/${code}/join`);
+}
+
 export function updateMyName(firstName: string, lastName: string) {
   return request<{ firstName: string; lastName: string }>('PATCH', '/me/account', { firstName, lastName });
 }
