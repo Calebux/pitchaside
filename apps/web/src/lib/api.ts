@@ -328,3 +328,85 @@ export function getSessionsPaginated(
   if (groupId) params.set('groupId', groupId);
   return http.get<PaginatedResponse<ISessionWithDetails>>(`/sessions?${params}`);
 }
+
+// ── Group accounts, share links & transfers (Payrep) ──
+
+export interface GroupAccount {
+  accountNumber: string;
+  accountName: string;
+  bankName: string;
+}
+
+export interface GroupBilling {
+  inviteCode: string;
+  link: string;
+  paymentType: PaymentType;
+  account: GroupAccount | null;
+  currentPeriod: { id: string; label: string; date: string } | null;
+  unmatchedTransfers: number;
+  providerMode: 'mock' | 'live';
+}
+
+export interface BankTransfer {
+  id: string;
+  amount: number;
+  senderName?: string;
+  narration?: string;
+  status: 'matched' | 'assigned' | 'unmatched' | 'ignored';
+  receivedAt: string;
+  payment?: (IPayment & { player?: IPlayer; session?: ISession & { label?: string } }) | null;
+}
+
+export interface PublicGroup {
+  groupName: string;
+  organizationName?: string;
+  description?: string;
+  schedule?: string;
+  feePerPlayer: number;
+  paymentType: PaymentType;
+  memberCount: number;
+  targetPlayers: number;
+  account: GroupAccount | null;
+}
+
+export function getGroupBilling(groupId: string): Promise<GroupBilling> {
+  return http.get(`/groups/${groupId}/billing`);
+}
+
+export function provisionGroupAccount(groupId: string): Promise<GroupBilling> {
+  return http.post(`/groups/${groupId}/account`);
+}
+
+export function regenerateGroupInvite(groupId: string): Promise<GroupBilling> {
+  return http.post(`/groups/${groupId}/invite/regenerate`);
+}
+
+export function getGroupTransfers(groupId: string): Promise<BankTransfer[]> {
+  return http.get(`/groups/${groupId}/transfers`);
+}
+
+export function simulateTransfer(
+  groupId: string,
+  data: { amount: number; senderName?: string; narration?: string },
+): Promise<{ status: string }> {
+  return http.post(`/groups/${groupId}/transfers/simulate`, data);
+}
+
+export function assignTransfer(transferId: string, paymentId: string): Promise<BankTransfer> {
+  return http.post(`/transfers/${transferId}/assign`, { paymentId });
+}
+
+export function ignoreTransfer(transferId: string): Promise<BankTransfer> {
+  return http.post(`/transfers/${transferId}/ignore`);
+}
+
+export function getPublicGroup(code: string): Promise<PublicGroup> {
+  return http.get(`/public/groups/${code}`);
+}
+
+export function joinGroup(
+  code: string,
+  data: { firstName: string; lastName: string; phone: string; email?: string },
+): Promise<PublicGroup & { paymentRef: string; firstName: string; alreadyMember: boolean }> {
+  return http.post(`/public/groups/${code}/join`, data);
+}

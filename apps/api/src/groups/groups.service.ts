@@ -6,17 +6,20 @@ import { GroupMembership } from './entities/group-membership.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class GroupsService {
   constructor(
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
+    private billing: BillingService,
   ) {}
 
-  create(dto: CreateGroupDto, organizationId: string) {
-    const group = this.groupsRepo.create({ ...dto, organizationId });
-    return this.groupsRepo.save(group);
+  async create(dto: CreateGroupDto, organizationId: string) {
+    const group = await this.groupsRepo.save(this.groupsRepo.create({ ...dto, organizationId }));
+    // Invite link, Payrep collection account and first dues period.
+    return this.billing.setupGroup(group);
   }
 
   findAll(organizationId: string) {
@@ -67,17 +70,23 @@ export class GroupsService {
   async update(id: string, dto: Partial<CreateGroupDto>, organizationId: string) {
     const group = await this.findOne(id, organizationId);
     Object.assign(group, dto);
-    return this.groupsRepo.save(group);
+    const saved = await this.groupsRepo.save(group);
+    // Switching to a periodic type opens the current dues period straight away.
+    await this.billing.ensureCurrentPeriod(saved);
+    return saved;
   }
 
   async addMember(groupId: string, dto: AddMemberDto, organizationId: string) {
     await this.findOne(groupId, organizationId);
-    const membership = this.membershipsRepo.create({
-      groupId,
-      playerId: dto.playerId,
-      role: dto.role,
-    });
-    return this.membershipsRepo.save(membership);
+    const membership = await this.membershipsRepo.save(
+      this.membershipsRepo.create({
+        groupId,
+        playerId: dto.playerId,
+        role: dto.role,
+      }),
+    );
+    await this.billing.onMemberAdded(membership);
+    return membership;
   }
 
   async removeMember(groupId: string, playerId: string, organizationId: string) {

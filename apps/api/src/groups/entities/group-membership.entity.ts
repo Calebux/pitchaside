@@ -38,6 +38,10 @@ export class GroupMembership {
   @Column({ type: 'enum', enum: MemberRole, default: MemberRole.PLAYER })
   role: MemberRole;
 
+  /** Short code members put in their transfer narration so we can match payments. */
+  @Column({ name: 'payment_ref', nullable: true, unique: true })
+  paymentRef: string;
+
   @CreateDateColumn()
   joinedAt: Date;
 }

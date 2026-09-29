@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { getSession, markPaid, waivePayment, bulkMarkPaid, deleteSession, updateSessionStatus, exportSessionPaymentsCsv, sendReminders, formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
 import { Trophy } from '@/components/illustrations';
+import { BallSpinner } from '@/components/skeleton';
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
   upcoming: { bg: 'bg-volt-400', text: 'text-ink' },
@@ -165,11 +166,13 @@ export default function SessionDetailPage() {
           <div className="flex items-start justify-between mb-5 gap-3">
             <div className="min-w-0">
               <p className="text-white/60 text-xs font-semibold">
-                {new Date(session.date).toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'long',
-                  day: 'numeric',
-                })}
+                {session.kind === 'dues' && session.label
+                  ? `${session.label} dues`
+                  : new Date(session.date).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
               </p>
               <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1 line-clamp-2">
                 {session.group?.name || 'Game Session'}
@@ -348,10 +351,7 @@ export default function SessionDetailPage() {
           >
             {bulkMarking ? (
               <>
-                <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <BallSpinner className="w-4 h-4" />
                 Marking...
               </>
             ) : selectedIds.size > 0 ? (
@@ -386,6 +386,7 @@ export default function SessionDetailPage() {
               }
               amount={payment.amount}
               status={payment.status}
+              viaTransfer={payment.source === 'transfer'}
               onMarkPaid={() => handleMarkPaid(payment.id)}
               onWaive={() => handleWaive(payment.id)}
               loading={markingId === payment.id}

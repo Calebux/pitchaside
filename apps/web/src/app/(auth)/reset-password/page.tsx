@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useState, Suspense } from 'react';
 import { http } from '@/lib/http';
 import { useToast } from '@/components/toast';
+import { BallSpinner } from '@/components/skeleton';
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -138,7 +139,7 @@ export default function ResetPasswordPage() {
     <Suspense
       fallback={
         <div className="w-full max-w-sm flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pitch-600" />
+          <BallSpinner className="w-10 h-10" />
         </div>
       }
     >

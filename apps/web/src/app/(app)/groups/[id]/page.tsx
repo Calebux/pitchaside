@@ -8,6 +8,8 @@ import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
 import { JerseyBadge, kitFor } from '@/components/illustrations';
+import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
+import { frequencyLabel, frequencyOptions } from '@/lib/billing';
 import {
   getGroup,
   getSessions,
@@ -18,6 +20,10 @@ import {
   deleteGroup,
   updateGroup,
   formatCurrency,
+  getGroupBilling,
+  getGroupTransfers,
+  type BankTransfer,
+  type GroupBilling,
   type IGroupWithMembers,
   type ISessionWithDetails,
 } from '@/lib/api';
@@ -38,7 +44,9 @@ export default function GroupDetailPage() {
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'members' | 'sessions'>('members');
+  const [tab, setTab] = useState<'members' | 'sessions' | 'transfers'>('members');
+  const [billing, setBilling] = useState<GroupBilling | null>(null);
+  const [transfers, setTransfers] = useState<BankTransfer[]>([]);
 
   // Add member state
   const [showAddMember, setShowAddMember] = useState(false);
@@ -82,7 +90,17 @@ export default function GroupDetailPage() {
       })
       .catch(() => router.push('/groups'))
       .finally(() => setLoading(false));
+    // Billing loads separately so a Payrep hiccup never blocks the page.
+    getGroupBilling(id).then(setBilling).catch(() => {});
+    getGroupTransfers(id).then(setTransfers).catch(() => {});
   }, [id, router]);
+
+  async function refreshPayments() {
+    const [s, t, b] = await Promise.all([getSessions(id), getGroupTransfers(id), getGroupBilling(id)]);
+    setSessions(s);
+    setTransfers(t);
+    setBilling(b);
+  }
 
   function startEdit() {
     if (!group) return;
@@ -112,6 +130,7 @@ export default function GroupDetailPage() {
       setGroup(updated);
       setEditing(false);
       toast.success('Group updated');
+      refreshPayments().catch(() => {});
     } catch {
       toast.error('Failed to update group');
     } finally {
@@ -145,6 +164,7 @@ export default function GroupDetailPage() {
       await addMember(id, { playerId: selectedPlayerId });
       const updated = await getGroup(id);
       setGroup(updated);
+      refreshPayments().catch(() => {});
       setShowAddMember(false);
       setSelectedPlayerId('');
       toast.success('Member added');
@@ -287,8 +307,11 @@ export default function GroupDetailPage() {
               onChange={(e) => setEditData({ ...editData, paymentType: e.target.value })}
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             >
-              <option value={PaymentType.PER_SESSION}>Per Session</option>
-              <option value={PaymentType.MONTHLY}>Monthly</option>
+              {frequencyOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div className="flex gap-3 pt-1">
@@ -362,10 +385,20 @@ export default function GroupDetailPage() {
               {formatCurrency(group.feePerPlayer)}/player
             </span>
             <span className="px-2.5 py-1 bg-chalk border border-gray-200 text-gray-700 font-semibold rounded-full capitalize">
-              {group.paymentType.replace('_', ' ')}
+              {frequencyLabel(group.paymentType)}
             </span>
           </div>
         </div>
+      )}
+
+      {!editing && billing && (
+        <GroupAccountCard
+          groupId={id}
+          groupName={group.name}
+          fee={Number(group.feePerPlayer)}
+          billing={billing}
+          onChange={setBilling}
+        />
       )}
 
       {/* Tabs */}
@@ -384,9 +417,33 @@ export default function GroupDetailPage() {
             tab === 'sessions' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
           }`}
         >
-          Sessions ({sessions.length})
+          {group.paymentType === PaymentType.PER_SESSION ? 'Sessions' : 'Dues'} ({sessions.length})
+        </button>
+        <button
+          onClick={() => setTab('transfers')}
+          className={`relative flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors ${
+            tab === 'transfers' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
+          }`}
+        >
+          Transfers
+          {billing && billing.unmatchedTransfers > 0 && (
+            <span className="absolute top-1 right-2 min-w-5 h-5 px-1 rounded-full bg-kit-500 text-white text-[10px] font-extrabold flex items-center justify-center">
+              {billing.unmatchedTransfers}
+            </span>
+          )}
         </button>
       </div>
+
+      {tab === 'transfers' && (
+        <TransfersPanel
+          groupId={id}
+          fee={Number(group.feePerPlayer)}
+          transfers={transfers}
+          sessions={sessions}
+          mockMode={billing?.providerMode === 'mock'}
+          onRefresh={refreshPayments}
+        />
+      )}
 
       {/* Members Tab */}
       {tab === 'members' && (
@@ -562,11 +619,13 @@ export default function GroupDetailPage() {
                   >
                     <div className="flex justify-between items-center mb-2.5">
                       <p className="text-sm font-bold text-ink">
-                        {new Date(s.date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                        {s.kind === 'dues' && s.label
+                          ? `${s.label} dues`
+                          : new Date(s.date).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
                       </p>
                       <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${sStyle}`}>
                         {s.status}

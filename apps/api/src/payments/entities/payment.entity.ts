@@ -46,6 +46,10 @@ export class Payment {
   @Column({ nullable: true })
   markedBy: string;
 
+  /** 'manual' when an admin marked it, 'transfer' when reconciled from a bank transfer. */
+  @Column({ nullable: true })
+  source: string;
+
   @CreateDateColumn()
   createdAt: Date;
 }

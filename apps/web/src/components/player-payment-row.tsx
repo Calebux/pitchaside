@@ -3,6 +3,7 @@
 import { PaymentStatus } from '@pitchaside/shared';
 import { formatCurrency } from '@/lib/api';
 import { kitFor } from '@/components/illustrations';
+import { BallSpinner } from '@/components/skeleton';
 
 interface PlayerPaymentRowProps {
   playerName: string;
@@ -13,6 +14,8 @@ interface PlayerPaymentRowProps {
   loading?: boolean;
   selected?: boolean;
   onToggle?: () => void;
+  /** Paid by bank transfer into the group account (auto-matched). */
+  viaTransfer?: boolean;
 }
 
 const statusConfig = {
@@ -54,6 +57,7 @@ export function PlayerPaymentRow({
   loading,
   selected,
   onToggle,
+  viaTransfer,
 }: PlayerPaymentRowProps) {
   const config = statusConfig[status];
   const canAct = status === PaymentStatus.PENDING;
@@ -83,16 +87,18 @@ export function PlayerPaymentRow({
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink truncate">{playerName}</p>
-          <p className="text-xs text-gray-500 tabular-nums">{formatCurrency(amount)}</p>
+          <p className="text-xs text-gray-500 tabular-nums">
+            {formatCurrency(amount)}
+            {viaTransfer && status === PaymentStatus.PAID && (
+              <span className="ml-1.5 text-[10px] font-bold text-pitch-600">· via bank transfer</span>
+            )}
+          </p>
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0 ml-3">
         {loading ? (
           <span className="flex items-center gap-1.5 text-xs font-medium text-pitch-600">
-            <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <BallSpinner className="w-4 h-4" />
           </span>
         ) : canAct ? (
           <div className="flex items-center gap-1.5">

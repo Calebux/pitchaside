@@ -8,6 +8,7 @@ import { KitLine } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { createGroup } from '@/lib/api';
 import { PaymentType } from '@pitchaside/shared';
+import { frequencyOptions } from '@/lib/billing';
 
 type Errors = Record<string, string>;
 
@@ -134,7 +135,7 @@ export default function NewGroupPage() {
           </div>
           <div>
             <label htmlFor="feePerPlayer" className="block text-xs font-bold text-gray-700 mb-1.5">
-              Fee per Player *
+              Amount per player (₦) *
             </label>
             <input
               id="feePerPlayer"
@@ -142,26 +143,40 @@ export default function NewGroupPage() {
               type="number"
               min={0}
               step="0.01"
-              defaultValue={10}
+              defaultValue={3000}
               className={inputClass('feePerPlayer')}
             />
             {errors.feePerPlayer && <p className="text-xs text-kit-600 mt-1">{errors.feePerPlayer}</p>}
           </div>
         </div>
 
-        <div>
-          <label htmlFor="paymentType" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Payment Type
-          </label>
-          <select
-            id="paymentType"
-            name="paymentType"
-            defaultValue={PaymentType.PER_SESSION}
-            className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 bg-white"
-          >
-            <option value={PaymentType.PER_SESSION}>Per Session</option>
-            <option value={PaymentType.MONTHLY}>Monthly</option>
-          </select>
+        <fieldset>
+          <legend className="block text-xs font-bold text-gray-700 mb-1.5">How often do players pay?</legend>
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {frequencyOptions.map((o) => (
+              <label key={o.value} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="paymentType"
+                  value={o.value}
+                  defaultChecked={o.value === PaymentType.PER_SESSION}
+                  className="peer sr-only"
+                />
+                <span className="flex flex-col h-full px-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white transition-colors peer-checked:border-ink peer-checked:bg-volt-300 peer-focus-visible:ring-4 peer-focus-visible:ring-volt-300/70 hover:border-gray-300">
+                  <span className="text-sm font-bold text-ink">{o.label}</span>
+                  <span className="text-[11px] text-gray-500 leading-tight mt-0.5">{o.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <div className="flex items-start gap-3 rounded-2xl bg-chalk border border-gray-200 p-3.5">
+          <div className="w-8 h-8 rounded-lg bg-ink text-volt-300 flex items-center justify-center shrink-0 font-display font-extrabold text-sm">₦</div>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            We&apos;ll open a dedicated <span className="font-bold text-ink">Payrep MFB account</span> for this group. Players pay into it and
+            transfers are matched to them automatically. You&apos;ll also get a link to share for players to join.
+          </p>
         </div>
 
         <button
