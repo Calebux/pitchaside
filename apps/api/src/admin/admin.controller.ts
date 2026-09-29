@@ -65,7 +65,7 @@ export class AdminController {
   @Roles(UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
   async addOrgMember(
     @CurrentUser() user: User,
-    @Body() body: { firstName: string; lastName: string; email: string; password: string },
+    @Body() body: { firstName: string; lastName: string; email: string; password: string; role?: string },
   ) {
     const passwordHash = await bcrypt.hash(body.password, 10);
     const newUser = await this.usersService.create({
@@ -73,7 +73,8 @@ export class AdminController {
       lastName: body.lastName,
       email: body.email,
       passwordHash,
-      role: UserRole.MEMBER,
+      // Co-organiser (full access minus Admin) or treasurer (payments only).
+      role: body.role === UserRole.TREASURER ? UserRole.TREASURER : UserRole.MEMBER,
       organizationId: user.organizationId,
     });
 

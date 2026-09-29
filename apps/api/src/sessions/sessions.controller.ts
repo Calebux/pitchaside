@@ -6,6 +6,7 @@ import { PaginationDto } from '../common/dto/pagination.dto';
 import { toCsv } from '../common/csv.util';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { User } from '../users/entities/user.entity';
 
 @UseGuards(JwtAuthGuard)
@@ -46,6 +47,7 @@ export class SessionsController {
     res.send(csv);
   }
 
+  @AllowTreasurer()
   @Post(':id/send-reminders')
   sendReminders(@Param('id') id: string, @CurrentUser() user: User) {
     return this.sessionsService.sendReminders(id, user.organizationId);

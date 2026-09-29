@@ -55,6 +55,13 @@ export class Session {
   @Column({ nullable: true })
   label: string;
 
+  /** Final score, once the organiser records it. */
+  @Column({ name: 'score_bibs', type: 'int', nullable: true })
+  scoreBibs: number | null;
+
+  @Column({ name: 'score_non_bibs', type: 'int', nullable: true })
+  scoreNonBibs: number | null;
+
   /** Set once the day-before reminder has gone out. */
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })
   reminderSentAt: Date | null;

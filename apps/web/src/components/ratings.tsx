@@ -101,10 +101,11 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
   }
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
-      <div className="grid grid-cols-[28px_1fr_32px_40px_44px] sm:grid-cols-[32px_1fr_40px_48px_48px_56px] items-center gap-2 px-4 py-2.5 bg-ink text-[10px] font-extrabold uppercase tracking-wider text-white/50">
+      <div className="grid grid-cols-[28px_1fr_32px_40px_44px] sm:grid-cols-[32px_1fr_40px_64px_48px_48px_56px] items-center gap-2 px-4 py-2.5 bg-ink text-[10px] font-extrabold uppercase tracking-wider text-white/50">
         <span>#</span>
         <span>Player</span>
         <span className="text-center">P</span>
+        <span className="hidden sm:block text-center">W-D-L</span>
         <span className="text-center">POTM</span>
         <span className="hidden sm:block text-center">OVR</span>
         <span className="text-right text-volt-300">Pts</span>
@@ -114,7 +115,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
         return (
           <div
             key={row.player.id}
-            className={`grid grid-cols-[28px_1fr_32px_40px_44px] sm:grid-cols-[32px_1fr_40px_48px_48px_56px] items-center gap-2 px-4 py-3 border-t border-gray-100 ${
+            className={`grid grid-cols-[28px_1fr_32px_40px_44px] sm:grid-cols-[32px_1fr_40px_64px_48px_48px_56px] items-center gap-2 px-4 py-3 border-t border-gray-100 ${
               i === 0 ? 'bg-volt-100' : ''
             }`}
           >
@@ -135,6 +136,9 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
               )}
             </span>
             <span className="text-center text-sm text-gray-500 tabular-nums">{row.games}</span>
+            <span className="hidden sm:block text-center text-xs font-semibold text-gray-500 tabular-nums">
+              {row.record.w}-{row.record.d}-{row.record.l}
+            </span>
             <span className="text-center text-sm text-gray-500 tabular-nums">{row.votes.potm}</span>
             <span className="hidden sm:block text-center text-sm font-bold text-ink tabular-nums">{row.ovr ?? '–'}</span>
             <span className="text-right font-display text-lg font-extrabold text-ink tabular-nums">{row.points}</span>

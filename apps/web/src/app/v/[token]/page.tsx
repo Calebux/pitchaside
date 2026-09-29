@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
@@ -116,10 +117,19 @@ export default function VotePage() {
   );
 
   return (
-    <div className="min-h-screen px-4 py-8 pb-28">
+    <div className="min-h-screen px-4 py-6 pb-28">
       <div className="w-full max-w-md mx-auto">
-        <div className="text-center mb-6">
-          <Logo />
+        <div className="flex items-center justify-between mb-6 min-h-9">
+          <Link
+            href="/me"
+            className="inline-flex items-center gap-1 pl-2 pr-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-full hover:text-ink hover:border-gray-300 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+            </svg>
+            My PitchAside
+          </Link>
+          <Logo size="sm" />
         </div>
         {header}
 
@@ -226,6 +236,12 @@ export default function VotePage() {
               >
                 Hype it up in the group chat
               </button>
+              <Link
+                href="/me"
+                className="mt-2 w-full flex items-center justify-center py-3.5 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors"
+              >
+                Back to my PitchAside
+              </Link>
               <button
                 onClick={() => setStage('ballot')}
                 disabled={!ballot.open}

@@ -5,8 +5,12 @@ export class PlayersRsvpNotifications1790800000000 implements MigrationInterface
   name = 'PlayersRsvpNotifications1790800000000';
 
   public async up(q: QueryRunner): Promise<void> {
+    await q.query(`ALTER TYPE "public"."users_role_enum" ADD VALUE IF NOT EXISTS 'treasurer'`);
     await q.query(`ALTER TABLE "groups" ADD COLUMN IF NOT EXISTS "require_rsvp" boolean NOT NULL DEFAULT false`);
     await q.query(`ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "reminder_sent_at" TIMESTAMP WITH TIME ZONE`);
+    await q.query(`ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "score_bibs" integer`);
+    await q.query(`ALTER TABLE "sessions" ADD COLUMN IF NOT EXISTS "score_non_bibs" integer`);
+    await q.query(`ALTER TABLE "payments" ADD COLUMN IF NOT EXISTS "team" character varying`);
 
     await q.query(`DO $$ BEGIN
       CREATE TYPE "public"."rsvps_status_enum" AS ENUM('in', 'out', 'waitlist');
@@ -72,6 +76,9 @@ export class PlayersRsvpNotifications1790800000000 implements MigrationInterface
     await q.query(`DROP TABLE IF EXISTS "phone_otps"`);
     await q.query(`DROP TABLE IF EXISTS "rsvps"`);
     await q.query(`DROP TYPE IF EXISTS "public"."rsvps_status_enum"`);
+    await q.query(`ALTER TABLE "payments" DROP COLUMN IF EXISTS "team"`);
+    await q.query(`ALTER TABLE "sessions" DROP COLUMN IF EXISTS "score_non_bibs"`);
+    await q.query(`ALTER TABLE "sessions" DROP COLUMN IF EXISTS "score_bibs"`);
     await q.query(`ALTER TABLE "sessions" DROP COLUMN IF EXISTS "reminder_sent_at"`);
     await q.query(`ALTER TABLE "groups" DROP COLUMN IF EXISTS "require_rsvp"`);
   }

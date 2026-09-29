@@ -37,6 +37,8 @@ export interface PlayerRatings {
   ballotsSeen: number;
   votes: Record<VoteCategory, number>;
   potmWins: number;
+  /** Results from games with bibs + score recorded. */
+  record: { w: number; d: number; l: number };
   points: number;
   ovr: number | null;
   attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null; GK: number | null };
@@ -228,6 +230,68 @@ export class RatingsService {
     return this.results(session);
   }
 
+  // ── Match day: bibs & score ──
+
+  async getLineup(sessionId: string, organizationId: string) {
+    const session = await this.loadSession(sessionId, organizationId);
+    const ovr = await this.ovrMap(organizationId);
+    return {
+      scoreBibs: session.scoreBibs,
+      scoreNonBibs: session.scoreNonBibs,
+      squad: (session.payments ?? [])
+        .filter((p) => p.player)
+        .map((p) => ({
+          id: p.player.id,
+          firstName: p.player.firstName,
+          lastName: p.player.lastName,
+          team: (p.team as 'bibs' | 'non_bibs' | null) ?? null,
+          ovr: ovr.get(p.player.id) ?? null,
+        })),
+    };
+  }
+
+  async setLineup(
+    sessionId: string,
+    organizationId: string,
+    input: { teams?: Record<string, 'bibs' | 'non_bibs' | null>; score?: { bibs: number; nonBibs: number } | null },
+  ) {
+    const session = await this.loadSession(sessionId, organizationId);
+    if (session.kind === SessionKind.DUES) throw new BadRequestException('Dues periods don’t have a lineup');
+    if (input.teams) {
+      const changed = (session.payments ?? []).filter((p) => p.playerId in input.teams!);
+      for (const p of changed) {
+        const t = input.teams[p.playerId];
+        p.team = t === 'bibs' || t === 'non_bibs' ? t : null;
+      }
+      await this.sessionsRepo.manager.save(changed);
+    }
+    if (input.score !== undefined) {
+      const clean = (n: number) => Math.max(0, Math.min(99, Math.round(n)));
+      await this.sessionsRepo.update(session.id, {
+        scoreBibs: input.score ? clean(input.score.bibs) : null,
+        scoreNonBibs: input.score ? clean(input.score.nonBibs) : null,
+      });
+    }
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  /** Snake draft by OVR so both sides get a fair share of the best players. */
+  async balanceTeams(sessionId: string, organizationId: string) {
+    const lineup = await this.getLineup(sessionId, organizationId);
+    const sorted = [...lineup.squad].sort((a, b) => (b.ovr ?? 60) - (a.ovr ?? 60) || a.firstName.localeCompare(b.firstName));
+    const teams: Record<string, 'bibs' | 'non_bibs'> = {};
+    sorted.forEach((p, i) => {
+      // 0→bibs, 1→non, 2→non, 3→bibs, 4→bibs, 5→non ...
+      teams[p.id] = i % 4 === 0 || i % 4 === 3 ? 'bibs' : 'non_bibs';
+    });
+    return this.setLineup(sessionId, organizationId, { teams });
+  }
+
+  private async ovrMap(organizationId: string) {
+    const stats = await this.aggregate(await this.gamesQuery(organizationId).getMany());
+    return new Map([...stats.entries()].map(([id, s]) => [id, s.ovr]));
+  }
+
   // ── Ratings & league table ──
 
   /** Aggregates every vote across the given games into per-player ratings. */
@@ -255,6 +319,7 @@ export class RatingsService {
           ballotsSeen: 0,
           votes: emptyVotes(),
           potmWins: 0,
+          record: { w: 0, d: 0, l: 0 },
           points: 0,
           ovr: null,
           attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
@@ -263,6 +328,14 @@ export class RatingsService {
         s.ballotsSeen += voters.size - (voters.has(member.id) ? 1 : 0);
         for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
         if (top > 0 && potmCounts.get(member.id) === top) s.potmWins += 1;
+        const team = session.payments?.find((p) => p.playerId === member.id)?.team;
+        if (team && session.scoreBibs != null && session.scoreNonBibs != null) {
+          const mine = team === 'bibs' ? session.scoreBibs : session.scoreNonBibs;
+          const theirs = team === 'bibs' ? session.scoreNonBibs : session.scoreBibs;
+          if (mine > theirs) s.record.w += 1;
+          else if (mine === theirs) s.record.d += 1;
+          else s.record.l += 1;
+        }
         stats.set(member.id, s);
       }
     }
@@ -327,6 +400,7 @@ export class RatingsService {
       ballotsSeen: 0,
       votes: emptyVotes(),
       potmWins: 0,
+      record: { w: 0, d: 0, l: 0 },
       points: 0,
       ovr: null,
       attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
