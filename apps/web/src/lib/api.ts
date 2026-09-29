@@ -67,6 +67,7 @@ export function createGroup(data: {
   feePerPlayer: number;
   paymentType?: PaymentType;
   requireRsvp?: boolean;
+  kickoffTime?: string;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -81,6 +82,7 @@ export function updateGroup(
     feePerPlayer: number;
     paymentType: PaymentType;
     requireRsvp: boolean;
+    kickoffTime: string;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);
@@ -288,8 +290,8 @@ export function joinOrg(
 
 // ── Reminders ──
 
-export function sendReminders(sessionId: string): Promise<{ sent: number }> {
-  return http.post<{ sent: number }>(`/sessions/${sessionId}/send-reminders`);
+export function sendReminders(sessionId: string): Promise<{ sent: number; missed: number }> {
+  return http.post<{ sent: number; missed: number }>(`/sessions/${sessionId}/send-reminders`);
 }
 
 // ── Player Stats ──

@@ -37,6 +37,7 @@ export interface IGroup {
   feePerPlayer: number;
   paymentType: PaymentType;
   requireRsvp?: boolean;
+  kickoffTime?: string | null;
   inviteCode?: string;
   accountNumber?: string;
   accountName?: string;

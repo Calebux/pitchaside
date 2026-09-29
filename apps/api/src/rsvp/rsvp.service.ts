@@ -2,13 +2,10 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
-  OnModuleDestroy,
-  OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Session, SessionKind, SessionStatus } from '../sessions/entities/session.entity';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
@@ -21,9 +18,7 @@ import { Rsvp, RsvpStatus } from './entities/rsvp.entity';
 type Person = { id: string; firstName: string; lastName: string };
 
 @Injectable()
-export class RsvpService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(RsvpService.name);
-  private timer?: NodeJS.Timeout;
+export class RsvpService {
 
   constructor(
     @InjectRepository(Rsvp) private rsvpRepo: Repository<Rsvp>,
@@ -34,57 +29,6 @@ export class RsvpService implements OnModuleInit, OnModuleDestroy {
     private payments: PaymentsService,
     private notifications: NotificationsService,
   ) {}
-
-  // ── Day-before reminders ──
-
-  onModuleInit() {
-    if (process.env.NODE_ENV === 'test') return;
-    this.timer = setInterval(() => {
-      this.sendTomorrowReminders().catch((err) => this.logger.error(`Reminders failed: ${err.message}`));
-    }, 60 * 60 * 1000);
-    this.timer.unref();
-  }
-
-  onModuleDestroy() {
-    if (this.timer) clearInterval(this.timer);
-  }
-
-  async sendTomorrowReminders() {
-    const tomorrow = new Date(Date.now() + 86_400_000);
-    const iso = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-    const games = await this.sessionsRepo.find({
-      where: { date: iso, kind: SessionKind.GAME, status: SessionStatus.UPCOMING, reminderSentAt: IsNull() },
-      relations: ['group'],
-    });
-    for (const game of games) {
-      const board = await this.board(game);
-      const spots = board.capacity - board.in.length;
-      if (board.in.length) {
-        await this.notifications.notifyPlayers(
-          board.in.map((p) => p.id),
-          {
-            kind: 'game_reminder',
-            title: `${game.group.name} is tomorrow ⚽`,
-            body: `You're in. ${board.in.length}/${board.capacity} confirmed${spots > 0 ? ` — ${spots} spot${spots === 1 ? '' : 's'} left` : ''}.`,
-            url: '/me',
-          },
-        );
-      }
-      // Nudge anyone who hasn't answered while there's still room.
-      if (game.group.requireRsvp && spots > 0 && board.noReply.length) {
-        await this.notifications.notifyPlayers(
-          board.noReply.map((p) => p.id),
-          {
-            kind: 'rsvp_nudge',
-            title: `${spots} spot${spots === 1 ? '' : 's'} left for tomorrow`,
-            body: `${game.group.name} · ${shortDate(game.date)}. Tap to say if you're in.`,
-            url: '/me',
-          },
-        );
-      }
-      await this.sessionsRepo.update(game.id, { reminderSentAt: new Date() });
-    }
-  }
 
   // ── Reading ──
 

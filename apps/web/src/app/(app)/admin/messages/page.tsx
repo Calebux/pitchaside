@@ -9,36 +9,61 @@ import { getMessages, type OutboundMessage } from '@/lib/api';
 const kindLabels: Record<string, string> = {
   otp: 'Sign-in code',
   receipt: 'Payment receipt',
+  payment_reminder: 'Payment reminder',
   dues_open: 'Dues open',
+  dues_reminder: 'Dues reminder',
   rsvp_open: "Who's in?",
   rsvp_promoted: 'Off the waitlist',
-  rsvp_nudge: 'RSVP nudge',
+  rsvp_nudge: 'Spots left',
+  reminder_eve: 'Day-before reminder',
+  reminder_kickoff: 'Kick-off reminder',
   game_reminder: 'Game reminder',
   vote_open: 'Vote invite',
+  vote_nudge: 'Vote nudge',
+  payment_received: 'Money received',
+  transfer_unmatched: 'Transfer to match',
+  member_joined: 'New member',
+  game_full: 'Game full',
 };
 
-/** Everything PitchAside has sent (or, in test mode, would send) to players by WhatsApp/SMS. */
-export default function MessagesPage() {
+/** Every push PitchAside sent for this club, and whether it reached a device. */
+export default function NotificationsLogPage() {
   const [data, setData] = useState<{ mode: 'mock' | 'live'; messages: OutboundMessage[] } | null>(null);
 
   useEffect(() => {
     getMessages().then(setData).catch(() => setData({ mode: 'live', messages: [] }));
   }, []);
 
+  const pushes = data?.messages.filter((m) => m.channel === 'push') ?? [];
+  const delivered = pushes.filter((m) => m.status === 'sent').length;
+
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton />
       <PageHeader
         eyebrow="Club office"
-        title="Messages"
-        subtitle="WhatsApp and SMS sent to your players. Players with notifications on get a push instead."
+        title="Notifications"
+        subtitle="Push notifications sent to your players and organisers: game reminders, payments and votes."
       />
 
-      {data?.mode === 'mock' && (
-        <p className="mb-4 text-xs rounded-2xl bg-sky-300/30 border border-dashed border-sky-300 px-4 py-3 text-ink">
-          <span className="font-bold">Test mode</span> — nothing is actually sent. Connect a WhatsApp/SMS provider (Termii) to go live.
-        </p>
+      {pushes.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="rounded-2xl bg-volt-300 border border-volt-400 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/60">Delivered</p>
+            <p className="font-display text-3xl font-extrabold text-ink tabular-nums leading-none mt-1">{delivered}</p>
+          </div>
+          <div className="rounded-2xl bg-white border border-gray-100 shadow-card p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">Missed</p>
+            <p className="font-display text-3xl font-extrabold text-ink tabular-nums leading-none mt-1">{pushes.length - delivered}</p>
+            <p className="text-[11px] text-gray-500 mt-1">Notifications not turned on</p>
+          </div>
+        </div>
       )}
+
+      <p className="mb-4 text-xs rounded-2xl bg-chalk border border-gray-200 px-4 py-3 text-gray-600">
+        Players only get pushes after they open PitchAside on their phone, add it to their home screen and tap{' '}
+        <span className="font-bold text-ink">Turn on notifications</span>. Share your group link to get them started.
+      </p>
 
       {!data ? (
         <div className="space-y-2 animate-pulse">
@@ -47,26 +72,36 @@ export default function MessagesPage() {
           ))}
         </div>
       ) : data.messages.length === 0 ? (
-        <EmptyState icon="box" title="No messages yet" description="Receipts, game invites and vote reminders will show up here." />
+        <EmptyState icon="box" title="Nothing sent yet" description="Game reminders, receipts and vote invites will show up here." />
       ) : (
         <div className="space-y-2">
-          {data.messages.map((m) => (
-            <div key={m.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-volt-300 text-ink">
-                  {kindLabels[m.kind] ?? m.kind}
-                </span>
-                <span className="text-[11px] text-gray-400 whitespace-nowrap">
-                  {m.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'} · {m.to} ·{' '}
-                  {new Date(m.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </span>
+          {data.messages.map((m) => {
+            const [title, ...rest] = m.body.split('\n');
+            return (
+              <div key={m.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-volt-300 text-ink">
+                    {kindLabels[m.kind] ?? m.kind}
+                  </span>
+                  <span className="text-[11px] text-gray-400 whitespace-nowrap truncate">
+                    {m.to} ·{' '}
+                    {new Date(m.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <p className="text-sm font-bold text-ink">{m.kind === 'otp' ? 'Sign-in code' : title}</p>
+                {rest.length > 0 && m.kind !== 'otp' && <p className="text-sm text-gray-600 whitespace-pre-line break-words">{rest.join('\n')}</p>}
+                <p className={`text-[11px] font-bold mt-2 ${m.status === 'sent' || m.status === 'mock' ? 'text-pitch-600' : 'text-gray-400'}`}>
+                  {m.channel === 'push'
+                    ? m.status === 'sent'
+                      ? '● Delivered'
+                      : '○ Not delivered — notifications off'
+                    : m.status === 'failed'
+                      ? 'Failed to send'
+                      : `${m.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}${m.status === 'mock' ? ' (test mode)' : ''}`}
+                </p>
               </div>
-              <p className="text-sm text-ink whitespace-pre-line break-words">
-                {m.kind === 'otp' ? m.body.replace(/^\d{6}/, '••••••') : m.body}
-              </p>
-              {m.status === 'failed' && <p className="text-xs font-bold text-kit-600 mt-2">Failed to send</p>}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
