@@ -23,6 +23,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { phoneKey } from '../common/format.util';
 import { PhoneOtp } from './entities/phone-otp.entity';
 import { PlayerAccount } from './entities/player-account.entity';
+import { COOKIE_NAMES } from '../auth/cookie.util';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_AFTER_MS = 30 * 1000;
@@ -339,8 +340,18 @@ export class PlayerAuthService {
   issuePersonToken(phone: string) {
     return this.jwt.sign({ typ: 'person', key: phoneKey(phone), phone: phone.trim() } satisfies PersonClaims, {
       secret: this.secret,
-      expiresIn: '90d',
+      expiresIn: '15m',
     });
+  }
+
+  /** Expose phoneKey helper for the controller to create refresh tokens. */
+  getPhoneKey(phone: string) {
+    return phoneKey(phone);
+  }
+
+  /** Expose accountFor by key for the controller refresh flow. */
+  accountForKey(key: string) {
+    return this.accountFor(key);
   }
 
   verifyPhoneProof(proof: string) {
@@ -382,16 +393,21 @@ export class PlayerAuthService {
   }
 }
 
-/** Requires `Authorization: Bearer <player token>`; puts the person on request.person. */
+/** Requires a player token (cookie or Authorization header); puts the person on request.person. */
 @Injectable()
 export class PlayerAuthGuard implements CanActivate {
   constructor(private auth: PlayerAuthService) {}
 
   async canActivate(ctx: ExecutionContext) {
     const req = ctx.switchToHttp().getRequest();
-    const header: string | undefined = req.headers.authorization;
-    if (!header?.startsWith('Bearer ')) throw new UnauthorizedException('Please sign in');
-    req.person = await this.auth.personFromToken(header.slice(7));
+    // Try HttpOnly cookie first, fall back to Bearer header
+    let token = req.cookies?.[COOKIE_NAMES.PLAYER_ACCESS];
+    if (!token) {
+      const header: string | undefined = req.headers.authorization;
+      if (!header?.startsWith('Bearer ')) throw new UnauthorizedException('Please sign in');
+      token = header.slice(7);
+    }
+    req.person = await this.auth.personFromToken(token);
     return true;
   }
 }

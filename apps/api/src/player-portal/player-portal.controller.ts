@@ -1,15 +1,20 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
+import { ConfigService } from '@nestjs/config';
+import { Request, Response } from 'express';
 import { BillingService } from '../billing/billing.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushSubscriptionDto, UnsubscribeDto } from '../notifications/notifications.controller';
 import { CurrentPerson, Person, PlayerAuthGuard, PlayerAuthService } from './player-auth.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
+import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { PlayerPortalService } from './player-portal.service';
+import { setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
+import { UsersService } from '../users/users.service';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
 
@@ -142,37 +147,54 @@ export class PlayerAuthController {
   constructor(
     private readonly auth: PlayerAuthService,
     private readonly billing: BillingService,
+    private readonly configService: ConfigService,
+    private readonly usersService: UsersService,
   ) {}
 
+  @SkipCsrf()
   @Get('player-auth/mode')
   mode() {
     return { mode: this.auth.mode };
   }
 
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('player-auth/login')
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.phone, dto.password);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.login(dto.phone, dto.password);
+    if ('needsPassword' in result) return result;
+    const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(dto.phone));
+    setPlayerAuthCookies(res, this.configService, result.token, refreshToken);
+    return result;
   }
 
   /** First sign-in for players who don't have a password yet. */
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('player-auth/set-password')
-  setPassword(@Body() dto: LoginDto) {
-    return this.auth.setInitialPassword(dto.phone, dto.password);
+  async setPassword(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.setInitialPassword(dto.phone, dto.password);
+    const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(dto.phone));
+    setPlayerAuthCookies(res, this.configService, result.token, refreshToken);
+    return result;
   }
 
   /** Forgot password: code from /player-auth/request-code, then a new password. */
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('player-auth/reset-password')
-  resetPassword(@Body() dto: ResetPasswordDto) {
-    return this.auth.resetPassword(dto.phone, dto.code, dto.password);
+  async resetPassword(@Body() dto: ResetPasswordDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.resetPassword(dto.phone, dto.code, dto.password);
+    const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(dto.phone));
+    setPlayerAuthCookies(res, this.configService, result.token, refreshToken);
+    return result;
   }
 
   /** New player signing up from a group link: phone, name, optional email, password. */
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('public/groups/:code/signup')
-  async signup(@Param('code') code: string, @Body() dto: SignupDto) {
+  async signup(@Param('code') code: string, @Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
     await this.auth.createAccount(dto);
     const joined = await this.billing.joinGroup(code, {
       phone: dto.phone,
@@ -180,42 +202,62 @@ export class PlayerAuthController {
       lastName: dto.lastName,
       email: dto.email,
     });
-    return { ...joined, token: this.auth.issuePersonToken(dto.phone) };
+    const token = this.auth.issuePersonToken(dto.phone);
+    const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(dto.phone));
+    setPlayerAuthCookies(res, this.configService, token, refreshToken);
+    return { ...joined, token };
   }
 
   /** Number-only sign-in (PLAYER_AUTH_MODE=phone). */
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('player-auth/phone')
-  signInWithPhone(@Body() dto: RequestCodeDto) {
-    return this.auth.signInWithPhone(dto.phone, dto.groupCode);
+  async signInWithPhone(@Body() dto: RequestCodeDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.signInWithPhone(dto.phone, dto.groupCode);
+    if (result.token) {
+      const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(dto.phone));
+      setPlayerAuthCookies(res, this.configService, result.token, refreshToken);
+    }
+    return result;
   }
 
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 6 } })
   @Post('player-auth/request-code')
   requestCode(@Body() dto: RequestCodeDto) {
     return this.auth.requestCode(dto.phone, dto.groupCode);
   }
 
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('player-auth/verify')
-  verify(@Body() dto: VerifyCodeDto) {
-    return this.auth.verifyCode(dto.phone, dto.code);
+  async verify(@Body() dto: VerifyCodeDto, @Res({ passthrough: true }) res: Response) {
+    const result = await this.auth.verifyCode(dto.phone, dto.code);
+    if (result.token) {
+      const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(dto.phone));
+      setPlayerAuthCookies(res, this.configService, result.token, refreshToken);
+    }
+    return result;
   }
 
   /** Organiser → "Playing": swap a signed-in organiser (with a phone on file) for a player session. */
   @UseGuards(JwtAuthGuard)
   @AllowTreasurer()
   @Post('player-auth/from-organiser')
-  async fromOrganiser(@CurrentUser() user: User) {
+  async fromOrganiser(@CurrentUser() user: User, @Res({ passthrough: true }) res: Response) {
     if (!user.phone) throw new BadRequestException('Add your phone number in Settings to switch to Playing.');
     await this.auth.ensureOrganiserPlayer(user);
-    return { token: this.auth.issuePersonToken(user.phone) };
+    const token = this.auth.issuePersonToken(user.phone);
+    const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(user.phone));
+    setPlayerAuthCookies(res, this.configService, token, refreshToken);
+    return { token };
   }
 
   /** New players (or returning ones without a session) joining via the group link. */
+  @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('public/groups/:code/join')
-  async join(@Param('code') code: string, @Body() dto: JoinWithProofDto) {
+  async join(@Param('code') code: string, @Body() dto: JoinWithProofDto, @Res({ passthrough: true }) res: Response) {
     const { phone } = this.auth.verifyPhoneProof(dto.phoneProof);
     const joined = await this.billing.joinGroup(code, {
       phone,
@@ -223,7 +265,36 @@ export class PlayerAuthController {
       lastName: dto.lastName,
       email: dto.email,
     });
-    return { ...joined, token: this.auth.issuePersonToken(phone) };
+    const token = this.auth.issuePersonToken(phone);
+    const refreshToken = await this.usersService.createRefreshToken(null, this.auth.getPhoneKey(phone));
+    setPlayerAuthCookies(res, this.configService, token, refreshToken);
+    return { ...joined, token };
+  }
+
+  // ── Player Refresh & Logout ──
+
+  @SkipCsrf()
+  @Post('player-auth/refresh')
+  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const rawRefreshToken = req.cookies?.[COOKIE_NAMES.PLAYER_REFRESH];
+    if (!rawRefreshToken) throw new BadRequestException('No refresh token');
+    const result = await this.usersService.rotateRefreshToken(rawRefreshToken);
+    if (!result || !result.phoneKey) throw new BadRequestException('Session expired');
+    const account = await this.auth.accountForKey(result.phoneKey);
+    if (!account) throw new BadRequestException('Account not found');
+    const accessToken = this.auth.issuePersonToken(account.phone);
+    setPlayerAuthCookies(res, this.configService, accessToken, result.newRawToken);
+    return { ok: true };
+  }
+
+  @Post('player-auth/logout')
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const rawRefreshToken = req.cookies?.[COOKIE_NAMES.PLAYER_REFRESH];
+    if (rawRefreshToken) {
+      await this.usersService.revokeRefreshToken(rawRefreshToken);
+    }
+    clearPlayerAuthCookies(res, this.configService);
+    return { message: 'Logged out' };
   }
 }
 
