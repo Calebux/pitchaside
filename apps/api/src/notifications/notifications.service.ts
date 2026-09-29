@@ -7,6 +7,7 @@ import { Player } from '../players/entities/player.entity';
 import { User } from '../users/entities/user.entity';
 import { OutboundMessage } from './entities/outbound-message.entity';
 import { PushSubscriptionEntity } from './entities/push-subscription.entity';
+import { phoneKey } from '../common/format.util';
 import { Channel, MESSAGING_PROVIDER, MessagingProvider } from './providers/messaging.provider';
 
 export interface Notice {
@@ -107,13 +108,14 @@ export class NotificationsService implements OnModuleInit {
 
   // ── Push ──
 
-  async subscribe(sub: PushInput, owner: { playerId?: string; userId?: string }) {
+  async subscribe(sub: PushInput, owner: { playerId?: string; userId?: string; phoneKey?: string }) {
     const existing = await this.subsRepo.findOne({ where: { endpoint: sub.endpoint } });
     const row = existing ?? this.subsRepo.create({ endpoint: sub.endpoint });
     row.p256dh = sub.keys.p256dh;
     row.auth = sub.keys.auth;
     row.playerId = owner.playerId ?? (null as unknown as string);
     row.userId = owner.userId ?? (null as unknown as string);
+    row.phoneKey = owner.phoneKey ?? (null as unknown as string);
     await this.subsRepo.save(row);
     return { subscribed: true };
   }
@@ -145,18 +147,44 @@ export class NotificationsService implements OnModuleInit {
 
   // ── High level ──
 
-  /** Push first; WhatsApp/SMS when the player has no push device, or always if critical. */
+  /** 'none' = push only (current default); 'whatsapp' = WhatsApp/SMS when push isn't available. */
+  private get fallback() {
+    return this.config.get('NOTIFY_FALLBACK', 'none') === 'whatsapp' ? 'whatsapp' : 'none';
+  }
+
+  /**
+   * Push to each player's devices (any device signed in with their number).
+   * Every notice is logged so organisers can see who actually has push on.
+   */
   async notifyPlayers(playerIds: string[], notice: Notice) {
     const ids = [...new Set(playerIds.filter(Boolean))];
-    if (!ids.length) return;
-    const [players, subs] = await Promise.all([
-      this.playersRepo.find({ where: { id: In(ids) } }),
-      this.subsRepo.find({ where: { playerId: In(ids) } }),
-    ]);
+    if (!ids.length) return { delivered: 0, missed: 0 };
+    const players = await this.playersRepo.find({ where: { id: In(ids) } });
+    const keys = [...new Set(players.map((p) => phoneKey(p.phone)))];
+    const subs = await this.subsRepo.find({
+      where: [{ playerId: In(ids) }, ...(keys.length ? [{ phoneKey: In(keys) }] : [])],
+    });
+    let delivered = 0;
+    let missed = 0;
     for (const player of players) {
-      const mine = subs.filter((s) => s.playerId === player.id);
+      const key = phoneKey(player.phone);
+      const mine = subs.filter((s) => s.playerId === player.id || s.phoneKey === key);
       const pushed = await this.push(mine, notice);
-      if (notice.critical || pushed === 0) {
+      if (pushed > 0) delivered++;
+      else missed++;
+      await this.messagesRepo.save(
+        this.messagesRepo.create({
+          organizationId: player.organizationId,
+          playerId: player.id,
+          channel: 'push',
+          to: `${player.firstName} ${player.lastName}`,
+          kind: notice.kind,
+          body: `${notice.title}\n${notice.body}`,
+          status: pushed > 0 ? 'sent' : 'no_device',
+          provider: 'web-push',
+        }),
+      );
+      if (this.fallback === 'whatsapp' && (notice.critical || pushed === 0)) {
         await this.sendMessage({
           to: player.phone,
           body: notice.message ?? `${notice.title}\n${notice.body}${notice.url ? `\n${this.appUrl(notice.url)}` : ''}`,
@@ -166,6 +194,7 @@ export class NotificationsService implements OnModuleInit {
         });
       }
     }
+    return { delivered, missed };
   }
 
   /** Push to everyone who runs this organisation (organisers don't get WhatsApp spam). */
@@ -173,7 +202,18 @@ export class NotificationsService implements OnModuleInit {
     const users = await this.usersRepo.find({ where: { organizationId } });
     if (!users.length) return;
     const subs = await this.subsRepo.find({ where: { userId: In(users.map((u) => u.id)) } });
-    await this.push(subs, notice);
+    const pushed = await this.push(subs, notice);
+    await this.messagesRepo.save(
+      this.messagesRepo.create({
+        organizationId,
+        channel: 'push',
+        to: 'Organisers',
+        kind: notice.kind,
+        body: `${notice.title}\n${notice.body}`,
+        status: pushed > 0 ? 'sent' : 'no_device',
+        provider: 'web-push',
+      }),
+    );
   }
 
   /** Fire-and-forget wrapper so a notification problem never breaks the request. */

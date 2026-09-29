@@ -75,6 +75,7 @@ export default function GroupDetailPage() {
     name: '',
     description: '',
     schedule: '',
+    kickoffTime: '',
     targetPlayers: 10,
     feePerPlayer: 10,
     paymentType: PaymentType.PER_SESSION as string,
@@ -119,6 +120,7 @@ export default function GroupDetailPage() {
       name: group.name,
       description: group.description || '',
       schedule: group.schedule || '',
+      kickoffTime: group.kickoffTime || '',
       targetPlayers: group.targetPlayers,
       feePerPlayer: group.feePerPlayer,
       paymentType: group.paymentType,
@@ -134,6 +136,7 @@ export default function GroupDetailPage() {
         name: editData.name,
         description: editData.description || undefined,
         schedule: editData.schedule || undefined,
+        kickoffTime: editData.kickoffTime || undefined,
         targetPlayers: editData.targetPlayers,
         feePerPlayer: editData.feePerPlayer,
         paymentType: editData.paymentType as PaymentType,
@@ -281,14 +284,25 @@ export default function GroupDetailPage() {
               className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 resize-none"
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Schedule</label>
-            <input
-              value={editData.schedule}
-              onChange={(e) => setEditData({ ...editData, schedule: e.target.value })}
-              placeholder="e.g. Every Saturday, 4pm"
-              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-            />
+          <div className="grid grid-cols-[1fr_130px] gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">Schedule</label>
+              <input
+                value={editData.schedule}
+                onChange={(e) => setEditData({ ...editData, schedule: e.target.value })}
+                placeholder="e.g. Every Saturday"
+                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">Kick-off</label>
+              <input
+                type="time"
+                value={editData.kickoffTime}
+                onChange={(e) => setEditData({ ...editData, kickoffTime: e.target.value })}
+                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

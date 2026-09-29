@@ -75,8 +75,9 @@ export class UsersService {
     return this.usersRepo.count({ where: { organizationId } });
   }
 
-  async updateProfile(userId: string, data: { firstName: string; lastName: string }) {
-    await this.usersRepo.update(userId, data);
+  async updateProfile(userId: string, data: { firstName: string; lastName: string; phone?: string }) {
+    const { phone, ...names } = data;
+    await this.usersRepo.update(userId, phone === undefined ? names : { ...names, phone: phone.trim() || null });
     return this.findById(userId);
   }
 

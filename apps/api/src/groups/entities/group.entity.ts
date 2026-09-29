@@ -49,6 +49,10 @@ export class Group {
   @Column({ name: 'require_rsvp', default: false })
   requireRsvp: boolean;
 
+  /** Usual kick-off time, 'HH:mm' local — drives game-time reminders. */
+  @Column({ name: 'kickoff_time', type: 'varchar', length: 5, nullable: true })
+  kickoffTime: string | null;
+
   /** Public code used in the group's join / pay link. */
   @Column({ name: 'invite_code', nullable: true, unique: true })
   inviteCode: string;

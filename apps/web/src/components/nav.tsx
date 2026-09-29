@@ -2,10 +2,13 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { UserRole } from '@pitchaside/shared';
 import { Logo } from '@/components/brand';
+import { useToast } from '@/components/toast';
+import { playerTokenFromOrganiser } from '@/lib/api';
+import { setPlayerToken } from '@/lib/player';
 import { BallIcon } from '@/components/illustrations';
 
 const tabs = [
@@ -77,10 +80,27 @@ const adminTab = {
   ),
 };
 
+/** Organising → Playing: swap to this person's player session (needs a phone number on file). */
+function usePlayingSwitch() {
+  const router = useRouter();
+  const toast = useToast();
+  return async () => {
+    try {
+      const { token } = await playerTokenFromOrganiser();
+      setPlayerToken(token);
+      router.push('/me');
+    } catch (err: any) {
+      toast.error(err.message || 'Could not switch');
+      router.push('/settings');
+    }
+  };
+}
+
 export function Nav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const switchToPlaying = usePlayingSwitch();
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === UserRole.ORG_ADMIN || user?.role === UserRole.SUPER_ADMIN;
@@ -150,6 +170,16 @@ export function Nav() {
                     </p>
                     <p className="text-xs text-gray-500 truncate">{user.organization?.name}</p>
                   </div>
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      switchToPlaying();
+                    }}
+                    className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 mb-1 text-sm font-bold text-ink rounded-xl bg-volt-300 hover:bg-volt-400 transition-colors"
+                  >
+                    <span aria-hidden>⚽</span>
+                    Switch to Playing
+                  </button>
                   <Link
                     href="/settings"
                     onClick={() => setMobileMenuOpen(false)}
@@ -184,6 +214,14 @@ export function Nav() {
       <nav className="hidden md:flex fixed left-0 top-0 bottom-0 w-60 bg-ink turf-stripes text-white flex-col z-50">
         <div className="px-5 pt-6 pb-6">
           <Logo href="/dashboard" tone="light" />
+          <div className="mt-4 flex items-center rounded-full bg-white/10 p-0.5 text-[11px] font-bold" role="tablist" aria-label="Mode">
+            <button onClick={switchToPlaying} className="flex-1 px-2.5 py-1.5 rounded-full text-white/60 hover:text-white" role="tab" aria-selected={false}>
+              Playing
+            </button>
+            <span className="flex-1 text-center px-2.5 py-1.5 rounded-full bg-volt-400 text-ink" role="tab" aria-selected>
+              Organising
+            </span>
+          </div>
         </div>
 
         <p className="px-6 mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">Menu</p>

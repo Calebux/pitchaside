@@ -51,6 +51,7 @@ export default function NewGroupPage() {
         name: (form.get('name') as string).trim(),
         description: (form.get('description') as string) || undefined,
         schedule: (form.get('schedule') as string) || undefined,
+        kickoffTime: (form.get('kickoffTime') as string) || undefined,
         targetPlayers: Number(form.get('targetPlayers')),
         feePerPlayer: Number(form.get('feePerPlayer')),
         paymentType: form.get('paymentType') as PaymentType,
@@ -107,18 +108,27 @@ export default function NewGroupPage() {
           />
         </div>
 
-        <div>
-          <label htmlFor="schedule" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Schedule
-          </label>
-          <input
-            id="schedule"
-            name="schedule"
-            type="text"
-            placeholder="e.g. Every Sunday 4pm"
-            className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-          />
+        <div className="grid grid-cols-[1fr_130px] gap-3">
+          <div>
+            <label htmlFor="schedule" className="block text-xs font-bold text-gray-700 mb-1.5">
+              Schedule
+            </label>
+            <input
+              id="schedule"
+              name="schedule"
+              type="text"
+              placeholder="e.g. Every Sunday"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          </div>
+          <div>
+            <label htmlFor="kickoffTime" className="block text-xs font-bold text-gray-700 mb-1.5">
+              Kick-off
+            </label>
+            <input id="kickoffTime" name="kickoffTime" type="time" defaultValue="20:00" className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600" />
+          </div>
         </div>
+        <p className="-mt-2 text-[11px] text-gray-500">Players get a reminder the evening before and 2 hours before kick-off.</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>

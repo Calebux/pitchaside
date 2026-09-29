@@ -5,6 +5,7 @@ import { Session, SessionKind, SessionStatus } from './entities/session.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { naira, shortDate } from '../common/format.util';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
@@ -203,26 +204,22 @@ export class SessionsService {
     return this.sessionsRepo.count();
   }
 
+  /** Organiser's "Remind" button: a push to everyone who still owes for this game/period. */
   async sendReminders(sessionId: string, organizationId: string) {
     const session = await this.findOne(sessionId, organizationId);
-    const unpaidPayments = (session.payments || []).filter(
-      (p) => p.status === PaymentStatus.PENDING && p.player?.email,
+    const unpaid = (session.payments || []).filter((p) => p.status === PaymentStatus.PENDING);
+    if (!unpaid.length) return { sent: 0, missed: 0 };
+    const what = session.label ? `${session.label} dues` : `the ${shortDate(session.date)} game`;
+    const { delivered, missed } = await this.notifications.notifyPlayers(
+      unpaid.map((p) => p.playerId),
+      {
+        kind: 'payment_reminder',
+        title: `Quick one — ${naira(unpaid[0].amount)} for ${session.group?.name ?? 'your group'}`,
+        body: `Still open for ${what}. Tap for the account details and your reference.`,
+        url: '/me/pay',
+      },
     );
-
-    let sent = 0;
-    for (const payment of unpaidPayments) {
-      if (!payment.player?.email) continue;
-      await this.mailService.sendPaymentReminder(
-        payment.player.email,
-        payment.player.firstName,
-        session.group?.name || 'your group',
-        payment.amount,
-        session.date,
-      );
-      sent++;
-    }
-
-    return { sent };
+    return { sent: delivered, missed };
   }
 
   async totalCollectedByOrganization(organizationId: string): Promise<number> {

@@ -56,6 +56,11 @@ describe('SessionsService', () => {
     getMany: jest.fn(),
   };
 
+  const notificationsService = {
+    later: jest.fn(),
+    notifyPlayers: jest.fn().mockResolvedValue({ delivered: 3, missed: 0 }),
+  };
+
   beforeEach(async () => {
     sessionsRepo = {
       create: jest.fn((data) => ({ ...data, id: 'session-new' })),
@@ -82,7 +87,7 @@ describe('SessionsService', () => {
         { provide: MailService, useValue: mailService },
         { provide: RsvpService, useValue: { announceGame: jest.fn() } },
         { provide: RatingsService, useValue: { ensureVotingToken: jest.fn() } },
-        { provide: NotificationsService, useValue: { later: jest.fn(), notifyPlayers: jest.fn() } },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     }).compile();
 
@@ -138,7 +143,7 @@ describe('SessionsService', () => {
   });
 
   describe('sendReminders', () => {
-    it('should send emails only to unpaid players with email addresses', async () => {
+    it('should push a reminder to every unpaid player', async () => {
       const sessionWithPayments = {
         ...mockSession,
         payments: [
@@ -177,10 +182,10 @@ describe('SessionsService', () => {
 
       const result = await service.sendReminders('session-1', 'org-1');
 
-      // Only 2 players: John (pending + email) and Alice (pending + email)
-      // Bob is pending but has no email, Jane is paid
-      expect(result.sent).toBe(2);
-      expect(mailService.sendPaymentReminder).toHaveBeenCalledTimes(2);
+      // John, Bob and Alice are pending (email no longer matters — reminders are push); Jane is paid
+      expect(notificationsService.notifyPlayers).toHaveBeenCalledTimes(1);
+      expect(notificationsService.notifyPlayers.mock.calls[0][0]).toHaveLength(3);
+      expect(result.sent).toBe(3);
     });
   });
 });

@@ -109,11 +109,28 @@ export function joinAsPlayer(code: string) {
 
 // ── Home ──
 
+export type PlayerGroup = {
+  id: string;
+  name: string;
+  clubName?: string;
+  schedule?: string;
+  kickoffTime?: string | null;
+  feePerPlayer: number;
+  paymentType: PaymentType;
+  paymentRef?: string;
+  account: GroupAccount | null;
+};
+
+export type Organiser = { clubName: string; email: string } | null;
+
 export interface PlayerHome {
   player: { id: string; firstName: string; lastName: string; phone: string };
+  organiser: Organiser;
   groups: {
     id: string;
     name: string;
+    clubName?: string;
+    kickoffTime?: string | null;
     schedule?: string;
     feePerPlayer: number;
     paymentType: PaymentType;
@@ -126,6 +143,7 @@ export interface PlayerHome {
     groupId: string;
     groupName: string;
     schedule?: string;
+    kickoffTime?: string | null;
     requireRsvp: boolean;
     myStatus: 'in' | 'out' | 'waitlist' | null;
     waitlistPosition: number | null;
@@ -141,9 +159,54 @@ export interface PlayerHome {
     groupId: string;
     groupName: string;
     games: number;
+    myPlayerId: string;
     top: { rank: number; id: string; name: string; points: number }[];
     me: { rank: number; points: number } | null;
   }[];
+}
+
+export type UpcomingGame = PlayerHome['upcoming'][number];
+
+export interface RecentMatchDay {
+  sessionId: string;
+  date: string;
+  groupName?: string;
+  teamCount: number;
+  myTeam: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
+  teamOfTheDay: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
+  record: { w: number; d: number; l: number };
+  games: number;
+  potm: { name: string; votes: number; isMe: boolean } | null;
+  vote: { token: string; voted: boolean } | null;
+}
+
+export function getPlayerGames() {
+  return request<{ upcoming: UpcomingGame[]; recent: RecentMatchDay[] }>('GET', '/me/games');
+}
+
+export interface PlayerPayments {
+  owed: PlayerHome['owed'];
+  paid: { id: string; amount: number; groupName: string; label: string | null; date: string; paidAt: string | null; viaTransfer: boolean }[];
+  groups: PlayerGroup[];
+}
+
+export function getPlayerPayments() {
+  return request<PlayerPayments>('GET', '/me/payments');
+}
+
+export interface PlayerProfile {
+  player: PlayerHome['player'];
+  organiser: Organiser;
+  ratings: PlayerRatings;
+  clubs: { clubName: string; ratings: PlayerRatings; groups: { id: string; name: string }[] }[];
+}
+
+export function getPlayerProfile() {
+  return request<PlayerProfile>('GET', '/me/profile');
+}
+
+export function startGroup(data: { clubName: string; email: string; password: string }) {
+  return request<{ accessToken: string; user: unknown }>('POST', '/me/start-group', data);
 }
 
 export function getPlayerHome() {

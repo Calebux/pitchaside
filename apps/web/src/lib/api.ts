@@ -67,6 +67,7 @@ export function createGroup(data: {
   feePerPlayer: number;
   paymentType?: PaymentType;
   requireRsvp?: boolean;
+  kickoffTime?: string;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -81,6 +82,7 @@ export function updateGroup(
     feePerPlayer: number;
     paymentType: PaymentType;
     requireRsvp: boolean;
+    kickoffTime: string;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);
@@ -225,7 +227,7 @@ export function getPlayersPaginated(
 
 // ── Profile / Auth ──
 
-export function updateProfile(data: { firstName: string; lastName: string }): Promise<any> {
+export function updateProfile(data: { firstName: string; lastName: string; phone?: string }): Promise<any> {
   return http.patch('/auth/profile', data);
 }
 
@@ -288,8 +290,8 @@ export function joinOrg(
 
 // ── Reminders ──
 
-export function sendReminders(sessionId: string): Promise<{ sent: number }> {
-  return http.post<{ sent: number }>(`/sessions/${sessionId}/send-reminders`);
+export function sendReminders(sessionId: string): Promise<{ sent: number; missed: number }> {
+  return http.post<{ sent: number; missed: number }>(`/sessions/${sessionId}/send-reminders`);
 }
 
 // ── Player Stats ──
@@ -426,14 +428,35 @@ export function setRsvpForPlayer(sessionId: string, playerId: string, status: 'i
   return http.post(`/sessions/${sessionId}/rsvp`, { playerId, status });
 }
 
-// ── Match day: bibs & score ──
+// ── Match day: teams on the day + short games ──
 
-export type Side = 'bibs' | 'non_bibs';
+export type TeamKey = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+
+export interface MatchGame {
+  id: string;
+  teamA: TeamKey;
+  teamB: TeamKey;
+  scoreA: number;
+  scoreB: number;
+}
+
+export interface TeamStanding {
+  team: TeamKey;
+  p: number;
+  w: number;
+  d: number;
+  l: number;
+  gf: number;
+  ga: number;
+  pts: number;
+}
 
 export interface Lineup {
-  scoreBibs: number | null;
-  scoreNonBibs: number | null;
-  squad: (SquadMember & { team: Side | null; ovr: number | null })[];
+  teamCount: number;
+  squad: (SquadMember & { team: TeamKey | null; ovr: number | null })[];
+  games: MatchGame[];
+  standings: TeamStanding[];
+  teamOfTheDay: TeamKey | null;
 }
 
 export function getLineup(sessionId: string): Promise<Lineup> {
@@ -442,13 +465,24 @@ export function getLineup(sessionId: string): Promise<Lineup> {
 
 export function saveLineup(
   sessionId: string,
-  data: { teams?: Record<string, Side | null>; score?: { bibs: number; nonBibs: number } | null },
+  data: { teamCount?: number; teams?: Record<string, TeamKey | null> },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
 }
 
-export function balanceLineup(sessionId: string): Promise<Lineup> {
-  return http.post(`/sessions/${sessionId}/lineup/balance`);
+export function balanceLineup(sessionId: string, teamCount?: number): Promise<Lineup> {
+  return http.post(`/sessions/${sessionId}/lineup/balance`, teamCount ? { teamCount } : {});
+}
+
+export function addMatchGame(
+  sessionId: string,
+  game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number },
+): Promise<Lineup> {
+  return http.post(`/sessions/${sessionId}/games`, game);
+}
+
+export function deleteMatchGame(sessionId: string, gameId: string): Promise<Lineup> {
+  return http.delete(`/sessions/${sessionId}/games/${gameId}`);
 }
 
 // ── Messages outbox & organiser push ──
@@ -465,6 +499,11 @@ export interface OutboundMessage {
 
 export function getMessages(): Promise<{ mode: 'mock' | 'live'; messages: OutboundMessage[] }> {
   return http.get('/messages');
+}
+
+/** Organiser → "Playing": exchange the organiser session for their player session. */
+export function playerTokenFromOrganiser(): Promise<{ token: string }> {
+  return http.post('/player-auth/from-organiser');
 }
 
 export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
@@ -518,6 +557,7 @@ export interface PlayerRatings {
   votes: Record<VoteCategory, number>;
   potmWins: number;
   record: { w: number; d: number; l: number };
+  teamOfDay: number;
   points: number;
   ovr: number | null;
   attributes: Record<Attribute, number | null>;

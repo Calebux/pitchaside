@@ -37,6 +37,7 @@ export interface IGroup {
   feePerPlayer: number;
   paymentType: PaymentType;
   requireRsvp?: boolean;
+  kickoffTime?: string | null;
   inviteCode?: string;
   accountNumber?: string;
   accountName?: string;
@@ -121,6 +122,7 @@ export interface IUser {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string | null;
   role: UserRole;
   organizationId: string;
   organization?: IOrganization;

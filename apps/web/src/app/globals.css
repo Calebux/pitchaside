@@ -111,6 +111,18 @@
     @apply bg-white;
   }
 
+  /*
+   * iOS Safari zooms the page in when you focus a field under 16px and never
+   * zooms back out. 16px on phones stops that without disabling pinch-zoom.
+   */
+  @media (max-width: 767px) {
+    input:not([type='checkbox']):not([type='radio']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+
   /* Strong number rendering for financial data */
   .tabular-nums {
     font-variant-numeric: tabular-nums;

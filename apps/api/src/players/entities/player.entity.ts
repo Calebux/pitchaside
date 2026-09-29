@@ -7,12 +7,19 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  Unique,
 } from 'typeorm';
 import { GroupMembership } from '../../groups/entities/group-membership.entity';
 import { Payment } from '../../payments/entities/payment.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 
+/**
+ * A player within one club (organisation). The same person can play for
+ * several clubs — their phone number ties those records together.
+ */
 @Entity('players')
+@Unique('UQ_players_org_phone', ['organizationId', 'phone'])
+@Unique('UQ_players_org_email', ['organizationId', 'email'])
 export class Player {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -23,10 +30,10 @@ export class Player {
   @Column()
   lastName: string;
 
-  @Column({ unique: true })
+  @Column()
   phone: string;
 
-  @Column({ nullable: true, unique: true })
+  @Column({ nullable: true })
   email: string;
 
   @ManyToOne(() => Organization, (org) => org.players, { onDelete: 'CASCADE' })

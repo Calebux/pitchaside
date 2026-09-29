@@ -302,7 +302,11 @@ export default function SessionDetailPage() {
             setSendingReminders(true);
             try {
               const result = await sendReminders(id);
-              toast.success(`Reminders sent to ${result.sent} player(s)`);
+              toast.success(
+                result.missed
+                  ? `Reminder pushed to ${result.sent} — ${result.missed} don't have notifications on yet`
+                  : `Reminder pushed to ${result.sent} player${result.sent === 1 ? '' : 's'}`,
+              );
             } catch {
               toast.error('Failed to send reminders');
             } finally {

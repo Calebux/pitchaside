@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Player } from '../players/entities/player.entity';
+import { User } from '../users/entities/user.entity';
+import { AuthModule } from '../auth/auth.module';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Session } from '../sessions/entities/session.entity';
@@ -17,7 +19,8 @@ import { PlayerAuthController, PlayerPortalController } from './player-portal.co
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PhoneOtp, Player, Group, GroupMembership, Session, Payment]),
+    TypeOrmModule.forFeature([PhoneOtp, Player, User, Group, GroupMembership, Session, Payment]),
+    AuthModule,
     JwtModule.register({}),
     BillingModule,
     RatingsModule,

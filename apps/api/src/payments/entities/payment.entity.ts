@@ -50,7 +50,7 @@ export class Payment {
   @Column({ nullable: true })
   source: string;
 
-  /** Match-day side for games: 'bibs' | 'non_bibs' (null = not picked yet). */
+  /** Match-day side: 'A'–'F' (colours in the UI); null = not picked yet. */
   @Column({ type: 'varchar', nullable: true })
   team: string | null;
 

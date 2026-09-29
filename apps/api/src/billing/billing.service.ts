@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Inject,
   Injectable,
   Logger,
@@ -248,48 +247,49 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** New or returning player whose phone number was just verified by one-time code. */
+  /** This person's player record in the group's club, creating it if they're new to the club. */
+  private async playerInClub(
+    group: Group,
+    person: { phone: string; firstName?: string; lastName?: string; email?: string },
+  ) {
+    const key = phoneKey(person.phone);
+    const existing = await this.playersRepo
+      .createQueryBuilder('p')
+      .where('p.organizationId = :org', { org: group.organizationId })
+      .andWhere(`regexp_replace(p.phone, '\\D', '', 'g') LIKE :suffix`, { suffix: `%${key}` })
+      .getOne();
+    if (existing) return existing;
+    if (!person.firstName?.trim() || !person.lastName?.trim()) {
+      throw new BadRequestException('First and last name are required');
+    }
+    const email = person.email?.trim() || undefined;
+    const emailTaken = email
+      ? await this.playersRepo.findOne({ where: { email, organizationId: group.organizationId } })
+      : null;
+    return this.playersRepo.save(
+      this.playersRepo.create({
+        firstName: person.firstName.trim(),
+        lastName: person.lastName.trim(),
+        phone: person.phone.trim(),
+        email: emailTaken ? undefined : email,
+        organizationId: group.organizationId,
+      }),
+    );
+  }
+
+  /** New or returning player whose phone number was just confirmed. */
   async joinGroup(code: string, input: { phone: string; firstName?: string; lastName?: string; email?: string }) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This link is invalid or has expired');
-
-    const key = phoneKey(input.phone);
-    let player = await this.playersRepo
-      .createQueryBuilder('p')
-      .where(`regexp_replace(p.phone, '\\D', '', 'g') LIKE :suffix`, { suffix: `%${key}` })
-      .getOne();
-    if (player && player.organizationId !== group.organizationId) {
-      throw new ConflictException('This phone number is already registered with another team');
-    }
-    if (!player) {
-      if (!input.firstName?.trim() || !input.lastName?.trim()) {
-        throw new BadRequestException('First and last name are required');
-      }
-      if (input.email) {
-        const emailOwner = await this.playersRepo.findOne({ where: { email: input.email } });
-        if (emailOwner) throw new ConflictException('This email is already registered');
-      }
-      player = await this.playersRepo.save(
-        this.playersRepo.create({
-          firstName: input.firstName.trim(),
-          lastName: input.lastName.trim(),
-          phone: input.phone.trim(),
-          email: input.email?.trim() || undefined,
-          organizationId: group.organizationId,
-        }),
-      );
-    }
+    const player = await this.playerInClub(group, input);
     return { playerId: player.id, ...(await this.addToGroup(group, player)) };
   }
 
-  /** Signed-in player tapping a group link. */
-  async joinGroupAsPlayer(code: string, playerId: string) {
+  /** Signed-in person tapping a group link — even one from a club they've never played for. */
+  async joinGroupAsPerson(code: string, person: { phone: string; firstName: string; lastName: string }) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This link is invalid or has expired');
-    const player = await this.playersRepo.findOneOrFail({ where: { id: playerId } });
-    if (player.organizationId !== group.organizationId) {
-      throw new ConflictException('Your number is registered with another team');
-    }
+    const player = await this.playerInClub(group, person);
     return this.addToGroup(group, player);
   }
 

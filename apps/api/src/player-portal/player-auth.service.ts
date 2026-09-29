@@ -16,6 +16,7 @@ import { IsNull, MoreThan, Repository } from 'typeorm';
 import { createHash, randomInt } from 'crypto';
 import { Player } from '../players/entities/player.entity';
 import { Group } from '../groups/entities/group.entity';
+import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { phoneKey } from '../common/format.util';
 import { PhoneOtp } from './entities/phone-otp.entity';
@@ -25,7 +26,15 @@ const RESEND_AFTER_MS = 30 * 1000;
 const MAX_CODES_PER_HOUR = 5;
 const MAX_ATTEMPTS = 5;
 
-interface PlayerClaims {
+/** A person = a phone number. They may play for several clubs and/or organise one. */
+interface PersonClaims {
+  typ: 'person';
+  key: string;
+  phone: string;
+}
+
+/** Tokens issued before person accounts (one player record). Still accepted. */
+interface LegacyPlayerClaims {
   typ: 'player';
   sub: string;
 }
@@ -36,12 +45,24 @@ interface PhoneClaims {
   phone: string;
 }
 
+export interface Person {
+  key: string;
+  phone: string;
+  /** Their player record in each club they play for. */
+  players: Player[];
+  firstName: string;
+  lastName: string;
+}
+
+const PHONE_MATCH = `regexp_replace(p.phone, '\\D', '', 'g') LIKE :suffix`;
+
 @Injectable()
 export class PlayerAuthService {
   constructor(
     @InjectRepository(PhoneOtp) private otpRepo: Repository<PhoneOtp>,
     @InjectRepository(Player) private playersRepo: Repository<Player>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
+    @InjectRepository(User) private usersRepo: Repository<User>,
     private jwt: JwtService,
     private config: ConfigService,
     private notifications: NotificationsService,
@@ -56,12 +77,23 @@ export class PlayerAuthService {
     return createHash('sha256').update(`${code}:${key}:${this.secret}`).digest('hex');
   }
 
-  findPlayerByPhone(phone: string) {
-    const key = phoneKey(phone);
+  /** Every player record (one per club) for this phone number, oldest first. */
+  findPlayersByKey(key: string) {
     return this.playersRepo
       .createQueryBuilder('p')
-      .where(`regexp_replace(p.phone, '\\D', '', 'g') LIKE :suffix`, { suffix: `%${key}` })
-      .getOne();
+      .leftJoinAndSelect('p.organization', 'org')
+      .where(PHONE_MATCH, { suffix: `%${key}` })
+      .orderBy('p.createdAt', 'ASC')
+      .getMany();
+  }
+
+  /** Organiser accounts linked to this phone number. */
+  findOrganisersByKey(key: string) {
+    return this.usersRepo
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.organization', 'org')
+      .where(`regexp_replace(coalesce(u.phone, ''), '\\D', '', 'g') LIKE :suffix`, { suffix: `%${key}` })
+      .getMany();
   }
 
   /** 'phone' = number is enough to sign in (current default); 'otp' = one-time code required. */
@@ -74,23 +106,23 @@ export class PlayerAuthService {
     if (this.mode !== 'phone') throw new UnauthorizedException('A confirmation code is required');
     const key = phoneKey(phone);
     if (key.length < 10) throw new BadRequestException('Enter your full phone number');
-    const player = await this.findPlayerByPhone(phone);
+    await this.assertKnown(key, groupCode);
+    return this.issueSignIn(phone, key);
+  }
+
+  private async assertKnown(key: string, groupCode?: string) {
+    const [players, organisers] = await Promise.all([this.findPlayersByKey(key), this.findOrganisersByKey(key)]);
     const group = groupCode ? await this.groupsRepo.findOne({ where: { inviteCode: groupCode } }) : null;
-    if (!player && !group) {
+    if (!players.length && !organisers.length && !group) {
       throw new NotFoundException("We couldn't find a player with that number. Ask your organiser for your group link.");
     }
-    return this.issueSignIn(phone, key, player);
+    return { players, organisers, group };
   }
 
   async requestCode(phone: string, groupCode?: string) {
     const key = phoneKey(phone);
     if (key.length < 10) throw new BadRequestException('Enter your full phone number');
-
-    const player = await this.findPlayerByPhone(phone);
-    const group = groupCode ? await this.groupsRepo.findOne({ where: { inviteCode: groupCode } }) : null;
-    if (!player && !group) {
-      throw new NotFoundException("We couldn't find a player with that number. Ask your organiser for your group link.");
-    }
+    const { players, group } = await this.assertKnown(key, groupCode);
 
     const recent = await this.otpRepo.find({
       where: { phoneKey: key, createdAt: MoreThan(new Date(Date.now() - 60 * 60 * 1000)) },
@@ -108,16 +140,16 @@ export class PlayerAuthService {
       this.otpRepo.create({ phoneKey: key, codeHash: this.hash(code, key), expiresAt: new Date(Date.now() + CODE_TTL_MS) }),
     );
     await this.notifications.sendMessage({
-      to: player?.phone ?? phone,
+      to: players[0]?.phone ?? phone,
       body: `${code} is your PitchAside code. It expires in 10 minutes — don't share it with anyone.`,
       kind: 'otp',
-      playerId: player?.id,
-      organizationId: player?.organizationId ?? group?.organizationId,
+      playerId: players[0]?.id,
+      organizationId: players[0]?.organizationId ?? group?.organizationId,
     });
 
     return {
       sent: true,
-      isNewPlayer: !player,
+      isNewPlayer: players.length === 0,
       // Mock messaging only: surface the code so the flow can be tested without a phone.
       devCode: this.notifications.messagingMode === 'mock' ? code : undefined,
     };
@@ -137,24 +169,54 @@ export class PlayerAuthService {
     }
     otp.usedAt = new Date();
     await this.otpRepo.save(otp);
-
-    return this.issueSignIn(phone, key, await this.findPlayerByPhone(phone));
+    return this.issueSignIn(phone, key);
   }
 
-  private issueSignIn(phone: string, key: string, player: Player | null) {
+  /**
+   * phoneProof: short-lived "this number was confirmed" (used to create a new
+   * player). token: the person's session, when they already exist anywhere.
+   */
+  private async issueSignIn(phone: string, key: string) {
+    const [players, organisers] = await Promise.all([this.findPlayersByKey(key), this.findOrganisersByKey(key)]);
     const phoneProof = this.jwt.sign({ typ: 'phone', key, phone: phone.trim() } satisfies PhoneClaims, {
       secret: this.secret,
       expiresIn: '30m',
     });
+    const known = players[0] ?? organisers[0];
     return {
       phoneProof,
-      token: player ? this.issuePlayerToken(player.id) : undefined,
-      player: player ? { id: player.id, firstName: player.firstName } : undefined,
+      token: known ? this.issuePersonToken(phone) : undefined,
+      player: known ? { id: players[0]?.id ?? '', firstName: known.firstName } : undefined,
     };
   }
 
-  issuePlayerToken(playerId: string) {
-    return this.jwt.sign({ typ: 'player', sub: playerId } satisfies PlayerClaims, { secret: this.secret, expiresIn: '90d' });
+  /** An organiser switching to Playing gets a player record in their own club (so they can join their own games). */
+  async ensureOrganiserPlayer(user: User) {
+    if (!user.phone) return null;
+    const key = phoneKey(user.phone);
+    const existing = await this.playersRepo
+      .createQueryBuilder('p')
+      .where('p.organizationId = :org', { org: user.organizationId })
+      .andWhere(PHONE_MATCH, { suffix: `%${key}` })
+      .getOne();
+    if (existing) return existing;
+    const emailTaken = await this.playersRepo.findOne({ where: { email: user.email, organizationId: user.organizationId } });
+    return this.playersRepo.save(
+      this.playersRepo.create({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: emailTaken ? undefined : user.email,
+        organizationId: user.organizationId,
+      }),
+    );
+  }
+
+  issuePersonToken(phone: string) {
+    return this.jwt.sign({ typ: 'person', key: phoneKey(phone), phone: phone.trim() } satisfies PersonClaims, {
+      secret: this.secret,
+      expiresIn: '90d',
+    });
   }
 
   verifyPhoneProof(proof: string) {
@@ -167,21 +229,35 @@ export class PlayerAuthService {
     }
   }
 
-  async playerFromToken(token: string) {
-    let claims: PlayerClaims;
+  async personFromToken(token: string): Promise<Person> {
+    let claims: PersonClaims | LegacyPlayerClaims;
     try {
-      claims = this.jwt.verify<PlayerClaims>(token, { secret: this.secret });
+      claims = this.jwt.verify<PersonClaims | LegacyPlayerClaims>(token, { secret: this.secret });
     } catch {
       throw new UnauthorizedException('Please sign in again');
     }
-    if (claims.typ !== 'player') throw new UnauthorizedException('Please sign in again');
-    const player = await this.playersRepo.findOne({ where: { id: claims.sub } });
-    if (!player) throw new UnauthorizedException('Please sign in again');
-    return player;
+    let key: string;
+    let phone: string;
+    if (claims.typ === 'person') {
+      key = claims.key;
+      phone = claims.phone;
+    } else if (claims.typ === 'player') {
+      const legacy = await this.playersRepo.findOne({ where: { id: claims.sub } });
+      if (!legacy) throw new UnauthorizedException('Please sign in again');
+      key = phoneKey(legacy.phone);
+      phone = legacy.phone;
+    } else {
+      throw new UnauthorizedException('Please sign in again');
+    }
+    const players = await this.findPlayersByKey(key);
+    const organisers = players.length ? [] : await this.findOrganisersByKey(key);
+    if (!players.length && !organisers.length) throw new UnauthorizedException('Please sign in again');
+    const named = players[players.length - 1] ?? organisers[0];
+    return { key, phone, players, firstName: named.firstName, lastName: named.lastName };
   }
 }
 
-/** Requires `Authorization: Bearer <player token>`; puts the player on request.player. */
+/** Requires `Authorization: Bearer <player token>`; puts the person on request.person. */
 @Injectable()
 export class PlayerAuthGuard implements CanActivate {
   constructor(private auth: PlayerAuthService) {}
@@ -190,11 +266,11 @@ export class PlayerAuthGuard implements CanActivate {
     const req = ctx.switchToHttp().getRequest();
     const header: string | undefined = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) throw new UnauthorizedException('Please sign in');
-    req.player = await this.auth.playerFromToken(header.slice(7));
+    req.person = await this.auth.personFromToken(header.slice(7));
     return true;
   }
 }
 
-export const CurrentPlayer = createParamDecorator((_: unknown, ctx: ExecutionContext): Player => {
-  return ctx.switchToHttp().getRequest().player;
+export const CurrentPerson = createParamDecorator((_: unknown, ctx: ExecutionContext): Person => {
+  return ctx.switchToHttp().getRequest().person;
 });

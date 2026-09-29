@@ -95,7 +95,7 @@ export default function AdminPage() {
             href="/admin/messages"
             className="px-3.5 py-2 text-sm font-bold text-ink bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
           >
-            Messages
+            Notifications
           </Link>
         }
       />
