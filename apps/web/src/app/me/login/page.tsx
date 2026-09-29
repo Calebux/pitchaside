@@ -5,19 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/brand';
 import { NightStadium } from '@/components/illustrations';
-import { PhoneSignIn, type VerifiedPhone } from '@/components/phone-sign-in';
+import { PasswordSignIn } from '@/components/password-sign-in';
 import { setPlayerToken } from '@/lib/player';
 
 export default function PlayerLoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  function onVerified(v: VerifiedPhone) {
-    if (!v.token) {
-      setError("That number isn't on any team yet. Ask your organiser for the group link to join.");
-      return;
-    }
-    setPlayerToken(v.token);
+  function onSignedIn(token: string) {
+    setPlayerToken(token);
     router.replace('/me');
   }
 
@@ -36,7 +32,15 @@ export default function PlayerLoginPage() {
           </p>
         </div>
         {error && <div className="mb-3 bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
-        <PhoneSignIn title="Player sign in" onVerified={onVerified} />
+        <PasswordSignIn
+          title="Player sign in"
+          onSignedIn={onSignedIn}
+          footer={
+            <p className="text-center text-xs text-gray-500">
+              New here? Open the group link your organiser shared to create your account.
+            </p>
+          }
+        />
         <p className="mt-6 text-center text-xs text-gray-500">
           Running the group?{' '}
           <Link href="/signin" className="font-bold text-pitch-600">

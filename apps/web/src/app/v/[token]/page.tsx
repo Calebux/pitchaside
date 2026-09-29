@@ -8,7 +8,7 @@ import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { Avatar, VoteResultsList, categoryMeta } from '@/components/ratings';
 import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
-import { PhoneSignIn, type VerifiedPhone } from '@/components/phone-sign-in';
+import { PasswordSignIn } from '@/components/password-sign-in';
 import { getMyBallot, getPlayerToken, setPlayerToken, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
 type Stage = 'phone' | 'ballot' | 'done';
@@ -47,12 +47,8 @@ export default function VotePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function onVerified(v: VerifiedPhone) {
-    if (!v.token) {
-      setError("That number isn't registered with this team yet.");
-      return;
-    }
-    setPlayerToken(v.token);
+  async function onSignedIn(token: string) {
+    setPlayerToken(token);
     await loadMyBallot();
   }
 
@@ -152,11 +148,11 @@ export default function VotePage() {
                 <BallSpinner className="w-8 h-8" />
               </div>
             ) : (
-              <PhoneSignIn
+              <PasswordSignIn
                 title="Who were the stars?"
-                subtitle="Six quick picks — they build everyone's player rating and the league table. First, confirm it's you."
-                cta="Start voting"
-                onVerified={onVerified}
+                subtitle="Six quick picks — they build everyone's player rating and the league table. Sign in to vote."
+                cta="Sign in & vote"
+                onSignedIn={onSignedIn}
               />
             )}
           </div>

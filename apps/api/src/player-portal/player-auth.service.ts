@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   CanActivate,
+  ConflictException,
   ExecutionContext,
   HttpException,
   HttpStatus,
@@ -14,12 +15,14 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, MoreThan, Repository } from 'typeorm';
 import { createHash, randomInt } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import { Player } from '../players/entities/player.entity';
 import { Group } from '../groups/entities/group.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { phoneKey } from '../common/format.util';
 import { PhoneOtp } from './entities/phone-otp.entity';
+import { PlayerAccount } from './entities/player-account.entity';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 const RESEND_AFTER_MS = 30 * 1000;
@@ -63,6 +66,7 @@ export class PlayerAuthService {
     @InjectRepository(Player) private playersRepo: Repository<Player>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(User) private usersRepo: Repository<User>,
+    @InjectRepository(PlayerAccount) private accountsRepo: Repository<PlayerAccount>,
     private jwt: JwtService,
     private config: ConfigService,
     private notifications: NotificationsService,
@@ -96,9 +100,129 @@ export class PlayerAuthService {
       .getMany();
   }
 
-  /** 'phone' = number is enough to sign in (current default); 'otp' = one-time code required. */
-  get mode(): 'phone' | 'otp' {
-    return this.config.get('PLAYER_AUTH_MODE', 'phone') === 'otp' ? 'otp' : 'phone';
+  // ── Accounts & passwords ──
+
+  /**
+   * The person's account, created on the fly from their player record if an
+   * organiser added them (or they joined before passwords existed).
+   */
+  async accountFor(key: string): Promise<PlayerAccount | null> {
+    const existing = await this.accountsRepo.findOne({ where: { phoneKey: key } });
+    if (existing) return existing;
+    const players = await this.findPlayersByKey(key);
+    const organisers = players.length ? [] : await this.findOrganisersByKey(key);
+    const source = players[players.length - 1] ?? organisers[0];
+    if (!source) return null;
+    return this.accountsRepo.save(
+      this.accountsRepo.create({
+        phoneKey: key,
+        phone: source.phone ?? '',
+        firstName: source.firstName,
+        lastName: source.lastName,
+        email: players[players.length - 1]?.email ?? organisers[0]?.email ?? null,
+        passwordHash: null,
+      }),
+    );
+  }
+
+  private validatePassword(password: string) {
+    if (!password || password.length < 6) throw new BadRequestException('Password must be at least 6 characters');
+  }
+
+  /** Brand-new person signing up through a group link. */
+  async createAccount(input: { phone: string; firstName: string; lastName: string; email?: string; password: string }) {
+    const key = phoneKey(input.phone);
+    if (key.length < 10) throw new BadRequestException('Enter your full phone number');
+    this.validatePassword(input.password);
+    const existing = await this.accountFor(key);
+    if (existing) {
+      throw new ConflictException(
+        existing.passwordHash
+          ? 'You already have a PitchAside account — sign in instead.'
+          : 'This number is already registered — sign in to set your password.',
+      );
+    }
+    return this.accountsRepo.save(
+      this.accountsRepo.create({
+        phoneKey: key,
+        phone: input.phone.trim(),
+        firstName: input.firstName.trim(),
+        lastName: input.lastName.trim(),
+        email: input.email?.trim() || null,
+        passwordHash: await bcrypt.hash(input.password, 10),
+      }),
+    );
+  }
+
+  /** Phone + password. Accounts without a password yet get `needsPassword` instead of a token. */
+  async login(phone: string, password: string) {
+    const key = phoneKey(phone);
+    if (key.length < 10) throw new BadRequestException('Enter your full phone number');
+    const account = await this.accountFor(key);
+    if (!account) {
+      throw new NotFoundException("There's no PitchAside account with that number. Ask your organiser for your group link.");
+    }
+    if (!account.passwordHash) return { needsPassword: true as const, firstName: account.firstName };
+    if (!(await bcrypt.compare(password ?? '', account.passwordHash))) {
+      throw new UnauthorizedException('Wrong phone number or password');
+    }
+    return { token: this.issuePersonToken(account.phone || phone), firstName: account.firstName };
+  }
+
+  /** First sign-in for an existing player who has never had a password. */
+  async setInitialPassword(phone: string, password: string) {
+    this.validatePassword(password);
+    const account = await this.accountFor(phoneKey(phone));
+    if (!account) throw new NotFoundException("There's no PitchAside account with that number.");
+    if (account.passwordHash) throw new BadRequestException('This account already has a password — sign in, or use “Forgot password”.');
+    account.passwordHash = await bcrypt.hash(password, 10);
+    await this.accountsRepo.save(account);
+    return { token: this.issuePersonToken(account.phone || phone), firstName: account.firstName };
+  }
+
+  /** Forgot password: a one-time code (requestCode) then a new password. */
+  async resetPassword(phone: string, code: string, password: string) {
+    this.validatePassword(password);
+    await this.verifyCode(phone, code);
+    const account = await this.accountFor(phoneKey(phone));
+    if (!account) throw new NotFoundException("There's no PitchAside account with that number.");
+    account.passwordHash = await bcrypt.hash(password, 10);
+    await this.accountsRepo.save(account);
+    return { token: this.issuePersonToken(account.phone || phone), firstName: account.firstName };
+  }
+
+  async changePassword(person: Person, current: string, next: string) {
+    this.validatePassword(next);
+    const account = await this.accountFor(person.key);
+    if (!account) throw new NotFoundException('Account not found');
+    if (account.passwordHash && !(await bcrypt.compare(current ?? '', account.passwordHash))) {
+      throw new UnauthorizedException('Your current password is wrong');
+    }
+    account.passwordHash = await bcrypt.hash(next, 10);
+    await this.accountsRepo.save(account);
+    return { ok: true };
+  }
+
+  /** Renames the person everywhere: their account and their player record in every club. */
+  async updateName(person: Person, firstName: string, lastName: string) {
+    const account = await this.accountFor(person.key);
+    if (account) {
+      account.firstName = firstName.trim();
+      account.lastName = lastName.trim();
+      await this.accountsRepo.save(account);
+    }
+    for (const p of person.players) {
+      p.firstName = firstName.trim();
+      p.lastName = lastName.trim();
+    }
+    if (person.players.length) await this.playersRepo.save(person.players);
+    return { firstName: firstName.trim(), lastName: lastName.trim() };
+  }
+
+  /** Sign-in method players see: 'password' (default). Legacy: 'phone' (number only), 'otp'. */
+  get mode(): 'password' | 'phone' | 'otp' {
+    const m = this.config.get('PLAYER_AUTH_MODE', 'password');
+    return m === 'phone' || m === 'otp' ? m : 'password';
   }
 
   /** Phone-only sign-in. Only allowed while PLAYER_AUTH_MODE=phone. */
@@ -252,7 +376,8 @@ export class PlayerAuthService {
     const players = await this.findPlayersByKey(key);
     const organisers = players.length ? [] : await this.findOrganisersByKey(key);
     if (!players.length && !organisers.length) throw new UnauthorizedException('Please sign in again');
-    const named = players[players.length - 1] ?? organisers[0];
+    const account = await this.accountsRepo.findOne({ where: { phoneKey: key } });
+    const named = account ?? players[players.length - 1] ?? organisers[0];
     return { key, phone, players, firstName: named.firstName, lastName: named.lastName };
   }
 }

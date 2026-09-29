@@ -13,13 +13,14 @@ import { RatingsModule } from '../ratings/ratings.module';
 import { RsvpModule } from '../rsvp/rsvp.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PhoneOtp } from './entities/phone-otp.entity';
+import { PlayerAccount } from './entities/player-account.entity';
 import { PlayerAuthGuard, PlayerAuthService } from './player-auth.service';
 import { PlayerPortalService } from './player-portal.service';
 import { PlayerAuthController, PlayerPortalController } from './player-portal.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PhoneOtp, Player, User, Group, GroupMembership, Session, Payment]),
+    TypeOrmModule.forFeature([PhoneOtp, PlayerAccount, Player, User, Group, GroupMembership, Session, Payment]),
     AuthModule,
     JwtModule.register({}),
     BillingModule,

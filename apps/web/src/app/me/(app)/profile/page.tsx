@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { InstallCard, PushToggle } from '@/components/pwa';
 import { PlayerCardHero, Section } from '@/components/player-ui';
 import { usePlayerProfile } from '@/components/player-shell';
+import { PlayerAccountSettings } from '@/components/player-account';
 import { KitLine } from '@/components/illustrations';
 import { clearPlayerToken, subscribePlayerPush } from '@/lib/player';
 
@@ -19,7 +20,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 export default function PlayerProfilePage() {
   const router = useRouter();
-  const { profile } = usePlayerProfile();
+  const { profile, refresh } = usePlayerProfile();
   if (!profile) return null;
   const r = profile.ratings;
 
@@ -95,6 +96,15 @@ export default function PlayerProfilePage() {
             <KitLine className="w-24 h-auto shrink-0" />
           </Link>
         )}
+      </Section>
+
+      <Section title="Account">
+        <PlayerAccountSettings
+          firstName={profile.player.firstName}
+          lastName={profile.player.lastName}
+          phone={profile.player.phone}
+          onSaved={refresh}
+        />
       </Section>
 
       <Section title="App">
