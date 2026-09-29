@@ -240,6 +240,8 @@ export interface RecentMatchDay {
   games: number;
   potm: { name: string; votes: number; isMe: boolean } | null;
   vote: { token: string; voted: boolean } | null;
+  /** For the match-day share card; null before kick-off. */
+  shareToken: string | null;
 }
 
 export function getPlayerGames() {

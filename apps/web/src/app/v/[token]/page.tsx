@@ -9,6 +9,7 @@ import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { Avatar, VoteResultsList, categoryMeta } from '@/components/ratings';
 import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
+import { ShareCardButton } from '@/components/share-card';
 import { getMyBallot, getPlayerToken, setPlayerToken, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
 type Stage = 'phone' | 'ballot' | 'done';
@@ -220,18 +221,13 @@ export default function VotePage() {
               <div className="mt-5">
                 <VoteResultsList results={results} />
               </div>
-              <button
-                onClick={() => {
-                  const potm = results.categories.find((c) => c.key === 'potm')?.standings[0];
-                  const text = potm
-                    ? `🏆 ${potm.player.firstName} is leading Player of the Match for ${ballot.groupName} (${potm.count} votes). Have you voted? ${window.location.href}`
-                    : `Vote for Player of the Match — ${ballot.groupName}: ${window.location.href}`;
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-                }}
+              <ShareCardButton
+                token={token}
+                caption={`⚽ ${ballot.groupName} — match day. Who were the stars? Have your say:`}
                 className="mt-5 w-full py-3.5 text-sm font-bold text-white bg-[#25D366] rounded-2xl hover:brightness-95 transition"
               >
-                Hype it up in the group chat
-              </button>
+                Share the match card
+              </ShareCardButton>
               <Link
                 href="/me"
                 className="mt-2 w-full flex items-center justify-center py-3.5 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors"

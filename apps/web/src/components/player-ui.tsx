@@ -7,6 +7,7 @@ import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
 import { TEAMS } from '@/components/lineup-card';
 import { useToast } from '@/components/toast';
+import { ShareCardButton } from '@/components/share-card';
 import { formatCurrency, type PlayerRatings } from '@/lib/api';
 import { setRsvp, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
@@ -235,6 +236,15 @@ export function MatchDayCard({ day }: { day: RecentMatchDay }) {
           </span>
         )}
         {!played && !day.potm && <span className="text-xs text-gray-400">No results recorded</span>}
+        {day.shareToken && (played > 0 || day.potm) && (
+          <ShareCardButton
+            token={day.shareToken}
+            caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+            className="ml-auto text-xs font-bold text-ink bg-white border-2 border-ink rounded-full px-2.5 py-0.5 hover:bg-volt-300 transition-colors"
+          >
+            Share ↗
+          </ShareCardButton>
+        )}
       </div>
 
       {day.vote && (
