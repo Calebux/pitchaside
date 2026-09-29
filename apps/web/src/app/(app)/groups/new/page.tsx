@@ -9,6 +9,7 @@ import { useToast } from '@/components/toast';
 import { createGroup } from '@/lib/api';
 import { PaymentType } from '@pitchaside/shared';
 import { frequencyOptions } from '@/lib/billing';
+import { RsvpToggle } from '@/components/rsvp-toggle';
 
 type Errors = Record<string, string>;
 
@@ -53,6 +54,7 @@ export default function NewGroupPage() {
         targetPlayers: Number(form.get('targetPlayers')),
         feePerPlayer: Number(form.get('feePerPlayer')),
         paymentType: form.get('paymentType') as PaymentType,
+        requireRsvp: form.get('requireRsvp') === 'on',
       });
       router.push(`/groups/${group.id}`);
     } catch (err) {
@@ -170,6 +172,8 @@ export default function NewGroupPage() {
             ))}
           </div>
         </fieldset>
+
+        <RsvpToggle name="requireRsvp" checked />
 
         <div className="flex items-start gap-3 rounded-2xl bg-chalk border border-gray-200 p-3.5">
           <div className="w-8 h-8 rounded-lg bg-ink text-volt-300 flex items-center justify-center shrink-0 font-display font-extrabold text-sm">₦</div>

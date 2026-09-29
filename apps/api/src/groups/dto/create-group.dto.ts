@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength } from 'class-validator';
+import { IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean } from 'class-validator';
 import { PaymentType } from '../entities/group.entity';
 
 export class CreateGroupDto {
@@ -26,4 +26,8 @@ export class CreateGroupDto {
   @IsOptional()
   @IsEnum(PaymentType)
   paymentType?: PaymentType;
+
+  @IsOptional()
+  @IsBoolean()
+  requireRsvp?: boolean;
 }

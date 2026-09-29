@@ -1,16 +1,48 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Session } from '../sessions/entities/session.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { naira, shortDate } from '../common/format.util';
 
 @Injectable()
 export class PaymentsService {
   constructor(
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
+    private notifications: NotificationsService,
   ) {}
+
+  /** "We got your ₦5,000 ✅" to each player, and a heads-up to organisers for transfers. */
+  async sendReceipts(paymentIds: string[], source: 'manual' | 'transfer') {
+    if (!paymentIds.length) return;
+    const payments = await this.paymentsRepo.find({
+      where: { id: In(paymentIds) },
+      relations: ['player', 'session', 'session.group'],
+    });
+    for (const p of payments) {
+      const what = p.session.label ? `${p.session.label} dues` : `the ${shortDate(p.session.date)} game`;
+      await this.notifications.notifyPlayers([p.playerId], {
+        kind: 'receipt',
+        title: `We got your ${naira(p.amount)} ✅`,
+        body: `${p.session.group.name} — ${what} is paid. Thanks!`,
+        url: '/me',
+        critical: true,
+      });
+    }
+    if (source === 'transfer' && payments.length) {
+      const total = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const first = payments[0];
+      await this.notifications.notifyOrganisers(first.session.group.organizationId, {
+        kind: 'payment_received',
+        title: `${naira(total)} received`,
+        body: `${first.player.firstName} ${first.player.lastName} · ${first.session.group.name}`,
+        url: `/sessions/${first.sessionId}`,
+      });
+    }
+  }
 
   async create(dto: CreatePaymentDto, organizationId: string) {
     // Verify session belongs to org
@@ -49,6 +81,7 @@ export class PaymentsService {
     const saved = await this.paymentsRepo.save(payment);
 
     await this.recalculateSessionTotal(payment.sessionId);
+    this.notifications.later(() => this.sendReceipts([saved.id], 'manual'));
     return saved;
   }
 
@@ -119,6 +152,7 @@ export class PaymentsService {
     for (const sessionId of sessionIds) {
       await this.recalculateSessionTotal(sessionId);
     }
+    this.notifications.later(() => this.sendReceipts(saved.map((p) => p.id), 'manual'));
 
     return saved;
   }

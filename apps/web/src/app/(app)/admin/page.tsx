@@ -90,6 +90,14 @@ export default function AdminPage() {
         eyebrow="Club office"
         title="Admin"
         subtitle={isSuperAdmin ? 'Platform administration' : 'Organization management'}
+        actions={
+          <Link
+            href="/admin/messages"
+            className="px-3.5 py-2 text-sm font-bold text-ink bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
+          >
+            Messages
+          </Link>
+        }
       />
 
       {/* Super Admin: Platform stats */}

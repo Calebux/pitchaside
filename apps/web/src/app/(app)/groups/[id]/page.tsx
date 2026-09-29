@@ -11,6 +11,7 @@ import { JerseyBadge, kitFor } from '@/components/illustrations';
 import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
 import { frequencyLabel, frequencyOptions } from '@/lib/billing';
 import { LeagueTableView } from '@/components/ratings';
+import { RsvpToggle } from '@/components/rsvp-toggle';
 import {
   getGroup,
   getSessions,
@@ -77,6 +78,7 @@ export default function GroupDetailPage() {
     targetPlayers: 10,
     feePerPlayer: 10,
     paymentType: PaymentType.PER_SESSION as string,
+    requireRsvp: false,
   });
   const [saving, setSaving] = useState(false);
 
@@ -120,6 +122,7 @@ export default function GroupDetailPage() {
       targetPlayers: group.targetPlayers,
       feePerPlayer: group.feePerPlayer,
       paymentType: group.paymentType,
+      requireRsvp: !!group.requireRsvp,
     });
     setEditing(true);
   }
@@ -134,6 +137,7 @@ export default function GroupDetailPage() {
         targetPlayers: editData.targetPlayers,
         feePerPlayer: editData.feePerPlayer,
         paymentType: editData.paymentType as PaymentType,
+        requireRsvp: editData.requireRsvp,
       });
       const updated = await getGroup(id);
       setGroup(updated);
@@ -323,6 +327,7 @@ export default function GroupDetailPage() {
               ))}
             </select>
           </div>
+          <RsvpToggle checked={editData.requireRsvp} onChange={(v) => setEditData({ ...editData, requireRsvp: v })} />
           <div className="flex gap-3 pt-1">
             <button
               onClick={() => setEditing(false)}

@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { Payment, PaymentStatus } from './entities/payment.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 import { Session } from '../sessions/entities/session.entity';
 
 describe('PaymentsService', () => {
@@ -48,6 +49,7 @@ describe('PaymentsService', () => {
         PaymentsService,
         { provide: getRepositoryToken(Payment), useValue: paymentsRepo },
         { provide: getRepositoryToken(Session), useValue: sessionsRepo },
+        { provide: NotificationsService, useValue: { later: jest.fn(), notifyPlayers: jest.fn(), notifyOrganisers: jest.fn() } },
       ],
     }).compile();
 

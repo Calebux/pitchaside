@@ -55,6 +55,10 @@ export class Session {
   @Column({ nullable: true })
   label: string;
 
+  /** Set once the day-before reminder has gone out. */
+  @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })
+  reminderSentAt: Date | null;
+
   /** Public code for the post-match vote link (/v/:token); created on first use. */
   @Column({ name: 'voting_token', nullable: true, unique: true })
   votingToken: string;

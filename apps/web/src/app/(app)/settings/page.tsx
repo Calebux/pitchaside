@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { updateProfile, changePassword, setup2FA, verify2FA, disable2FA } from '@/lib/api';
+import { PushToggle } from '@/components/pwa';
+import { subscribeOrganiserPush } from '@/lib/api';
 import { PageHeader } from '@/components/brand';
 
 export default function SettingsPage() {
@@ -113,6 +115,11 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <PageHeader eyebrow="Your account" title="Settings" subtitle="Profile, password and security" />
+
+      <div className="mb-4">
+        <PushToggle save={subscribeOrganiserPush} />
+        <p className="text-[11px] text-gray-500 mt-1.5 px-1">Get a ping on this device when money lands, a game fills up or a transfer needs matching.</p>
+      </div>
 
       {/* Profile Section */}
       <form onSubmit={handleProfileSave} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">

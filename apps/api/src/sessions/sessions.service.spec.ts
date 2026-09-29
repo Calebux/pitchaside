@@ -6,6 +6,9 @@ import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { MailService } from '../mail/mail.service';
+import { RsvpService } from '../rsvp/rsvp.service';
+import { RatingsService } from '../ratings/ratings.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RecurrenceType } from './dto/create-session.dto';
 
 describe('SessionsService', () => {
@@ -77,6 +80,9 @@ describe('SessionsService', () => {
         { provide: getRepositoryToken(GroupMembership), useValue: membershipsRepo },
         { provide: getRepositoryToken(Payment), useValue: paymentsRepo },
         { provide: MailService, useValue: mailService },
+        { provide: RsvpService, useValue: { announceGame: jest.fn() } },
+        { provide: RatingsService, useValue: { ensureVotingToken: jest.fn() } },
+        { provide: NotificationsService, useValue: { later: jest.fn(), notifyPlayers: jest.fn() } },
       ],
     }).compile();
 

@@ -6,10 +6,16 @@ import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { SessionsService } from './sessions.service';
 import { SessionsController } from './sessions.controller';
+import { RsvpModule } from '../rsvp/rsvp.module';
+import { RatingsModule } from '../ratings/ratings.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Session, Group, GroupMembership, Payment]),
+    RsvpModule,
+    RatingsModule,
+    NotificationsModule,
   ],
   controllers: [SessionsController],
   providers: [SessionsService],
