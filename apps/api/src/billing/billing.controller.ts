@@ -17,6 +17,7 @@ import { AssignTransferDto, SimulateTransferDto } from './dto/transfer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
+import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { User } from '../users/entities/user.entity';
 
 /** Admin endpoints for a group's account, invite link and incoming transfers. */
@@ -87,6 +88,7 @@ export class PublicBillingController {
     return this.billing.getPublicGroup(code);
   }
 
+  @SkipCsrf()
   @Post('payrep/webhook')
   @HttpCode(200)
   webhook(
