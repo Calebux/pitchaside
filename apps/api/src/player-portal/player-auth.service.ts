@@ -190,6 +190,28 @@ export class PlayerAuthService {
     };
   }
 
+  /** An organiser switching to Playing gets a player record in their own club (so they can join their own games). */
+  async ensureOrganiserPlayer(user: User) {
+    if (!user.phone) return null;
+    const key = phoneKey(user.phone);
+    const existing = await this.playersRepo
+      .createQueryBuilder('p')
+      .where('p.organizationId = :org', { org: user.organizationId })
+      .andWhere(PHONE_MATCH, { suffix: `%${key}` })
+      .getOne();
+    if (existing) return existing;
+    const emailTaken = await this.playersRepo.findOne({ where: { email: user.email, organizationId: user.organizationId } });
+    return this.playersRepo.save(
+      this.playersRepo.create({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        email: emailTaken ? undefined : user.email,
+        organizationId: user.organizationId,
+      }),
+    );
+  }
+
   issuePersonToken(phone: string) {
     return this.jwt.sign({ typ: 'person', key: phoneKey(phone), phone: phone.trim() } satisfies PersonClaims, {
       secret: this.secret,

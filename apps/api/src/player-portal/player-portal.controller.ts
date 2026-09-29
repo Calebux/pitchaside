@@ -111,8 +111,9 @@ export class PlayerAuthController {
   @UseGuards(JwtAuthGuard)
   @AllowTreasurer()
   @Post('player-auth/from-organiser')
-  fromOrganiser(@CurrentUser() user: User) {
+  async fromOrganiser(@CurrentUser() user: User) {
     if (!user.phone) throw new BadRequestException('Add your phone number in Settings to switch to Playing.');
+    await this.auth.ensureOrganiserPlayer(user);
     return { token: this.auth.issuePersonToken(user.phone) };
   }
 

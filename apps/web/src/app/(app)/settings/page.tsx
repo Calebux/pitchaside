@@ -16,6 +16,7 @@ export default function SettingsPage() {
   const [profileData, setProfileData] = useState({
     firstName: user?.firstName || '',
     lastName: user?.lastName || '',
+    phone: user?.phone || '',
   });
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -36,6 +37,7 @@ export default function SettingsPage() {
       await updateProfile({
         firstName: profileData.firstName.trim(),
         lastName: profileData.lastName.trim(),
+        phone: profileData.phone.trim(),
       });
       await refreshUser();
       toast.success('Profile updated');
@@ -147,6 +149,19 @@ export default function SettingsPage() {
               className={inputClass}
             />
           </div>
+        </div>
+        <div className="mb-3">
+          <label className="block text-xs font-bold text-gray-700 mb-1.5">Phone number</label>
+          <input
+            type="tel"
+            value={profileData.phone}
+            onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+            placeholder="0803 123 4567"
+            className={inputClass}
+          />
+          <p className="text-[11px] text-gray-500 mt-1">
+            Links your player side — switch to <span className="font-bold text-ink">Playing</span> to RSVP, pay and vote in your own games.
+          </p>
         </div>
         <p className="text-xs text-gray-400 mb-4">{user.email}</p>
         <button

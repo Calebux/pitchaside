@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Logo } from '@/components/brand';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 
@@ -12,6 +12,12 @@ export default function SignInPage() {
   const { login, validate2FA } = useAuth();
   const toast = useToast();
   const [form, setForm] = useState({ email: '', password: '' });
+
+  // Pre-fill when arriving from the player app's "Switch to organising".
+  useEffect(() => {
+    const email = new URLSearchParams(window.location.search).get('email');
+    if (email) setForm((f) => ({ ...f, email }));
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [twoFA, setTwoFA] = useState<{ required: boolean; userId: string }>({ required: false, userId: '' });
   const [code, setCode] = useState('');

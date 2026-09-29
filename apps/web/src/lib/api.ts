@@ -227,7 +227,7 @@ export function getPlayersPaginated(
 
 // ── Profile / Auth ──
 
-export function updateProfile(data: { firstName: string; lastName: string }): Promise<any> {
+export function updateProfile(data: { firstName: string; lastName: string; phone?: string }): Promise<any> {
   return http.patch('/auth/profile', data);
 }
 
@@ -499,6 +499,11 @@ export interface OutboundMessage {
 
 export function getMessages(): Promise<{ mode: 'mock' | 'live'; messages: OutboundMessage[] }> {
   return http.get('/messages');
+}
+
+/** Organiser → "Playing": exchange the organiser session for their player session. */
+export function playerTokenFromOrganiser(): Promise<{ token: string }> {
+  return http.post('/player-auth/from-organiser');
 }
 
 export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
