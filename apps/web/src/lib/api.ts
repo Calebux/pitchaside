@@ -1,4 +1,5 @@
 import type {
+  ContributionsVisibility,
   IGroup,
   IPlayer,
   ISession,
@@ -68,6 +69,7 @@ export function createGroup(data: {
   paymentType?: PaymentType;
   requireRsvp?: boolean;
   kickoffTime?: string;
+  contributionsVisibility?: ContributionsVisibility;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -83,6 +85,7 @@ export function updateGroup(
     paymentType: PaymentType;
     requireRsvp: boolean;
     kickoffTime: string;
+    contributionsVisibility: ContributionsVisibility;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);

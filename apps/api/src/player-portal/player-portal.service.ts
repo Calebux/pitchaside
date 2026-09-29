@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThanOrEqual, Repository } from 'typeorm';
+import { In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { Player } from '../players/entities/player.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Session, SessionKind, SessionStatus } from '../sessions/entities/session.entity';
+import { PaymentType } from '../groups/entities/group.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService, PlayerRatings } from '../ratings/ratings.service';
@@ -137,6 +138,62 @@ export class PlayerPortalService {
     }));
   }
 
+  /**
+   * The group kitty, where the organiser allows it: the current period (or the
+   * latest game) collected vs expected, plus who's paid when names are shown.
+   */
+  private async contributions(memberships: GroupMembership[]) {
+    const result = [];
+    for (const m of memberships) {
+      const visibility = m.group.contributionsVisibility ?? 'private';
+      if (visibility === 'private') continue;
+      const kind = m.group.paymentType === PaymentType.PER_SESSION ? SessionKind.GAME : SessionKind.DUES;
+      const base = { groupId: m.groupId, status: Not(SessionStatus.CANCELLED), kind };
+      const session =
+        (await this.sessionsRepo.findOne({ where: { ...base, date: LessThanOrEqual(localDate(0)) }, order: { date: 'DESC' } })) ??
+        (await this.sessionsRepo.findOne({ where: base, order: { date: 'ASC' } }));
+
+      const payments = session
+        ? (await this.paymentsRepo.find({ where: { sessionId: session.id }, relations: ['player'] })).filter(
+            (p) => p.status !== PaymentStatus.WAIVED,
+          )
+        : [];
+      const paid = payments.filter((p) => p.status === PaymentStatus.PAID);
+      const allTime = await this.paymentsRepo
+        .createQueryBuilder('payment')
+        .innerJoin('payment.session', 'session')
+        .select('COALESCE(SUM(payment.amount), 0)', 'total')
+        .where('session.groupId = :groupId', { groupId: m.groupId })
+        .andWhere('payment.status = :paid', { paid: PaymentStatus.PAID })
+        .getRawOne<{ total: string }>();
+
+      result.push({
+        groupId: m.groupId,
+        groupName: m.group.name,
+        visibility,
+        period: session
+          ? { label: session.label ?? null, date: session.date, kind: session.kind }
+          : null,
+        collected: paid.reduce((sum, p) => sum + Number(p.amount), 0),
+        expected: payments.reduce((sum, p) => sum + Number(p.amount), 0),
+        paidCount: paid.length,
+        total: payments.length,
+        allTime: Number(allTime?.total ?? 0),
+        players:
+          visibility === 'names'
+            ? payments
+                .map((p) => ({
+                  name: `${p.player.firstName} ${p.player.lastName}`,
+                  paid: p.status === PaymentStatus.PAID,
+                  me: p.playerId === m.playerId,
+                }))
+                .sort((a, b) => Number(b.paid) - Number(a.paid) || a.name.localeCompare(b.name))
+            : null,
+      });
+    }
+    return result;
+  }
+
   private personInfo(person: Person) {
     return { firstName: person.firstName, lastName: person.lastName, phone: person.phone, id: person.players[0]?.id ?? person.key };
   }
@@ -227,6 +284,7 @@ export class PlayerPortalService {
         viaTransfer: p.source === 'transfer',
       })),
       groups: this.groupsOf(memberships),
+      contributions: await this.contributions(memberships),
     };
   }
 

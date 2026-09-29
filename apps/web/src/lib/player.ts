@@ -233,6 +233,21 @@ export interface PlayerPayments {
   owed: PlayerHome['owed'];
   paid: { id: string; amount: number; groupName: string; label: string | null; date: string; paidAt: string | null; viaTransfer: boolean }[];
   groups: PlayerGroup[];
+  /** Only groups whose organiser shares contributions with players. */
+  contributions: GroupKitty[];
+}
+
+export interface GroupKitty {
+  groupId: string;
+  groupName: string;
+  visibility: 'totals' | 'names';
+  period: { label: string | null; date: string; kind: 'game' | 'dues' } | null;
+  collected: number;
+  expected: number;
+  paidCount: number;
+  total: number;
+  allTime: number;
+  players: { name: string; paid: boolean; me: boolean }[] | null;
 }
 
 export function getPlayerPayments() {

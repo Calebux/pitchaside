@@ -1,5 +1,5 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches } from 'class-validator';
-import { PaymentType } from '../entities/group.entity';
+import { IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches, IsIn } from 'class-validator';
+import { PaymentType, CONTRIBUTIONS_VISIBILITY, type ContributionsVisibility } from '../entities/group.entity';
 
 export class CreateGroupDto {
   @IsString()
@@ -34,4 +34,8 @@ export class CreateGroupDto {
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'Kick-off time must be HH:mm' })
   kickoffTime?: string;
+
+  @IsOptional()
+  @IsIn(CONTRIBUTIONS_VISIBILITY)
+  contributionsVisibility?: ContributionsVisibility;
 }

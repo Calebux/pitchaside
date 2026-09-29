@@ -11,6 +11,7 @@ import { JerseyBadge, kitFor } from '@/components/illustrations';
 import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
 import { frequencyLabel, frequencyOptions } from '@/lib/billing';
 import { LeagueTableView } from '@/components/ratings';
+import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
 import { RsvpToggle } from '@/components/rsvp-toggle';
 import {
   getGroup,
@@ -32,7 +33,7 @@ import {
   type ISessionWithDetails,
 } from '@/lib/api';
 import { PaymentType } from '@pitchaside/shared';
-import type { IPlayer } from '@pitchaside/shared';
+import type { ContributionsVisibility, IPlayer } from '@pitchaside/shared';
 
 const statusStyles: Record<string, string> = {
   upcoming: 'bg-volt-300 text-ink',
@@ -80,6 +81,7 @@ export default function GroupDetailPage() {
     feePerPlayer: 10,
     paymentType: PaymentType.PER_SESSION as string,
     requireRsvp: false,
+    contributionsVisibility: 'private' as ContributionsVisibility,
   });
   const [saving, setSaving] = useState(false);
 
@@ -125,6 +127,7 @@ export default function GroupDetailPage() {
       feePerPlayer: group.feePerPlayer,
       paymentType: group.paymentType,
       requireRsvp: !!group.requireRsvp,
+      contributionsVisibility: group.contributionsVisibility ?? 'private',
     });
     setEditing(true);
   }
@@ -141,6 +144,7 @@ export default function GroupDetailPage() {
         feePerPlayer: editData.feePerPlayer,
         paymentType: editData.paymentType as PaymentType,
         requireRsvp: editData.requireRsvp,
+        contributionsVisibility: editData.contributionsVisibility,
       });
       const updated = await getGroup(id);
       setGroup(updated);
@@ -342,6 +346,10 @@ export default function GroupDetailPage() {
             </select>
           </div>
           <RsvpToggle checked={editData.requireRsvp} onChange={(v) => setEditData({ ...editData, requireRsvp: v })} />
+          <ContributionsVisibilityPicker
+            value={editData.contributionsVisibility}
+            onChange={(v) => setEditData({ ...editData, contributionsVisibility: v })}
+          />
           <div className="flex gap-3 pt-1">
             <button
               onClick={() => setEditing(false)}
