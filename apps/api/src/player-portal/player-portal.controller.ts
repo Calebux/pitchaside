@@ -183,6 +183,13 @@ export class PlayerAuthController {
     return { ...joined, token: this.auth.issuePersonToken(dto.phone) };
   }
 
+  /** Club invite link: the club and its groups, so new players can pick where they play. */
+  @Get('public/clubs/:code')
+  async club(@Param('code') code: string) {
+    const club = await this.auth.clubByInviteCode(code);
+    return { clubName: club.name, groups: await this.billing.publicGroupsForClub(club.id) };
+  }
+
   /** Club invite link (no specific group): create the account and join the club. */
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('public/clubs/:code/signup')

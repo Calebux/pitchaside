@@ -62,6 +62,19 @@ export default function PlayerPayPage() {
 
       </div>
 
+      {data.groups.length > 0 && owedGroups.length === 0 && (
+        <Section title="Where to pay">
+          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
+            {data.groups.map((g) => (
+              <div key={g.id}>
+                <p className="text-xs font-bold text-gray-500 mb-1.5">{g.name}</p>
+                <PayIntoCard account={g.account} fee={g.feePerPlayer} paymentType={g.paymentType} reference={g.paymentRef} />
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
       {data.contributions.length > 0 && (
         <Section title="Group kitty">
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
@@ -96,18 +109,6 @@ export default function PlayerPayPage() {
         )}
       </Section>
 
-      {data.groups.length > 0 && owedGroups.length === 0 && (
-        <Section title="Where to pay">
-          <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
-            {data.groups.map((g) => (
-              <div key={g.id}>
-                <p className="text-xs font-bold text-gray-500 mb-1.5">{g.name}</p>
-                <PayIntoCard account={g.account} fee={g.feePerPlayer} paymentType={g.paymentType} reference={g.paymentRef} />
-              </div>
-            ))}
-          </div>
-        </Section>
-      )}
     </>
   );
 }

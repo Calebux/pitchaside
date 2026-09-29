@@ -247,6 +247,27 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /** A club's groups for the club invite link's "which groups do you play in?" step. */
+  async publicGroupsForClub(organizationId: string) {
+    const groups = await this.groupsRepo.find({
+      where: { organizationId },
+      relations: ['memberships'],
+      order: { createdAt: 'ASC' },
+    });
+    for (const g of groups) if (!g.inviteCode) await this.setupGroup(g);
+    return groups.map((g) => ({
+      id: g.id,
+      code: g.inviteCode,
+      name: g.name,
+      schedule: g.schedule,
+      kickoffTime: g.kickoffTime,
+      feePerPlayer: Number(g.feePerPlayer),
+      paymentType: g.paymentType,
+      memberCount: g.memberships?.length ?? 0,
+      targetPlayers: g.targetPlayers,
+    }));
+  }
+
   /** This person's player record in the group's club, creating it if they're new to the club. */
   private async playerInClub(
     group: Group,

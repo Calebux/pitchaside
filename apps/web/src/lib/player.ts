@@ -93,6 +93,23 @@ export function signupFromLink(
   return request<JoinResult>('POST', `/public/groups/${code}/signup`, data, false);
 }
 
+export interface ClubGroup {
+  id: string;
+  code: string;
+  name: string;
+  schedule?: string | null;
+  kickoffTime?: string | null;
+  feePerPlayer: number;
+  paymentType: PaymentType;
+  memberCount: number;
+  targetPlayers: number;
+}
+
+/** Club invite link: the club and its groups (public). */
+export function getClub(code: string) {
+  return request<{ clubName: string; groups: ClubGroup[] }>('GET', `/public/clubs/${code}`, undefined, false);
+}
+
 export type ClubJoinResult = { clubName: string; firstName: string; token?: string };
 
 /** Club invite link (/join/:code): create the account and join the club in one go. */

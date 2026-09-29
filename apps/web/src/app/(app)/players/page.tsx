@@ -108,7 +108,9 @@ export default function PlayersPage() {
 
   function handleShareWhatsApp() {
     if (!inviteLink) return;
-    const text = encodeURIComponent(`Join our team on PitchAside! Register here: ${inviteLink}`);
+    const text = encodeURIComponent(
+      `⚽ Join us on PitchAside! Sign up, pick the groups you play in, and get your payment details: ${inviteLink}`,
+    );
     window.open(`https://wa.me/?text=${text}`, '_blank');
   }
 
@@ -193,7 +195,7 @@ export default function PlayersPage() {
             </svg>
             <div>
               <h2 className="text-base font-bold text-white">Invite players</h2>
-              <p className="text-xs text-white/60">Let the squad register themselves</p>
+              <p className="text-xs text-white/60">One link for the whole club — players sign up and pick their groups</p>
             </div>
           </div>
           {inviteLink && (
