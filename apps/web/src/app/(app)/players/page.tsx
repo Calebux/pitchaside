@@ -6,6 +6,8 @@ import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
+import { PageHeader } from '@/components/brand';
+import { kitFor } from '@/components/illustrations';
 import { getPlayersPaginated, deletePlayer, exportPlayersCsv, getInviteCode, regenerateInviteCode, type PaginatedResponse } from '@/lib/api';
 import type { IPlayer } from '@pitchaside/shared';
 
@@ -111,7 +113,7 @@ export default function PlayersPage() {
 
   if (loading && players.length === 0) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="animate-pulse space-y-3">
           <div className="h-6 bg-gray-200 rounded w-24" />
           <div className="h-20 bg-gray-100 rounded-xl" />
@@ -125,7 +127,7 @@ export default function PlayersPage() {
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Player"
@@ -147,18 +149,16 @@ export default function PlayersPage() {
       />
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Players</h1>
-          {meta.total > 0 && (
-            <p className="text-xs text-gray-400 mt-0.5">{meta.total} registered</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
+      <PageHeader
+        eyebrow="The squad"
+        title="Players"
+        subtitle={meta.total > 0 ? `${meta.total} registered` : undefined}
+        actions={
+        <>
           {meta.total > 0 && (
             <button
               onClick={() => exportPlayersCsv().catch(() => toast.error('Export failed'))}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-2.5 text-gray-500 bg-white border border-gray-200 rounded-xl hover:text-ink hover:border-gray-300 transition-colors"
               title="Export CSV"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -168,29 +168,35 @@ export default function PlayersPage() {
           )}
           <Link
             href="/players/new"
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Add Player
           </Link>
-        </div>
-      </div>
+        </>
+        }
+      />
 
       {/* Invite Players Section */}
-      <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <div className="relative bg-pitch-800 text-white rounded-3xl p-5 mb-4 overflow-hidden">
+        <div className="absolute inset-0 turf-stripes pointer-events-none" />
+        <div className="relative">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <svg className="w-7 h-7 p-1.5 rounded-lg bg-volt-400 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
             </svg>
-            <h2 className="text-sm font-semibold text-gray-900">Invite Players</h2>
+            <div>
+              <h2 className="text-base font-bold text-white">Invite players</h2>
+              <p className="text-xs text-white/60">Let the squad register themselves</p>
+            </div>
           </div>
           {inviteLink && (
             <button
               onClick={() => setShowRegenConfirm(true)}
-              className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-[11px] font-semibold text-white/50 hover:text-white transition-colors"
             >
               Regenerate
             </button>
@@ -200,7 +206,7 @@ export default function PlayersPage() {
           <button
             onClick={handleGetInviteLink}
             disabled={inviteLoading}
-            className="w-full py-2.5 text-sm font-semibold text-pitch-600 border border-pitch-200 rounded-xl hover:bg-pitch-50 transition-colors disabled:opacity-50"
+            className="w-full py-3 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 transition-colors disabled:opacity-50"
           >
             {inviteLoading ? 'Generating...' : 'Get invite link'}
           </button>
@@ -210,12 +216,12 @@ export default function PlayersPage() {
               type="text"
               readOnly
               value={inviteLink}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs text-gray-500 truncate font-mono"
+              className="w-full px-3 py-2.5 !bg-black/25 border border-white/10 rounded-xl text-xs text-white/80 truncate font-mono"
             />
             <div className="flex gap-2">
               <button
                 onClick={handleCopy}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold text-white bg-gray-900 rounded-xl hover:bg-gray-800 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9.75a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
@@ -224,7 +230,7 @@ export default function PlayersPage() {
               </button>
               <button
                 onClick={handleShareWhatsApp}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-semibold text-pitch-700 bg-pitch-50 rounded-xl hover:bg-pitch-100 transition-colors"
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-bold text-white bg-[#25D366] rounded-xl hover:brightness-95 transition"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z" />
@@ -234,6 +240,7 @@ export default function PlayersPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
       {/* Search */}
@@ -246,7 +253,7 @@ export default function PlayersPage() {
           placeholder="Search players..."
           value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
-          className="w-full pl-10 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent placeholder:text-gray-400"
+          className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 placeholder:text-gray-400"
         />
       </div>
 
@@ -266,21 +273,21 @@ export default function PlayersPage() {
         />
       ) : (
         <>
-          <div className="space-y-1.5">
+          <div className="grid sm:grid-cols-2 gap-2">
             {players.map((player) => (
               <div
                 key={player.id}
-                className="flex items-center gap-3 bg-white p-3 rounded-xl border border-gray-100 hover:border-gray-200 transition-colors"
+                className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
               >
                 <Link
                   href={`/players/${player.id}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
-                  <div className="w-10 h-10 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-sm font-bold shrink-0">
+                  <div className={`w-11 h-11 rounded-full ${kitFor(`${player.firstName} ${player.lastName}`).bg} ${kitFor(`${player.firstName} ${player.lastName}`).fg} flex items-center justify-center text-sm font-extrabold font-display shrink-0`}>
                     {player.firstName.charAt(0)}{player.lastName.charAt(0)}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">
+                    <p className="text-sm font-bold text-ink truncate">
                       {player.firstName} {player.lastName}
                     </p>
                     <p className="text-xs text-gray-400 truncate">
@@ -290,7 +297,7 @@ export default function PlayersPage() {
                 </Link>
                 <button
                   onClick={() => setDeleteTarget(player)}
-                  className="text-gray-300 hover:text-red-500 transition-colors shrink-0 p-1.5"
+                  className="text-gray-300 hover:text-kit-600 transition-colors shrink-0 p-1.5"
                   title="Delete player"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

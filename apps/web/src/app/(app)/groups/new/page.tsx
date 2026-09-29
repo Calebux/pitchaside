@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BackButton } from '@/components/back-button';
+import { FormHero, FormShell, formCardClass } from '@/components/form-hero';
+import { KitLine } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { createGroup } from '@/lib/api';
 import { PaymentType } from '@pitchaside/shared';
@@ -59,18 +61,24 @@ export default function NewGroupPage() {
   }
 
   const inputClass = (field: string) =>
-    `w-full px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent ${
-      errors[field] ? 'border-red-400' : 'border-gray-200'
+    `w-full px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 ${
+      errors[field] ? 'border-kit-500' : 'border-gray-200'
     }`;
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Groups" />
-      <h1 className="text-xl font-bold text-gray-900 mb-6">New Group</h1>
+      <FormShell>
+      <FormHero
+        eyebrow="New squad"
+        title="New Group"
+        subtitle="Name it, set the fee per player, pick a schedule. Done in 30 seconds."
+        art={<KitLine className="w-full h-auto" />}
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className={formCardClass}>
         <div>
-          <label htmlFor="name" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="name" className="block text-xs font-bold text-gray-700 mb-1.5">
             Group Name *
           </label>
           <input
@@ -80,11 +88,11 @@ export default function NewGroupPage() {
             placeholder="e.g. Sunday League"
             className={inputClass('name')}
           />
-          {errors.name && <p className="text-xs text-red-600 mt-1">{errors.name}</p>}
+          {errors.name && <p className="text-xs text-kit-600 mt-1">{errors.name}</p>}
         </div>
 
         <div>
-          <label htmlFor="description" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="description" className="block text-xs font-bold text-gray-700 mb-1.5">
             Description
           </label>
           <textarea
@@ -92,12 +100,12 @@ export default function NewGroupPage() {
             name="description"
             rows={2}
             placeholder="Optional description"
-            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent resize-none"
+            className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 resize-none"
           />
         </div>
 
         <div>
-          <label htmlFor="schedule" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="schedule" className="block text-xs font-bold text-gray-700 mb-1.5">
             Schedule
           </label>
           <input
@@ -105,13 +113,13 @@ export default function NewGroupPage() {
             name="schedule"
             type="text"
             placeholder="e.g. Every Sunday 4pm"
-            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent"
+            className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="targetPlayers" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="targetPlayers" className="block text-xs font-bold text-gray-700 mb-1.5">
               Target Players *
             </label>
             <input
@@ -122,10 +130,10 @@ export default function NewGroupPage() {
               defaultValue={10}
               className={inputClass('targetPlayers')}
             />
-            {errors.targetPlayers && <p className="text-xs text-red-600 mt-1">{errors.targetPlayers}</p>}
+            {errors.targetPlayers && <p className="text-xs text-kit-600 mt-1">{errors.targetPlayers}</p>}
           </div>
           <div>
-            <label htmlFor="feePerPlayer" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="feePerPlayer" className="block text-xs font-bold text-gray-700 mb-1.5">
               Fee per Player *
             </label>
             <input
@@ -137,19 +145,19 @@ export default function NewGroupPage() {
               defaultValue={10}
               className={inputClass('feePerPlayer')}
             />
-            {errors.feePerPlayer && <p className="text-xs text-red-600 mt-1">{errors.feePerPlayer}</p>}
+            {errors.feePerPlayer && <p className="text-xs text-kit-600 mt-1">{errors.feePerPlayer}</p>}
           </div>
         </div>
 
         <div>
-          <label htmlFor="paymentType" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="paymentType" className="block text-xs font-bold text-gray-700 mb-1.5">
             Payment Type
           </label>
           <select
             id="paymentType"
             name="paymentType"
             defaultValue={PaymentType.PER_SESSION}
-            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent bg-white"
+            className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 bg-white"
           >
             <option value={PaymentType.PER_SESSION}>Per Session</option>
             <option value={PaymentType.MONTHLY}>Monthly</option>
@@ -159,11 +167,12 @@ export default function NewGroupPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-pitch-600 text-white font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Creating...' : 'Create Group'}
         </button>
       </form>
+      </FormShell>
     </div>
   );
 }

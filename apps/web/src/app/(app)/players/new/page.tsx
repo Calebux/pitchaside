@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BackButton } from '@/components/back-button';
+import { FormHero, FormShell, formCardClass } from '@/components/form-hero';
+import { Player, Ball, palette, skins } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { createPlayer } from '@/lib/api';
 
@@ -61,19 +63,31 @@ export default function NewPlayerPage() {
   }
 
   const inputClass = (field: string) =>
-    `w-full px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent ${
-      errors[field] ? 'border-red-400' : 'border-gray-200'
+    `w-full px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 ${
+      errors[field] ? 'border-kit-500' : 'border-gray-200'
     }`;
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Players" />
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Register Player</h1>
+      <FormShell>
+      <FormHero
+        tone="sky"
+        eyebrow="New signing"
+        title="Register Player"
+        subtitle="Add their contact details so you can track games and payments."
+        art={
+          <svg viewBox="0 0 160 150" className="w-full h-auto" aria-hidden>
+            <Player x={78} y={146} scale={0.92} pose="celebrate" kit={palette.kit} skin={skins[0]} hair="afro" number={23} numberColor={palette.white} />
+            <Ball x={138} y={132} r={12} spin={10} />
+          </svg>
+        }
+      />
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className={formCardClass}>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="firstName" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="firstName" className="block text-xs font-bold text-gray-700 mb-1.5">
               First Name *
             </label>
             <input
@@ -82,10 +96,10 @@ export default function NewPlayerPage() {
               type="text"
               className={inputClass('firstName')}
             />
-            {errors.firstName && <p className="text-xs text-red-600 mt-1">{errors.firstName}</p>}
+            {errors.firstName && <p className="text-xs text-kit-600 mt-1">{errors.firstName}</p>}
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="lastName" className="block text-xs font-bold text-gray-700 mb-1.5">
               Last Name *
             </label>
             <input
@@ -94,12 +108,12 @@ export default function NewPlayerPage() {
               type="text"
               className={inputClass('lastName')}
             />
-            {errors.lastName && <p className="text-xs text-red-600 mt-1">{errors.lastName}</p>}
+            {errors.lastName && <p className="text-xs text-kit-600 mt-1">{errors.lastName}</p>}
           </div>
         </div>
 
         <div>
-          <label htmlFor="phone" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="phone" className="block text-xs font-bold text-gray-700 mb-1.5">
             Phone *
           </label>
           <input
@@ -109,11 +123,11 @@ export default function NewPlayerPage() {
             placeholder="+234..."
             className={inputClass('phone')}
           />
-          {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone}</p>}
+          {errors.phone && <p className="text-xs text-kit-600 mt-1">{errors.phone}</p>}
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
             Email
           </label>
           <input
@@ -123,17 +137,18 @@ export default function NewPlayerPage() {
             placeholder="Optional"
             className={inputClass('email')}
           />
-          {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email}</p>}
+          {errors.email && <p className="text-xs text-kit-600 mt-1">{errors.email}</p>}
         </div>
 
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-pitch-600 text-white font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Registering...' : 'Register Player'}
         </button>
       </form>
+      </FormShell>
     </div>
   );
 }

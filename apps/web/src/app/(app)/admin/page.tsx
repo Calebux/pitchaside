@@ -8,6 +8,8 @@ import { useToast } from '@/components/toast';
 import { http } from '@/lib/http';
 import { StatCard } from '@/components/stat-card';
 import { UserRole } from '@pitchaside/shared';
+import { PageHeader } from '@/components/brand';
+import { kitFor } from '@/components/illustrations';
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -64,11 +66,11 @@ export default function AdminPage() {
     }
   }
 
-  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
 
   if (loading) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-gray-200 rounded w-24" />
           <div className="grid grid-cols-2 gap-3">
@@ -83,16 +85,17 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-1">Admin</h1>
-      <p className="text-xs text-gray-400 mb-6">
-        {isSuperAdmin ? 'Platform administration' : 'Organization management'}
-      </p>
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+      <PageHeader
+        eyebrow="Club office"
+        title="Admin"
+        subtitle={isSuperAdmin ? 'Platform administration' : 'Organization management'}
+      />
 
       {/* Super Admin: Platform stats */}
       {isSuperAdmin && platformStats && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Platform Overview</h2>
+          <h2 className="text-lg font-bold text-ink mb-3">Platform Overview</h2>
           <div className="grid grid-cols-2 gap-3 mb-4">
             <StatCard label="Organizations" value={platformStats.totalOrgs} />
             <StatCard label="Users" value={platformStats.totalUsers} />
@@ -117,7 +120,7 @@ export default function AdminPage() {
       {/* Org Stats */}
       {orgStats && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">
+          <h2 className="text-lg font-bold text-ink mb-3">
             {user?.organization?.name || 'Organization'}
           </h2>
           <div className="grid grid-cols-2 gap-3">
@@ -139,12 +142,12 @@ export default function AdminPage() {
       {/* Recent Activity */}
       {auditLogs.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Recent Activity</h2>
+          <h2 className="text-lg font-bold text-ink mb-3">Recent Activity</h2>
           <div className="space-y-2">
             {auditLogs.map((log: any) => (
               <div
                 key={log.id}
-                className="bg-white rounded-xl p-3.5 border border-gray-100 text-sm"
+                className="bg-white rounded-2xl shadow-card p-3.5 border border-gray-100 text-sm"
               >
                 <div className="flex justify-between items-start">
                   <p className="text-gray-900 font-medium capitalize">
@@ -171,7 +174,7 @@ export default function AdminPage() {
       {/* Org Members */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-900">Team Members</h2>
+          <h2 className="text-lg font-bold text-ink">Team Members</h2>
           <button
             onClick={() => setShowInvite(!showInvite)}
             className="text-sm font-semibold text-pitch-600 hover:text-pitch-700"
@@ -221,7 +224,7 @@ export default function AdminPage() {
             <button
               type="submit"
               disabled={inviting}
-              className="w-full py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+              className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
             >
               {inviting ? 'Adding...' : 'Add Member'}
             </button>
@@ -232,14 +235,14 @@ export default function AdminPage() {
           {orgMembers.map((member: any) => (
             <div
               key={member.id}
-              className="bg-white rounded-xl p-3.5 border border-gray-100 flex items-center justify-between"
+              className="bg-white rounded-2xl shadow-card p-3.5 border border-gray-100 flex items-center justify-between"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-xs font-semibold">
+                <div className={`w-10 h-10 rounded-full ${kitFor(`${member.firstName} ${member.lastName}`).bg} ${kitFor(`${member.firstName} ${member.lastName}`).fg} flex items-center justify-center text-xs font-extrabold font-display`}>
                   {member.firstName[0]}{member.lastName[0]}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
+                  <p className="text-sm font-bold text-ink">
                     {member.firstName} {member.lastName}
                   </p>
                   <p className="text-xs text-gray-400">{member.email}</p>
@@ -249,7 +252,7 @@ export default function AdminPage() {
                 member.role === 'super_admin'
                   ? 'bg-purple-50 text-purple-700'
                   : member.role === 'org_admin'
-                    ? 'bg-pitch-50 text-pitch-700'
+                    ? 'bg-volt-300 text-ink'
                     : 'bg-gray-100 text-gray-600'
               }`}>
                 {member.role === 'super_admin' ? 'Super Admin' : member.role === 'org_admin' ? 'Admin' : 'Member'}

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { getGroups, getSessions, formatCurrency, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
 import { SessionStatus } from '@pitchaside/shared';
+import { Celebration, Player, Ball, BallIcon, kitFor, palette, skins } from '@/components/illustrations';
 
 const onboardingSteps = [
   {
@@ -64,22 +65,24 @@ export default function Dashboard() {
   const nextSession = upcomingSessions[0];
   const nextGroup = nextSession ? groups.find((g) => g.id === nextSession.groupId) : null;
 
-  const totalTarget = sessions.reduce((sum, s) => sum + s.targetAmount, 0);
-  const totalCollected = sessions.reduce((sum, s) => sum + s.collectedAmount, 0);
+  // Amounts arrive from Postgres DECIMAL columns as strings; coerce before summing.
+  const totalTarget = sessions.reduce((sum, s) => sum + Number(s.targetAmount), 0);
+  const totalCollected = sessions.reduce((sum, s) => sum + Number(s.collectedAmount), 0);
 
   if (loading) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-5xl mx-auto">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-40" />
-          <div className="h-3 bg-gray-100 rounded w-28" />
-          <div className="h-48 bg-gray-200 rounded-2xl" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="h-20 bg-gray-200 rounded-xl" />
-            <div className="h-20 bg-gray-200 rounded-xl" />
+          <div className="h-4 bg-gray-200 rounded w-40" />
+          <div className="h-8 bg-gray-200 rounded w-56" />
+          <div className="grid md:grid-cols-[1.4fr_1fr] gap-4">
+            <div className="h-60 bg-gray-200 rounded-3xl" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="h-28 bg-gray-200 rounded-2xl" />
+              <div className="h-28 bg-gray-200 rounded-2xl" />
+              <div className="h-28 bg-gray-200 rounded-2xl col-span-2" />
+            </div>
           </div>
-          <div className="h-24 bg-gray-200 rounded-xl" />
-          <div className="h-24 bg-gray-200 rounded-xl" />
         </div>
       </div>
     );
@@ -88,38 +91,43 @@ export default function Dashboard() {
   // New user — no groups yet
   if (groups.length === 0) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
-        <div className="pt-8 pb-6 text-center">
-          <div className="w-14 h-14 bg-pitch-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <svg className="w-7 h-7 text-pitch-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+        <div className="relative rounded-[32px] bg-volt-300 border-2 border-ink shadow-sticker overflow-hidden px-6 pt-6 pb-0 sm:px-10 sm:pt-10 mb-5">
+          <div className="absolute inset-0 chalk-dots opacity-60" />
+          <div className="relative grid sm:grid-cols-[1fr_auto] items-end gap-2">
+            <div className="pb-6 sm:pb-10">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-ink/60">Pre-season</p>
+              <h1 className="text-4xl font-extrabold text-ink mt-1 leading-none">
+                Welcome{user?.firstName ? `, ${user.firstName}` : ''}!
+              </h1>
+              <p className="text-sm text-ink/70 mt-3 max-w-xs">
+                Let&apos;s get your pitch set up. Follow these steps to start tracking payments.
+              </p>
+            </div>
+            <Celebration className="w-44 sm:w-52 h-auto mx-auto -mb-1" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">
-            Welcome{user?.firstName ? `, ${user.firstName}` : ''}!
-          </h1>
-          <p className="text-sm text-gray-500 max-w-xs mx-auto">
-            Let&apos;s get your pitch set up. Follow these steps to start tracking payments.
-          </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {onboardingSteps.map((item) => (
             <Link
               key={item.step}
               href={item.href}
-              className="flex items-center gap-4 bg-white rounded-xl p-4 border border-gray-100 hover:border-pitch-200 transition-all"
+              className="group flex items-center gap-4 bg-white rounded-2xl p-4 border border-gray-100 shadow-card hover:border-ink hover:-translate-y-0.5 transition-all"
             >
-              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-pitch-50 text-pitch-600 flex items-center justify-center">
-                {item.icon}
+              <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-ink text-volt-300 flex flex-col items-center justify-center">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-white/50 leading-none">Step</span>
+                <span className="font-display text-lg font-extrabold leading-none mt-0.5">{item.step}</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                <p className="text-[15px] font-bold text-ink">{item.title}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
               </div>
-              <svg className="w-4 h-4 text-gray-300 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-              </svg>
+              <div className="w-8 h-8 rounded-full bg-chalk group-hover:bg-volt-400 flex items-center justify-center shrink-0 transition-colors">
+                <svg className="w-4 h-4 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </div>
             </Link>
           ))}
         </div>
@@ -127,9 +135,10 @@ export default function Dashboard() {
         <div className="mt-6 text-center">
           <Link
             href="/groups/new"
-            className="inline-block px-6 py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors"
+            className="inline-flex items-center gap-2 px-7 py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors shadow-lift"
           >
             Get Started
+            <span aria-hidden>→</span>
           </Link>
         </div>
       </div>
@@ -142,194 +151,269 @@ export default function Dashboard() {
   const nextPaidCount = nextSession?.payments?.filter((p) => p.status === 'paid').length ?? 0;
   const nextTotalCount = nextSession?.payments?.length ?? 0;
   const nextPendingCount = nextTotalCount - nextPaidCount;
+  const nextUnpaid = (nextSession?.payments ?? []).filter((p) => p.status === 'pending');
+  const overallProgress = totalTarget > 0 ? Math.min(Math.round((totalCollected / totalTarget) * 100), 100) : 0;
+  const daysToGo = nextSession
+    ? Math.max(0, Math.ceil((new Date(nextSession.date).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000))
+    : 0;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="mb-5">
-        <p className="text-sm text-gray-500">
-          {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-        </p>
-        <h1 className="text-xl font-bold text-gray-900">
-          Hi, {user?.firstName || 'there'}
-        </h1>
-      </div>
-
-      {/* Next Game Card — the hero section */}
-      {nextSession ? (
-        <Link
-          href={`/sessions/${nextSession.id}`}
-          className="block bg-gray-900 rounded-2xl p-5 mb-4 text-white relative overflow-hidden"
-        >
-          {/* Subtle pattern overlay */}
-          <div className="absolute inset-0 opacity-[0.04]" style={{
-            backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)',
-            backgroundSize: '20px 20px',
-          }} />
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Next Game</p>
-                <p className="text-base font-bold mt-0.5">{nextGroup?.name || 'Game'}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-400">
-                  {new Date(nextSession.date).toLocaleDateString('en-US', {
-                    weekday: 'short',
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </p>
-              </div>
-            </div>
-
-            {/* Payment progress */}
-            <div className="mb-4">
-              <div className="flex items-baseline justify-between mb-2">
-                <span className="text-2xl font-bold tabular-nums">
-                  {formatCurrency(nextSession.collectedAmount)}
-                </span>
-                <span className="text-sm text-gray-400 tabular-nums">
-                  of {formatCurrency(nextSession.targetAmount)}
-                </span>
-              </div>
-              <div className="w-full bg-white/10 rounded-full h-2">
-                <div
-                  className="bg-pitch-400 h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(nextProgress, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Stats row */}
-            <div className="flex gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-pitch-400" />
-                <span className="text-xs text-gray-300">
-                  <span className="font-semibold text-white tabular-nums">{nextPaidCount}</span> paid
-                </span>
-              </div>
-              {nextPendingCount > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-amber-400" />
-                  <span className="text-xs text-gray-300">
-                    <span className="font-semibold text-white tabular-nums">{nextPendingCount}</span> pending
-                  </span>
-                </div>
-              )}
-              <div className="flex items-center gap-1.5 ml-auto">
-                <span className="text-xs font-semibold text-pitch-400 tabular-nums">{nextProgress}%</span>
-              </div>
-            </div>
-          </div>
-        </Link>
-      ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center mb-4">
-          <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-3">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-            </svg>
-          </div>
-          <p className="text-sm font-semibold text-gray-900 mb-0.5">No upcoming sessions</p>
-          <p className="text-xs text-gray-500">Create a session from a group to get started.</p>
+      <div className="mb-6 flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-pitch-600">
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          </p>
+          <h1 className="text-[32px] leading-none font-extrabold text-ink mt-1.5">
+            {greeting}, {user?.firstName || 'there'}
+          </h1>
         </div>
-      )}
-
-      {/* Overview stats */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Groups</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{groups.length}</p>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-100">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Upcoming</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1 tabular-nums">{upcomingSessions.length}</p>
-        </div>
-      </div>
-
-      {totalTarget > 0 && (
-        <div className="bg-white rounded-xl p-4 border border-gray-100 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Total Collected</p>
-            <p className="text-xs font-semibold text-pitch-600 tabular-nums">
-              {totalTarget > 0 ? Math.round((totalCollected / totalTarget) * 100) : 0}%
-            </p>
-          </div>
-          <p className="text-xl font-bold text-gray-900 tabular-nums">{formatCurrency(totalCollected)}</p>
-          <p className="text-xs text-gray-400 mt-0.5 tabular-nums">of {formatCurrency(totalTarget)} expected</p>
-          <div className="w-full bg-gray-100 rounded-full h-1.5 mt-3">
-            <div
-              className="bg-pitch-500 h-1.5 rounded-full transition-all"
-              style={{ width: `${totalTarget > 0 ? Math.min(Math.round((totalCollected / totalTarget) * 100), 100) : 0}%` }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
         <Link
           href="/groups/new"
-          className="flex items-center justify-center gap-2 py-2.5 px-4 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors"
+          className="hidden sm:inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           New Group
         </Link>
-        <Link
-          href="/players"
-          className="flex items-center justify-center gap-2 py-2.5 px-4 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-          </svg>
-          Players
-        </Link>
       </div>
 
-      {/* Other Upcoming Sessions */}
-      {upcomingSessions.length > 1 && (
-        <>
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Other Upcoming Sessions</h2>
-          <div className="space-y-2">
-            {upcomingSessions.slice(1, 5).map((session) => {
-              const progress = session.targetAmount > 0
-                ? Math.round((session.collectedAmount / session.targetAmount) * 100)
-                : 0;
-              const group = groups.find((g) => g.id === session.groupId);
+      <div className="grid md:grid-cols-[1.45fr_1fr] gap-4 items-start">
+        <div className="space-y-4">
+          {/* Next Game Card — the hero section */}
+          {nextSession ? (
+            <Link
+              href={`/sessions/${nextSession.id}`}
+              className="group block bg-pitch-800 rounded-[28px] text-white relative overflow-hidden shadow-lift"
+            >
+              <div className="absolute inset-0 turf-stripes" />
+              {/* Pitch markings */}
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 400 260" aria-hidden>
+                <g stroke="white" strokeOpacity="0.14" strokeWidth="2" fill="none">
+                  <rect x="12" y="12" width="376" height="236" rx="10" />
+                  <line x1="260" y1="12" x2="260" y2="248" />
+                  <circle cx="260" cy="130" r="42" />
+                </g>
+              </svg>
+              <svg className="absolute right-0 bottom-0 w-40 sm:w-48 h-auto pointer-events-none" viewBox="0 0 200 190" aria-hidden>
+                <Player x={104} y={178} scale={1} pose="kick" kit={palette.volt} skin={skins[1]} hair="afro" number={10} />
+                <g className="group-hover:-translate-y-2 transition-transform duration-500">
+                  <Ball x={170} y={120} r={13} spin={15} />
+                </g>
+              </svg>
 
-              return (
-                <Link
-                  key={session.id}
-                  href={`/sessions/${session.id}`}
-                  className="flex items-center gap-4 bg-white rounded-xl p-3.5 border border-gray-100 hover:border-gray-200 transition-colors"
-                >
-                  <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-gray-600">
-                      {new Date(session.date).toLocaleDateString('en-US', { day: 'numeric' })}
+              <div className="relative p-5 sm:p-6 pr-36 sm:pr-44">
+                <div className="flex items-center gap-2 mb-5">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-volt-400 text-ink text-[10px] font-extrabold uppercase tracking-wider">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ink animate-pulse-soft" />
+                    Next game
+                  </span>
+                  <span className="text-xs font-semibold text-white/60">
+                    {daysToGo === 0 ? 'Today' : daysToGo === 1 ? 'Tomorrow' : `In ${daysToGo} days`}
+                  </span>
+                </div>
+                <p className="font-display text-2xl sm:text-[28px] font-extrabold leading-tight">{nextGroup?.name || 'Game'}</p>
+                <p className="text-sm text-white/60 mt-1">
+                  {new Date(nextSession.date).toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </p>
+
+                {/* Payment progress */}
+                <div className="mt-6">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <span className="font-display text-3xl font-extrabold tabular-nums">
+                      {formatCurrency(nextSession.collectedAmount)}
+                    </span>
+                    <span className="text-sm text-white/50 tabular-nums">
+                      of {formatCurrency(nextSession.targetAmount)}
                     </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {group?.name || 'Game'}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                    </p>
+                  <div className="w-full bg-black/25 rounded-full h-2.5">
+                    <div
+                      className="bg-volt-400 h-2.5 rounded-full animate-progress"
+                      style={{ width: `${Math.min(nextProgress, 100)}%` }}
+                    />
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-semibold text-gray-900 tabular-nums">
-                      {formatCurrency(session.collectedAmount)}
-                    </p>
-                    <p className="text-[10px] text-gray-400 tabular-nums">{progress}%</p>
+                  <div className="flex gap-4 mt-3">
+                    <span className="flex items-center gap-1.5 text-xs text-white/70">
+                      <span className="w-2 h-2 rounded-full bg-volt-400" />
+                      <span className="font-bold text-white tabular-nums">{nextPaidCount}</span> paid
+                    </span>
+                    {nextPendingCount > 0 && (
+                      <span className="flex items-center gap-1.5 text-xs text-white/70">
+                        <span className="w-2 h-2 rounded-full bg-sun-400" />
+                        <span className="font-bold text-white tabular-nums">{nextPendingCount}</span> pending
+                      </span>
+                    )}
+                    <span className="text-xs font-extrabold text-volt-300 tabular-nums">{nextProgress}%</span>
                   </div>
+                </div>
+              </div>
+            </Link>
+          ) : (
+            <div className="bg-white rounded-[28px] border border-dashed border-gray-300 chalk-dots p-6 text-center">
+              <BallIcon className="w-10 h-10 mx-auto mb-3 animate-bounce-ball" />
+              <p className="text-base font-bold text-ink mb-0.5">No upcoming sessions</p>
+              <p className="text-xs text-gray-500">Create a session from a group to get started.</p>
+            </div>
+          )}
+
+          {/* Still to pay for the next game */}
+          {nextSession && nextUnpaid.length > 0 && (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold text-ink">Still to pay</h2>
+                <Link href={`/sessions/${nextSession.id}`} className="text-xs font-bold text-pitch-600 hover:text-pitch-800">
+                  Collect →
                 </Link>
-              );
-            })}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {nextUnpaid.slice(0, 8).map((p) => {
+                  const name = p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player';
+                  const k = kitFor(name);
+                  return (
+                    <span key={p.id} className="inline-flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-chalk border border-gray-200">
+                      <span className={`w-6 h-6 rounded-full ${k.bg} ${k.fg} flex items-center justify-center text-[10px] font-extrabold font-display`}>
+                        {name.charAt(0)}
+                      </span>
+                      <span className="text-xs font-semibold text-ink">{p.player?.firstName ?? name}</span>
+                      <span className="text-[11px] text-gray-500 tabular-nums">{formatCurrency(p.amount)}</span>
+                    </span>
+                  );
+                })}
+                {nextUnpaid.length > 8 && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full bg-ink text-volt-300 text-xs font-bold">
+                    +{nextUnpaid.length - 8} more
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Other Upcoming Sessions */}
+          {upcomingSessions.length > 1 && (
+            <div>
+              <h2 className="text-base font-bold text-ink mb-3">Coming up</h2>
+              <div className="space-y-2">
+                {upcomingSessions.slice(1, 5).map((session) => {
+                  const progress = session.targetAmount > 0
+                    ? Math.round((session.collectedAmount / session.targetAmount) * 100)
+                    : 0;
+                  const group = groups.find((g) => g.id === session.groupId);
+                  const d = new Date(session.date);
+
+                  return (
+                    <Link
+                      key={session.id}
+                      href={`/sessions/${session.id}`}
+                      className="flex items-center gap-4 bg-white rounded-2xl p-3 border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
+                    >
+                      <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-gray-200 text-center">
+                        <div className="bg-kit-500 text-white text-[9px] font-extrabold uppercase tracking-wider py-0.5">
+                          {d.toLocaleDateString('en-US', { month: 'short' })}
+                        </div>
+                        <div className="font-display text-lg font-extrabold text-ink leading-7">{d.getDate()}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-ink truncate">{group?.name || 'Game'}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <div className="flex-1 max-w-[140px] bg-gray-100 rounded-full h-1.5">
+                            <div className="bg-pitch-500 h-1.5 rounded-full" style={{ width: `${Math.min(progress, 100)}%` }} />
+                          </div>
+                          <span className="text-[11px] font-semibold text-gray-500 tabular-nums">{progress}%</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-ink tabular-nums">{formatCurrency(session.collectedAmount)}</p>
+                        <p className="text-[11px] text-gray-500">
+                          {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right rail */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-volt-300 rounded-2xl p-4 border border-volt-400">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/60">Groups</p>
+              <p className="font-display text-4xl font-extrabold text-ink mt-1 tabular-nums leading-none">{groups.length}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">Upcoming</p>
+              <p className="font-display text-4xl font-extrabold text-ink mt-1 tabular-nums leading-none">{upcomingSessions.length}</p>
+            </div>
           </div>
-        </>
-      )}
+
+          {totalTarget > 0 && (
+            <div className="bg-ink text-white rounded-3xl p-5 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/50">Total collected</p>
+                <span className="text-xs font-extrabold text-ink bg-volt-400 px-2 py-0.5 rounded-full tabular-nums">
+                  {overallProgress}%
+                </span>
+              </div>
+              {/* Ring gauge */}
+              <div className="flex items-center gap-4 mt-4">
+                <svg viewBox="0 0 80 80" className="w-20 h-20 shrink-0 -rotate-90" aria-hidden>
+                  <circle cx="40" cy="40" r="32" stroke="rgba(255,255,255,0.12)" strokeWidth="10" fill="none" />
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="32"
+                    stroke="#d4f53c"
+                    strokeWidth="10"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(overallProgress / 100) * 201} 201`}
+                  />
+                </svg>
+                <div className="min-w-0">
+                  <p className="font-display text-2xl font-extrabold tabular-nums leading-tight">{formatCurrency(totalCollected)}</p>
+                  <p className="text-xs text-white/50 mt-0.5 tabular-nums">of {formatCurrency(totalTarget)} expected</p>
+                  <p className="text-xs text-kit-400 font-semibold mt-1.5 tabular-nums">
+                    {formatCurrency(Math.max(totalTarget - totalCollected, 0))} outstanding
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href="/groups/new"
+              className="sm:hidden flex items-center justify-center gap-2 py-3 px-4 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Group
+            </Link>
+            <Link
+              href="/players"
+              className="flex items-center justify-center gap-2 py-3 px-4 bg-white text-ink text-sm font-bold rounded-2xl border border-gray-200 hover:border-ink transition-colors sm:col-span-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
+              </svg>
+              Players
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { updateProfile, changePassword, setup2FA, verify2FA, disable2FA } from '@/lib/api';
+import { PageHeader } from '@/components/brand';
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -107,18 +108,18 @@ export default function SettingsPage() {
 
   if (!user) return null;
 
-  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
-      <h1 className="text-xl font-bold text-gray-900 mb-6">Settings</h1>
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
+      <PageHeader eyebrow="Your account" title="Settings" subtitle="Profile, password and security" />
 
       {/* Profile Section */}
-      <form onSubmit={handleProfileSave} className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Profile</h2>
+      <form onSubmit={handleProfileSave} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
+        <h2 className="text-lg font-bold text-ink mb-4">Profile</h2>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">First Name</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">First Name</label>
             <input
               type="text"
               required
@@ -129,7 +130,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Last Name</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Last Name</label>
             <input
               type="text"
               required
@@ -144,18 +145,18 @@ export default function SettingsPage() {
         <button
           type="submit"
           disabled={savingProfile}
-          className="w-full py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
           {savingProfile ? 'Saving...' : 'Update Profile'}
         </button>
       </form>
 
       {/* Change Password */}
-      <form onSubmit={handlePasswordChange} className="bg-white rounded-2xl border border-gray-100 p-5 mb-4">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Password</h2>
+      <form onSubmit={handlePasswordChange} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
+        <h2 className="text-lg font-bold text-ink mb-4">Password</h2>
         <div className="space-y-3 mb-4">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Current Password</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Current Password</label>
             <input
               type="password"
               required
@@ -165,7 +166,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">New Password</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">New Password</label>
             <input
               type="password"
               required
@@ -176,7 +177,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Confirm New Password</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Confirm New Password</label>
             <input
               type="password"
               required
@@ -190,15 +191,15 @@ export default function SettingsPage() {
         <button
           type="submit"
           disabled={savingPw}
-          className="w-full py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-800 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
           {savingPw ? 'Changing...' : 'Change Password'}
         </button>
       </form>
 
       {/* 2FA Section */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Two-Factor Authentication</h2>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
+        <h2 className="text-lg font-bold text-ink mb-4">Two-Factor Authentication</h2>
         {user.twoFactorEnabled ? (
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -216,7 +217,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleDisable2FA}
                 disabled={!disableCode || setting2FA}
-                className="w-full py-2.5 text-sm font-semibold text-red-600 border border-red-200 rounded-xl hover:bg-red-50 disabled:opacity-50 transition-colors"
+                className="w-full py-2.5 text-sm font-semibold text-kit-600 border border-kit-400/40 rounded-xl hover:bg-kit-400/10 disabled:opacity-50 transition-colors"
               >
                 {setting2FA ? 'Disabling...' : 'Disable 2FA'}
               </button>
@@ -248,7 +249,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleVerify2FA}
                 disabled={!twoFACode || setting2FA}
-                className="flex-1 py-2.5 text-sm font-semibold text-white bg-pitch-600 rounded-xl hover:bg-pitch-700 disabled:opacity-50 transition-colors"
+                className="flex-1 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
               >
                 {setting2FA ? 'Verifying...' : 'Verify & Enable'}
               </button>
@@ -262,7 +263,7 @@ export default function SettingsPage() {
             <button
               onClick={handleSetup2FA}
               disabled={setting2FA}
-              className="w-full py-2.5 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+              className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
             >
               {setting2FA ? 'Setting up...' : 'Set Up 2FA'}
             </button>

@@ -9,11 +9,12 @@ import { EmptyState } from '@/components/empty-state';
 import { useToast } from '@/components/toast';
 import { getSession, markPaid, waivePayment, bulkMarkPaid, deleteSession, updateSessionStatus, exportSessionPaymentsCsv, sendReminders, formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
+import { Trophy } from '@/components/illustrations';
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
-  upcoming: { bg: 'bg-pitch-50', text: 'text-pitch-700' },
-  completed: { bg: 'bg-gray-100', text: 'text-gray-600' },
-  cancelled: { bg: 'bg-red-50', text: 'text-red-600' },
+  upcoming: { bg: 'bg-volt-400', text: 'text-ink' },
+  completed: { bg: 'bg-white', text: 'text-ink' },
+  cancelled: { bg: 'bg-kit-500', text: 'text-white' },
 };
 
 export default function SessionDetailPage() {
@@ -115,7 +116,7 @@ export default function SessionDetailPage() {
 
   if (loading || !session) {
     return (
-      <div className="p-4 max-w-lg mx-auto">
+      <div className="p-4 sm:p-6 max-w-2xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-5 bg-gray-200 rounded w-20" />
           <div className="h-40 bg-gray-100 rounded-2xl" />
@@ -137,7 +138,7 @@ export default function SessionDetailPage() {
   const style = statusStyles[session.status] || { bg: 'bg-gray-100', text: 'text-gray-500' };
 
   return (
-    <div className="p-4 max-w-lg mx-auto">
+    <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Sessions" />
 
       <ConfirmDialog
@@ -150,64 +151,118 @@ export default function SessionDetailPage() {
         onCancel={() => setShowDeleteConfirm(false)}
       />
 
-      {/* Hero card */}
-      <div className="bg-gray-900 rounded-2xl p-5 mb-6 text-white">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-white/60 text-xs font-medium">
-              {new Date(session.date).toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </p>
-            <h1 className="text-xl font-bold mt-0.5">Game Session</h1>
+      {/* Hero card — scoreboard on turf */}
+      <div className="relative bg-pitch-800 rounded-[28px] mb-5 text-white overflow-hidden shadow-lift">
+        <div className="absolute inset-0 turf-stripes" />
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 400 300" aria-hidden>
+          <g stroke="white" strokeOpacity="0.12" strokeWidth="2" fill="none">
+            <rect x="12" y="12" width="376" height="276" rx="12" />
+            <line x1="12" y1="150" x2="388" y2="150" />
+            <circle cx="200" cy="150" r="46" />
+          </g>
+        </svg>
+        <div className="relative p-5 sm:p-6">
+          <div className="flex items-start justify-between mb-5 gap-3">
+            <div className="min-w-0">
+              <p className="text-white/60 text-xs font-semibold">
+                {new Date(session.date).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric',
+                })}
+              </p>
+              <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1 line-clamp-2">
+                {session.group?.name || 'Game Session'}
+              </h1>
+            </div>
+            <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ${style.bg} ${style.text}`}>
+              {session.status}
+            </span>
           </div>
-          <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full uppercase tracking-wide ${style.bg} ${style.text}`}>
-            {session.status}
-          </span>
-        </div>
 
-        {/* Financial summary */}
-        <div className="mb-4">
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl font-bold tabular-nums">{formatCurrency(session.collectedAmount)}</span>
-            <span className="text-white/40 text-sm tabular-nums">/ {formatCurrency(session.targetAmount)}</span>
+          {/* Financial summary */}
+          <div className="flex items-end justify-between gap-3 mb-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-4xl font-extrabold tabular-nums">{formatCurrency(session.collectedAmount)}</span>
+              <span className="text-white/45 text-sm tabular-nums">/ {formatCurrency(session.targetAmount)}</span>
+            </div>
+            <span className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{progress}%</span>
           </div>
-        </div>
 
-        {/* Progress bar */}
-        <div className="w-full bg-white/10 rounded-full h-2 mb-3">
-          <div
-            className={`h-2 rounded-full transition-all ${
-              progress >= 100 ? 'bg-pitch-400' :
-              progress >= 50 ? 'bg-pitch-500' :
-              'bg-amber-400'
-            }`}
-            style={{ width: `${Math.min(progress, 100)}%` }}
-          />
-        </div>
+          {/* Progress bar */}
+          <div className="w-full bg-black/25 rounded-full h-2.5 mb-5">
+            <div
+              className={`h-2.5 rounded-full animate-progress ${
+                progress >= 50 ? 'bg-volt-400' : 'bg-sun-400'
+              }`}
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
+          </div>
 
-        {/* Stats row */}
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-3">
-            <span className="text-pitch-400 font-semibold tabular-nums">{paidCount} paid</span>
+          {/* Squad board — one shirt per player, coloured by payment status */}
+          {payments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-4" aria-label="Payment status by player">
+              {payments.map((p) => (
+                <svg
+                  key={p.id}
+                  viewBox="0 0 48 48"
+                  className="w-7 h-7"
+                  aria-label={`${p.player?.firstName ?? 'Player'}: ${p.status}`}
+                >
+                  <title>{`${p.player?.firstName ?? 'Player'} — ${p.status}`}</title>
+                  <path
+                    d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z"
+                    fill={p.status === PaymentStatus.PAID ? '#d4f53c' : p.status === PaymentStatus.WAIVED ? 'rgba(255,255,255,0.25)' : 'transparent'}
+                    stroke={p.status === PaymentStatus.PENDING ? '#ffc93c' : 'transparent'}
+                    strokeWidth="2.5"
+                    strokeDasharray={p.status === PaymentStatus.PENDING ? '4 3' : undefined}
+                    strokeLinejoin="round"
+                  />
+                  <text x="24" y="34" textAnchor="middle" fontSize="15" fontWeight="800" fill={p.status === PaymentStatus.PAID ? '#0f1a14' : 'rgba(255,255,255,0.8)'}>
+                    {p.player?.firstName?.charAt(0) ?? '?'}
+                  </text>
+                </svg>
+              ))}
+            </div>
+          )}
+
+          {/* Stats row */}
+          <div className="flex items-center gap-4 text-xs">
+            <span className="flex items-center gap-1.5 text-white/70">
+              <span className="w-2 h-2 rounded-full bg-volt-400" />
+              <span className="font-bold text-white tabular-nums">{paidCount}</span> paid
+            </span>
+            <span className="flex items-center gap-1.5 text-white/70">
+              <span className="w-2 h-2 rounded-full border-2 border-dashed border-sun-400" />
+              <span className="font-bold text-white tabular-nums">{pendingPayments.length}</span> pending
+            </span>
             {waivedCount > 0 && (
-              <span className="text-white/40 tabular-nums">{waivedCount} waived</span>
+              <span className="flex items-center gap-1.5 text-white/70">
+                <span className="w-2 h-2 rounded-full bg-white/30" />
+                <span className="font-bold text-white tabular-nums">{waivedCount}</span> waived
+              </span>
             )}
-            <span className="text-white/40 tabular-nums">{pendingPayments.length} pending</span>
           </div>
-          <span className="text-white/60 font-semibold tabular-nums">{progress}%</span>
         </div>
       </div>
 
+      {payments.length > 0 && pendingPayments.length === 0 && (
+        <div className="flex items-center gap-4 bg-volt-300 border-2 border-ink shadow-sticker rounded-3xl p-4 mb-5">
+          <Trophy className="w-20 h-auto shrink-0" />
+          <div>
+            <p className="font-display text-lg font-extrabold text-ink leading-tight">Full-time! Everyone&apos;s settled up.</p>
+            <p className="text-xs text-ink/70 mt-1">No chasing needed for this one.</p>
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-1 items-center">
         {session.status !== SessionStatus.COMPLETED && (
           <button
             onClick={() => handleStatusChange('completed')}
             disabled={updatingStatus}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-pitch-700 bg-pitch-50 rounded-xl hover:bg-pitch-100 disabled:opacity-50 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors whitespace-nowrap"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
@@ -219,7 +274,7 @@ export default function SessionDetailPage() {
           <button
             onClick={() => handleStatusChange('upcoming')}
             disabled={updatingStatus}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-ink bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 transition-colors whitespace-nowrap"
           >
             Reopen
           </button>
@@ -237,7 +292,7 @@ export default function SessionDetailPage() {
             }
           }}
           disabled={sendingReminders}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors whitespace-nowrap"
+          className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold text-ink bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 transition-colors whitespace-nowrap"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
@@ -246,7 +301,7 @@ export default function SessionDetailPage() {
         </button>
         <button
           onClick={() => exportSessionPaymentsCsv(id).catch(() => toast.error('Export failed'))}
-          className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="p-2.5 ml-auto text-gray-500 bg-white border border-gray-200 rounded-xl hover:text-ink transition-colors"
           title="Export CSV"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -257,7 +312,7 @@ export default function SessionDetailPage() {
           <button
             onClick={() => handleStatusChange('cancelled')}
             disabled={updatingStatus}
-            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+            className="p-2.5 text-gray-500 bg-white border border-gray-200 rounded-xl hover:text-kit-600 hover:border-kit-400 transition-colors"
             title="Cancel session"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -267,7 +322,7 @@ export default function SessionDetailPage() {
         )}
         <button
           onClick={() => setShowDeleteConfirm(true)}
-          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+          className="p-2.5 text-gray-500 bg-white border border-gray-200 rounded-xl hover:text-kit-600 hover:border-kit-400 transition-colors"
           title="Delete session"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -278,7 +333,7 @@ export default function SessionDetailPage() {
 
       {/* Payment tracker */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-gray-900">Payment Tracker</h2>
+        <h2 className="text-lg font-bold text-ink">Payment tracker</h2>
         {pendingPayments.length > 0 && (
           <button
             onClick={() => {
@@ -289,7 +344,7 @@ export default function SessionDetailPage() {
               }
             }}
             disabled={bulkMarking}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-pitch-700 bg-pitch-50 rounded-lg hover:bg-pitch-100 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 disabled:opacity-50 transition-colors"
           >
             {bulkMarking ? (
               <>

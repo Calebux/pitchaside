@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { Logo } from '@/components/brand';
+import { OffsideFlag, Trophy, NightStadium } from '@/components/illustrations';
+import { BallLoader } from '@/components/skeleton';
 import { getOrgByInviteCode, joinOrg } from '@/lib/api';
 
 export default function JoinPage() {
@@ -57,12 +60,12 @@ export default function JoinPage() {
     }
   }
 
-  const inputClass = "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+  const inputClass = "w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pitch-600" />
+        <BallLoader label="Checking your invite…" />
       </div>
     );
   }
@@ -71,19 +74,10 @@ export default function JoinPage() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">PitchAside</span>
-          </Link>
+          <Logo />
           <div className="mt-8">
-            <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-bold text-gray-900 mb-2">Invalid Invite Link</h1>
+            <OffsideFlag className="w-48 h-40 mx-auto mb-2" />
+            <h1 className="text-2xl font-extrabold text-ink mb-2">Invalid invite link</h1>
             <p className="text-sm text-gray-500">
               This invite link is invalid or has expired. Please ask your organizer for a new link.
             </p>
@@ -97,21 +91,12 @@ export default function JoinPage() {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">PitchAside</span>
-          </Link>
+          <Logo />
           <div className="mt-8">
-            <div className="w-14 h-14 bg-pitch-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <svg className="w-7 h-7 text-pitch-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-bold text-gray-900 mb-2">You&apos;re in!</h1>
+            <Trophy className="w-52 h-44 mx-auto mb-2" />
+            <h1 className="text-3xl font-extrabold text-ink mb-2">You&apos;re in the squad!</h1>
             <p className="text-sm text-gray-500">
-              You&apos;ve been added to <span className="font-semibold text-gray-900">{orgName}</span>. The organizer will see you in their player list.
+              You&apos;ve been added to <span className="font-bold text-ink">{orgName}</span>. The organizer will see you in their player list.
             </p>
           </div>
         </div>
@@ -120,33 +105,33 @@ export default function JoinPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-white flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
-            </div>
-            <span className="text-xl font-bold text-gray-900">PitchAside</span>
-          </Link>
-          <h1 className="mt-6 text-xl font-bold text-gray-900">
-            Join {orgName}
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Register as a player
-          </p>
+        <div className="text-center mb-6">
+          <Logo />
         </div>
+        <div className="relative h-36 rounded-3xl overflow-hidden bg-pitch-950 border-2 border-ink shadow-sticker mb-6">
+          <NightStadium className="absolute inset-0 w-full h-full" />
+          <div className="absolute inset-0 bg-gradient-to-t from-pitch-950 via-pitch-950/40 to-transparent" />
+          <div className="absolute left-4 right-4 bottom-3">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">You&apos;ve been called up</p>
+            <h1 className="font-display text-2xl font-extrabold text-white leading-tight truncate">Join {orgName}</h1>
+          </div>
+        </div>
+        <p className="text-sm text-gray-600 mb-5 text-center">
+          Register as a player so your organiser can track your games and payments.
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {formError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+            <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">
               {formError}
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="firstName" className="block text-xs font-medium text-gray-500 mb-1.5">
+              <label htmlFor="firstName" className="block text-xs font-bold text-gray-700 mb-1.5">
                 First Name *
               </label>
               <input
@@ -160,7 +145,7 @@ export default function JoinPage() {
               />
             </div>
             <div>
-              <label htmlFor="lastName" className="block text-xs font-medium text-gray-500 mb-1.5">
+              <label htmlFor="lastName" className="block text-xs font-bold text-gray-700 mb-1.5">
                 Last Name *
               </label>
               <input
@@ -176,7 +161,7 @@ export default function JoinPage() {
           </div>
 
           <div>
-            <label htmlFor="phone" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="phone" className="block text-xs font-bold text-gray-700 mb-1.5">
               Phone Number *
             </label>
             <input
@@ -192,7 +177,7 @@ export default function JoinPage() {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
               Email <span className="text-gray-300">(optional)</span>
             </label>
             <input
@@ -209,7 +194,7 @@ export default function JoinPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+            className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
           >
             {submitting ? 'Joining...' : 'Join Team'}
           </button>

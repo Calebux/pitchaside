@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Logo } from '@/components/brand';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -46,24 +47,19 @@ export default function SignUpPage() {
     }
   }
 
-  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-pitch-500 focus:border-transparent";
+  const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
 
   return (
     <div className="w-full max-w-sm">
       <div className="text-center mb-8">
-        <Link href="/" className="inline-flex items-center gap-2">
-          <div className="w-8 h-8 bg-pitch-600 rounded-xl flex items-center justify-center">
-            <span className="text-white font-bold text-sm">P</span>
-          </div>
-          <span className="text-xl font-bold text-gray-900">PitchAside</span>
-        </Link>
-        <h1 className="mt-6 text-xl font-bold text-gray-900">Create your account</h1>
+        <Logo />
+        <h1 className="mt-6 text-[28px] leading-tight font-extrabold text-ink">Create your account</h1>
         <p className="mt-1 text-sm text-gray-500">Start managing your pitch</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="teamName" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="teamName" className="block text-xs font-bold text-gray-700 mb-1.5">
             Team / Organization *
           </label>
           <input
@@ -80,7 +76,7 @@ export default function SignUpPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="firstName" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="firstName" className="block text-xs font-bold text-gray-700 mb-1.5">
               First Name *
             </label>
             <input
@@ -94,7 +90,7 @@ export default function SignUpPage() {
             />
           </div>
           <div>
-            <label htmlFor="lastName" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="lastName" className="block text-xs font-bold text-gray-700 mb-1.5">
               Last Name *
             </label>
             <input
@@ -111,7 +107,7 @@ export default function SignUpPage() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="country" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="country" className="block text-xs font-bold text-gray-700 mb-1.5">
               Country
             </label>
             <input
@@ -125,7 +121,7 @@ export default function SignUpPage() {
             />
           </div>
           <div>
-            <label htmlFor="state" className="block text-xs font-medium text-gray-500 mb-1.5">
+            <label htmlFor="state" className="block text-xs font-bold text-gray-700 mb-1.5">
               State
             </label>
             <input
@@ -141,7 +137,7 @@ export default function SignUpPage() {
         </div>
 
         <div>
-          <label htmlFor="email" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
             Email *
           </label>
           <input
@@ -157,7 +153,7 @@ export default function SignUpPage() {
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-xs font-medium text-gray-500 mb-1.5">
+          <label htmlFor="password" className="block text-xs font-bold text-gray-700 mb-1.5">
             Password *
           </label>
           <input
@@ -176,7 +172,7 @@ export default function SignUpPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full py-3 bg-pitch-600 text-white text-sm font-semibold rounded-xl hover:bg-pitch-700 transition-colors disabled:opacity-50"
+          className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
           {submitting ? 'Creating account...' : 'Create Account'}
         </button>
