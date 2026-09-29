@@ -127,6 +127,7 @@ export interface IUser {
   organizationId: string;
   organization?: IOrganization;
   twoFactorEnabled?: boolean;
+  emailVerified?: boolean;
   createdAt: string;
 }
 
