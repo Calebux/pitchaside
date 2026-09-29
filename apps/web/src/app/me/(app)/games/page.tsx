@@ -26,7 +26,7 @@ export default function PlayerGamesPage() {
             {data.upcoming.length === 0 ? (
               <p className="text-sm text-gray-500 bg-chalk rounded-2xl px-4 py-5 text-center">No games scheduled yet.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
                 {data.upcoming.map((g) => (
                   <GameCard key={g.id} game={g} onChange={load} />
                 ))}
@@ -38,7 +38,7 @@ export default function PlayerGamesPage() {
             {data.recent.length === 0 ? (
               <p className="text-sm text-gray-500 bg-chalk rounded-2xl px-4 py-5 text-center">Your results will show up here after your first game.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
                 {data.recent.map((d) => (
                   <MatchDayCard key={d.sessionId} day={d} />
                 ))}

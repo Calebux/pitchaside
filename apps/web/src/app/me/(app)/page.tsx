@@ -39,10 +39,11 @@ export default function PlayerHomePage() {
   const pendingVotes = home.openVotes.filter((v) => !v.voted);
 
   return (
-    <>
+    <div className="md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:gap-8 md:items-start">
+      <div>
       <PlayerCardHero firstName={home.player.firstName} lastName={home.player.lastName} ratings={r} caption={caption} />
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-4 space-y-2 md:hidden">
         <InstallCard />
         <PushToggle save={subscribePlayerPush} />
       </div>
@@ -91,9 +92,17 @@ export default function PlayerHomePage() {
         )}
       </Section>
 
+      </div>
+
+      <div>
+      <div className="hidden md:block space-y-2">
+        <InstallCard />
+        <PushToggle save={subscribePlayerPush} />
+      </div>
+
       <Link
         href="/me/pay"
-        className={`mt-7 flex items-center justify-between gap-3 rounded-3xl px-5 py-4 ${
+        className={`mt-7 md:mt-4 flex items-center justify-between gap-3 rounded-3xl px-5 py-4 ${
           totalOwed > 0 ? 'bg-ink text-white' : 'bg-volt-100 border border-volt-300 text-ink'
         }`}
       >
@@ -142,6 +151,7 @@ export default function PlayerHomePage() {
           </div>
         </Section>
       )}
-    </>
+      </div>
+    </div>
   );
 }

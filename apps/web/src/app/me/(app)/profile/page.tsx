@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { InstallCard, PushToggle } from '@/components/pwa';
 import { PlayerCardHero, Section } from '@/components/player-ui';
 import { usePlayerProfile } from '@/components/player-shell';
+import { PlayerAccountSettings } from '@/components/player-account';
 import { KitLine } from '@/components/illustrations';
 import { clearPlayerToken, subscribePlayerPush } from '@/lib/player';
 
@@ -19,7 +20,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 
 export default function PlayerProfilePage() {
   const router = useRouter();
-  const { profile } = usePlayerProfile();
+  const { profile, refresh } = usePlayerProfile();
   if (!profile) return null;
   const r = profile.ratings;
 
@@ -32,7 +33,7 @@ export default function PlayerProfilePage() {
         caption={profile.player.phone}
       />
 
-      <div className="grid grid-cols-3 gap-2 mt-4">
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4">
         <Stat label="Games" value={r.games} />
         <Stat label="W-D-L" value={`${r.record.w}-${r.record.d}-${r.record.l}`} />
         <Stat label="Points" value={r.points} />
@@ -41,6 +42,8 @@ export default function PlayerProfilePage() {
         <Stat label="Votes got" value={Object.values(r.votes).reduce((a, b) => a + b, 0)} />
       </div>
 
+      <div className="md:grid md:grid-cols-2 md:gap-8 md:items-start">
+      <div>
       {profile.clubs.length > 0 && (
         <Section title="My clubs">
           <div className="space-y-2">
@@ -97,6 +100,17 @@ export default function PlayerProfilePage() {
         )}
       </Section>
 
+      </div>
+      <div>
+      <Section title="Account">
+        <PlayerAccountSettings
+          firstName={profile.player.firstName}
+          lastName={profile.player.lastName}
+          phone={profile.player.phone}
+          onSaved={refresh}
+        />
+      </Section>
+
       <Section title="App">
         <div className="space-y-2">
           <InstallCard />
@@ -112,6 +126,8 @@ export default function PlayerProfilePage() {
           </button>
         </div>
       </Section>
+      </div>
+      </div>
     </>
   );
 }

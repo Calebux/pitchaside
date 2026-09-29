@@ -71,6 +71,36 @@ export function signInWithPhone(phone: string, groupCode?: string) {
   return request<SignInResult>('POST', '/player-auth/phone', { phone, groupCode }, false);
 }
 
+export type PasswordSignIn = { token: string; firstName: string } | { needsPassword: true; firstName: string };
+
+export function loginWithPassword(phone: string, password: string) {
+  return request<PasswordSignIn>('POST', '/player-auth/login', { phone, password }, false);
+}
+
+/** First sign-in for players who were added before passwords existed. */
+export function setFirstPassword(phone: string, password: string) {
+  return request<{ token: string; firstName: string }>('POST', '/player-auth/set-password', { phone, password }, false);
+}
+
+export function resetPassword(phone: string, code: string, password: string) {
+  return request<{ token: string; firstName: string }>('POST', '/player-auth/reset-password', { phone, code, password }, false);
+}
+
+export function signupFromLink(
+  code: string,
+  data: { phone: string; firstName: string; lastName: string; email?: string; password: string },
+) {
+  return request<JoinResult>('POST', `/public/groups/${code}/signup`, data, false);
+}
+
+export function updateMyName(firstName: string, lastName: string) {
+  return request<{ firstName: string; lastName: string }>('PATCH', '/me/account', { firstName, lastName });
+}
+
+export function changeMyPassword(currentPassword: string, newPassword: string) {
+  return request<{ ok: boolean }>('POST', '/me/password', { currentPassword, newPassword });
+}
+
 export function requestCode(phone: string, groupCode?: string) {
   return request<{ sent: boolean; isNewPlayer: boolean; devCode?: string }>(
     'POST',

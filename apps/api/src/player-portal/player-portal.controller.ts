@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
 import { BillingService } from '../billing/billing.service';
@@ -61,6 +61,67 @@ export class VoteDto {
   picks: Record<string, string>;
 }
 
+export class SignupDto {
+  @Matches(PHONE, { message: 'Phone number format is invalid' })
+  phone: string;
+
+  @IsString()
+  @MinLength(2)
+  firstName: string;
+
+  @IsString()
+  @MinLength(2)
+  lastName: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
+export class LoginDto {
+  @Matches(PHONE, { message: 'Phone number format is invalid' })
+  phone: string;
+
+  @IsString()
+  password: string;
+}
+
+export class ResetPasswordDto {
+  @Matches(PHONE, { message: 'Phone number format is invalid' })
+  phone: string;
+
+  @Length(6, 6)
+  code: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
+export class ChangePasswordDto {
+  @IsOptional()
+  @IsString()
+  currentPassword?: string;
+
+  @IsString()
+  @MinLength(6)
+  newPassword: string;
+}
+
+export class UpdateNameDto {
+  @IsString()
+  @MinLength(2)
+  firstName: string;
+
+  @IsString()
+  @MinLength(2)
+  lastName: string;
+}
+
 export class StartGroupDto {
   @IsString()
   @MinLength(2)
@@ -86,6 +147,40 @@ export class PlayerAuthController {
   @Get('player-auth/mode')
   mode() {
     return { mode: this.auth.mode };
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('player-auth/login')
+  login(@Body() dto: LoginDto) {
+    return this.auth.login(dto.phone, dto.password);
+  }
+
+  /** First sign-in for players who don't have a password yet. */
+  @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @Post('player-auth/set-password')
+  setPassword(@Body() dto: LoginDto) {
+    return this.auth.setInitialPassword(dto.phone, dto.password);
+  }
+
+  /** Forgot password: code from /player-auth/request-code, then a new password. */
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('player-auth/reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.phone, dto.code, dto.password);
+  }
+
+  /** New player signing up from a group link: phone, name, optional email, password. */
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Post('public/groups/:code/signup')
+  async signup(@Param('code') code: string, @Body() dto: SignupDto) {
+    await this.auth.createAccount(dto);
+    const joined = await this.billing.joinGroup(code, {
+      phone: dto.phone,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      email: dto.email,
+    });
+    return { ...joined, token: this.auth.issuePersonToken(dto.phone) };
   }
 
   /** Number-only sign-in (PLAYER_AUTH_MODE=phone). */
@@ -139,6 +234,7 @@ export class PlayerPortalController {
   constructor(
     private readonly portal: PlayerPortalService,
     private readonly notifications: NotificationsService,
+    private readonly playerAuth: PlayerAuthService,
   ) {}
 
   @Get()
@@ -186,6 +282,16 @@ export class PlayerPortalController {
   @Post('start-group')
   startGroup(@Body() dto: StartGroupDto, @CurrentPerson() person: Person) {
     return this.portal.startGroup(person, dto);
+  }
+
+  @Patch('account')
+  updateName(@Body() dto: UpdateNameDto, @CurrentPerson() person: Person) {
+    return this.playerAuth.updateName(person, dto.firstName, dto.lastName);
+  }
+
+  @Post('password')
+  changePassword(@Body() dto: ChangePasswordDto, @CurrentPerson() person: Person) {
+    return this.playerAuth.changePassword(person, dto.currentPassword ?? '', dto.newPassword);
   }
 
   @Post('push')
