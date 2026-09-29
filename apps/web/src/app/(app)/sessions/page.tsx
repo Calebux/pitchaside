@@ -7,6 +7,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
 import { PageHeader } from '@/components/brand';
+import { isVotingOpen } from '@/components/ratings';
 import { getSessionsPaginated, getGroups, deleteSession, formatCurrency, type ISessionWithDetails, type IGroupWithMembers, type PaginatedResponse } from '@/lib/api';
 import { SessionStatus } from '@pitchaside/shared';
 
@@ -171,6 +172,11 @@ export default function SessionsPage() {
                           </p>
                         </div>
                       </div>
+                      {isVotingOpen(session) && (
+                        <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider bg-sun-400 text-ink ml-auto mr-2 whitespace-nowrap">
+                          ★ Vote open
+                        </span>
+                      )}
                       <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider mr-7 ${
                         statusStyles[session.status] || 'bg-gray-100 text-gray-500'
                       }`}>

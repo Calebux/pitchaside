@@ -12,12 +12,15 @@ import {
   getGroups,
   getPlayerPayments,
   getPlayerStats,
+  getPlayerRatings,
+  type PlayerRatings,
   updatePlayer,
   deletePlayer,
   formatCurrency,
   type IGroupWithMembers,
 } from '@/lib/api';
 import { StatCard } from '@/components/stat-card';
+import { AttributeRow } from '@/components/ratings';
 import { Player, Ball, JerseyBadge, kitFor, skins } from '@/components/illustrations';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
 
@@ -34,6 +37,7 @@ export default function PlayerDetailPage() {
   const [player, setPlayer] = useState<IPlayer | null>(null);
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [payments, setPayments] = useState<IPayment[]>([]);
+  const [ratings, setRatings] = useState<PlayerRatings | null>(null);
   const [stats, setStats] = useState<{ totalSessions: number; totalPaid: number; totalOwed: number; paymentRate: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -51,6 +55,7 @@ export default function PlayerDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
+    getPlayerRatings(id).then(setRatings).catch(() => {});
     Promise.all([getPlayer(id), getGroups(), getPlayerPayments(id), getPlayerStats(id)])
       .then(([p, g, pay, s]) => {
         setPlayer(p);
@@ -207,8 +212,8 @@ export default function PlayerDetailPage() {
             {/* Trading-card style portrait */}
             <div className="relative w-28 sm:w-32 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
               <div className="absolute top-2 left-2.5 leading-none">
-                <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{stats ? stats.paymentRate : '–'}</p>
-                <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">PAY%</p>
+                <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings?.ovr ?? '–'}</p>
+                <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
               </div>
               <svg viewBox="0 0 100 150" className="w-full h-auto mt-3" aria-hidden>
                 <Player
@@ -255,6 +260,17 @@ export default function PlayerDetailPage() {
                   </button>
                 </div>
               </div>
+
+              {ratings && (
+                <div className="mt-3">
+                  <AttributeRow ratings={ratings} dark />
+                  <p className="text-[10px] text-white/40 mt-1.5">
+                    {ratings.games > 0
+                      ? `From teammates' votes over ${ratings.games} game${ratings.games === 1 ? '' : 's'}${ratings.potmWins ? ` · ★ ${ratings.potmWins}× Player of the Match` : ''}`
+                      : 'Ratings appear after their first voted game'}
+                  </p>
+                </div>
+              )}
 
               <div className="mt-auto pt-4 space-y-2">
                 <a

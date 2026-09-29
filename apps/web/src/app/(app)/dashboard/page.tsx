@@ -64,6 +64,7 @@ export default function Dashboard() {
     .filter((s) => s.status === SessionStatus.UPCOMING && s.kind !== 'dues')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const nextSession = upcomingSessions[0];
+
   const nextGroup = nextSession ? groups.find((g) => g.id === nextSession.groupId) : null;
 
   // Amounts arrive from Postgres DECIMAL columns as strings; coerce before summing.
