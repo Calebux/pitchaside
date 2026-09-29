@@ -1,7 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { http, setToken, clearToken } from './http';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { http } from './http';
 import type { IUser, IAuthResponse } from '@pitchaside/shared';
 
 interface TwoFactorRequired {
@@ -31,24 +31,37 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const REFRESH_INTERVAL_MS = 13 * 60 * 1000; // 13 minutes (just under 15-minute JWT expiry)
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<IUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Initial auth check — cookie is sent automatically via credentials:'include'
   useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('pitchaside_token') : null;
-    if (!token) {
-      setLoading(false);
-      return;
-    }
     http
       .get<IUser>('/auth/me')
       .then(setUser)
       .catch(() => {
-        clearToken();
+        // No valid session
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // Proactive token refresh while logged in
+  useEffect(() => {
+    if (!user) {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+      return;
+    }
+    refreshTimer.current = setInterval(() => {
+      http.post('/auth/refresh').catch(() => {});
+    }, REFRESH_INTERVAL_MS);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
+  }, [user]);
 
   const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
     const res = await http.post<IAuthResponse | TwoFactorRequired>('/auth/login', { email, password });
@@ -56,14 +69,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { requires2FA: true, userId: res.userId };
     }
     const authRes = res as IAuthResponse;
-    setToken(authRes.accessToken);
     setUser(authRes.user);
     return { requires2FA: false };
   }, []);
 
   const validate2FA = useCallback(async (userId: string, code: string) => {
     const res = await http.post<IAuthResponse>('/auth/2fa/validate', { userId, code });
-    setToken(res.accessToken);
     setUser(res.user);
   }, []);
 
@@ -78,7 +89,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       state?: string;
     }) => {
       const res = await http.post<IAuthResponse>('/auth/register', data);
-      setToken(res.accessToken);
       setUser(res.user);
     },
     [],
@@ -91,8 +101,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, []);
 
-  const logout = useCallback(() => {
-    clearToken();
+  const logout = useCallback(async () => {
+    try {
+      await http.post('/auth/logout');
+    } catch {
+      // If the call fails, redirect anyway
+    }
     setUser(null);
     window.location.href = '/signin';
   }, []);

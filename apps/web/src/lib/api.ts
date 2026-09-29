@@ -238,10 +238,9 @@ export function changePassword(data: { currentPassword: string; newPassword: str
 // ── CSV Export ──
 
 export async function downloadCsv(path: string, filename: string) {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('pitchaside_token') : null;
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
   const res = await fetch(`${baseUrl}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
   });
   if (!res.ok) throw new Error('Export failed');
   const blob = await res.blob();
@@ -504,6 +503,12 @@ export function getMessages(): Promise<{ mode: 'mock' | 'live'; messages: Outbou
 /** Organiser → "Playing": exchange the organiser session for their player session. */
 export function playerTokenFromOrganiser(): Promise<{ token: string }> {
   return http.post('/player-auth/from-organiser');
+}
+
+// ── Email Verification ──
+
+export function resendVerification(): Promise<{ message: string }> {
+  return http.post('/auth/resend-verification');
 }
 
 export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
