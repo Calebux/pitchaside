@@ -1,13 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
-import { Player } from '../players/entities/player.entity';
 import { BillingService } from '../billing/billing.service';
-import { RatingsService } from '../ratings/ratings.service';
-import { RsvpService } from '../rsvp/rsvp.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PushSubscriptionDto, UnsubscribeDto } from '../notifications/notifications.controller';
-import { CurrentPlayer, PlayerAuthGuard, PlayerAuthService } from './player-auth.service';
+import { CurrentPerson, Person, PlayerAuthGuard, PlayerAuthService } from './player-auth.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../users/entities/user.entity';
 import { PlayerPortalService } from './player-portal.service';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
@@ -60,7 +61,20 @@ export class VoteDto {
   picks: Record<string, string>;
 }
 
-/** Sign-in by one-time code, and joining a group with a verified phone. */
+export class StartGroupDto {
+  @IsString()
+  @MinLength(2)
+  clubName: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
+/** Sign-in (phone or one-time code), and joining a group with a confirmed phone. */
 @UseGuards(ThrottlerGuard)
 @Controller()
 export class PlayerAuthController {
@@ -93,6 +107,15 @@ export class PlayerAuthController {
     return this.auth.verifyCode(dto.phone, dto.code);
   }
 
+  /** Organiser → "Playing": swap a signed-in organiser (with a phone on file) for a player session. */
+  @UseGuards(JwtAuthGuard)
+  @AllowTreasurer()
+  @Post('player-auth/from-organiser')
+  fromOrganiser(@CurrentUser() user: User) {
+    if (!user.phone) throw new BadRequestException('Add your phone number in Settings to switch to Playing.');
+    return { token: this.auth.issuePersonToken(user.phone) };
+  }
+
   /** New players (or returning ones without a session) joining via the group link. */
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('public/groups/:code/join')
@@ -104,50 +127,69 @@ export class PlayerAuthController {
       lastName: dto.lastName,
       email: dto.email,
     });
-    return { ...joined, token: this.auth.issuePlayerToken(joined.playerId) };
+    return { ...joined, token: this.auth.issuePersonToken(phone) };
   }
 }
 
-/** Everything behind a player sign-in. */
+/** The player app — everything behind a person sign-in. */
 @UseGuards(PlayerAuthGuard)
 @Controller('me')
 export class PlayerPortalController {
   constructor(
     private readonly portal: PlayerPortalService,
-    private readonly billing: BillingService,
-    private readonly ratings: RatingsService,
-    private readonly rsvp: RsvpService,
     private readonly notifications: NotificationsService,
   ) {}
 
   @Get()
-  home(@CurrentPlayer() player: Player) {
-    return this.portal.home(player);
+  home(@CurrentPerson() person: Person) {
+    return this.portal.home(person);
+  }
+
+  @Get('games')
+  games(@CurrentPerson() person: Person) {
+    return this.portal.games(person);
+  }
+
+  @Get('payments')
+  payments(@CurrentPerson() person: Person) {
+    return this.portal.payments(person);
+  }
+
+  @Get('profile')
+  profile(@CurrentPerson() person: Person) {
+    return this.portal.profile(person);
   }
 
   @Post('sessions/:id/rsvp')
-  setRsvp(@Param('id') id: string, @Body() dto: RsvpDto, @CurrentPlayer() player: Player) {
-    return this.rsvp.setByPlayer(id, player.id, dto.status);
+  setRsvp(@Param('id') id: string, @Body() dto: RsvpDto, @CurrentPerson() person: Person) {
+    return this.portal.setRsvp(person, id, dto.status);
   }
 
   @Post('groups/:code/join')
-  join(@Param('code') code: string, @CurrentPlayer() player: Player) {
-    return this.billing.joinGroupAsPlayer(code, player.id);
+  join(@Param('code') code: string, @CurrentPerson() person: Person) {
+    return this.portal.joinGroup(person, code);
   }
 
   @Get('votes/:token')
-  myBallot(@Param('token') token: string, @CurrentPlayer() player: Player) {
-    return this.ratings.myBallot(token, player.id);
+  myBallot(@Param('token') token: string, @CurrentPerson() person: Person) {
+    return this.portal.myBallot(person, token);
   }
 
   @Post('votes/:token')
-  vote(@Param('token') token: string, @Body() dto: VoteDto, @CurrentPlayer() player: Player) {
-    return this.ratings.submitVotes(token, player.id, dto.picks);
+  vote(@Param('token') token: string, @Body() dto: VoteDto, @CurrentPerson() person: Person) {
+    return this.portal.vote(person, token, dto.picks);
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @UseGuards(ThrottlerGuard)
+  @Post('start-group')
+  startGroup(@Body() dto: StartGroupDto, @CurrentPerson() person: Person) {
+    return this.portal.startGroup(person, dto);
   }
 
   @Post('push')
-  subscribe(@Body() dto: PushSubscriptionDto, @CurrentPlayer() player: Player) {
-    return this.notifications.subscribe(dto, { playerId: player.id });
+  subscribe(@Body() dto: PushSubscriptionDto, @CurrentPerson() person: Person) {
+    return this.notifications.subscribe(dto, { playerId: person.players[0]?.id, phoneKey: person.key });
   }
 
   @Delete('push')

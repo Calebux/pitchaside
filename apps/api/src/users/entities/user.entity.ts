@@ -34,6 +34,10 @@ export class User {
   @Column()
   passwordHash: string;
 
+  /** Links the organiser to their player side (same person, same number). */
+  @Column({ type: 'varchar', nullable: true })
+  phone: string | null;
+
   @Column({ type: 'enum', enum: UserRole, default: UserRole.MEMBER })
   role: UserRole;
 

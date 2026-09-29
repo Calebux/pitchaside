@@ -188,16 +188,17 @@ export class RatingsService {
     };
   }
 
-  private voterIn(session: Session, playerId: string) {
-    const voter = (session.payments ?? []).find((p) => p.playerId === playerId)?.player;
+  /** The person's player record on this game's team sheet (they may play for several clubs). */
+  private voterIn(session: Session, playerIds: string[]) {
+    const voter = (session.payments ?? []).find((p) => playerIds.includes(p.playerId))?.player;
     if (!voter) throw new ForbiddenException("You're not on the team sheet for this game");
     return voter;
   }
 
   /** The signed-in player's existing picks for this game. */
-  async myBallot(token: string, playerId: string) {
+  async myBallot(token: string, playerIds: string[]) {
     const session = await this.loadSessionByToken(token);
-    const voter = this.voterIn(session, playerId);
+    const voter = this.voterIn(session, playerIds);
     const existing = await this.votesRepo.find({ where: { sessionId: session.id, voterId: voter.id } });
     return {
       playerId: voter.id,
@@ -206,12 +207,12 @@ export class RatingsService {
     };
   }
 
-  async submitVotes(token: string, playerId: string, picks: Record<string, string>) {
+  async submitVotes(token: string, playerIds: string[], picks: Record<string, string>) {
     const session = await this.loadSessionByToken(token);
     const w = this.window(session);
     if (!w.open) throw new BadRequestException(w.notYet ? 'Voting opens on match day' : 'Voting has closed for this game');
 
-    const voter = this.voterIn(session, playerId);
+    const voter = this.voterIn(session, playerIds);
     const squadIds = new Set(this.squad(session).map((p) => p.id));
     const valid = new Set<string>(Object.values(VoteCategory));
 
@@ -463,6 +464,61 @@ export class RatingsService {
       .andWhere('session.kind = :kind', { kind: SessionKind.GAME })
       .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
       .andWhere('session.date <= CURRENT_DATE');
+  }
+
+  /** A player's recent match days: their side, how the day went, and who won POTM. */
+  async recentForPlayer(playerId: string, organizationId: string, limit = 10) {
+    const sessions = (
+      await this.gamesQuery(organizationId)
+        .leftJoinAndSelect('session.group', 'g')
+        .orderBy('session.date', 'DESC')
+        .getMany()
+    )
+      .filter((s) => s.payments?.some((p) => p.playerId === playerId))
+      .slice(0, limit);
+    if (!sessions.length) return [];
+
+    const ids = sessions.map((s) => s.id);
+    const [games, votes] = await Promise.all([
+      this.gamesRepo.find({ where: { sessionId: In(ids) }, order: { createdAt: 'ASC' } }),
+      this.votesRepo.find({ where: { sessionId: In(ids) } }),
+    ]);
+
+    return Promise.all(
+      sessions.map(async (s) => {
+        const myTeam = s.payments?.find((p) => p.playerId === playerId)?.team ?? null;
+        const dayGames = games.filter((g) => g.sessionId === s.id);
+        const record = { w: 0, d: 0, l: 0 };
+        for (const g of dayGames) {
+          if (!myTeam || (g.teamA !== myTeam && g.teamB !== myTeam)) continue;
+          const mine = g.teamA === myTeam ? g.scoreA : g.scoreB;
+          const theirs = g.teamA === myTeam ? g.scoreB : g.scoreA;
+          if (mine > theirs) record.w++;
+          else if (mine === theirs) record.d++;
+          else record.l++;
+        }
+        const potmCounts = new Map<string, number>();
+        const sv = votes.filter((v) => v.sessionId === s.id);
+        for (const v of sv) if (v.category === VoteCategory.POTM) potmCounts.set(v.nomineeId, (potmCounts.get(v.nomineeId) ?? 0) + 1);
+        const [potmId, potmVotes] = [...potmCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
+        const potmPlayer = potmId ? s.payments?.find((p) => p.playerId === potmId)?.player : null;
+        const w = this.window(s);
+        return {
+          sessionId: s.id,
+          date: s.date,
+          groupName: s.group?.name,
+          teamCount: s.teamCount,
+          myTeam,
+          teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
+          record,
+          games: dayGames.length,
+          potm: potmPlayer ? { name: `${potmPlayer.firstName} ${potmPlayer.lastName}`, votes: potmVotes, isMe: potmId === playerId } : null,
+          vote: w.open
+            ? { token: await this.ensureVotingToken(s.id), voted: sv.some((v) => v.voterId === playerId) }
+            : null,
+        };
+      }),
+    );
   }
 
   async getGroupTable(groupId: string, organizationId: string) {

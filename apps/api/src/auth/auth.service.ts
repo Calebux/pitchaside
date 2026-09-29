@@ -47,6 +47,7 @@ export class AuthService {
       passwordHash,
       role: UserRole.ORG_ADMIN,
       organizationId: organization.id,
+      phone: dto.phone?.trim() || null,
     });
 
     const token = this.jwtService.sign({ sub: user.id });
@@ -95,7 +96,7 @@ export class AuthService {
     return { message: 'If that email exists, a reset link has been sent.' };
   }
 
-  async updateProfile(userId: string, data: { firstName: string; lastName: string }) {
+  async updateProfile(userId: string, data: { firstName: string; lastName: string; phone?: string }) {
     const user = await this.usersService.updateProfile(userId, data);
     if (!user) throw new UnauthorizedException('User not found');
     return this.sanitizeUser(user, user.organization);
@@ -187,6 +188,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email,
+      phone: user.phone ?? null,
       role: user.role,
       organizationId: user.organizationId,
       organization: organization

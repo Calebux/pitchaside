@@ -180,6 +180,17 @@ export class RsvpService {
     );
   }
 
+  /** A person's reply for each game, across all their player records. */
+  async statusesForMany(playerIds: string[], sessionIds: string[]) {
+    if (!playerIds.length || !sessionIds.length) return new Map<string, RsvpStatus>();
+    const rows = await this.rsvpRepo
+      .createQueryBuilder('r')
+      .where('r.playerId IN (:...playerIds)', { playerIds })
+      .andWhere('r.sessionId IN (:...sessionIds)', { sessionIds })
+      .getMany();
+    return new Map(rows.map((r) => [r.sessionId, r.status]));
+  }
+
   /** The signed-in player's reply for each game. */
   async statusesFor(playerId: string, sessionIds: string[]) {
     if (!sessionIds.length) return new Map<string, RsvpStatus>();
