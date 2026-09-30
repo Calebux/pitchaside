@@ -55,8 +55,9 @@ export class BillingController {
 
   /** Retry account provisioning (e.g. if PulseMFB was down when the group was created). */
   @Post('groups/:id/account')
-  provisionAccount(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.billingWithLink(id, user.organizationId);
+  async provisionAccount(@Param('id') id: string, @CurrentUser() user: User) {
+    const billing = await this.billing.createGroupAccount(id, user.organizationId);
+    return { ...billing, link: this.link(billing.inviteCode) };
   }
 
   @Post('groups/:id/invite/regenerate')

@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Inject,
   Injectable,
@@ -23,6 +24,7 @@ import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.clien
 import { MockPulseClient } from './pulse/mock-pulse.client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
+import { UserRole } from '../users/entities/user.entity';
 import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
@@ -37,6 +39,21 @@ const PERIODIC_TYPES = [
 // Unambiguous characters for human-typed references (no 0/O, 1/I/L).
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const REF_PATTERN = /\bPA[- ]?([A-HJ-NP-Z2-9]{5})\b/i;
+
+/**
+ * The name we ask Pulse to put on a group's account (Pulse adds its prefix, e.g. "CAL/…").
+ * Plain letters, digits and simple punctuation only: bank account names travel through
+ * NIBSS, and characters like "–" or emoji can get the request rejected.
+ */
+export function accountNameFor(groupName: string): string {
+  const clean = groupName
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '') // accents split off by NFKD: "ú" → "u"
+    .replace(/[^A-Za-z0-9 &'.-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `PitchAside ${clean}`.trim().slice(0, 60);
+}
 
 export interface BillingPeriod {
   /** ISO date (YYYY-MM-DD) of the first day of the period. */
@@ -104,15 +121,42 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async provisionAccount(group: Group): Promise<Group> {
+    const contact = await this.organiserContact(group.organizationId);
     const account = await this.pulse.createAccount({
       reference: group.id,
-      accountName: `PitchAside – ${group.name}`.slice(0, 60),
+      accountName: accountNameFor(group.name),
+      email: contact?.email,
+      phone: contact?.phone ?? undefined,
     });
     group.accountNumber = account.accountNumber;
     group.accountName = account.accountName;
     group.bankName = account.bankName;
     group.accountReference = account.providerReference;
     return this.groupsRepo.save(group);
+  }
+
+  /** The club's first admin, whose email and phone go on the account as its contact. */
+  private async organiserContact(organizationId: string) {
+    const users = await this.usersService.findByOrganization(organizationId);
+    const admins = users.filter((u) => u.role === UserRole.ORG_ADMIN);
+    return (admins.length ? admins : users).sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+  }
+
+  /**
+   * The organiser's "Create account" button. Unlike setupGroup, a failure comes back to
+   * them with Pulse's reason, so it can be fixed instead of silently retried.
+   */
+  async createGroupAccount(groupId: string, organizationId: string) {
+    const group = await this.findGroup(groupId, organizationId);
+    if (!group.accountNumber) {
+      try {
+        await this.provisionAccount(group);
+      } catch (err: any) {
+        this.logger.warn(`Account provisioning failed for group ${group.id}: ${err.message}`);
+        throw new BadGatewayException(`Couldn't create the account. ${err.message}`);
+      }
+    }
+    return this.getBilling(groupId, organizationId);
   }
 
   async regenerateInviteCode(groupId: string, organizationId: string) {

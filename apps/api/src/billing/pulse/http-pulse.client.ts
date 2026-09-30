@@ -10,6 +10,24 @@ import {
   TransferStatusResult,
 } from './pulse.client';
 
+/**
+ * Pulse's explanation for a rejected request, e.g. "Validation failed — bvn: bvn must be 11 digits".
+ * Errors come back as { message, details: [{ field, message }] }; anything else is passed on as text.
+ */
+export async function pulseReason(res: Response): Promise<string> {
+  const text = await res.text().catch(() => '');
+  try {
+    const json = JSON.parse(text) as { message?: unknown; details?: { field?: string; message?: string }[] };
+    const message = Array.isArray(json.message) ? json.message.join('; ') : String(json.message ?? '');
+    const details = (json.details ?? []).map((d) => [d.field, d.message].filter(Boolean).join(': ')).join('; ');
+    const reason = [message, details].filter(Boolean).join(' — ');
+    if (reason) return reason.slice(0, 300);
+  } catch {
+    /* not JSON — use the raw text */
+  }
+  return text.slice(0, 200) || 'no explanation given';
+}
+
 export interface HttpPulseConfig {
   baseUrl: string;
   publicKey: string;
@@ -54,11 +72,13 @@ export class HttpPulseClient implements PulseClient {
 
   async createAccount(input: CreateAccountInput): Promise<ProvisionedAccount> {
     const path = '/api/v1/external-api/accounts/prefix';
+    // Leave out what we don't have: an empty string is "provided" to Pulse's validation,
+    // and "" is not a valid email, phone or 11-digit BVN.
     const body = JSON.stringify({
       customer_name: input.accountName,
-      customer_phone: input.phone ?? '',
-      customer_email: input.email ?? '',
-      bvn: input.bvn ?? '',
+      ...(input.phone ? { customer_phone: input.phone } : {}),
+      ...(input.email ? { customer_email: input.email } : {}),
+      ...(input.bvn ? { bvn: input.bvn } : {}),
       reference: input.reference,
     });
 
@@ -68,10 +88,7 @@ export class HttpPulseClient implements PulseClient {
       body,
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`PulseMFB createAccount failed (${res.status}): ${text.slice(0, 200)}`);
-    }
+    if (!res.ok) throw new Error(`PulseMFB createAccount failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
@@ -95,10 +112,7 @@ export class HttpPulseClient implements PulseClient {
       body,
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`PulseMFB name enquiry failed (${res.status}): ${text.slice(0, 200)}`);
-    }
+    if (!res.ok) throw new Error(`PulseMFB name enquiry failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
@@ -124,10 +138,7 @@ export class HttpPulseClient implements PulseClient {
       body,
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`PulseMFB transfer failed (${res.status}): ${text.slice(0, 200)}`);
-    }
+    if (!res.ok) throw new Error(`PulseMFB transfer failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
@@ -145,10 +156,7 @@ export class HttpPulseClient implements PulseClient {
       headers: this.authHeaders('GET', path, ''),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      throw new Error(`PulseMFB transfer lookup failed (${res.status}): ${text.slice(0, 200)}`);
-    }
+    if (!res.ok) throw new Error(`PulseMFB transfer lookup failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
