@@ -23,8 +23,16 @@ function created() {
   };
 }
 
+/** What the account-creation call answers; the prefix lookup before it always succeeds. */
+let accountResponse: unknown;
+const prefixes = { ok: true, status: 200, json: async () => ({ data: [{ _id: 'pfx-1', account_number: '1008618754', status: 'active' }] }) };
+
+/** The createAccount request itself (a prefix lookup may come first). */
+const accountCall = () => fetchMock.mock.calls.find(([url]) => String(url).endsWith('/accounts/prefix'))!;
+
 beforeEach(() => {
-  fetchMock.mockReset().mockResolvedValue(created());
+  accountResponse = created();
+  fetchMock.mockReset().mockImplementation(async (url: string) => (url.endsWith('/accounts/prefixes') ? prefixes : accountResponse));
   global.fetch = fetchMock as unknown as typeof fetch;
 });
 
@@ -32,7 +40,7 @@ describe('HttpPulseClient.createAccount', () => {
   it('signs the request the way the PulseMFB Postman collection does', async () => {
     const account = await client.createAccount({ reference: 'group-1', accountName: 'PitchAside Lekki Ballers', email: 'ada@example.com', phone: '08055940326' });
 
-    const [url, init] = fetchMock.mock.calls[0];
+    const [url, init] = accountCall();
     expect(url).toBe('https://pulse.example.test/api/v1/external-api/accounts/prefix');
     expect(init.method).toBe('POST');
     const h = init.headers;
@@ -45,6 +53,9 @@ describe('HttpPulseClient.createAccount', () => {
       customer_name: 'PitchAside Lekki Ballers',
       customer_phone: '08055940326',
       customer_email: 'ada@example.com',
+      sweep_mode: 'manual',
+      use_prefix: true,
+      prefix_id: 'pfx-1',
       reference: 'group-1',
     });
     expect(account).toEqual({
@@ -61,23 +72,29 @@ describe('HttpPulseClient.createAccount', () => {
       const c = new HttpPulseClient({ baseUrl, publicKey: 'pk_test', privateKey: 'sk_test', webhookSecret: 'whsec_test' });
       await c.createAccount({ reference: 'group-1', accountName: 'X' });
 
-      expect(fetchMock.mock.calls[0][0]).toBe('https://pulse.example.test/api/v1/external-api/accounts/prefix');
+      expect(accountCall()[0]).toBe('https://pulse.example.test/api/v1/external-api/accounts/prefix');
     },
   );
 
   it('leaves out contact details it does not have instead of sending empty strings', async () => {
     await client.createAccount({ reference: 'group-1', accountName: 'PitchAside Lekki Ballers' });
 
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ customer_name: 'PitchAside Lekki Ballers', reference: 'group-1' });
+    expect(JSON.parse(accountCall()[1].body)).toEqual({
+      customer_name: 'PitchAside Lekki Ballers',
+      sweep_mode: 'manual',
+      use_prefix: true,
+      prefix_id: 'pfx-1',
+      reference: 'group-1',
+    });
   });
 
   it("passes on Pulse's validation reason", async () => {
-    fetchMock.mockResolvedValue({
+    accountResponse = {
       ok: false,
       status: 400,
       text: async () =>
         JSON.stringify({ statusCode: 400, message: 'Validation failed', error: 'Bad Request', details: [{ field: 'bvn', message: 'bvn is required' }] }),
-    });
+    };
 
     await expect(client.createAccount({ reference: 'group-1', accountName: 'X' })).rejects.toThrow(
       'Payrep MFB createAccount failed (400): Validation failed — bvn: bvn is required',
@@ -85,7 +102,7 @@ describe('HttpPulseClient.createAccount', () => {
   });
 
   it('passes on a plain-text failure as is', async () => {
-    fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => 'Bad gateway' });
+    accountResponse = { ok: false, status: 502, text: async () => 'Bad gateway' };
 
     await expect(client.createAccount({ reference: 'group-1', accountName: 'X' })).rejects.toThrow(
       'Payrep MFB createAccount failed (502): Bad gateway',

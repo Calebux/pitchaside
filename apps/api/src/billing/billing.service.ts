@@ -72,6 +72,13 @@ function payeeView(group: Group) {
   };
 }
 
+type WebhookOutcome = 'recorded' | 'rejected';
+
+/** Account numbers as we store them: the last 10 digits, whatever formatting the bank sends. */
+function accountKey(accountNumber: string) {
+  return accountNumber.replace(/\D/g, '').slice(-10);
+}
+
 export interface BillingPeriod {
   /** ISO date (YYYY-MM-DD) of the first day of the period. */
   start: string;
@@ -82,6 +89,12 @@ export interface BillingPeriod {
 export class BillingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BillingService.name);
   private timer?: NodeJS.Timeout;
+  /**
+   * The last notification Payrep sent about each account, kept in memory since the last restart.
+   * Lets the app say "Payrep never told us" apart from "we rejected it" without reading the logs.
+   */
+  private readonly notices = new Map<string, { at: Date; outcome: WebhookOutcome }>();
+  private readonly noticesSince = new Date();
 
   constructor(
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
@@ -410,15 +423,21 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     // mismatched setup at Pulse looks exactly like "no one paid".
     const log = (outcome: string) => this.logger.log(`Pulse webhook ${event}: ${outcome} — ${rawBody.slice(0, 500)}`);
 
+    // Parsed before verifying only to know which account to note the outcome against.
+    const credit = this.pulse.parseWebhook(payload);
+    if (credit) credit.accountNumber = accountKey(credit.accountNumber);
+    const note = (outcome: WebhookOutcome) => credit && this.notices.set(credit.accountNumber, { at: new Date(), outcome });
+
     if (!this.pulse.verifyWebhook(rawBody, signature)) {
+      note('rejected');
       this.logger.warn(`Pulse webhook ${event}: rejected, signature doesn't match PULSE_WEBHOOK_SECRET — ${rawBody.slice(0, 500)}`);
       throw new UnauthorizedException('Invalid webhook signature');
     }
 
     // Money into one of our group accounts.
-    const credit = this.pulse.parseWebhook(payload);
     if (credit && (await this.groupsRepo.exists({ where: { accountNumber: credit.accountNumber } }))) {
       const result = await this.recordTransfer(credit);
+      note('recorded');
       log(`credit of ${credit.amount} to ${credit.accountNumber} → ${result.status}${'duplicate' in result ? ' (duplicate)' : ''}`);
       return result;
     }
@@ -640,12 +659,22 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .andWhere('p.status IN (:...statuses)', { statuses: [PayoutStatus.PROCESSING, PayoutStatus.COMPLETED] })
       .getRawOne();
 
+    const recorded = Number(totalIn) - Number(totalOut);
+    const bankBalance = await this.bankBalance(group.accountNumber);
+    const notice = group.accountNumber ? this.notices.get(accountKey(group.accountNumber)) : undefined;
     return {
       totalIn: Number(totalIn),
       totalOut: Number(totalOut),
-      available: Number(totalIn) - Number(totalOut),
-      // What Pulse itself holds. More than `available` means money arrived that we never heard about.
-      bankBalance: await this.bankBalance(group.accountNumber),
+      /** What we've recorded coming in and going out. */
+      recorded,
+      /** What the bank holds, when we can ask it. */
+      bankBalance,
+      /** What can be sent: the bank's balance is the truth, our records are the fallback. */
+      available: bankBalance ?? recorded,
+      /** Money at the bank that no notification told us about, so it isn't matched to anyone. */
+      unrecorded: bankBalance != null ? Math.max(0, bankBalance - recorded) : 0,
+      lastNotice: notice ? { at: notice.at, outcome: notice.outcome } : null,
+      noticesSince: this.noticesSince,
     };
   }
 
