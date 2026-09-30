@@ -434,7 +434,7 @@ export class PlatformService {
       bank: this.config.get('PULSE_MODE', 'mock') === 'live' ? 'live' : 'mock',
       messaging: this.config.get('MESSAGING_MODE', 'mock') === 'live' ? 'live' : 'mock',
       push: Boolean(this.config.get('VAPID_PUBLIC_KEY') && this.config.get('VAPID_PRIVATE_KEY')),
-      email: Boolean(this.config.get('SMTP_HOST')),
+      email: Boolean(this.config.get('ZEPTOMAIL_TOKEN') || this.config.get('SMTP_HOST')),
       fallback: ['email', 'whatsapp'].includes(this.config.get('NOTIFY_FALLBACK', 'none'))
         ? this.config.get<string>('NOTIFY_FALLBACK')
         : 'none',
