@@ -63,6 +63,12 @@ export class User {
   @Column({ name: 'email_verification_expires_at', type: 'timestamp', nullable: true })
   emailVerificationExpiresAt: Date | null;
 
+  @Column({ name: 'transfer_pin', type: 'varchar', nullable: true })
+  transferPin: string | null;
+
+  @Column({ name: 'transfer_pin_set_at', type: 'timestamp', nullable: true })
+  transferPinSetAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

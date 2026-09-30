@@ -1,0 +1,46 @@
+export interface NigerianBank {
+  code: string;
+  name: string;
+}
+
+export const NIGERIAN_BANKS: NigerianBank[] = [
+  { code: '044', name: 'Access Bank' },
+  { code: '023', name: 'Citibank Nigeria' },
+  { code: '050', name: 'Ecobank Nigeria' },
+  { code: '084', name: 'Enterprise Bank' },
+  { code: '070', name: 'Fidelity Bank' },
+  { code: '011', name: 'First Bank of Nigeria' },
+  { code: '214', name: 'First City Monument Bank' },
+  { code: '058', name: 'Guaranty Trust Bank' },
+  { code: '030', name: 'Heritage Bank' },
+  { code: '082', name: 'Keystone Bank' },
+  { code: '526', name: 'Parallex Bank' },
+  { code: '076', name: 'Polaris Bank' },
+  { code: '101', name: 'Providus Bank' },
+  { code: '221', name: 'Stanbic IBTC Bank' },
+  { code: '068', name: 'Standard Chartered Bank' },
+  { code: '232', name: 'Sterling Bank' },
+  { code: '100', name: 'Suntrust Bank' },
+  { code: '032', name: 'Union Bank of Nigeria' },
+  { code: '033', name: 'United Bank for Africa' },
+  { code: '215', name: 'Unity Bank' },
+  { code: '035', name: 'Wema Bank' },
+  { code: '057', name: 'Zenith Bank' },
+  // Microfinance / digital banks
+  { code: '090713', name: 'Pulse Microfinance Bank' },
+  { code: '090267', name: 'Kuda Microfinance Bank' },
+  { code: '090303', name: 'OPay' },
+  { code: '090326', name: 'PalmPay' },
+  { code: '090405', name: 'Moniepoint Microfinance Bank' },
+  { code: '090110', name: 'VFD Microfinance Bank' },
+  { code: '100033', name: 'PagaTech' },
+  { code: '090146', name: 'Trident Microfinance Bank' },
+  { code: '090175', name: 'Rubies Microfinance Bank' },
+  { code: '090198', name: 'RenMoney Microfinance Bank' },
+  { code: '090327', name: 'Sparkle Microfinance Bank' },
+  { code: '999992', name: 'Globus Bank' },
+  { code: '103', name: 'Globus Bank' },
+  { code: '090551', name: 'Fairmoney Microfinance Bank' },
+  { code: '999991', name: 'Carbon' },
+  { code: '090328', name: 'Eyowo' },
+];

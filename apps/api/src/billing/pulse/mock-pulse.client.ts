@@ -2,8 +2,12 @@ import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import {
   CreateAccountInput,
   IncomingTransfer,
+  NameEnquiryResult,
   PulseClient,
   ProvisionedAccount,
+  TransferOutInput,
+  TransferOutResult,
+  TransferStatusResult,
 } from './pulse.client';
 
 /**
@@ -26,6 +30,20 @@ export class MockPulseClient implements PulseClient {
       bankName: 'PulseMFB (test)',
       providerReference: `mock_${digest.toString('hex').slice(0, 16)}`,
     };
+  }
+
+  async nameEnquiry(_bankCode: string, accountNumber: string): Promise<NameEnquiryResult> {
+    // Return a fake but plausible name based on the account number.
+    return { accountName: `Test Account ${accountNumber.slice(-4)}` };
+  }
+
+  async transferOut(input: TransferOutInput): Promise<TransferOutResult> {
+    // Mock payouts complete immediately.
+    return { reference: input.reference, status: 'completed' };
+  }
+
+  async getTransfer(reference: string): Promise<TransferStatusResult> {
+    return { status: 'completed' };
   }
 
   sign(rawBody: string) {

@@ -42,6 +42,31 @@ export interface IncomingTransfer {
   raw: unknown;
 }
 
+export interface TransferOutInput {
+  /** The group's PulseMFB virtual account number. */
+  debitAccountNumber: string;
+  beneficiaryAccountNumber: string;
+  beneficiaryBankCode: string;
+  amount: number;
+  narration?: string;
+  /** Our unique reference for idempotency. */
+  reference: string;
+}
+
+export interface TransferOutResult {
+  reference: string;
+  status: string;
+}
+
+export interface NameEnquiryResult {
+  accountName: string;
+}
+
+export interface TransferStatusResult {
+  status: string;
+  errorMessage?: string;
+}
+
 export interface PulseClient {
   readonly mode: 'mock' | 'live';
   createAccount(input: CreateAccountInput): Promise<ProvisionedAccount>;
@@ -49,4 +74,10 @@ export interface PulseClient {
   verifyWebhook(rawBody: string, signature: string | undefined): boolean;
   /** Maps the provider's webhook payload to our shape; null if it isn't a credit. */
   parseWebhook(payload: unknown): IncomingTransfer | null;
+  /** Verify a recipient's account name via NIBSS. */
+  nameEnquiry(bankCode: string, accountNumber: string): Promise<NameEnquiryResult>;
+  /** Initiate an outbound transfer from a group's virtual account. */
+  transferOut(input: TransferOutInput): Promise<TransferOutResult>;
+  /** Look up the status of an outbound transfer by our reference. */
+  getTransfer(reference: string): Promise<TransferStatusResult>;
 }

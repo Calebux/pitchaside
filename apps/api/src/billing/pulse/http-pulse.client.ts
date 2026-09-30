@@ -2,8 +2,12 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import {
   CreateAccountInput,
   IncomingTransfer,
+  NameEnquiryResult,
   PulseClient,
   ProvisionedAccount,
+  TransferOutInput,
+  TransferOutResult,
+  TransferStatusResult,
 } from './pulse.client';
 
 export interface HttpPulseConfig {
@@ -76,6 +80,81 @@ export class HttpPulseClient implements PulseClient {
       accountName: String(d.account_name ?? input.accountName),
       bankName: 'Pulse Microfinance Bank',
       providerReference: String(d.reference ?? input.reference),
+    };
+  }
+
+  // ── Name enquiry ──
+
+  async nameEnquiry(bankCode: string, accountNumber: string): Promise<NameEnquiryResult> {
+    const path = '/api/v1/external-api/transfers/name-enquiry';
+    const body = JSON.stringify({ accountNumber, bankCode });
+
+    const res = await fetch(`${this.config.baseUrl}${path}`, {
+      method: 'POST',
+      headers: this.authHeaders('POST', path, body),
+      body,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`PulseMFB name enquiry failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+
+    const json = (await res.json()) as Record<string, any>;
+    const d = json.data ?? json;
+    return { accountName: String(d.accountName ?? d.account_name ?? '') };
+  }
+
+  // ── Outbound transfers ──
+
+  async transferOut(input: TransferOutInput): Promise<TransferOutResult> {
+    const path = '/api/v1/external-api/transfers';
+    const body = JSON.stringify({
+      debit_account_number: input.debitAccountNumber,
+      beneficiary_account_number: input.beneficiaryAccountNumber,
+      beneficiary_bank_code: input.beneficiaryBankCode,
+      amount: input.amount,
+      narration: input.narration ?? '',
+      reference: input.reference,
+    });
+
+    const res = await fetch(`${this.config.baseUrl}${path}`, {
+      method: 'POST',
+      headers: this.authHeaders('POST', path, body),
+      body,
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`PulseMFB transfer failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+
+    const json = (await res.json()) as Record<string, any>;
+    const d = json.data ?? json;
+    return {
+      reference: String(d.reference ?? input.reference),
+      status: String(d.status ?? 'pending'),
+    };
+  }
+
+  async getTransfer(reference: string): Promise<TransferStatusResult> {
+    const path = `/api/v1/external-api/transfers/${encodeURIComponent(reference)}`;
+
+    const res = await fetch(`${this.config.baseUrl}${path}`, {
+      method: 'GET',
+      headers: this.authHeaders('GET', path, ''),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`PulseMFB transfer lookup failed (${res.status}): ${text.slice(0, 200)}`);
+    }
+
+    const json = (await res.json()) as Record<string, any>;
+    const d = json.data ?? json;
+    return {
+      status: String(d.status ?? 'unknown'),
+      errorMessage: d.error_message ?? d.errorMessage,
     };
   }
 
