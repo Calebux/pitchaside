@@ -47,7 +47,14 @@ export interface HttpPulseConfig {
 export class HttpPulseClient implements PulseClient {
   readonly mode = 'live' as const;
 
-  constructor(private readonly config: HttpPulseConfig) {}
+  private readonly baseUrl: string;
+
+  constructor(private readonly config: HttpPulseConfig) {
+    // Every path below starts with /api/v1/external-api, so the base is just the host. Accept a
+    // base that already includes that prefix too: production had one, and every request 404'd
+    // on /api/v1/external-api/api/v1/external-api/…
+    this.baseUrl = config.baseUrl.trim().replace(/\/+$/, '').replace(/\/api\/v1\/external-api$/, '').replace(/\/+$/, '');
+  }
 
   // ── Signature generation ──
 
@@ -82,7 +89,7 @@ export class HttpPulseClient implements PulseClient {
       reference: input.reference,
     });
 
-    const res = await fetch(`${this.config.baseUrl}${path}`, {
+    const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: this.authHeaders('POST', path, body),
       body,
@@ -106,7 +113,7 @@ export class HttpPulseClient implements PulseClient {
     const path = '/api/v1/external-api/transfers/name-enquiry';
     const body = JSON.stringify({ accountNumber, bankCode });
 
-    const res = await fetch(`${this.config.baseUrl}${path}`, {
+    const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: this.authHeaders('POST', path, body),
       body,
@@ -132,7 +139,7 @@ export class HttpPulseClient implements PulseClient {
       reference: input.reference,
     });
 
-    const res = await fetch(`${this.config.baseUrl}${path}`, {
+    const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: this.authHeaders('POST', path, body),
       body,
@@ -151,7 +158,7 @@ export class HttpPulseClient implements PulseClient {
   async getTransfer(reference: string): Promise<TransferStatusResult> {
     const path = `/api/v1/external-api/transfers/${encodeURIComponent(reference)}`;
 
-    const res = await fetch(`${this.config.baseUrl}${path}`, {
+    const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'GET',
       headers: this.authHeaders('GET', path, ''),
     });

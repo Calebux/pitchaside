@@ -55,6 +55,16 @@ describe('HttpPulseClient.createAccount', () => {
     });
   });
 
+  it.each(['https://pulse.example.test/api/v1/external-api', 'https://pulse.example.test/api/v1/external-api/', 'https://pulse.example.test/'])(
+    'does not double the API prefix when PULSE_BASE_URL is %p',
+    async (baseUrl) => {
+      const c = new HttpPulseClient({ baseUrl, publicKey: 'pk_test', privateKey: 'sk_test', webhookSecret: 'whsec_test' });
+      await c.createAccount({ reference: 'group-1', accountName: 'X' });
+
+      expect(fetchMock.mock.calls[0][0]).toBe('https://pulse.example.test/api/v1/external-api/accounts/prefix');
+    },
+  );
+
   it('leaves out contact details it does not have instead of sending empty strings', async () => {
     await client.createAccount({ reference: 'group-1', accountName: 'PitchAside Lekki Ballers' });
 
