@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { BackButton } from '@/components/back-button';
 import { FormHero, FormShell, formCardClass } from '@/components/form-hero';
 import { Player, Ball, palette, skins } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
-import { createPlayer } from '@/lib/api';
+import { addMember, createPlayer, getGroups, type IGroupWithMembers } from '@/lib/api';
 
 type Errors = Record<string, string>;
 
@@ -35,6 +35,22 @@ export default function NewPlayerPage() {
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
+  const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    getGroups()
+      .then((gs) => {
+        setGroups(gs);
+        // One group: they're almost certainly joining it.
+        if (gs.length === 1) setGroupIds([gs[0].id]);
+      })
+      .catch(() => {});
+  }, []);
+
+  function toggleGroup(groupId: string) {
+    setGroupIds((ids) => (ids.includes(groupId) ? ids.filter((x) => x !== groupId) : [...ids, groupId]));
+  }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -48,12 +64,17 @@ export default function NewPlayerPage() {
     setSubmitting(true);
 
     try {
-      await createPlayer({
+      const player = await createPlayer({
         firstName: (form.get('firstName') as string).trim(),
         lastName: (form.get('lastName') as string).trim(),
         email: (form.get('email') as string).trim() || undefined,
         phone: (form.get('phone') as string).trim() || undefined,
       });
+      // Registering adds them to the club; groups are separate memberships.
+      const added = await Promise.allSettled(groupIds.map((groupId) => addMember(groupId, { playerId: player.id })));
+      if (added.some((r) => r.status === 'rejected')) {
+        toast.error('Player registered, but not added to every group — add them from the group page');
+      }
       router.push('/players');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to register player');
@@ -144,6 +165,34 @@ export default function NewPlayerPage() {
           />
           {errors.phone && <p className="text-xs text-kit-600 mt-1">{errors.phone}</p>}
         </div>
+
+        {groups.length > 0 && (
+          <fieldset>
+            <legend className="block text-xs font-bold text-gray-700 mb-1.5">Groups</legend>
+            <div className="flex flex-wrap gap-2">
+              {groups.map((g) => {
+                const on = groupIds.includes(g.id);
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => toggleGroup(g.id)}
+                    className={`px-3 py-1.5 text-sm font-bold rounded-full border transition-colors ${
+                      on ? 'bg-ink text-volt-300 border-ink' : 'bg-white text-gray-700 border-gray-200 hover:border-ink'
+                    }`}
+                  >
+                    {on ? '✓ ' : ''}
+                    {g.name}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              {groupIds.length ? 'They’ll get a payment reference in each group you pick.' : 'Not in any group yet — they won’t get dues until you add them to one.'}
+            </p>
+          </fieldset>
+        )}
 
         <button
           type="submit"

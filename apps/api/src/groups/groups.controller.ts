@@ -64,6 +64,12 @@ export class GroupsController {
     return this.groupsService.addMember(id, dto, user.organizationId);
   }
 
+  /** The organiser adds themselves as a player in this group. */
+  @Post(':id/members/me')
+  addMe(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.groupsService.addOrganiser(id, user);
+  }
+
   @Delete(':id/members/:playerId')
   removeMember(
     @Param('id') id: string,

@@ -7,6 +7,7 @@ import { CreateGroupDto } from './dto/create-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class GroupsService {
@@ -91,6 +92,10 @@ export class GroupsService {
     );
     await this.billing.onMemberAdded(membership);
     return membership;
+  }
+
+  addOrganiser(groupId: string, user: User) {
+    return this.billing.addOrganiserToGroup(groupId, user);
   }
 
   async removeMember(groupId: string, playerId: string, organizationId: string) {
