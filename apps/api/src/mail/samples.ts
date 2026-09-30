@@ -12,7 +12,7 @@ import { join } from 'path';
 import { EmailContent, escapeHtml, memberInviteEmail, noticeEmail, passwordResetEmail, playerCodeEmail, verifyEmailEmail } from './templates';
 
 const appUrl = process.env.APP_URL && !process.env.APP_URL.includes('localhost') ? process.env.APP_URL : 'https://pitchaside.com';
-const from = process.env.MAIL_FROM || 'PitchAside <noreply@pitchaside.com>';
+const from = process.env.MAIL_FROM || 'PitchAside <hi@pitchaside.com>';
 // Banner images. By default the local files, so the samples show the artwork even before it is
 // deployed; set MAIL_ASSETS_URL (e.g. https://your-domain/email) to link to the live copies instead.
 const assets = process.env.MAIL_ASSETS_URL || `file://${join(__dirname, '..', '..', '..', 'web', 'public', 'email')}`;

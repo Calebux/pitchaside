@@ -6,20 +6,10 @@ import { EmailContent, memberInviteEmail, noticeEmail, passwordResetEmail, playe
 /** How long to wait on the mail provider before giving up — a request must never hang on it. */
 const SEND_TIMEOUT_MS = 15_000;
 
-/** "PitchAside <noreply@pitchaside.com>" → its two parts. */
-export function parseSender(from: string): { name?: string; address: string } {
-  const match = from.match(/^\s*(.*?)\s*<\s*([^>]+?)\s*>\s*$/);
-  if (!match) return { address: from.trim() };
-  const name = match[1].replace(/^"|"$/g, '');
-  return name ? { name, address: match[2] } : { address: match[2] };
-}
-
 /**
  * Sends email one of three ways, chosen from the environment:
  *
- * - ZEPTOMAIL_TOKEN set → ZeptoMail's HTTPS API. This is what production uses:
- *   Railway blocks outgoing SMTP (ports 25/465/587) on every plan below Pro, so
- *   SMTP there never connects.
+ * - RESEND_API_KEY set → Resend's HTTPS API. This is what production uses.
  * - otherwise SMTP_HOST set → SMTP (any provider; fine where the port is open).
  * - neither → nothing is sent; emails are logged, which is what dev uses.
  *
@@ -31,20 +21,19 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly from: string;
   private readonly transporter: nodemailer.Transporter | null = null;
-  private readonly zeptoToken: string | null;
-  private readonly zeptoUrl: string;
+  private readonly resendToken: string | null;
+  private readonly resendUrl: string;
 
   constructor(private config: ConfigService) {
-    this.from = config.get('MAIL_FROM', 'PitchAside <noreply@pitchaside.com>');
+    this.from = config.get('MAIL_FROM', 'PitchAside <hi@pitchaside.com>');
 
-    // The dashboard shows the token with its "Zoho-enczapikey " prefix; accept it pasted either way.
-    const token = config.get<string>('ZEPTOMAIL_TOKEN', '').trim().replace(/^zoho-enczapikey\s+/i, '');
-    this.zeptoToken = token || null;
-    this.zeptoUrl = config.get('ZEPTOMAIL_API_URL', 'https://api.zeptomail.com/v1.1/email');
+    const token = config.get<string>('RESEND_API_KEY', '').trim();
+    this.resendToken = token || null;
+    this.resendUrl = config.get('RESEND_API_URL', 'https://api.resend.com/emails');
 
     const host = config.get('SMTP_HOST');
-    if (this.zeptoToken) {
-      this.logger.log(`Sending email through the ZeptoMail API as ${this.from}`);
+    if (this.resendToken) {
+      this.logger.log(`Sending email through the Resend API as ${this.from}`);
     } else if (host) {
       this.transporter = nodemailer.createTransport({
         host,
@@ -60,13 +49,13 @@ export class MailService {
       });
       this.logger.log(`Sending email over SMTP (${host}) as ${this.from}`);
     } else {
-      this.logger.warn('No ZEPTOMAIL_TOKEN or SMTP_HOST configured — emails are NOT sent, only logged');
+      this.logger.warn('No RESEND_API_KEY or SMTP_HOST configured — emails are NOT sent, only logged');
     }
   }
 
   /** 'mock' = nothing leaves the server (no mail provider configured). */
   get mode(): 'live' | 'mock' {
-    return this.zeptoToken || this.transporter ? 'live' : 'mock';
+    return this.resendToken || this.transporter ? 'live' : 'mock';
   }
 
   private async send(to: string, email: EmailContent) {
@@ -75,7 +64,7 @@ export class MailService {
       return;
     }
     try {
-      if (this.zeptoToken) await this.sendViaZeptoMail(to, email);
+      if (this.resendToken) await this.sendViaResend(to, email);
       else await this.transporter!.sendMail({ from: this.from, to, subject: email.subject, html: email.html, text: email.text });
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -85,36 +74,35 @@ export class MailService {
     }
   }
 
-  private async sendViaZeptoMail(to: string, email: EmailContent) {
-    const res = await fetch(this.zeptoUrl, {
+  private async sendViaResend(to: string, email: EmailContent) {
+    const res = await fetch(this.resendUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Zoho-enczapikey ${this.zeptoToken}`,
+        Authorization: `Bearer ${this.resendToken}`,
         'Content-Type': 'application/json',
         Accept: 'application/json',
       },
       body: JSON.stringify({
-        from: parseSender(this.from),
-        to: [{ email_address: { address: to } }],
+        from: this.from,
+        to: [to],
         subject: email.subject,
-        htmlbody: email.html,
-        textbody: email.text,
+        html: email.html,
+        text: email.text,
       }),
       signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
     });
     if (res.ok) return;
 
-    // ZeptoMail explains rejections in the body (unverified sender domain, bad token, account under review…).
+    // Resend explains rejections in the body (unverified sender domain, bad token, rate limit…).
     const body = await res.text().catch(() => '');
     let reason = body.slice(0, 300);
     try {
-      const parsed = JSON.parse(body) as { error?: { code?: string; message?: string; details?: { message?: string; target?: string }[] } };
-      const detail = parsed.error?.details?.map((d) => [d.target, d.message].filter(Boolean).join(': ')).join('; ');
-      reason = [parsed.error?.code, parsed.error?.message, detail].filter(Boolean).join(' — ') || reason;
+      const parsed = JSON.parse(body) as { name?: string; message?: string };
+      reason = [parsed.name, parsed.message].filter(Boolean).join(' — ') || reason;
     } catch {
       /* not JSON — keep the raw text */
     }
-    throw new Error(`ZeptoMail ${res.status}: ${reason || 'no explanation given'}`);
+    throw new Error(`Resend ${res.status}: ${reason || 'no explanation given'}`);
   }
 
   /** Banner images live in the web app's public/email folder. */
