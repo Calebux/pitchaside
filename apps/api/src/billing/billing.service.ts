@@ -55,6 +55,23 @@ export function accountNameFor(groupName: string): string {
   return `PitchAside ${clean}`.trim().slice(0, 60);
 }
 
+function bankNameFor(code: string) {
+  return NIGERIAN_BANKS.find((b) => b.code === code)?.name ?? 'Unknown Bank';
+}
+
+/** What the app sees of a group's saved payee; null when there isn't one. */
+function payeeView(group: Group) {
+  if (!group.payeeAccount) return null;
+  return {
+    label: group.payeeLabel ?? 'Pitch owner',
+    name: group.payeeName ?? '',
+    accountNumber: group.payeeAccount,
+    bankCode: group.payeeBankCode,
+    bankName: group.payeeBankName,
+    amount: group.payeeAmount != null ? Number(group.payeeAmount) : null,
+  };
+}
+
 export interface BillingPeriod {
   /** ISO date (YYYY-MM-DD) of the first day of the period. */
   start: string;
@@ -651,7 +668,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     groupId: string,
     organizationId: string,
     userId: string,
-    dto: { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; pin: string },
+    dto: { amount: number; toPayee?: boolean; beneficiaryAccount?: string; beneficiaryBankCode?: string; narration?: string; pin: string },
   ) {
     // Verify PIN
     const pinValid = await this.usersService.verifyTransferPin(userId, dto.pin);
@@ -659,6 +676,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
     const group = await this.findGroup(groupId, organizationId);
     if (!group.accountNumber) throw new BadRequestException('Group has no collection account');
+    const to = await this.payoutRecipient(group, dto);
 
     // Check balance
     const balance = await this.getGroupBalance(groupId, organizationId);
@@ -680,18 +698,16 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Daily transfer limit (₦10,000,000) exceeded for this group');
     }
 
-    // Look up bank name
-    const bank = NIGERIAN_BANKS.find((b) => b.code === dto.beneficiaryBankCode);
     const reference = `PA-${randomBytes(8).toString('hex').toUpperCase()}`;
 
     const payout = await this.payoutsRepo.save(
       this.payoutsRepo.create({
         groupId,
         amount: dto.amount,
-        beneficiaryAccount: dto.beneficiaryAccount,
-        beneficiaryName: '', // filled after name enquiry on the client, or we leave it
-        beneficiaryBankCode: dto.beneficiaryBankCode,
-        beneficiaryBankName: bank?.name ?? 'Unknown Bank',
+        beneficiaryAccount: to.account,
+        beneficiaryName: to.name,
+        beneficiaryBankCode: to.bankCode,
+        beneficiaryBankName: to.bankName,
         narration: dto.narration,
         providerReference: reference,
         initiatedById: userId,
@@ -701,8 +717,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     try {
       const result = await this.pulse.transferOut({
         debitAccountNumber: group.accountNumber,
-        beneficiaryAccountNumber: dto.beneficiaryAccount,
-        beneficiaryBankCode: dto.beneficiaryBankCode,
+        beneficiaryAccountNumber: to.account,
+        beneficiaryBankCode: to.bankCode,
         amount: dto.amount,
         narration: dto.narration ?? `PitchAside payout – ${group.name}`,
         reference,
@@ -746,6 +762,64 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Called when PulseMFB notifies us about an outbound transfer status change. */
+  /**
+   * Where a payout goes: the group's saved payee, or the account typed in. Either way the
+   * name comes from the bank, so the history shows who was actually paid.
+   */
+  private async payoutRecipient(group: Group, dto: { toPayee?: boolean; beneficiaryAccount?: string; beneficiaryBankCode?: string }) {
+    if (dto.toPayee) {
+      if (!group.payeeAccount || !group.payeeBankCode) throw new BadRequestException('This group has no saved payee yet');
+      return {
+        account: group.payeeAccount,
+        bankCode: group.payeeBankCode,
+        bankName: group.payeeBankName ?? bankNameFor(group.payeeBankCode),
+        name: group.payeeName ?? '',
+      };
+    }
+    if (!dto.beneficiaryAccount || !dto.beneficiaryBankCode) throw new BadRequestException('Choose a bank and account number');
+    return {
+      account: dto.beneficiaryAccount,
+      bankCode: dto.beneficiaryBankCode,
+      bankName: bankNameFor(dto.beneficiaryBankCode),
+      name: await this.verifiedName(dto.beneficiaryBankCode, dto.beneficiaryAccount),
+    };
+  }
+
+  private async verifiedName(bankCode: string, accountNumber: string) {
+    let name = '';
+    try {
+      name = (await this.pulse.nameEnquiry(bankCode, accountNumber)).accountName.trim();
+    } catch (err: any) {
+      this.logger.warn(`Name enquiry for ${bankCode}/${accountNumber} failed: ${err.message}`);
+    }
+    if (!name) throw new BadRequestException("Couldn't confirm who owns that account — check the bank and account number");
+    return name;
+  }
+
+  // ── Saved payee (pitch owner / facility manager) ──
+
+  async getPayee(groupId: string, organizationId: string) {
+    return payeeView(await this.findGroup(groupId, organizationId));
+  }
+
+  async savePayee(groupId: string, organizationId: string, dto: { bankCode: string; accountNumber: string; label?: string; amount?: number }) {
+    const group = await this.findGroup(groupId, organizationId);
+    group.payeeName = await this.verifiedName(dto.bankCode, dto.accountNumber);
+    group.payeeAccount = dto.accountNumber;
+    group.payeeBankCode = dto.bankCode;
+    group.payeeBankName = bankNameFor(dto.bankCode);
+    group.payeeLabel = dto.label?.trim() || 'Pitch owner';
+    group.payeeAmount = dto.amount != null ? String(dto.amount) : null;
+    return payeeView(await this.groupsRepo.save(group));
+  }
+
+  async clearPayee(groupId: string, organizationId: string) {
+    const group = await this.findGroup(groupId, organizationId);
+    group.payeeName = group.payeeAccount = group.payeeBankCode = group.payeeBankName = group.payeeLabel = group.payeeAmount = null;
+    await this.groupsRepo.save(group);
+    return null;
+  }
+
   async handlePayoutWebhook(reference: string, status: 'completed' | 'failed', errorMessage?: string) {
     const payout = await this.payoutsRepo.findOne({ where: { providerReference: reference } });
     if (!payout) return;

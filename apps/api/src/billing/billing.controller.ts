@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -19,6 +20,7 @@ import {
   ChangeTransferPinDto,
   InitiatePayoutDto,
   NameEnquiryDto,
+  SavePayeeDto,
   SetTransferPinDto,
   SimulateTransferDto,
 } from './dto/transfer.dto';
@@ -108,6 +110,22 @@ export class BillingController {
   @Post('groups/:id/payouts')
   initiatePayout(@Param('id') id: string, @Body() dto: InitiatePayoutDto, @CurrentUser() user: User) {
     return this.billing.initiateTransferOut(id, user.organizationId, user.id, dto);
+  }
+
+  /** The group's saved payee — the pitch owner or facility manager it usually pays. */
+  @Get('groups/:id/payee')
+  getPayee(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.getPayee(id, user.organizationId);
+  }
+
+  @Put('groups/:id/payee')
+  savePayee(@Param('id') id: string, @Body() dto: SavePayeeDto, @CurrentUser() user: User) {
+    return this.billing.savePayee(id, user.organizationId, dto);
+  }
+
+  @Delete('groups/:id/payee')
+  clearPayee(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.clearPayee(id, user.organizationId);
   }
 
   @Post('payouts/:id/cancel')
