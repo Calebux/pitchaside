@@ -14,11 +14,13 @@ import { frequencyLabel, frequencyOptions } from '@/lib/billing';
 import { LeagueTableView } from '@/components/ratings';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
 import { RsvpToggle } from '@/components/rsvp-toggle';
+import { useAuth } from '@/lib/auth';
 import {
   getGroup,
   getSessions,
   getPlayers,
   addMember,
+  addMeToGroup,
   removeMember,
   createSession,
   deleteGroup,
@@ -46,6 +48,7 @@ export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { user } = useAuth();
   const [group, setGroup] = useState<IGroupWithMembers | null>(null);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
@@ -63,6 +66,7 @@ export default function GroupDetailPage() {
   const [showAddMember, setShowAddMember] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState('');
   const [addingMember, setAddingMember] = useState(false);
+  const [addingMe, setAddingMe] = useState(false);
 
   // Create session state
   const [showCreateSession, setShowCreateSession] = useState(false);
@@ -196,6 +200,21 @@ export default function GroupDetailPage() {
     }
   }
 
+  /** The organiser plays too: add their own player record to this group. */
+  async function handleAddMe() {
+    setAddingMe(true);
+    try {
+      await addMeToGroup(id);
+      setGroup(await getGroup(id));
+      refreshPayments().catch(() => {});
+      toast.success("You're in the squad");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add you to the group");
+    } finally {
+      setAddingMe(false);
+    }
+  }
+
   function handleRemoveMember(playerId: string, playerName: string) {
     setConfirm({
       title: 'Remove Member',
@@ -254,6 +273,8 @@ export default function GroupDetailPage() {
   const memberIds = new Set(group.memberships?.map((m) => m.player.id) || []);
   const availablePlayers = allPlayers.filter((p) => !memberIds.has(p.id));
   const memberCount = group.memberships?.length || 0;
+  const myEmail = user?.email.trim().toLowerCase();
+  const imAMember = group.memberships?.some((m) => m.player.email?.trim().toLowerCase() === myEmail);
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -507,6 +528,22 @@ export default function GroupDetailPage() {
       {/* Members Tab */}
       {tab === 'members' && (
         <div>
+          {user && !imAMember && (
+            <div className="mb-3 flex items-center justify-between gap-3 bg-volt-300/40 border border-volt-400 rounded-2xl px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-ink">Playing in this group too?</p>
+                <p className="text-xs text-gray-600">Add yourself so your dues and games are tracked like everyone else&apos;s.</p>
+              </div>
+              <button
+                onClick={handleAddMe}
+                disabled={addingMe}
+                className="shrink-0 px-3.5 py-2 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
+              >
+                {addingMe ? 'Adding…' : 'Add me'}
+              </button>
+            </div>
+          )}
+
           <button
             onClick={() => setShowAddMember(!showAddMember)}
             className="w-full mb-3 py-3 text-sm font-bold text-ink border-2 border-dashed border-gray-300 rounded-2xl hover:border-ink hover:bg-white transition-colors"

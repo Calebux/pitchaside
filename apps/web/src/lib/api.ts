@@ -102,6 +102,11 @@ export function addMember(
   return http.post<void>(`/groups/${groupId}/members`, data);
 }
 
+/** The signed-in organiser joins this group as a player. */
+export function addMeToGroup(groupId: string): Promise<void> {
+  return http.post<void>(`/groups/${groupId}/members/me`);
+}
+
 export function removeMember(groupId: string, playerId: string): Promise<void> {
   return http.delete<void>(`/groups/${groupId}/members/${playerId}`);
 }

@@ -24,7 +24,7 @@ import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.clien
 import { MockPulseClient } from './pulse/mock-pulse.client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
-import { UserRole } from '../users/entities/user.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
@@ -324,6 +324,28 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (!group) throw new NotFoundException('This link is invalid or has expired');
     const player = await clubPlayerFor(this.playersRepo, group.organizationId, input);
     return { playerId: player.id, ...(await this.addToGroup(group, player)) };
+  }
+
+  /**
+   * "I'm playing too": the organiser's own player record in their club (matched by email,
+   * created if needed) added to this group. Safe to tap twice.
+   */
+  async addOrganiserToGroup(groupId: string, user: User) {
+    const group = await this.findGroup(groupId, user.organizationId);
+    const player = await clubPlayerFor(this.playersRepo, group.organizationId, {
+      email: user.email,
+      phone: user.phone,
+      firstName: user.firstName,
+      lastName: user.lastName,
+    });
+    let membership = await this.membershipsRepo.findOne({ where: { groupId: group.id, playerId: player.id } });
+    if (!membership) {
+      membership = await this.membershipsRepo.save(
+        this.membershipsRepo.create({ groupId: group.id, playerId: player.id, role: MemberRole.PLAYER }),
+      );
+    }
+    await this.onMemberAdded(membership);
+    return membership;
   }
 
   /** Signed-in person tapping a group link — even one from a club they've never played for. */
