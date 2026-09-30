@@ -588,6 +588,37 @@ export function OffsideFlag({ className }: { className?: string }) {
   );
 }
 
+/** Verify your email — a letter with a tick coming out of its envelope. */
+export function Envelope({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 200 150" className={className} aria-hidden>
+      <circle cx="100" cy="78" r="62" fill={palette.volt} opacity="0.35" />
+      <ellipse cx="100" cy="138" rx="70" ry="7" fill={palette.ink} opacity="0.1" />
+      {/* Open flap, behind the letter */}
+      <path d="M44 62 L100 22 L156 62 Z" fill={palette.gray} stroke={palette.ink} strokeWidth="2.6" strokeLinejoin="round" />
+      {/* The letter */}
+      <g transform="rotate(-4 100 60)">
+        <rect x="60" y="30" width="80" height="74" rx="8" fill={palette.white} stroke={palette.ink} strokeWidth="2.6" />
+        <circle cx="100" cy="58" r="15" fill={palette.volt} stroke={palette.ink} strokeWidth="2.4" />
+        <path d="M92.5 58.5 L98 64 L108 52.5" stroke={palette.ink} strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+      {/* Envelope front */}
+      <path
+        d="M42 62 L100 102 L158 62 L158 124 Q158 134 148 134 L52 134 Q42 134 42 124 Z"
+        fill={palette.chalk}
+        stroke={palette.ink}
+        strokeWidth="2.6"
+        strokeLinejoin="round"
+      />
+      <path d="M44 132 L86 93 M156 132 L114 93" stroke={palette.ink} strokeWidth="2.2" strokeLinecap="round" />
+      <Ball x={164} y={126} r={11} spin={18} />
+      <Sparkle x={28} y={44} s={0.9} color={palette.kit} />
+      <Sparkle x={174} y={34} s={0.7} color={palette.ink} />
+      <Sparkle x={22} y={108} s={0.6} />
+    </svg>
+  );
+}
+
 /** Welcome / onboarding — player celebrating with ball at their feet. */
 export function Celebration({ className }: { className?: string }) {
   return (
