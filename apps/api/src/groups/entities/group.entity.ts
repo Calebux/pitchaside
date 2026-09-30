@@ -79,6 +79,29 @@ export class Group {
   @Column({ name: 'account_reference', nullable: true })
   accountReference: string;
 
+  /**
+   * Who the group usually pays out to — the pitch owner or facility manager. The name
+   * is the one the bank returned (NIBSS name enquiry) when the payee was saved.
+   */
+  @Column({ name: 'payee_label', type: 'varchar', length: 40, nullable: true })
+  payeeLabel: string | null;
+
+  @Column({ name: 'payee_name', type: 'varchar', nullable: true })
+  payeeName: string | null;
+
+  @Column({ name: 'payee_account', type: 'varchar', length: 10, nullable: true })
+  payeeAccount: string | null;
+
+  @Column({ name: 'payee_bank_code', type: 'varchar', length: 10, nullable: true })
+  payeeBankCode: string | null;
+
+  @Column({ name: 'payee_bank_name', type: 'varchar', nullable: true })
+  payeeBankName: string | null;
+
+  /** The usual amount (e.g. the pitch fee), prefilled when paying the payee. */
+  @Column({ name: 'payee_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  payeeAmount: string | null;
+
   @ManyToOne(() => Organization, (org) => org.groups, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;

@@ -522,7 +522,7 @@ export default function GroupDetailPage() {
       )}
 
       {tab === 'payouts' && (
-        <PayoutsPanel groupId={id} onRefresh={refreshPayments} />
+        <PayoutsPanel groupId={id} groupName={group.name} onRefresh={refreshPayments} />
       )}
 
       {/* Members Tab */}

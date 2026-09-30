@@ -454,9 +454,38 @@ export function getGroupPayouts(groupId: string): Promise<OutgoingTransfer[]> {
 
 export function initiateGroupPayout(
   groupId: string,
-  data: { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; pin: string },
+  data:
+    | { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; pin: string }
+    | { amount: number; toPayee: true; narration?: string; pin: string },
 ): Promise<OutgoingTransfer> {
   return http.post(`/groups/${groupId}/payouts`, data);
+}
+
+/** Who the group usually pays: the pitch owner or facility manager. `name` is the bank's. */
+export interface GroupPayee {
+  label: string;
+  name: string;
+  accountNumber: string;
+  bankCode: string;
+  bankName: string;
+  /** The usual amount (e.g. the pitch fee), if saved. */
+  amount: number | null;
+}
+
+export function getGroupPayee(groupId: string): Promise<GroupPayee | null> {
+  return http.get(`/groups/${groupId}/payee`);
+}
+
+/** Saves the payee after the API checks the account's name with the bank. */
+export function saveGroupPayee(
+  groupId: string,
+  data: { bankCode: string; accountNumber: string; label?: string; amount?: number },
+): Promise<GroupPayee> {
+  return http.put(`/groups/${groupId}/payee`, data);
+}
+
+export function clearGroupPayee(groupId: string): Promise<null> {
+  return http.delete(`/groups/${groupId}/payee`);
 }
 
 export function cancelPayout(payoutId: string): Promise<OutgoingTransfer> {

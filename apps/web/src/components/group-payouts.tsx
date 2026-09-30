@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmptyState } from '@/components/empty-state';
+import { PayeeCard } from '@/components/group-payee';
 import {
   cancelPayout,
   formatCurrency,
@@ -89,9 +90,11 @@ function SetPinForm({ onDone }: { onDone: () => void }) {
 
 export function PayoutsPanel({
   groupId,
+  groupName,
   onRefresh,
 }: {
   groupId: string;
+  groupName: string;
   onRefresh: () => Promise<void>;
 }) {
   const toast = useToast();
@@ -219,6 +222,20 @@ export function PayoutsPanel({
             </button>
           )}
         </div>
+      )}
+
+      {/* Pitch owner / facility manager: saved once, paid in one tap */}
+      {balance && banks.length > 0 && (
+        <PayeeCard
+          groupId={groupId}
+          groupName={groupName}
+          banks={banks}
+          available={balance.available}
+          onPaid={async () => {
+            await load();
+            await onRefresh();
+          }}
+        />
       )}
 
       {/* Payout form */}
