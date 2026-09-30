@@ -410,7 +410,7 @@ export interface GroupBalance {
   totalIn: number;
   totalOut: number;
   available: number;
-  /** What PulseMFB holds in the account; null when unknown (mock, or Pulse unreachable). */
+  /** What Payrep MFB holds in the account; null when unknown (mock, or the bank unreachable). */
   bankBalance: number | null;
 }
 
