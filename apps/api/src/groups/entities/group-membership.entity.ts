@@ -42,6 +42,13 @@ export class GroupMembership {
   @Column({ name: 'payment_ref', nullable: true, unique: true })
   paymentRef: string;
 
+  /**
+   * Money this member has paid that doesn't yet cover a due (e.g. ₦198 toward ₦1,000).
+   * Their oldest pending dues are paid from it as soon as it's enough.
+   */
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  credit: string;
+
   @CreateDateColumn()
   joinedAt: Date;
 }

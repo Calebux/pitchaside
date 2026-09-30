@@ -214,7 +214,8 @@ export interface PlayerHome {
     waitlist: number;
     payment: { status: 'paid' | 'pending' | 'waived'; amount: number } | null;
   }[];
-  owed: { id: string; amount: number; groupId: string; groupName: string; label: string | null; date: string }[];
+  /** `amount` is what's left to pay; `paidSoFar` is credit from partial transfers already counted against it. */
+  owed: { id: string; amount: number; paidSoFar: number; groupId: string; groupName: string; label: string | null; date: string }[];
   openVotes: { token: string; sessionId: string; groupName?: string; date: string; voted: boolean }[];
   ratings: PlayerRatings;
   tables: {

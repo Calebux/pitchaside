@@ -9,6 +9,7 @@ import { MailService } from '../mail/mail.service';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BillingService } from '../billing/billing.service';
 import { RecurrenceType } from './dto/create-session.dto';
 
 describe('SessionsService', () => {
@@ -88,6 +89,7 @@ describe('SessionsService', () => {
         { provide: RsvpService, useValue: { announceGame: jest.fn() } },
         { provide: RatingsService, useValue: { ensureVotingToken: jest.fn() } },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: BillingService, useValue: { applyCredits: jest.fn() } },
       ],
     }).compile();
 

@@ -112,14 +112,26 @@ export class PlayerPortalService {
       .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
       .orderBy('session.date', 'ASC')
       .getMany();
-    return rows.map((p) => ({
-      id: p.id,
-      amount: Number(p.amount),
-      groupId: p.session.groupId,
-      groupName: p.session.group.name,
-      label: p.session.label ? `${p.session.label} dues` : null,
-      date: p.session.date,
-    }));
+    // Money already paid toward a due (partial transfers) comes off their oldest due in that group.
+    const credits = await this.membershipsRepo
+      .createQueryBuilder('m')
+      .where('m.playerId IN (:...ids)', { ids })
+      .andWhere('m.credit > 0')
+      .getMany();
+    const creditIn = new Map(credits.map((m) => [m.groupId, Number(m.credit)]));
+    return rows.map((p) => {
+      const paidSoFar = Math.min(creditIn.get(p.session.groupId) ?? 0, Number(p.amount));
+      creditIn.delete(p.session.groupId);
+      return {
+        id: p.id,
+        amount: Number(p.amount) - paidSoFar,
+        paidSoFar,
+        groupId: p.session.groupId,
+        groupName: p.session.group.name,
+        label: p.session.label ? `${p.session.label} dues` : null,
+        date: p.session.date,
+      };
+    });
   }
 
   private groupsOf(memberships: GroupMembership[]) {

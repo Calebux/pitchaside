@@ -9,9 +9,10 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { Rsvp } from './entities/rsvp.entity';
 import { RsvpService } from './rsvp.service';
 import { RsvpController } from './rsvp.controller';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Rsvp, Session, Group, GroupMembership, Payment]), PaymentsModule, NotificationsModule],
+  imports: [TypeOrmModule.forFeature([Rsvp, Session, Group, GroupMembership, Payment]), PaymentsModule, NotificationsModule, BillingModule],
   controllers: [RsvpController],
   providers: [RsvpService],
   exports: [RsvpService],

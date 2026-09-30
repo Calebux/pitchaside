@@ -115,9 +115,11 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
     this.timer = setInterval(() => {
-      this.ensureAllCurrentPeriods().catch((err) =>
-        this.logger.error(`Dues rollover failed: ${err.message}`),
-      );
+      this.ensureAllCurrentPeriods()
+        .catch((err) => this.logger.error(`Dues rollover failed: ${err.message}`))
+        // Dues created outside billing (games, RSVPs) get paid from credit here at the latest.
+        .then(() => this.applyAllCredits())
+        .catch((err) => this.logger.error(`Applying credit failed: ${err.message}`));
     }, 60 * 60 * 1000);
     this.timer.unref();
   }
@@ -246,6 +248,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           this.paymentsRepo.create({ sessionId: session.id, playerId: m.playerId, amount: fee }),
         ),
       );
+      await this.applyCredits(group.id, memberships.map((m) => m.playerId));
       this.notifications.later(() =>
         this.notifications.notifyPlayers(
           memberships.map((m) => m.playerId),
@@ -500,12 +503,12 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     await this.ensureCurrentPeriod(group);
     const playerId = await this.identifyPayer(group.id, incoming);
     if (playerId) {
-      const settled = await this.settleOldestDues(group.id, playerId, incoming.amount);
-      if (settled.length) {
-        transfer.status = TransferStatus.MATCHED;
-        transfer.paymentId = settled[0].id;
-        await this.transfersRepo.save(transfer);
-      }
+      // Known sender: it's theirs even if it's less than a due — it goes to their credit.
+      const { settled } = await this.applyCredit(group.id, playerId, incoming.amount);
+      transfer.status = TransferStatus.MATCHED;
+      transfer.playerId = playerId;
+      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+      await this.transfersRepo.save(transfer);
     }
     if (transfer.status === TransferStatus.UNMATCHED) notifyUnmatched();
     return { received: true, status: transfer.status };
@@ -537,27 +540,72 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return null;
   }
 
-  /** Pays off the player's oldest pending dues/games in this group, as far as the amount stretches. */
-  private async settleOldestDues(groupId: string, playerId: string, amount: number) {
-    const pending = await this.paymentsRepo
-      .createQueryBuilder('payment')
-      .innerJoin('payment.session', 'session')
-      .where('session.groupId = :groupId', { groupId })
-      .andWhere('payment.playerId = :playerId', { playerId })
-      .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
-      .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
-      .orderBy('session.date', 'ASC')
-      .getMany();
+  /**
+   * Adds `amount` to the member's credit, then pays their oldest pending dues in this group
+   * from it while it covers them. What's left stays as credit for the next due — so ₦198
+   * toward a ₦1,000 due waits, and a later ₦802 completes it.
+   *
+   * The member's row is locked for the duration, so two transfers arriving together can't
+   * spend the same credit twice.
+   */
+  async applyCredit(groupId: string, playerId: string, amount = 0): Promise<{ settled: Payment[]; credit: number }> {
+    const result = await this.membershipsRepo.manager.transaction(async (tx) => {
+      const membership = await tx.findOne(GroupMembership, {
+        where: { groupId, playerId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!membership) return { settled: [] as Payment[], credit: 0 };
 
-    let remaining = amount;
-    const settled: Payment[] = [];
-    for (const p of pending) {
-      if (remaining + 0.001 < Number(p.amount)) break;
-      remaining -= Number(p.amount);
-      settled.push(p);
-    }
-    await this.markPaidFromTransfer(settled);
-    return settled;
+      let pool = Number(membership.credit) + amount;
+      const pending = await tx
+        .getRepository(Payment)
+        .createQueryBuilder('payment')
+        .innerJoin('payment.session', 'session')
+        .where('session.groupId = :groupId', { groupId })
+        .andWhere('payment.playerId = :playerId', { playerId })
+        .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
+        .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
+        .orderBy('session.date', 'ASC')
+        .getMany();
+
+      const settled: Payment[] = [];
+      for (const p of pending) {
+        if (pool + 0.001 < Number(p.amount)) break;
+        pool -= Number(p.amount);
+        settled.push(p);
+      }
+      const now = new Date();
+      for (const p of settled) {
+        p.status = PaymentStatus.PAID;
+        p.paidAt = now;
+        p.source = 'transfer';
+        p.markedBy = 'pulse';
+      }
+      if (settled.length) await tx.save(settled);
+      membership.credit = pool.toFixed(2);
+      await tx.save(membership);
+      return { settled, credit: Number(membership.credit) };
+    });
+
+    await this.afterPaid(result.settled);
+    return result;
+  }
+
+  /** Dues just created for these members: pay them from any credit they already have. */
+  async applyCredits(groupId: string, playerIds: string[]) {
+    const withCredit = await this.membershipsRepo
+      .createQueryBuilder('m')
+      .where('m.groupId = :groupId', { groupId })
+      .andWhere('m.playerId IN (:...playerIds)', { playerIds: playerIds.length ? playerIds : [null] })
+      .andWhere('m.credit > 0')
+      .getMany();
+    for (const m of withCredit) await this.applyCredit(groupId, m.playerId);
+  }
+
+  /** Every member with credit, in every group: catches dues created anywhere (hourly). */
+  async applyAllCredits() {
+    const withCredit = await this.membershipsRepo.createQueryBuilder('m').where('m.credit > 0').getMany();
+    for (const m of withCredit) await this.applyCredit(m.groupId, m.playerId);
   }
 
   private async markPaidFromTransfer(payments: Payment[]) {
@@ -570,6 +618,12 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       p.markedBy = 'pulse';
     }
     await this.paymentsRepo.save(payments);
+    await this.afterPaid(payments);
+  }
+
+  /** Session totals and receipts for dues just paid from a transfer. */
+  private async afterPaid(payments: Payment[]) {
+    if (!payments.length) return;
     for (const sessionId of new Set(payments.map((p) => p.sessionId))) {
       await this.paymentsService.recalculateSessionTotal(sessionId);
     }
@@ -580,7 +634,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     await this.findGroup(groupId, organizationId);
     return this.transfersRepo.find({
       where: { groupId },
-      relations: ['payment', 'payment.player', 'payment.session'],
+      relations: ['payment', 'payment.player', 'payment.session', 'player'],
       order: { receivedAt: 'DESC' },
       take: 50,
     });
@@ -601,9 +655,20 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (payment.status !== PaymentStatus.PENDING) {
       throw new BadRequestException('That payment is not pending');
     }
-    await this.markPaidFromTransfer([payment]);
+    const amount = Number(transfer.amount);
     transfer.status = TransferStatus.ASSIGNED;
-    transfer.paymentId = payment.id;
+    transfer.playerId = payment.playerId;
+    if (amount + 0.001 >= Number(payment.amount)) {
+      // Covers the chosen due; anything over goes to the player's credit.
+      await this.markPaidFromTransfer([payment]);
+      transfer.paymentId = payment.id;
+      const extra = amount - Number(payment.amount);
+      if (extra > 0.001) await this.applyCredit(transfer.groupId, payment.playerId, extra);
+    } else {
+      // Less than the due: it's credit toward it, not a full payment.
+      const { settled } = await this.applyCredit(transfer.groupId, payment.playerId, amount);
+      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+    }
     return this.transfersRepo.save(transfer);
   }
 

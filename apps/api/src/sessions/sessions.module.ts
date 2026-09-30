@@ -9,6 +9,7 @@ import { SessionsController } from './sessions.controller';
 import { RsvpModule } from '../rsvp/rsvp.module';
 import { RatingsModule } from '../ratings/ratings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     RsvpModule,
     RatingsModule,
     NotificationsModule,
+    BillingModule,
   ],
   controllers: [SessionsController],
   providers: [SessionsService],

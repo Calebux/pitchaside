@@ -48,9 +48,14 @@ export default function PlayerPayPage() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-card divide-y divide-gray-100 mb-3">
               {items.map((o) => (
                 <div key={o.id} className="flex items-center justify-between px-4 py-3">
-                  <p className="text-sm font-semibold text-ink">
-                    {o.label ?? `Game · ${niceDate(o.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-                  </p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">
+                      {o.label ?? `Game · ${niceDate(o.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+                    </p>
+                    {o.paidSoFar > 0 && (
+                      <p className="text-xs text-pitch-600 font-semibold">{formatCurrency(o.paidSoFar)} paid so far — this is what&apos;s left</p>
+                    )}
+                  </div>
                   <span className="font-display text-lg font-extrabold text-ink tabular-nums">{formatCurrency(o.amount)}</span>
                 </div>
               ))}
