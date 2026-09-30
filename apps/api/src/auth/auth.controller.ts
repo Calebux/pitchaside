@@ -31,7 +31,7 @@ export class AuthController {
   async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(dto);
     setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    return { accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user };
   }
 
   @SkipCsrf()
@@ -41,7 +41,7 @@ export class AuthController {
     const result = await this.authService.login(dto);
     if ('requires2FA' in result) return result;
     setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    return { accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user };
   }
 
   // The app asks this on every page load; a rate limit here signs people out mid-session.
@@ -108,12 +108,12 @@ export class AuthController {
 
   @SkipCsrf()
   @Post('refresh')
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const rawRefreshToken = req.cookies?.[COOKIE_NAMES.REFRESH];
+  async refresh(@Req() req: Request, @Body() body: any, @Res({ passthrough: true }) res: Response) {
+    const rawRefreshToken = req.cookies?.[COOKIE_NAMES.REFRESH] || body?.refreshToken;
     if (!rawRefreshToken) throw new BadRequestException('No refresh token');
     const result = await this.authService.refresh(rawRefreshToken);
     setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    return { accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user };
   }
 
   @Post('logout')
