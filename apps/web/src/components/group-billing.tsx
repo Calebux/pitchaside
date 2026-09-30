@@ -67,8 +67,9 @@ export function GroupAccountCard({
       onChange(b);
       if (b.account) toast.success('Account created');
       else toast.error('PulseMFB is not responding — try again shortly');
-    } catch {
-      toast.error('Could not create the account');
+    } catch (err) {
+      // The API passes on PulseMFB's reason, e.g. a field it rejected.
+      toast.error(err instanceof Error ? err.message : 'Could not create the account');
     } finally {
       setBusy(false);
     }
