@@ -6,26 +6,6 @@ import { Envelope } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { resendVerification } from '@/lib/api';
 
-const SNOOZE_KEY = 'pa_verify_email_later';
-const SNOOZE_MS = 24 * 60 * 60 * 1000;
-
-/** "Later" hides the reminder on this device for a day. Storage can be unavailable (private windows): then it just shows again. */
-function snoozed() {
-  try {
-    return Date.now() - Number(localStorage.getItem(SNOOZE_KEY) ?? 0) < SNOOZE_MS;
-  } catch {
-    return false;
-  }
-}
-
-function snooze() {
-  try {
-    localStorage.setItem(SNOOZE_KEY, String(Date.now()));
-  } catch {
-    /* ignore */
-  }
-}
-
 type SendState = 'idle' | 'sending' | 'sent' | 'failed';
 
 /** Resending the verification email, and saying how it went. */
@@ -64,10 +44,10 @@ function useCheckOnReturn(active: boolean, onCheck: () => Promise<void>) {
 
 /**
  * Asks an organiser who hasn't confirmed their email to do so. Verifying isn't
- * required to use the app, so it can be put off: "I'll do it later" hides it on
- * this device for a day. Clicking outside or pressing Escape only closes it for
- * now — an accidental click shouldn't silence it — and Settings always has the
- * resend button (VerifyEmailRow). It goes away by itself once they've verified.
+ * required to use the app, so it can be put off for the current session. The
+ * reminder returns the next time the user signs in. Clicking outside or
+ * pressing Escape only closes it for now, and Settings always has the resend
+ * button (VerifyEmailRow). It goes away by itself once they've verified.
  */
 export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: () => Promise<void> }) {
   const titleId = useId();
@@ -75,15 +55,15 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
   const { state, resend } = useResend();
   useCheckOnReturn(open, onCheck);
 
-  // Decided after mount: the server render can't see this device's snooze.
-  useEffect(() => setOpen(!snoozed()), []);
+  // Open after mount so the reminder appears on every sign-in for an account
+  // whose email is still unverified.
+  useEffect(() => setOpen(true), []);
 
   /** Closed until the next page load. */
   const close = () => setOpen(false);
 
-  /** Their explicit choice: hidden on this device for a day. */
+  /** Their explicit choice: close it for this session. */
   function later() {
-    snooze();
     close();
   }
 
