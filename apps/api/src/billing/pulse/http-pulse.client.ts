@@ -173,31 +173,68 @@ export class HttpPulseClient implements PulseClient {
     };
   }
 
-  // ── Webhook verification ──
+  async getBalance(accountNumber: string): Promise<number> {
+    const path = `/api/v1/external-api/accounts/${encodeURIComponent(accountNumber)}/balance`;
 
-  verifyWebhook(rawBody: string, signature: string | undefined): boolean {
-    if (!signature) return false;
-    const expected = Buffer.from(
-      createHmac('sha256', this.config.webhookSecret).update(rawBody).digest('hex'),
-    );
-    const given = Buffer.from(signature);
-    return expected.length === given.length && timingSafeEqual(expected, given);
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: this.authHeaders('GET', path, ''),
+    });
+
+    if (!res.ok) throw new Error(`PulseMFB balance failed (${res.status}): ${await pulseReason(res)}`);
+
+    const json = (await res.json()) as Record<string, any>;
+    const d = json.data ?? json;
+    return Number(d.available_balance ?? d.availableBalance ?? d.balance ?? 0);
   }
 
+  // ── Webhook verification ──
+
+  /**
+   * Pulse's docs sign JSON.stringify(parsed body), which differs from the raw bytes
+   * if the body was sent with other spacing, so accept a signature over either.
+   */
+  verifyWebhook(rawBody: string, signature: string | undefined): boolean {
+    if (!signature) return false;
+    const given = Buffer.from(signature.trim().toLowerCase());
+    const candidates = [rawBody];
+    try {
+      candidates.push(JSON.stringify(JSON.parse(rawBody)));
+    } catch {
+      /* not JSON — only the raw form can match */
+    }
+    return candidates.some((body) => {
+      const expected = Buffer.from(createHmac('sha256', this.config.webhookSecret).update(body).digest('hex'));
+      return expected.length === given.length && timingSafeEqual(expected, given);
+    });
+  }
+
+  /**
+   * A successful credit, whatever the event is called. The docs only show `transfer.completed`
+   * (for transfers made from an account); money arriving in a prefix account may use another
+   * name. BillingService decides whether the credited account is one of ours.
+   */
   parseWebhook(payload: unknown): IncomingTransfer | null {
     const p = payload as Record<string, any>;
-    if (!p || p.event !== 'transfer.completed' || !p.data) return null;
-    const d = p.data;
-    if (!d.credit_account || !d.amount) return null;
+    if (!p || typeof p !== 'object') return null;
+    const event = String(p.event ?? p.event_type ?? p.type ?? '').toLowerCase();
+    if (/^(vas|account\.created|webhook\.test)/.test(event) || /fail|revers/.test(event)) return null;
+
+    const d = (p.data ?? p) as Record<string, any>;
+    const account = d.credit_account ?? d.creditAccount ?? d.account_number ?? d.accountNumber ?? d.beneficiary_account_number;
+    const amount = Number(d.amount);
+    const status = String(d.status ?? 'completed').toLowerCase();
+    if (!account || !(amount > 0) || /fail|revers|declin|pending/.test(status)) return null;
+
     return {
-      providerTransactionId: String(d.reference),
-      accountNumber: String(d.credit_account),
-      amount: Number(d.amount),
-      senderName: d.debit_account_name,
-      senderAccount: d.debit_account,
-      senderBank: d.debit_bank,
-      narration: d.narration,
-      receivedAt: d.completed_at ? new Date(d.completed_at) : new Date(),
+      providerTransactionId: String(d.reference ?? d.transaction_reference ?? d.session_id ?? d.id),
+      accountNumber: String(account),
+      amount,
+      senderName: d.debit_account_name ?? d.sender_name ?? d.senderName ?? d.originator_name,
+      senderAccount: d.debit_account ?? d.sender_account ?? d.senderAccount,
+      senderBank: d.debit_bank ?? d.sender_bank ?? d.senderBank,
+      narration: d.narration ?? d.description,
+      receivedAt: new Date(d.completed_at ?? d.created_at ?? p.timestamp ?? Date.now()),
       raw: payload,
     };
   }

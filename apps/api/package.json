@@ -13,6 +13,7 @@
     "start:migrate": "npm run migration:run && node dist/main",
     "seed": "ts-node -r tsconfig-paths/register src/seed.ts",
     "mail:samples": "ts-node src/mail/samples.ts",
+    "pulse:check": "ts-node src/billing/pulse/check.ts",
     "typeorm": "ts-node --project tsconfig.json -r tsconfig-paths/register ../../node_modules/typeorm/cli.js",
     "migration:generate": "npm run typeorm -- migration:generate -d src/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/data-source.ts",

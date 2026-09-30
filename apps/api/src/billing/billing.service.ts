@@ -365,22 +365,42 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   // ── Incoming transfers ──
 
   async handleWebhook(rawBody: string, signature: string | undefined, payload: unknown) {
+    const p = payload as Record<string, any>;
+    const event = String(p?.event ?? p?.event_type ?? p?.type ?? 'unknown');
+    // Every webhook is logged with what we did about it: without this, a missing or
+    // mismatched setup at Pulse looks exactly like "no one paid".
+    const log = (outcome: string) => this.logger.log(`Pulse webhook ${event}: ${outcome} — ${rawBody.slice(0, 500)}`);
+
     if (!this.pulse.verifyWebhook(rawBody, signature)) {
+      this.logger.warn(`Pulse webhook ${event}: rejected, signature doesn't match PULSE_WEBHOOK_SECRET — ${rawBody.slice(0, 500)}`);
       throw new UnauthorizedException('Invalid webhook signature');
     }
-    const transfer = this.pulse.parseWebhook(payload);
-    if (transfer) return this.recordTransfer(transfer);
 
-    // Check for outgoing transfer (payout) status updates
-    const p = payload as Record<string, any>;
-    const event = p?.event as string | undefined;
+    // Money into one of our group accounts.
+    const credit = this.pulse.parseWebhook(payload);
+    if (credit && (await this.groupsRepo.exists({ where: { accountNumber: credit.accountNumber } }))) {
+      const result = await this.recordTransfer(credit);
+      log(`credit of ${credit.amount} to ${credit.accountNumber} → ${result.status}${'duplicate' in result ? ' (duplicate)' : ''}`);
+      return result;
+    }
+
+    // Otherwise it may be news about one of our payouts, matched by reference.
     const ref = p?.data?.reference as string | undefined;
-    if (ref && (event === 'transfer.completed' || event === 'transfer.failed' || event === 'payout.completed' || event === 'payout.failed')) {
-      const status = event.includes('completed') ? 'completed' as const : 'failed' as const;
+    if (ref && /completed|failed|success/.test(event) && (await this.payoutsRepo.exists({ where: { providerReference: ref } }))) {
+      const status = /fail/.test(event) ? ('failed' as const) : ('completed' as const);
       await this.handlePayoutWebhook(ref, status, p.data?.error_message ?? p.data?.errorMessage);
+      log(`payout ${ref} → ${status}`);
       return { received: true, payout: true };
     }
 
+    // A credit to an account that isn't a group's: keep it as unmatched so it isn't lost.
+    if (credit) {
+      const result = await this.recordTransfer(credit);
+      log(`credit to unknown account ${credit.accountNumber}, kept as ${result.status}`);
+      return result;
+    }
+
+    log('ignored');
     return { received: true, ignored: true };
   }
 
@@ -565,7 +585,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   // ── Payouts (transfer out) ──
 
   async getGroupBalance(groupId: string, organizationId: string) {
-    await this.findGroup(groupId, organizationId);
+    const group = await this.findGroup(groupId, organizationId);
 
     const { totalIn } = await this.transfersRepo
       .createQueryBuilder('t')
@@ -585,7 +605,19 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       totalIn: Number(totalIn),
       totalOut: Number(totalOut),
       available: Number(totalIn) - Number(totalOut),
+      // What Pulse itself holds. More than `available` means money arrived that we never heard about.
+      bankBalance: await this.bankBalance(group.accountNumber),
     };
+  }
+
+  private async bankBalance(accountNumber: string | null) {
+    if (!accountNumber) return null;
+    try {
+      return await this.pulse.getBalance(accountNumber);
+    } catch (err: any) {
+      this.logger.warn(`Couldn't read the Pulse balance of ${accountNumber}: ${err.message}`);
+      return null;
+    }
   }
 
   async nameEnquiry(groupId: string, organizationId: string, bankCode: string, accountNumber: string) {

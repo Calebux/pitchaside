@@ -209,7 +209,16 @@ export function PayoutsPanel({
           <div className="flex gap-6 mt-3 text-xs text-gray-500">
             <span>In: <span className="font-bold text-ink">{formatCurrency(balance.totalIn)}</span></span>
             <span>Out: <span className="font-bold text-ink">{formatCurrency(balance.totalOut)}</span></span>
+            {balance.bankBalance != null && (
+              <span>At Pulse: <span className="font-bold text-ink">{formatCurrency(balance.bankBalance)}</span></span>
+            )}
           </div>
+          {balance.bankBalance != null && balance.bankBalance > balance.available && (
+            <p className="mt-3 text-xs font-semibold text-amber-900 bg-sun-400/30 rounded-xl px-3 py-2">
+              Pulse holds {formatCurrency(balance.bankBalance - balance.available)} more than we&apos;ve recorded — a transfer
+              arrived that PitchAside wasn&apos;t told about. It isn&apos;t matched to anyone yet.
+            </p>
+          )}
           {!showForm && (
             <button
               onClick={() => setShowForm(true)}
