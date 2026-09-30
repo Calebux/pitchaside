@@ -53,9 +53,11 @@ describe('AuthService', () => {
       findValidResetToken: jest.fn(),
       markResetTokenUsed: jest.fn(),
       createResetToken: jest.fn(),
+      createEmailVerificationToken: jest.fn().mockResolvedValue('verify-token'),
+      createRefreshToken: jest.fn().mockResolvedValue('refresh-token'),
     };
     orgsService = { create: jest.fn() };
-    mailService = { sendPasswordReset: jest.fn(), sendPaymentReminder: jest.fn() };
+    mailService = { sendPasswordReset: jest.fn(), sendEmailVerification: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -87,7 +89,7 @@ describe('AuthService', () => {
 
       expect(result.accessToken).toBe('jwt-token');
       expect((result as any).user.email).toBe('john@test.com');
-      expect(orgsService.create).toHaveBeenCalledWith('Test Org');
+      expect(orgsService.create).toHaveBeenCalledWith('Test Org', undefined, undefined);
       expect(usersService.create).toHaveBeenCalled();
     });
 
