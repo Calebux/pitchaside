@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { getGroups, getSessions, formatCurrency, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
-import { SessionStatus } from '@pitchaside/shared';
+import { SessionStatus, UserRole } from '@pitchaside/shared';
 import { Celebration, Player, Ball, BallIcon, kitFor, palette, skins } from '@/components/illustrations';
 
 const onboardingSteps = [
@@ -48,6 +49,12 @@ export default function Dashboard() {
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  // The PitchAside team doesn't run a club — their home is HQ.
+  useEffect(() => {
+    if (user?.role === UserRole.SUPER_ADMIN) router.replace('/hq');
+  }, [user, router]);
 
   useEffect(() => {
     Promise.all([getGroups(), getSessions()])

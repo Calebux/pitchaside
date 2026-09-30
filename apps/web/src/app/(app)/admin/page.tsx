@@ -18,7 +18,6 @@ export default function AdminPage() {
   const isSuperAdmin = user?.role === UserRole.SUPER_ADMIN;
 
   const [orgStats, setOrgStats] = useState<any>(null);
-  const [platformStats, setPlatformStats] = useState<any>(null);
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,14 +40,10 @@ export default function AdminPage() {
       http.get<any>('/admin/org/audit-log?limit=10').then((res) => setAuditLogs(res.data || [])),
     ];
 
-    if (isSuperAdmin) {
-      promises.push(http.get<any>('/admin/stats').then(setPlatformStats));
-    }
-
     Promise.all(promises)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [user, router, isSuperAdmin]);
+  }, [user, router]);
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -100,29 +95,18 @@ export default function AdminPage() {
         }
       />
 
-      {/* Super Admin: Platform stats */}
-      {isSuperAdmin && platformStats && (
-        <div className="mb-8">
-          <h2 className="text-lg font-bold text-ink mb-3">Platform Overview</h2>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <StatCard label="Organizations" value={platformStats.totalOrgs} />
-            <StatCard label="Users" value={platformStats.totalUsers} />
-          </div>
-          <div className="flex gap-3">
-            <Link
-              href="/admin/organizations"
-              className="flex-1 text-center py-2.5 px-4 text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
-            >
-              All Organizations
-            </Link>
-            <Link
-              href="/admin/users"
-              className="flex-1 text-center py-2.5 px-4 text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
-            >
-              All Users
-            </Link>
-          </div>
-        </div>
+      {/* Super admin: the cross-club view lives in HQ */}
+      {isSuperAdmin && (
+        <Link
+          href="/hq"
+          className="mb-8 flex items-center justify-between gap-4 rounded-2xl bg-ink text-white p-4 hover:bg-pitch-900 transition-colors"
+        >
+          <span>
+            <span className="block text-sm font-bold">PitchAside HQ</span>
+            <span className="block text-xs text-white/60 mt-0.5">Every club, player, payment and notification.</span>
+          </span>
+          <span className="text-sm font-bold text-volt-300 whitespace-nowrap">Open HQ →</span>
+        </Link>
       )}
 
       {/* Org Stats */}
