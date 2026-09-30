@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Envelope } from '@/components/illustrations';
+import { Confetti } from '@/components/confetti';
+import { Celebration, Envelope } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { resendVerification } from '@/lib/api';
 
@@ -67,9 +68,74 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
     close();
   }
 
+  if (!open) return null;
+
+  return (
+    <Sheet titleId={titleId} onClose={close} art={<Envelope className="w-44 h-auto animate-float" />}>
+      <h2 id={titleId} className="text-xl font-extrabold text-ink">
+        Check your inbox
+      </h2>
+      <p className="text-sm text-gray-500 mt-1.5">
+        We sent a link to
+        <span className="block font-bold text-ink [overflow-wrap:anywhere]">{email}</span>
+        Tap it to confirm it&apos;s you and keep your club&apos;s account safe.
+      </p>
+
+      <p role="status" className="min-h-5 mt-3 text-xs font-semibold">
+        <SendStatus state={state} />
+      </p>
+
+      <div className="mt-2 space-y-2">
+        <button
+          autoFocus
+          onClick={resend}
+          disabled={state === 'sending' || state === 'sent'}
+          className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {state === 'sending' && <BallSpinner />}
+          {state === 'sent' ? 'Email sent' : 'Send it again'}
+        </button>
+        <button onClick={later} className="w-full py-3 text-sm font-bold text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
+          I&apos;ll do it later
+        </button>
+      </div>
+    </Sheet>
+  );
+}
+
+/**
+ * Shown once the account turns verified while the app is open — they tapped
+ * the link on another device or tab and came back here.
+ */
+export function EmailVerifiedModal({ onClose }: { onClose: () => void }) {
+  const titleId = useId();
+  return (
+    <>
+      <Confetti />
+      <Sheet titleId={titleId} onClose={onClose} art={<Celebration className="w-48 h-auto animate-float" />}>
+        <h2 id={titleId} className="text-xl font-extrabold text-ink">
+          Congratulations!
+        </h2>
+        <p className="text-sm text-gray-500 mt-1.5">Your email is verified. Your club&apos;s account is safe and you&apos;re all set.</p>
+        <button
+          autoFocus
+          onClick={onClose}
+          className="mt-5 w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
+        >
+          Let&apos;s go
+        </button>
+      </Sheet>
+    </>
+  );
+}
+
+/** Bottom sheet on phones, centred card on larger screens. Escape or a tap outside closes it. */
+function Sheet({ titleId, onClose, art, children }: { titleId: string; onClose: () => void; art: ReactNode; children: ReactNode }) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current();
     window.addEventListener('keydown', onKey);
     // Stop the page scrolling behind the sheet.
     const overflow = document.body.style.overflow;
@@ -78,9 +144,7 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = overflow;
     };
-  }, [open]);
-
-  if (!open) return null;
+  }, []);
 
   // Portal to <body> so the sheet sits above the phone tab bar.
   return createPortal(
@@ -89,45 +153,14 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
       aria-modal="true"
       aria-labelledby={titleId}
       className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-ink/50 backdrop-blur-sm px-0 sm:px-4"
-      onClick={close}
+      onClick={onClose}
     >
       <div
         className="bg-white rounded-t-3xl sm:rounded-3xl shadow-lift w-full sm:max-w-sm overflow-hidden animate-slide-up sm:animate-fade-in-up"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-volt-300 chalk-dots pt-5 flex justify-center">
-          <Envelope className="w-44 h-auto animate-float" />
-        </div>
-
-        <div className="p-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] sm:pb-6 text-center">
-          <h2 id={titleId} className="text-xl font-extrabold text-ink">
-            Check your inbox
-          </h2>
-          <p className="text-sm text-gray-500 mt-1.5">
-            We sent a link to
-            <span className="block font-bold text-ink [overflow-wrap:anywhere]">{email}</span>
-            Tap it to confirm it&apos;s you and keep your club&apos;s account safe.
-          </p>
-
-          <p role="status" className="min-h-5 mt-3 text-xs font-semibold">
-            <SendStatus state={state} />
-          </p>
-
-          <div className="mt-2 space-y-2">
-            <button
-              autoFocus
-              onClick={resend}
-              disabled={state === 'sending' || state === 'sent'}
-              className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {state === 'sending' && <BallSpinner />}
-              {state === 'sent' ? 'Email sent' : 'Send it again'}
-            </button>
-            <button onClick={later} className="w-full py-3 text-sm font-bold text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
-              I&apos;ll do it later
-            </button>
-          </div>
-        </div>
+        <div className="bg-volt-300 chalk-dots pt-5 flex justify-center">{art}</div>
+        <div className="p-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] sm:pb-6 text-center">{children}</div>
       </div>
     </div>,
     document.body,

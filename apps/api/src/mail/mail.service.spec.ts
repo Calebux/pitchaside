@@ -91,4 +91,25 @@ describe('MailService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(sendMail).not.toHaveBeenCalled();
   });
+
+  it.each([undefined, 'http://localhost:3000', 'http://127.0.0.1:3000/'])(
+    'links real email to the live site, not localhost, when APP_URL is %p',
+    async (appUrl) => {
+      const mail = service({ RESEND_API_KEY: 're_test-key', ...(appUrl ? { APP_URL: appUrl } : {}) });
+      await mail.sendEmailVerification('ada@example.com', 'Ada', 'tok123');
+
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+      expect(body.html).toContain('https://www.pitchaside.com/verify-email?token=tok123');
+      expect(body.html).toContain('src="https://www.pitchaside.com/email/');
+      expect(body.html).not.toContain('localhost');
+    },
+  );
+
+  it('keeps a real APP_URL as is, without a trailing slash', async () => {
+    const mail = service({ RESEND_API_KEY: 're_test-key', APP_URL: 'https://staging.pitchaside.com/' });
+    await mail.sendEmailVerification('ada@example.com', 'Ada', 'tok123');
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.html).toContain('https://staging.pitchaside.com/verify-email?token=tok123');
+  });
 });
