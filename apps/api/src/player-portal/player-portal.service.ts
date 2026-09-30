@@ -195,7 +195,13 @@ export class PlayerPortalService {
   }
 
   private personInfo(person: Person) {
-    return { firstName: person.firstName, lastName: person.lastName, phone: person.phone, id: person.players[0]?.id ?? person.key };
+    return {
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: person.email,
+      phone: person.phone,
+      id: person.players[0]?.id ?? person.key,
+    };
   }
 
   // ── Tabs ──
@@ -331,9 +337,10 @@ export class PlayerPortalService {
 
   /**
    * "Start your group": the player becomes an organiser of a brand-new club.
-   * Email + password protect the organiser side because it handles money.
+   * The organiser account uses the same email they play under — that's what
+   * links the two sides — with its own password because it handles money.
    */
-  async startGroup(person: Person, input: { clubName: string; email: string; password: string }) {
+  async startGroup(person: Person, input: { clubName: string; password: string }) {
     if (await this.organiser(person)) {
       throw new BadRequestException('You already run a club — switch to Organising to add more groups.');
     }
@@ -341,9 +348,9 @@ export class PlayerPortalService {
       organizationName: input.clubName.trim(),
       firstName: person.firstName,
       lastName: person.lastName,
-      email: input.email.trim(),
+      email: person.email,
       password: input.password,
-      phone: person.phone,
+      phone: person.phone ?? undefined,
     });
     // They'll usually play in their own games too.
     await this.playersRepo.save(
@@ -351,7 +358,7 @@ export class PlayerPortalService {
         firstName: person.firstName,
         lastName: person.lastName,
         phone: person.phone,
-        email: input.email.trim(),
+        email: person.key,
         organizationId: result.user.organizationId,
       }),
     );

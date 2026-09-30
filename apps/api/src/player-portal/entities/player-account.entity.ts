@@ -1,20 +1,25 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 /**
- * A person's PitchAside login. One per phone number, shared by every club
- * they play for (each club still has its own `players` row, linked by phone).
+ * A person's PitchAside login. One per email address, shared by every club
+ * they play for (each club still has its own `players` row, linked by email).
  */
 @Entity('player_accounts')
 export class PlayerAccount {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Last 10 digits of the phone number — the person's identity. */
+  /**
+   * The person's identity: their lower-cased email (see emailKey). The column
+   * keeps its old name — accounts created before email sign-in hold phone
+   * digits here until the person first signs in with their email.
+   */
   @Column({ name: 'phone_key', unique: true })
-  phoneKey: string;
+  personKey: string;
 
-  @Column()
-  phone: string;
+  /** Optional contact number; no longer used to sign in. */
+  @Column({ type: 'varchar', nullable: true })
+  phone: string | null;
 
   @Column({ name: 'first_name' })
   firstName: string;

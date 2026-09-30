@@ -13,10 +13,9 @@ import { frequencyShort } from '@/lib/billing';
 import {
   getClub,
   getPlayerProfile,
-  getPlayerToken,
+  isPlayerSignedIn,
   joinAsPlayer,
   joinClubAsPlayer,
-  setPlayerToken,
   signupFromClubLink,
   type ClubGroup,
 } from '@/lib/player';
@@ -37,7 +36,7 @@ export default function JoinPage() {
   const [signedIn, setSignedIn] = useState(false);
   const [stage, setStage] = useState<Stage>('signup');
   const [firstName, setFirstName] = useState('');
-  const [lastPhone, setLastPhone] = useState('');
+  const [lastEmail, setLastEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -46,7 +45,7 @@ export default function JoinPage() {
   const [picked, setPicked] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    setSignedIn(!!getPlayerToken());
+    isPlayerSignedIn().then(setSignedIn);
     getClub(code)
       .then(setClub)
       .catch(() => setInvalid(true));
@@ -79,11 +78,10 @@ export default function JoinPage() {
     setError(null);
     try {
       const res = await signupFromClubLink(code, data);
-      if (res.token) setPlayerToken(res.token);
       await inClub(res.firstName);
     } catch (err: any) {
       setError(err.message);
-      // Number already has an account: send them to sign in instead.
+      // Email already has an account: send them to sign in instead.
       if (/sign in/i.test(err.message)) setStage('signin');
     }
   }
@@ -97,14 +95,13 @@ export default function JoinPage() {
       await inClub(res.firstName);
     } catch (err: any) {
       setError(err.message);
-      setSignedIn(!!getPlayerToken());
+      setSignedIn(await isPlayerSignedIn());
     } finally {
       setBusy(false);
     }
   }
 
-  async function onSignedIn(token: string) {
-    setPlayerToken(token);
+  async function onSignedIn() {
     await joinSignedIn();
   }
 
@@ -254,7 +251,7 @@ export default function JoinPage() {
         ) : signedIn ? (
           <div className="bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-3">
             <h2 className="text-xl font-extrabold text-ink">Join the squad</h2>
-            <p className="text-sm text-gray-500">You&apos;re signed in on this phone.</p>
+            <p className="text-sm text-gray-500">You&apos;re already signed in to PitchAside.</p>
             <button
               onClick={joinSignedIn}
               disabled={busy}
@@ -272,7 +269,7 @@ export default function JoinPage() {
             title="Welcome back"
             subtitle={`Sign in and we'll add you to ${club.clubName}.`}
             cta="Sign in & join"
-            initialPhone={lastPhone}
+            initialEmail={lastEmail}
             onSignedIn={onSignedIn}
             footer={
               <button
@@ -291,7 +288,7 @@ export default function JoinPage() {
             subtitle="Create your PitchAside account to see your games, pay and vote."
             cta="Join the squad"
             onSubmit={signup}
-            onPhoneChange={setLastPhone}
+            onEmailChange={setLastEmail}
             onSwitchToSignIn={() => {
               setError(null);
               setStage('signin');

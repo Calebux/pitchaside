@@ -12,7 +12,7 @@ import { startGroup } from '@/lib/player';
 export default function StartGroupPage() {
   const router = useRouter();
   const { profile } = usePlayerProfile();
-  const [form, setForm] = useState({ clubName: '', email: '', password: '' });
+  const [form, setForm] = useState({ clubName: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,23 +63,17 @@ export default function StartGroupPage() {
           />
         </div>
         <p className="text-xs text-gray-500 -mb-1">
-          Organising involves money, so your organiser side gets its own email and password.
+          Organising involves money, so your organiser side gets its own password.
           {profile ? (
             <>
               {' '}
-              We’ll use your name, <span className="font-bold text-ink">{profile.player.firstName} {profile.player.lastName}</span>, and number {profile.player.phone}.
+              You’ll sign in to it as <span className="font-bold text-ink">{profile.player.email}</span>, under your name, {profile.player.firstName} {profile.player.lastName}.
             </>
           ) : null}
         </p>
         <div>
-          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Email
-          </label>
-          <input id="email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={input} />
-        </div>
-        <div>
           <label htmlFor="password" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Password
+            Organiser password
           </label>
           <input
             id="password"

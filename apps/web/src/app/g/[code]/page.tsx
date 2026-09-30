@@ -21,7 +21,7 @@ export default function GroupLinkPage() {
   const [notFound, setNotFound] = useState(false);
   const [stage, setStage] = useState<Stage>('signup');
   const [signedIn, setSignedIn] = useState(false);
-  const [lastPhone, setLastPhone] = useState('');
+  const [lastEmail, setLastEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<JoinResult | null>(null);
@@ -56,7 +56,7 @@ export default function GroupLinkPage() {
   }
 
   /** Existing PitchAside player signed in on this page: add them to the group. */
-  async function onSignedIn(_token: string) {
+  async function onSignedIn() {
     setSignedIn(true);
     await joinSignedIn();
   }
@@ -67,7 +67,7 @@ export default function GroupLinkPage() {
       done(await signupFromLink(code, data));
     } catch (err: any) {
       setError(err.message);
-      // Number already has an account: send them to sign in instead.
+      // Email already has an account: send them to sign in instead.
       if (/sign in/i.test(err.message)) setStage('signin');
     }
   }
@@ -180,7 +180,7 @@ export default function GroupLinkPage() {
           {signedIn ? (
             <div className="bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-3">
               <h2 className="text-xl font-extrabold text-ink">Join the squad</h2>
-              <p className="text-sm text-gray-500">You&apos;re signed in on this phone.</p>
+              <p className="text-sm text-gray-500">You&apos;re already signed in to PitchAside.</p>
               <button
                 onClick={joinSignedIn}
                 disabled={busy}
@@ -198,7 +198,7 @@ export default function GroupLinkPage() {
               title="Welcome back"
               subtitle={`Sign in and we'll add you to ${group.groupName}.`}
               cta={`Sign in & join`}
-              initialPhone={lastPhone}
+              initialEmail={lastEmail}
               onSignedIn={onSignedIn}
               footer={
                 <button onClick={() => { setError(null); setStage('signup'); }} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
@@ -211,7 +211,7 @@ export default function GroupLinkPage() {
               subtitle="Create your PitchAside account — you'll get your payment reference straight after."
               cta="Join & get payment details"
               onSubmit={signup}
-              onPhoneChange={setLastPhone}
+              onEmailChange={setLastEmail}
               onSwitchToSignIn={() => {
                 setError(null);
                 setStage('signin');

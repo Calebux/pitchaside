@@ -121,8 +121,8 @@ export function getPlayer(id: string): Promise<IPlayer> {
 export function createPlayer(data: {
   firstName: string;
   lastName: string;
-  phone: string;
   email?: string;
+  phone?: string;
 }): Promise<IPlayer> {
   return http.post<IPlayer>('/players', data);
 }
@@ -132,8 +132,9 @@ export function updatePlayer(
   data: Partial<{
     firstName: string;
     lastName: string;
-    phone: string;
-    email: string;
+    /** null clears it. */
+    phone: string | null;
+    email: string | null;
   }>,
 ): Promise<IPlayer> {
   return http.patch<IPlayer>(`/players/${id}`, data);

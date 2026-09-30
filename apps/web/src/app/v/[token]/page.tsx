@@ -12,13 +12,13 @@ import { PasswordSignIn } from '@/components/password-sign-in';
 import { ShareCardButton } from '@/components/share-card';
 import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
-type Stage = 'phone' | 'ballot' | 'done';
+type Stage = 'signin' | 'ballot' | 'done';
 
 export default function VotePage() {
   const { token } = useParams<{ token: string }>();
   const [ballot, setBallot] = useState<Ballot | null>(null);
   const [invalid, setInvalid] = useState(false);
-  const [stage, setStage] = useState<Stage>('phone');
+  const [stage, setStage] = useState<Stage>('signin');
   const [voter, setVoter] = useState<{ playerId: string; firstName: string } | null>(null);
   const [picks, setPicks] = useState<Partial<Record<VoteCategory, string>>>({});
   const [results, setResults] = useState<VoteResults | null>(null);
@@ -34,9 +34,9 @@ export default function VotePage() {
       setPicks(v.picks);
       setStage('ballot');
     } catch (err: any) {
-      // Signed out, or signed in as someone who didn't play: back to the number step.
+      // Signed out, or signed in as someone who didn't play: back to the sign-in step.
       setError(err instanceof PlayerAuthError ? null : err.message);
-      setStage('phone');
+      setStage('signin');
     } finally {
       setBusy(false);
     }
@@ -49,7 +49,7 @@ export default function VotePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function onSignedIn(_token: string) {
+  async function onSignedIn() {
     await loadMyBallot();
   }
 
@@ -141,7 +141,7 @@ export default function VotePage() {
                 : `Closed on ${new Date(ballot.closesAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`}
             </p>
           </div>
-        ) : stage === 'phone' ? (
+        ) : stage === 'signin' ? (
           <div className="mt-6 space-y-3">
             {error && <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
             {busy ? (

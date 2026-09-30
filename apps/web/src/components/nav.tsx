@@ -8,7 +8,6 @@ import { UserRole } from '@pitchaside/shared';
 import { Logo } from '@/components/brand';
 import { useToast } from '@/components/toast';
 import { playerTokenFromOrganiser } from '@/lib/api';
-import { setPlayerToken } from '@/lib/player';
 import { BallIcon } from '@/components/illustrations';
 
 const tabs = [
@@ -80,18 +79,16 @@ const adminTab = {
   ),
 };
 
-/** Organising → Playing: swap to this person's player session (needs a phone number on file). */
+/** Organising → Playing: open this person's player side (same email). */
 function usePlayingSwitch() {
   const router = useRouter();
   const toast = useToast();
   return async () => {
     try {
-      const { token } = await playerTokenFromOrganiser();
-      setPlayerToken(token);
+      await playerTokenFromOrganiser();
       router.push('/me');
     } catch (err: any) {
       toast.error(err.message || 'Could not switch');
-      router.push('/settings');
     }
   };
 }

@@ -35,7 +35,7 @@ export class PlayersService {
 
     if (query.search) {
       qb.andWhere(
-        '(player.firstName ILIKE :s OR player.lastName ILIKE :s OR player.phone ILIKE :s)',
+        '(player.firstName ILIKE :s OR player.lastName ILIKE :s OR player.phone ILIKE :s OR player.email ILIKE :s)',
         { s: `%${query.search}%` },
       );
     }

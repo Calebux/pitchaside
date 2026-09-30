@@ -3,6 +3,15 @@ export function phoneKey(phone: string) {
   return phone.replace(/\D/g, '').slice(-10);
 }
 
+/**
+ * A person's identity across clubs: their email address, trimmed and
+ * lower-cased. (Stored in columns still named `phone_key` from when people
+ * signed in with a phone number.)
+ */
+export function emailKey(email: string) {
+  return email.trim().toLowerCase();
+}
+
 export function naira(amount: number | string) {
   return `₦${Number(amount).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
 }

@@ -54,8 +54,9 @@ export interface IPlayer {
   id: string;
   firstName: string;
   lastName: string;
-  phone: string;
-  email?: string;
+  /** Optional contact number. Players sign in with their email. */
+  phone?: string | null;
+  email?: string | null;
   createdAt: string;
 }
 

@@ -296,7 +296,7 @@ export default function PlayersPage() {
                       {player.firstName} {player.lastName}
                     </p>
                     <p className="text-xs text-gray-400 truncate">
-                      {player.phone}
+                      {player.email || player.phone || 'No contact details'}
                     </p>
                   </div>
                 </Link>

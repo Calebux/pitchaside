@@ -4,14 +4,14 @@ import { useState } from 'react';
 import { BallSpinner } from '@/components/skeleton';
 import { PasswordField } from '@/components/password-sign-in';
 
-export type SignupData = { phone: string; firstName: string; lastName: string; email?: string; password: string };
+export type SignupData = { email: string; firstName: string; lastName: string; phone?: string; password: string };
 
 const input =
   'w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
 /**
- * The one player sign-up form: phone, first name, last name, optional email,
- * password. Used by group links (/g) and club invite links (/join).
+ * The one player sign-up form: email, first name, last name, password and an
+ * optional phone number. Used by group links (/g) and club invite links (/join).
  */
 export function PlayerSignupForm({
   title = 'Join the squad',
@@ -19,16 +19,17 @@ export function PlayerSignupForm({
   cta = 'Create my account',
   onSubmit,
   onSwitchToSignIn,
-  onPhoneChange,
+  onEmailChange,
 }: {
   title?: string;
   subtitle?: string;
   cta?: string;
   onSubmit: (data: SignupData) => Promise<void>;
   onSwitchToSignIn: () => void;
-  onPhoneChange?: (phone: string) => void;
+  /** So the sign-in form can be pre-filled if they turn out to have an account. */
+  onEmailChange?: (email: string) => void;
 }) {
-  const [form, setForm] = useState({ phone: '', firstName: '', lastName: '', email: '', password: '' });
+  const [form, setForm] = useState({ email: '', firstName: '', lastName: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -36,10 +37,10 @@ export function PlayerSignupForm({
     setBusy(true);
     try {
       await onSubmit({
-        phone: form.phone.trim(),
+        email: form.email.trim(),
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
-        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
         password: form.password,
       });
     } finally {
@@ -54,19 +55,19 @@ export function PlayerSignupForm({
         <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
       </div>
       <div>
-        <label htmlFor="su-phone" className="block text-xs font-bold text-gray-700 mb-1.5">Phone number *</label>
+        <label htmlFor="su-email" className="block text-xs font-bold text-gray-700 mb-1.5">Email *</label>
         <input
-          id="su-phone"
-          type="tel"
+          id="su-email"
+          type="email"
           required
-          autoComplete="tel"
-          value={form.phone}
+          autoComplete="email"
+          value={form.email}
           onChange={(e) => {
-            setForm({ ...form, phone: e.target.value });
-            onPhoneChange?.(e.target.value);
+            setForm({ ...form, email: e.target.value });
+            onEmailChange?.(e.target.value);
           }}
           className={input}
-          placeholder="0803 123 4567"
+          placeholder="you@example.com"
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -80,10 +81,19 @@ export function PlayerSignupForm({
         </div>
       </div>
       <div>
-        <label htmlFor="su-email" className="block text-xs font-bold text-gray-700 mb-1.5">
-          Email <span className="text-gray-400 font-medium">(optional)</span>
+        <label htmlFor="su-phone" className="block text-xs font-bold text-gray-700 mb-1.5">
+          Phone number <span className="text-gray-400 font-medium">(optional)</span>
         </label>
-        <input id="su-email" type="email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={input} />
+        <input
+          id="su-phone"
+          type="tel"
+          autoComplete="tel"
+          value={form.phone}
+          onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          className={input}
+          placeholder="0803 123 4567"
+        />
+        <p className="text-[11px] text-gray-500 mt-1">So your organiser can reach you. If they already added you by number, this links you to your record.</p>
       </div>
       <PasswordField
         id="su-password"
@@ -91,7 +101,7 @@ export function PlayerSignupForm({
         value={form.password}
         onChange={(v) => setForm({ ...form, password: v })}
         autoComplete="new-password"
-        hint="At least 6 characters. You'll sign in with your phone number and this password."
+        hint="At least 6 characters. You'll sign in with your email and this password."
       />
       <button
         type="submit"

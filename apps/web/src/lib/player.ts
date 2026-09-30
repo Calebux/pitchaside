@@ -1,6 +1,6 @@
 /**
- * Player-side API client. Players sign in via phone and get their
- * own token stored as an HttpOnly cookie (separate from the organiser's).
+ * Player-side API client. Players sign in with email + password and get
+ * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
 import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup } from './api';
@@ -81,11 +81,6 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
   return text ? JSON.parse(text) : (undefined as T);
 }
 
-// No-ops for backward compatibility — cookies handle token storage now
-export function getPlayerToken(): string | null { return null; }
-export function setPlayerToken(_token: string) {}
-export function clearPlayerToken() {}
-
 export async function logoutPlayer(): Promise<void> {
   try {
     await request<void>('POST', '/player-auth/logout');
@@ -94,38 +89,36 @@ export async function logoutPlayer(): Promise<void> {
   }
 }
 
+/** Whether this browser has a player session. The session lives in HttpOnly cookies, so ask the server. */
+export async function isPlayerSignedIn(): Promise<boolean> {
+  try {
+    await request('GET', '/me/profile');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // ── Sign-in ──
-
-export type SignInResult = { phoneProof: string; token?: string; player?: { id: string; firstName: string } };
-
-/** 'phone' = number only; 'otp' = 6-digit code by WhatsApp/SMS. Set on the server. */
-export function getAuthMode() {
-  return request<{ mode: 'phone' | 'otp' }>('GET', '/player-auth/mode', undefined, false);
-}
-
-export function signInWithPhone(phone: string, groupCode?: string) {
-  return request<SignInResult>('POST', '/player-auth/phone', { phone, groupCode }, false);
-}
 
 export type PasswordSignIn = { token: string; firstName: string } | { needsPassword: true; firstName: string };
 
-export function loginWithPassword(phone: string, password: string) {
-  return request<PasswordSignIn>('POST', '/player-auth/login', { phone, password }, false);
+export function loginWithPassword(email: string, password: string) {
+  return request<PasswordSignIn>('POST', '/player-auth/login', { email, password }, false);
 }
 
-/** First sign-in for players who were added before passwords existed. */
-export function setFirstPassword(phone: string, password: string) {
-  return request<{ token: string; firstName: string }>('POST', '/player-auth/set-password', { phone, password }, false);
+/** Emails a 6-digit code — for "Forgot password", and for players setting their first password. */
+export function requestCode(email: string) {
+  return request<{ sent: boolean; devCode?: string }>('POST', '/player-auth/request-code', { email }, false);
 }
 
-export function resetPassword(phone: string, code: string, password: string) {
-  return request<{ token: string; firstName: string }>('POST', '/player-auth/reset-password', { phone, code, password }, false);
+export function resetPassword(email: string, code: string, password: string) {
+  return request<{ token: string; firstName: string }>('POST', '/player-auth/reset-password', { email, code, password }, false);
 }
 
-export function signupFromLink(
-  code: string,
-  data: { phone: string; firstName: string; lastName: string; email?: string; password: string },
-) {
+export type SignupInput = { email: string; firstName: string; lastName: string; phone?: string; password: string };
+
+export function signupFromLink(code: string, data: SignupInput) {
   return request<JoinResult>('POST', `/public/groups/${code}/signup`, data, false);
 }
 
@@ -146,13 +139,10 @@ export function getClub(code: string) {
   return request<{ clubName: string; groups: ClubGroup[] }>('GET', `/public/clubs/${code}`, undefined, false);
 }
 
-export type ClubJoinResult = { clubName: string; firstName: string; token?: string };
+export type ClubJoinResult = { clubName: string; firstName: string };
 
 /** Club invite link (/join/:code): create the account and join the club in one go. */
-export function signupFromClubLink(
-  code: string,
-  data: { phone: string; firstName: string; lastName: string; email?: string; password: string },
-) {
+export function signupFromClubLink(code: string, data: SignupInput) {
   return request<ClubJoinResult>('POST', `/public/clubs/${code}/signup`, data, false);
 }
 
@@ -169,37 +159,11 @@ export function changeMyPassword(currentPassword: string, newPassword: string) {
   return request<{ ok: boolean }>('POST', '/me/password', { currentPassword, newPassword });
 }
 
-export function requestCode(phone: string, groupCode?: string) {
-  return request<{ sent: boolean; isNewPlayer: boolean; devCode?: string }>(
-    'POST',
-    '/player-auth/request-code',
-    { phone, groupCode },
-    false,
-  );
-}
-
-export function verifyCode(phone: string, code: string) {
-  return request<SignInResult>(
-    'POST',
-    '/player-auth/verify',
-    { phone, code },
-    false,
-  );
-}
-
 export type JoinResult = PublicGroup & {
   paymentRef: string;
   firstName: string;
   alreadyMember: boolean;
-  token?: string;
 };
-
-export function joinWithProof(
-  code: string,
-  data: { phoneProof: string; firstName?: string; lastName?: string; email?: string },
-) {
-  return request<JoinResult>('POST', `/public/groups/${code}/join`, data, false);
-}
 
 export function joinAsPlayer(code: string) {
   return request<JoinResult>('POST', `/me/groups/${code}/join`);
@@ -222,7 +186,7 @@ export type PlayerGroup = {
 export type Organiser = { clubName: string; email: string } | null;
 
 export interface PlayerHome {
-  player: { id: string; firstName: string; lastName: string; phone: string };
+  player: { id: string; firstName: string; lastName: string; email: string; phone: string | null };
   organiser: Organiser;
   groups: {
     id: string;
@@ -320,7 +284,7 @@ export function getPlayerProfile() {
   return request<PlayerProfile>('GET', '/me/profile');
 }
 
-export function startGroup(data: { clubName: string; email: string; password: string }) {
+export function startGroup(data: { clubName: string; password: string }) {
   return request<{ accessToken: string; user: unknown }>('POST', '/me/start-group', data);
 }
 

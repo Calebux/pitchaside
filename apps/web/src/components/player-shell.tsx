@@ -150,7 +150,7 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
               <p className="text-sm font-bold truncate">
                 {profile.player.firstName} {profile.player.lastName}
               </p>
-              <p className="text-xs text-white/45 truncate">{profile.player.phone}</p>
+              <p className="text-xs text-white/45 truncate">{profile.player.email}</p>
             </div>
           </div>
         </div>

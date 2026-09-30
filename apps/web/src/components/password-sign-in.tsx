@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { BallSpinner } from '@/components/skeleton';
-import { loginWithPassword, requestCode, resetPassword, setFirstPassword } from '@/lib/player';
+import { loginWithPassword, requestCode, resetPassword } from '@/lib/player';
 
-type Step = 'login' | 'create' | 'forgot' | 'reset';
+type Step = 'login' | 'forgot' | 'reset';
 
 const input =
   'w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
@@ -60,98 +60,95 @@ function PasswordField({
 }
 
 /**
- * Phone + password sign-in for players, including first-time password
- * creation (for players added before passwords) and "Forgot password".
+ * Email + password sign-in for players. "Forgot password" and a first password
+ * (for players their organiser added) both go through a 6-digit code sent to
+ * their email.
  */
 export function PasswordSignIn({
   title = 'Sign in',
-  subtitle = 'Use your phone number and password.',
+  subtitle = 'Use your email and password.',
   cta = 'Sign in',
   onSignedIn,
   footer,
-  initialPhone = '',
+  initialEmail = '',
 }: {
-  /** Pre-fill, e.g. when sign-up found the number already has an account. */
-  initialPhone?: string;
+  /** Pre-fill, e.g. when sign-up found the email already has an account. */
+  initialEmail?: string;
   title?: string;
   subtitle?: string;
   cta?: string;
-  onSignedIn: (token: string, firstName: string) => void | Promise<void>;
+  onSignedIn: (firstName: string) => void | Promise<void>;
   footer?: React.ReactNode;
 }) {
   const [step, setStep] = useState<Step>('login');
-  const [phone, setPhone] = useState(initialPhone);
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | undefined>();
-  const [name, setName] = useState('');
+  /** Set when the account has no password yet: the reset step then reads as a welcome. */
+  const [newcomer, setNewcomer] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const validEmail = /^\S+@\S+\.\S+$/.test(email.trim());
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
     setError(null);
     try {
       await fn();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setBusy(false);
     }
   }
 
+  async function emailCode() {
+    const res = await requestCode(email.trim());
+    setDevCode(res.devCode);
+    setPassword('');
+    setCode('');
+    setStep('reset');
+  }
+
   const login = (e: React.FormEvent) => {
     e.preventDefault();
     run(async () => {
-      const res = await loginWithPassword(phone.trim(), password);
+      const res = await loginWithPassword(email.trim(), password);
       if ('needsPassword' in res) {
-        setName(res.firstName);
-        setPassword('');
-        setStep('create');
+        // Their organiser added them: prove the email is theirs, then choose a password.
+        setNewcomer(res.firstName);
+        await emailCode();
         return;
       }
-      await onSignedIn(res.token, res.firstName);
-    });
-  };
-
-  const create = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password !== confirm) return setError("Passwords don't match");
-    run(async () => {
-      const res = await setFirstPassword(phone.trim(), password);
-      await onSignedIn(res.token, res.firstName);
+      await onSignedIn(res.firstName);
     });
   };
 
   const sendCode = (e?: React.FormEvent) => {
     e?.preventDefault();
-    run(async () => {
-      const res = await requestCode(phone.trim());
-      setDevCode(res.devCode);
-      setPassword('');
-      setStep('reset');
-    });
+    run(emailCode);
   };
 
   const reset = (e: React.FormEvent) => {
     e.preventDefault();
     run(async () => {
-      const res = await resetPassword(phone.trim(), code, password);
-      await onSignedIn(res.token, res.firstName);
+      const res = await resetPassword(email.trim(), code, password);
+      await onSignedIn(res.firstName);
     });
   };
 
   const heading =
-    step === 'create' ? `Welcome, ${name}!` : step === 'forgot' || step === 'reset' ? 'Reset your password' : title;
+    step === 'login' ? title : newcomer && step === 'reset' ? `Welcome, ${newcomer}!` : 'Reset your password';
   const sub =
-    step === 'create'
-      ? 'Your organiser already added you. Create a password to secure your account.'
-      : step === 'forgot'
-        ? 'We’ll send a 6-digit code to your phone.'
-        : step === 'reset'
-          ? `Enter the code sent to ${phone} and choose a new password.`
-          : subtitle;
+    step === 'forgot'
+      ? 'We’ll email you a 6-digit code.'
+      : step === 'reset'
+        ? newcomer
+          ? `Your organiser already added you. Enter the code we emailed to ${email.trim()} and choose a password.`
+          : `Enter the code we emailed to ${email.trim()} and choose a new password.`
+        : subtitle;
 
   const button = (label: string, disabled = false) => (
     <button
@@ -171,23 +168,27 @@ export function PasswordSignIn({
         <p className="text-sm text-gray-500 mt-1">{sub}</p>
       </div>
 
-      {error && <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+      {error && (
+        <div role="alert" className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">
+          {error}
+        </div>
+      )}
 
       {step === 'login' && (
         <form onSubmit={login} className="space-y-3">
           <div>
-            <label htmlFor="si-phone" className="block text-xs font-bold text-gray-700 mb-1.5">
-              Phone number
+            <label htmlFor="si-email" className="block text-xs font-bold text-gray-700 mb-1.5">
+              Email
             </label>
             <input
-              id="si-phone"
-              type="tel"
+              id="si-email"
+              type="email"
               required
-              autoComplete="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className={input}
-              placeholder="0803 123 4567"
+              placeholder="you@example.com"
             />
           </div>
           <PasswordField
@@ -197,13 +198,14 @@ export function PasswordSignIn({
             onChange={setPassword}
             autoComplete="current-password"
             required={false}
-            hint="First time signing in? Leave it blank — we’ll ask you to create one."
+            hint="Added by your organiser and never signed in? Leave it blank — we’ll email you a code to set one."
           />
-          {button(cta, phone.replace(/\D/g, '').length < 10)}
+          {button(cta, !validEmail)}
           <button
             type="button"
             onClick={() => {
               setError(null);
+              setNewcomer('');
               setStep('forgot');
             }}
             className="w-full text-xs font-semibold text-gray-500 hover:text-ink"
@@ -213,27 +215,20 @@ export function PasswordSignIn({
         </form>
       )}
 
-      {step === 'create' && (
-        <form onSubmit={create} className="space-y-3">
-          <PasswordField id="cp-new" label="New password" value={password} onChange={setPassword} autoComplete="new-password" autoFocus />
-          <PasswordField id="cp-confirm" label="Confirm password" value={confirm} onChange={setConfirm} autoComplete="new-password" />
-          {button('Create password & continue', password.length < 6)}
-        </form>
-      )}
-
       {step === 'forgot' && (
         <form onSubmit={sendCode} className="space-y-3">
           <input
-            type="tel"
+            type="email"
             required
             autoFocus
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className={input}
-            placeholder="0803 123 4567"
-            aria-label="Phone number"
+            placeholder="you@example.com"
+            aria-label="Email"
           />
-          {button('Send code', phone.replace(/\D/g, '').length < 10)}
+          {button('Email me a code', !validEmail)}
           <button type="button" onClick={() => setStep('login')} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
             Back to sign in
           </button>
@@ -244,12 +239,13 @@ export function PasswordSignIn({
         <form onSubmit={reset} className="space-y-3">
           {devCode && (
             <p className="text-xs rounded-xl bg-sky-300/30 border border-dashed border-sky-300 px-3 py-2 text-ink">
-              Test mode — no message was sent. Your code is <span className="font-mono font-bold">{devCode}</span>
+              Test mode — no email was sent. Your code is <span className="font-mono font-bold">{devCode}</span>
             </p>
           )}
           <input
             inputMode="numeric"
             autoComplete="one-time-code"
+            autoFocus
             maxLength={6}
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
@@ -258,9 +254,12 @@ export function PasswordSignIn({
             aria-label="6-digit code"
           />
           <PasswordField id="rp-new" label="New password" value={password} onChange={setPassword} autoComplete="new-password" />
-          {button('Reset password & sign in', code.length !== 6 || password.length < 6)}
+          {button(newcomer ? 'Create password & continue' : 'Reset password & sign in', code.length !== 6 || password.length < 6)}
           <button type="button" onClick={() => sendCode()} disabled={busy} className="w-full text-xs font-semibold text-pitch-600">
-            Resend code
+            Email the code again
+          </button>
+          <button type="button" onClick={() => setStep('login')} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
+            Back to sign in
           </button>
         </form>
       )}

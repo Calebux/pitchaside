@@ -18,9 +18,9 @@ export class PushSubscriptionEntity {
   @Column({ name: 'player_id', nullable: true })
   playerId: string;
 
-  /** Person-level owner (last 10 phone digits): reaches every team they play in. */
+  /** Person-level owner (their emailKey): reaches every team they play in. Column name predates email sign-in. */
   @Column({ name: 'phone_key', nullable: true })
-  phoneKey: string;
+  personKey: string;
 
   @Column({ name: 'user_id', nullable: true })
   userId: string;

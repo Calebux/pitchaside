@@ -23,8 +23,7 @@ function validate(form: FormData): Errors | null {
   if (!lastName) errors.lastName = 'Last name is required';
   else if (lastName.length < 2) errors.lastName = 'Must be at least 2 characters';
 
-  if (!phone) errors.phone = 'Phone is required';
-  else if (!/^[+\d]/.test(phone) || phone.length < 7) errors.phone = 'Enter a valid phone number (min 7 characters)';
+  if (phone && (!/^[+\d]/.test(phone) || phone.length < 7)) errors.phone = 'Enter a valid phone number (min 7 characters)';
 
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = 'Enter a valid email address';
 
@@ -52,8 +51,8 @@ export default function NewPlayerPage() {
       await createPlayer({
         firstName: (form.get('firstName') as string).trim(),
         lastName: (form.get('lastName') as string).trim(),
-        phone: (form.get('phone') as string).trim(),
         email: (form.get('email') as string).trim() || undefined,
+        phone: (form.get('phone') as string).trim() || undefined,
       });
       router.push('/players');
     } catch (err) {
@@ -113,8 +112,28 @@ export default function NewPlayerPage() {
         </div>
 
         <div>
+          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
+            Email
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="name@example.com"
+            className={inputClass('email')}
+          />
+          {errors.email ? (
+            <p className="text-xs text-kit-600 mt-1">{errors.email}</p>
+          ) : (
+            <p className="text-[11px] text-gray-500 mt-1">
+              What they&apos;ll sign in with, and where reminders and receipts go. You can add it later.
+            </p>
+          )}
+        </div>
+
+        <div>
           <label htmlFor="phone" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Phone *
+            Phone <span className="text-gray-400 font-medium">(optional)</span>
           </label>
           <input
             id="phone"
@@ -124,20 +143,6 @@ export default function NewPlayerPage() {
             className={inputClass('phone')}
           />
           {errors.phone && <p className="text-xs text-kit-600 mt-1">{errors.phone}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="email" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Email
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="Optional"
-            className={inputClass('email')}
-          />
-          {errors.email && <p className="text-xs text-kit-600 mt-1">{errors.email}</p>}
         </div>
 
         <button

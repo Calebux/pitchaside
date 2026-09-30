@@ -7,7 +7,8 @@ import { Player } from '../players/entities/player.entity';
 import { User } from '../users/entities/user.entity';
 import { OutboundMessage } from './entities/outbound-message.entity';
 import { PushSubscriptionEntity } from './entities/push-subscription.entity';
-import { phoneKey } from '../common/format.util';
+import { emailKey } from '../common/format.util';
+import { MailService } from '../mail/mail.service';
 import { Channel, MESSAGING_PROVIDER, MessagingProvider } from './providers/messaging.provider';
 
 export interface Notice {
@@ -19,9 +20,9 @@ export interface Notice {
   url?: string;
   /** Analytics / outbox label: receipt, dues_open, rsvp_open, vote_open, ... */
   kind: string;
-  /** Longer WhatsApp/SMS text (can include account numbers, links). */
+  /** Longer WhatsApp/SMS text (can include account numbers, links). Emails use `body` and a button instead. */
   message?: string;
-  /** Always send WhatsApp/SMS too, even if the player has push. */
+  /** Always send the fallback (email or WhatsApp/SMS) too, even if the player has push. */
   critical?: boolean;
 }
 
@@ -42,6 +43,7 @@ export class NotificationsService implements OnModuleInit {
     @InjectRepository(User) private usersRepo: Repository<User>,
     @Inject(MESSAGING_PROVIDER) private messaging: MessagingProvider,
     private config: ConfigService,
+    private mail: MailService,
   ) {}
 
   onModuleInit() {
@@ -108,14 +110,14 @@ export class NotificationsService implements OnModuleInit {
 
   // ── Push ──
 
-  async subscribe(sub: PushInput, owner: { playerId?: string; userId?: string; phoneKey?: string }) {
+  async subscribe(sub: PushInput, owner: { playerId?: string; userId?: string; personKey?: string }) {
     const existing = await this.subsRepo.findOne({ where: { endpoint: sub.endpoint } });
     const row = existing ?? this.subsRepo.create({ endpoint: sub.endpoint });
     row.p256dh = sub.keys.p256dh;
     row.auth = sub.keys.auth;
     row.playerId = owner.playerId ?? (null as unknown as string);
     row.userId = owner.userId ?? (null as unknown as string);
-    row.phoneKey = owner.phoneKey ?? (null as unknown as string);
+    row.personKey = owner.personKey ?? (null as unknown as string);
     await this.subsRepo.save(row);
     return { subscribed: true };
   }
@@ -147,28 +149,61 @@ export class NotificationsService implements OnModuleInit {
 
   // ── High level ──
 
-  /** 'none' = push only (current default); 'whatsapp' = WhatsApp/SMS when push isn't available. */
-  private get fallback() {
-    return this.config.get('NOTIFY_FALLBACK', 'none') === 'whatsapp' ? 'whatsapp' : 'none';
+  /**
+   * What a player gets when push can't reach them: 'none' = nothing (push only),
+   * 'email' = an email if we have their address, 'whatsapp' = WhatsApp/SMS.
+   */
+  get fallback(): 'none' | 'email' | 'whatsapp' {
+    const mode = this.config.get('NOTIFY_FALLBACK', 'none');
+    return mode === 'whatsapp' || mode === 'email' ? mode : 'none';
+  }
+
+  /** The notice as an email, logged next to the push so organisers and HQ can see it went. */
+  private async emailPlayer(player: Player, notice: Notice) {
+    const record = this.messagesRepo.create({
+      organizationId: player.organizationId,
+      playerId: player.id,
+      channel: 'email',
+      to: player.email,
+      kind: notice.kind,
+      body: `${notice.title}\n${notice.body}`,
+      provider: 'smtp',
+      status: this.mail.mode === 'mock' ? 'mock' : 'sent',
+    });
+    try {
+      await this.mail.sendNotice(player.email, {
+        name: player.firstName,
+        clubName: player.organization?.name ?? 'your club',
+        kind: notice.kind,
+        title: notice.title,
+        body: notice.body,
+        path: notice.url,
+      });
+    } catch (err: any) {
+      record.status = 'failed';
+      record.error = String(err.message).slice(0, 250);
+      this.logger.warn(`Email to ${player.email} failed: ${err.message}`);
+    }
+    return this.messagesRepo.save(record);
   }
 
   /**
-   * Push to each player's devices (any device signed in with their number).
+   * Push to each player's devices (any device signed in with their email).
    * Every notice is logged so organisers can see who actually has push on.
    */
   async notifyPlayers(playerIds: string[], notice: Notice) {
     const ids = [...new Set(playerIds.filter(Boolean))];
     if (!ids.length) return { delivered: 0, missed: 0 };
-    const players = await this.playersRepo.find({ where: { id: In(ids) } });
-    const keys = [...new Set(players.map((p) => phoneKey(p.phone)))];
+    const players = await this.playersRepo.find({ where: { id: In(ids) }, relations: ['organization'] });
+    const keys = [...new Set(players.filter((p) => p.email).map((p) => emailKey(p.email)))];
     const subs = await this.subsRepo.find({
-      where: [{ playerId: In(ids) }, ...(keys.length ? [{ phoneKey: In(keys) }] : [])],
+      where: [{ playerId: In(ids) }, ...(keys.length ? [{ personKey: In(keys) }] : [])],
     });
     let delivered = 0;
     let missed = 0;
     for (const player of players) {
-      const key = phoneKey(player.phone);
-      const mine = subs.filter((s) => s.playerId === player.id || s.phoneKey === key);
+      const key = player.email ? emailKey(player.email) : null;
+      const mine = subs.filter((s) => s.playerId === player.id || (key && s.personKey === key));
       const pushed = await this.push(mine, notice);
       if (pushed > 0) delivered++;
       else missed++;
@@ -184,7 +219,11 @@ export class NotificationsService implements OnModuleInit {
           provider: 'web-push',
         }),
       );
-      if (this.fallback === 'whatsapp' && (notice.critical || pushed === 0)) {
+      const needsFallback = notice.critical || pushed === 0;
+      if (this.fallback === 'email' && needsFallback && player.email) {
+        await this.emailPlayer(player, notice);
+      }
+      if (this.fallback === 'whatsapp' && needsFallback && player.phone) {
         await this.sendMessage({
           to: player.phone,
           body: notice.message ?? `${notice.title}\n${notice.body}${notice.url ? `\n${this.appUrl(notice.url)}` : ''}`,
