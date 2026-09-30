@@ -72,7 +72,13 @@ export class Group {
   @Column({ name: 'account_name', nullable: true })
   accountName: string;
 
-  @Column({ name: 'bank_name', nullable: true })
+  // The bank was renamed from Pulse to Payrep; older rows still hold the old name
+  // until the PayrepBankName migration runs.
+  @Column({
+    name: 'bank_name',
+    nullable: true,
+    transformer: { to: (v: string) => v, from: (v: string | null) => (v === 'Pulse Microfinance Bank' ? 'Payrep Microfinance Bank' : v) },
+  })
   bankName: string;
 
   /** Provider-side identifier for the account (for support / reconciliation). */

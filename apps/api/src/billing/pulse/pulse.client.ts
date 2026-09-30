@@ -1,5 +1,5 @@
 /**
- * Pulse Microfinance Bank integration boundary.
+ * Payrep Microfinance Bank integration boundary.
  *
  * Everything the app needs from PulseMFB goes through this interface so the
  * real HTTP client can be dropped in without touching billing logic. Until

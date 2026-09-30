@@ -27,7 +27,7 @@ export const NIGERIAN_BANKS: NigerianBank[] = [
   { code: '035', name: 'Wema Bank' },
   { code: '057', name: 'Zenith Bank' },
   // Microfinance / digital banks
-  { code: '090713', name: 'Pulse Microfinance Bank' },
+  { code: '090713', name: 'Payrep Microfinance Bank' },
   { code: '090267', name: 'Kuda Microfinance Bank' },
   { code: '090303', name: 'OPay' },
   { code: '090326', name: 'PalmPay' },
