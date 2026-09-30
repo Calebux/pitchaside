@@ -15,6 +15,26 @@ function getCsrfToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * In-memory refresh token fallback. Cookies are preferred (HttpOnly, XSS-safe)
+ * but some proxy setups (e.g. Vercel rewrites) don't reliably forward
+ * Set-Cookie from the upstream, so we also send the token in the request body.
+ */
+let storedRefreshToken: string | null =
+  typeof window !== 'undefined' ? sessionStorage.getItem('_prt') : null;
+
+export function storeRefreshToken(token: string | undefined | null) {
+  storedRefreshToken = token ?? null;
+  if (typeof window !== 'undefined') {
+    if (token) sessionStorage.setItem('_prt', token);
+    else sessionStorage.removeItem('_prt');
+  }
+}
+
+export function getStoredRefreshToken(): string | null {
+  return storedRefreshToken;
+}
+
 let refreshPromise: Promise<boolean> | null = null;
 
 async function silentRefresh(): Promise<boolean> {
@@ -22,11 +42,20 @@ async function silentRefresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const body = storedRefreshToken ? JSON.stringify({ refreshToken: storedRefreshToken }) : undefined;
       const res = await fetch(`${BASE_URL}/auth/refresh`, {
         method: 'POST',
+        headers,
+        body,
         credentials: 'include',
       });
-      return res.ok;
+      if (res.ok) {
+        const data = await res.json();
+        if (data.refreshToken) storeRefreshToken(data.refreshToken);
+        return true;
+      }
+      return false;
     } catch {
       return false;
     } finally {
