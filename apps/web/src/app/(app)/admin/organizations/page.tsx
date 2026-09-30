@@ -22,8 +22,8 @@ export default function AdminOrganizationsPage() {
     }
 
     http
-      .get<any[]>('/admin/organizations')
-      .then(setOrgs)
+      .get<any>('/admin/organizations')
+      .then((res) => setOrgs(res.data ?? res))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, router]);
