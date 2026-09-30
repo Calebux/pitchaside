@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { PasswordReset } from './entities/password-reset.entity';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -236,5 +237,30 @@ export class UsersService {
     user.emailVerificationToken = null;
     user.emailVerificationExpiresAt = null;
     return this.usersRepo.save(user);
+  }
+
+  // ── Transfer PIN ──
+
+  async setTransferPin(userId: string, pin: string, currentPin?: string): Promise<void> {
+    const user = await this.usersRepo.findOneOrFail({ where: { id: userId } });
+    if (user.transferPin) {
+      if (!currentPin) throw new BadRequestException('Current PIN is required');
+      const valid = await bcrypt.compare(currentPin, user.transferPin);
+      if (!valid) throw new BadRequestException('Current PIN is incorrect');
+    }
+    user.transferPin = await bcrypt.hash(pin, 10);
+    user.transferPinSetAt = new Date();
+    await this.usersRepo.save(user);
+  }
+
+  async verifyTransferPin(userId: string, pin: string): Promise<boolean> {
+    const user = await this.usersRepo.findOneOrFail({ where: { id: userId } });
+    if (!user.transferPin) throw new BadRequestException('Transfer PIN has not been set. Please set a PIN first.');
+    return bcrypt.compare(pin, user.transferPin);
+  }
+
+  async hasTransferPin(userId: string): Promise<boolean> {
+    const user = await this.usersRepo.findOneOrFail({ where: { id: userId } });
+    return !!user.transferPin;
   }
 }

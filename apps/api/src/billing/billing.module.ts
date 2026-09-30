@@ -9,6 +9,8 @@ import { Player } from '../players/entities/player.entity';
 import { PaymentsModule } from '../payments/payments.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BankTransfer } from './entities/bank-transfer.entity';
+import { OutgoingTransfer } from './entities/outgoing-transfer.entity';
+import { UsersModule } from '../users/users.module';
 import { BillingService } from './billing.service';
 import { BillingController, PublicBillingController } from './billing.controller';
 import { PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
@@ -17,9 +19,10 @@ import { HttpPulseClient } from './pulse/http-pulse.client';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer]),
+    TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer, OutgoingTransfer]),
     PaymentsModule,
     NotificationsModule,
+    UsersModule,
   ],
   controllers: [BillingController, PublicBillingController],
   providers: [

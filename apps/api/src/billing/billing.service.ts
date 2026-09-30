@@ -18,9 +18,12 @@ import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
+import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { UsersService } from '../users/users.service';
+import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira, phoneKey } from '../common/format.util';
 
 const PERIODIC_TYPES = [
@@ -52,9 +55,11 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(Player) private playersRepo: Repository<Player>,
     @InjectRepository(BankTransfer) private transfersRepo: Repository<BankTransfer>,
+    @InjectRepository(OutgoingTransfer) private payoutsRepo: Repository<OutgoingTransfer>,
     @Inject(PULSE_CLIENT) private pulse: PulseClient,
     private paymentsService: PaymentsService,
     private notifications: NotificationsService,
+    private usersService: UsersService,
   ) {}
 
   // ── Lifecycle: open new dues periods as time rolls over ──
@@ -508,6 +513,151 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
     const raw = JSON.stringify(payload);
     return this.handleWebhook(raw, client.sign(raw), payload);
+  }
+
+  // ── Payouts (transfer out) ──
+
+  async getGroupBalance(groupId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+
+    const { totalIn } = await this.transfersRepo
+      .createQueryBuilder('t')
+      .select('COALESCE(SUM(t.amount), 0)', 'totalIn')
+      .where('t.groupId = :groupId', { groupId })
+      .andWhere('t.status IN (:...statuses)', { statuses: [TransferStatus.MATCHED, TransferStatus.ASSIGNED] })
+      .getRawOne();
+
+    const { totalOut } = await this.payoutsRepo
+      .createQueryBuilder('p')
+      .select('COALESCE(SUM(p.amount + p.fee), 0)', 'totalOut')
+      .where('p.groupId = :groupId', { groupId })
+      .andWhere('p.status IN (:...statuses)', { statuses: [PayoutStatus.PROCESSING, PayoutStatus.COMPLETED] })
+      .getRawOne();
+
+    return {
+      totalIn: Number(totalIn),
+      totalOut: Number(totalOut),
+      available: Number(totalIn) - Number(totalOut),
+    };
+  }
+
+  async nameEnquiry(groupId: string, organizationId: string, bankCode: string, accountNumber: string) {
+    await this.findGroup(groupId, organizationId);
+    return this.pulse.nameEnquiry(bankCode, accountNumber);
+  }
+
+  async initiateTransferOut(
+    groupId: string,
+    organizationId: string,
+    userId: string,
+    dto: { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; pin: string },
+  ) {
+    // Verify PIN
+    const pinValid = await this.usersService.verifyTransferPin(userId, dto.pin);
+    if (!pinValid) throw new UnauthorizedException('Incorrect transfer PIN');
+
+    const group = await this.findGroup(groupId, organizationId);
+    if (!group.accountNumber) throw new BadRequestException('Group has no collection account');
+
+    // Check balance
+    const balance = await this.getGroupBalance(groupId, organizationId);
+    if (dto.amount > balance.available) {
+      throw new BadRequestException(`Insufficient balance. Available: ${naira(balance.available)}`);
+    }
+
+    // Platform daily limit: ₦10M per group
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const { dailyTotal } = await this.payoutsRepo
+      .createQueryBuilder('p')
+      .select('COALESCE(SUM(p.amount), 0)', 'dailyTotal')
+      .where('p.groupId = :groupId', { groupId })
+      .andWhere('p.status != :cancelled', { cancelled: PayoutStatus.CANCELLED })
+      .andWhere('p.createdAt >= :todayStart', { todayStart })
+      .getRawOne();
+    if (Number(dailyTotal) + dto.amount > 10_000_000) {
+      throw new BadRequestException('Daily transfer limit (₦10,000,000) exceeded for this group');
+    }
+
+    // Look up bank name
+    const bank = NIGERIAN_BANKS.find((b) => b.code === dto.beneficiaryBankCode);
+    const reference = `PA-${randomBytes(8).toString('hex').toUpperCase()}`;
+
+    const payout = await this.payoutsRepo.save(
+      this.payoutsRepo.create({
+        groupId,
+        amount: dto.amount,
+        beneficiaryAccount: dto.beneficiaryAccount,
+        beneficiaryName: '', // filled after name enquiry on the client, or we leave it
+        beneficiaryBankCode: dto.beneficiaryBankCode,
+        beneficiaryBankName: bank?.name ?? 'Unknown Bank',
+        narration: dto.narration,
+        providerReference: reference,
+        initiatedById: userId,
+      }),
+    );
+
+    try {
+      const result = await this.pulse.transferOut({
+        debitAccountNumber: group.accountNumber,
+        beneficiaryAccountNumber: dto.beneficiaryAccount,
+        beneficiaryBankCode: dto.beneficiaryBankCode,
+        amount: dto.amount,
+        narration: dto.narration ?? `PitchAside payout – ${group.name}`,
+        reference,
+      });
+
+      payout.status = result.status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.PROCESSING;
+      if (result.status === 'completed') payout.completedAt = new Date();
+    } catch (err: any) {
+      payout.status = PayoutStatus.FAILED;
+      payout.errorMessage = err.message?.slice(0, 200);
+      this.logger.error(`Payout ${payout.id} failed: ${err.message}`);
+    }
+
+    await this.payoutsRepo.save(payout);
+    return payout;
+  }
+
+  async listPayouts(groupId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    return this.payoutsRepo.find({
+      where: { groupId },
+      relations: ['initiatedBy'],
+      order: { createdAt: 'DESC' },
+      take: 50,
+    });
+  }
+
+  async cancelPayout(payoutId: string, organizationId: string) {
+    const payout = await this.payoutsRepo
+      .createQueryBuilder('p')
+      .innerJoin('p.group', 'group')
+      .where('p.id = :payoutId', { payoutId })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getOne();
+    if (!payout) throw new NotFoundException('Payout not found');
+    if (payout.status !== PayoutStatus.PENDING) {
+      throw new BadRequestException('Only pending payouts can be cancelled');
+    }
+    payout.status = PayoutStatus.CANCELLED;
+    return this.payoutsRepo.save(payout);
+  }
+
+  /** Called when PulseMFB notifies us about an outbound transfer status change. */
+  async handlePayoutWebhook(reference: string, status: 'completed' | 'failed', errorMessage?: string) {
+    const payout = await this.payoutsRepo.findOne({ where: { providerReference: reference } });
+    if (!payout) return;
+    if (payout.status === PayoutStatus.COMPLETED || payout.status === PayoutStatus.CANCELLED) return;
+
+    payout.status = status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.FAILED;
+    if (status === 'completed') payout.completedAt = new Date();
+    if (errorMessage) payout.errorMessage = errorMessage;
+    await this.payoutsRepo.save(payout);
+  }
+
+  getNigerianBanks() {
+    return NIGERIAN_BANKS;
   }
 
   // ── helpers ──
