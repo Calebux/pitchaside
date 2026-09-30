@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
-import { updateProfile, changePassword, setup2FA, verify2FA, disable2FA } from '@/lib/api';
+import { updateProfile, changePassword, setup2FA, verify2FA, disable2FA, getTransferPinStatus, setTransferPin, changeTransferPin } from '@/lib/api';
 import { PushToggle } from '@/components/pwa';
 import { subscribeOrganiserPush } from '@/lib/api';
 import { PageHeader } from '@/components/brand';
@@ -29,6 +29,15 @@ export default function SettingsPage() {
   const [twoFACode, setTwoFACode] = useState('');
   const [disableCode, setDisableCode] = useState('');
   const [setting2FA, setSetting2FA] = useState(false);
+
+  // Transfer PIN state
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pinData, setPinData] = useState({ currentPin: '', newPin: '', confirmPin: '' });
+  const [savingPin, setSavingPin] = useState(false);
+
+  useEffect(() => {
+    getTransferPinStatus().then((r) => setHasPin(r.hasPin)).catch(() => {});
+  }, []);
 
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
@@ -107,6 +116,30 @@ export default function SettingsPage() {
       toast.error(err.message || 'Invalid code');
     } finally {
       setSetting2FA(false);
+    }
+  }
+
+  async function handlePinSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (pinData.newPin !== pinData.confirmPin) {
+      toast.error('PINs do not match');
+      return;
+    }
+    setSavingPin(true);
+    try {
+      if (hasPin) {
+        await changeTransferPin(pinData.currentPin, pinData.newPin);
+        toast.success('Transfer PIN changed');
+      } else {
+        await setTransferPin(pinData.newPin);
+        toast.success('Transfer PIN set');
+        setHasPin(true);
+      }
+      setPinData({ currentPin: '', newPin: '', confirmPin: '' });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update PIN');
+    } finally {
+      setSavingPin(false);
     }
   }
 
@@ -218,6 +251,73 @@ export default function SettingsPage() {
           {savingPw ? 'Changing...' : 'Change Password'}
         </button>
       </form>
+
+      {/* Transfer PIN */}
+      {hasPin !== null && (
+        <form onSubmit={handlePinSave} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
+          <h2 className="text-lg font-bold text-ink mb-1">{hasPin ? 'Change Transfer PIN' : 'Set Transfer PIN'}</h2>
+          <p className="text-xs text-gray-500 mb-4">
+            {hasPin
+              ? 'Enter your current PIN and choose a new 4-digit PIN.'
+              : 'Set a 4-digit PIN to authorise payouts from group accounts.'}
+          </p>
+          <div className="space-y-3 mb-4">
+            {hasPin && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">Current PIN</label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  required
+                  maxLength={4}
+                  value={pinData.currentPin}
+                  onChange={(e) => setPinData({ ...pinData, currentPin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                  placeholder="••••"
+                  className={`${inputClass} text-center tracking-[0.3em]`}
+                  autoComplete="off"
+                />
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                {hasPin ? 'New PIN' : 'PIN'}
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                required
+                maxLength={4}
+                value={pinData.newPin}
+                onChange={(e) => setPinData({ ...pinData, newPin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                placeholder="Enter 4-digit PIN"
+                className={`${inputClass} text-center tracking-[0.3em]`}
+                autoComplete="off"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">Confirm PIN</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                required
+                maxLength={4}
+                value={pinData.confirmPin}
+                onChange={(e) => setPinData({ ...pinData, confirmPin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                placeholder="Re-enter PIN"
+                className={`${inputClass} text-center tracking-[0.3em]`}
+                autoComplete="off"
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={savingPin || pinData.newPin.length < 4 || pinData.confirmPin.length < 4 || (hasPin && pinData.currentPin.length < 4)}
+            className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
+          >
+            {savingPin ? 'Saving...' : hasPin ? 'Change PIN' : 'Set PIN'}
+          </button>
+        </form>
+      )}
 
       {/* 2FA Section */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
