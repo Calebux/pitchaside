@@ -181,8 +181,9 @@ export class NotificationsService implements OnModuleInit {
       });
     } catch (err: any) {
       record.status = 'failed';
-      record.error = String(err.message).slice(0, 250);
-      this.logger.warn(`Email to ${player.email} failed: ${err.message}`);
+      // MailService wraps the provider's reason in a user-facing error; the log keeps the real one.
+      record.error = String(err.cause?.message ?? err.message).slice(0, 250);
+      this.logger.warn(`Email to ${player.email} failed: ${record.error}`);
     }
     return this.messagesRepo.save(record);
   }
