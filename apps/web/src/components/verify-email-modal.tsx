@@ -6,29 +6,10 @@ import { Envelope } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { resendVerification } from '@/lib/api';
 
-const SNOOZE_KEY = 'pa_verify_email_later';
-const SNOOZE_MS = 24 * 60 * 60 * 1000;
-
-/** "Later" hides the reminder on this device for a day. Storage can be unavailable (private windows): then it just shows again. */
-function snoozed() {
-  try {
-    return Date.now() - Number(localStorage.getItem(SNOOZE_KEY) ?? 0) < SNOOZE_MS;
-  } catch {
-    return false;
-  }
-}
-
-function snooze() {
-  try {
-    localStorage.setItem(SNOOZE_KEY, String(Date.now()));
-  } catch {
-    /* ignore */
-  }
-}
-
 /**
  * Asks an organiser who hasn't confirmed their email to do so. Verifying isn't
- * required to use the app, so this can be put off — it comes back a day later.
+ * required to use the app, so it can be put off for the current session — it
+ * comes back the next time the user signs in.
  * `onCheck` re-reads the account, so the reminder goes away by itself once they
  * tap the link in another tab and come back.
  */
@@ -37,11 +18,11 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
 
-  // Decided after mount: the server render can't see this device's snooze.
-  useEffect(() => setOpen(!snoozed()), []);
+  // Open after mount so the modal is rendered client-side and appears on every
+  // sign-in for an account whose email is still unverified.
+  useEffect(() => setOpen(true), []);
 
   function later() {
-    snooze();
     setOpen(false);
   }
 
