@@ -26,41 +26,11 @@ function snooze() {
   }
 }
 
-/**
- * Asks an organiser who hasn't confirmed their email to do so. Verifying isn't
- * required to use the app, so this can be put off — it comes back a day later.
- * `onCheck` re-reads the account, so the reminder goes away by itself once they
- * tap the link in another tab and come back.
- */
-export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: () => Promise<void> }) {
-  const titleId = useId();
-  const [open, setOpen] = useState(false);
-  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle');
+type SendState = 'idle' | 'sending' | 'sent' | 'failed';
 
-  // Decided after mount: the server render can't see this device's snooze.
-  useEffect(() => setOpen(!snoozed()), []);
-
-  function later() {
-    snooze();
-    setOpen(false);
-  }
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && later();
-    const onFocus = () => void onCheck();
-    window.addEventListener('keydown', onKey);
-    window.addEventListener('focus', onFocus);
-    // Stop the page scrolling behind the sheet.
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      window.removeEventListener('focus', onFocus);
-      document.body.style.overflow = overflow;
-    };
-  }, [open, onCheck]);
-
+/** Resending the verification email, and saying how it went. */
+function useResend() {
+  const [state, setState] = useState<SendState>('idle');
   async function resend() {
     setState('sending');
     try {
@@ -70,6 +40,65 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
       setState('failed');
     }
   }
+  return { state, resend };
+}
+
+function SendStatus({ state }: { state: SendState }) {
+  return (
+    <>
+      {state === 'sent' && <span className="text-pitch-600">Sent — it can take a minute. Check spam too.</span>}
+      {state === 'failed' && <span className="text-kit-600">Couldn&apos;t send it just now. Try again in a minute.</span>}
+    </>
+  );
+}
+
+/** Re-read the account whenever the person comes back to this tab — they may have just tapped the link. */
+function useCheckOnReturn(active: boolean, onCheck: () => Promise<void>) {
+  useEffect(() => {
+    if (!active) return;
+    const onFocus = () => void onCheck();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [active, onCheck]);
+}
+
+/**
+ * Asks an organiser who hasn't confirmed their email to do so. Verifying isn't
+ * required to use the app, so it can be put off: "I'll do it later" hides it on
+ * this device for a day. Clicking outside or pressing Escape only closes it for
+ * now — an accidental click shouldn't silence it — and Settings always has the
+ * resend button (VerifyEmailRow). It goes away by itself once they've verified.
+ */
+export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: () => Promise<void> }) {
+  const titleId = useId();
+  const [open, setOpen] = useState(false);
+  const { state, resend } = useResend();
+  useCheckOnReturn(open, onCheck);
+
+  // Decided after mount: the server render can't see this device's snooze.
+  useEffect(() => setOpen(!snoozed()), []);
+
+  /** Closed until the next page load. */
+  const close = () => setOpen(false);
+
+  /** Their explicit choice: hidden on this device for a day. */
+  function later() {
+    snooze();
+    close();
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', onKey);
+    // Stop the page scrolling behind the sheet.
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -80,7 +109,7 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
       aria-modal="true"
       aria-labelledby={titleId}
       className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-ink/50 backdrop-blur-sm px-0 sm:px-4"
-      onClick={later}
+      onClick={close}
     >
       <div
         className="bg-white rounded-t-3xl sm:rounded-3xl shadow-lift w-full sm:max-w-sm overflow-hidden animate-slide-up sm:animate-fade-in-up"
@@ -101,8 +130,7 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
           </p>
 
           <p role="status" className="min-h-5 mt-3 text-xs font-semibold">
-            {state === 'sent' && <span className="text-pitch-600">Sent — it can take a minute. Check spam too.</span>}
-            {state === 'failed' && <span className="text-kit-600">Couldn&apos;t send it just now. Try again in a minute.</span>}
+            <SendStatus state={state} />
           </p>
 
           <div className="mt-2 space-y-2">
@@ -123,5 +151,50 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * The email line in Settings: the address, whether it's verified, and — until it
+ * is — a button to send the link again. Always there, whatever happened to the modal.
+ */
+export function VerifyEmailRow({ email, verified, onCheck }: { email: string; verified: boolean; onCheck: () => Promise<void> }) {
+  const { state, resend } = useResend();
+  useCheckOnReturn(!verified, onCheck);
+
+  return (
+    <div className="mb-4 rounded-2xl bg-chalk border border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Email</p>
+          <p className="text-sm font-bold text-ink [overflow-wrap:anywhere]">{email}</p>
+        </div>
+        <span
+          className={`shrink-0 text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+            verified ? 'bg-pitch-100 text-pitch-800' : 'bg-sun-400/30 text-amber-900'
+          }`}
+        >
+          {verified ? 'Verified' : 'Not verified'}
+        </span>
+      </div>
+
+      {!verified && (
+        <div className="mt-3">
+          <p className="text-xs text-gray-500">We sent a link to this address. Tap it to confirm it&apos;s you and keep your club&apos;s account safe.</p>
+          <button
+            type="button"
+            onClick={resend}
+            disabled={state === 'sending' || state === 'sent'}
+            className="mt-2.5 inline-flex items-center gap-2 px-3.5 py-2 text-sm font-bold text-ink bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors disabled:opacity-50"
+          >
+            {state === 'sending' && <BallSpinner />}
+            {state === 'sent' ? 'Email sent' : 'Send verification email'}
+          </button>
+          <p role="status" className="min-h-4 mt-1.5 text-xs font-semibold">
+            <SendStatus state={state} />
+          </p>
+        </div>
+      )}
+    </div>
   );
 }
