@@ -86,6 +86,14 @@ export function getPlayerToken(): string | null { return null; }
 export function setPlayerToken(_token: string) {}
 export function clearPlayerToken() {}
 
+export async function logoutPlayer(): Promise<void> {
+  try {
+    await request<void>('POST', '/player-auth/logout');
+  } catch {
+    // Best-effort — redirect regardless
+  }
+}
+
 // ── Sign-in ──
 
 export type SignInResult = { phoneProof: string; token?: string; player?: { id: string; firstName: string } };
@@ -292,4 +300,8 @@ export function submitMyVotes(token: string, picks: Partial<Record<VoteCategory,
 
 export function subscribePlayerPush(sub: PushSubscriptionJSON) {
   return request('POST', '/me/push', sub);
+}
+
+export function unsubscribePlayerPush(endpoint: string) {
+  return request('DELETE', '/me/push', { endpoint });
 }

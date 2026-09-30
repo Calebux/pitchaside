@@ -3,20 +3,18 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BallLoader } from '@/components/skeleton';
-import { getPlayerToken } from '@/lib/player';
+import { http } from '@/lib/http';
 
 /** Home-screen start URL: organisers go to the dashboard, players to their home. */
 export default function LaunchPage() {
   const router = useRouter();
 
   useEffect(() => {
-    let organiser = false;
-    try {
-      organiser = !!localStorage.getItem('pitchaside_token');
-    } catch {
-      /* ignore */
-    }
-    router.replace(organiser ? '/dashboard' : getPlayerToken() ? '/me' : '/me/login');
+    // Try organiser session first (cookie-based); fall back to player app
+    http
+      .get('/auth/me')
+      .then(() => router.replace('/dashboard'))
+      .catch(() => router.replace('/me'));
   }, [router]);
 
   return (

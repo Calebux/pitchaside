@@ -10,7 +10,7 @@ import { PayIntoCard } from '@/components/account-card';
 import { PasswordField, PasswordSignIn } from '@/components/password-sign-in';
 import { formatCurrency, getPublicGroup, type PublicGroup } from '@/lib/api';
 import { frequencyShort } from '@/lib/billing';
-import { getPlayerToken, joinAsPlayer, setPlayerToken, signupFromLink, type JoinResult } from '@/lib/player';
+import { getPlayerHome, joinAsPlayer, signupFromLink, type JoinResult } from '@/lib/player';
 
 type Stage = 'signup' | 'signin' | 'joined';
 
@@ -26,14 +26,16 @@ export default function GroupLinkPage() {
   const [joined, setJoined] = useState<JoinResult | null>(null);
 
   useEffect(() => {
-    setSignedIn(!!getPlayerToken());
+    // Check if user has a valid player session via cookie
+    getPlayerHome()
+      .then(() => setSignedIn(true))
+      .catch(() => setSignedIn(false));
     getPublicGroup(code)
       .then(setGroup)
       .catch(() => setNotFound(true));
   }, [code]);
 
   function done(res: JoinResult) {
-    if (res.token) setPlayerToken(res.token);
     setJoined(res);
     setStage('joined');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -46,15 +48,14 @@ export default function GroupLinkPage() {
       done(await joinAsPlayer(code));
     } catch (err: any) {
       setError(err.message);
-      setSignedIn(!!getPlayerToken());
+      setSignedIn(false);
     } finally {
       setBusy(false);
     }
   }
 
   /** Existing PitchAside player signed in on this page: add them to the group. */
-  async function onSignedIn(token: string) {
-    setPlayerToken(token);
+  async function onSignedIn(_token: string) {
     setSignedIn(true);
     await joinSignedIn();
   }

@@ -26,9 +26,8 @@ export default function StartGroupPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await startGroup(form);
-      localStorage.setItem('pitchaside_token', res.accessToken);
-      // Full load so the organiser app picks up the new session.
+      await startGroup(form);
+      // Full load so the organiser app picks up the new cookie session.
       window.location.href = '/groups/new';
     } catch (err: any) {
       setError(err.message);
