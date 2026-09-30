@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { http } from './http';
+import { http, storeRefreshToken, getStoredRefreshToken } from './http';
 import type { IUser, IAuthResponse } from '@pitchaside/shared';
 
 interface TwoFactorRequired {
@@ -55,8 +55,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (refreshTimer.current) clearInterval(refreshTimer.current);
       return;
     }
-    refreshTimer.current = setInterval(() => {
-      http.post('/auth/refresh').catch(() => {});
+    refreshTimer.current = setInterval(async () => {
+      try {
+        const rt = getStoredRefreshToken();
+        const res = await http.post<any>('/auth/refresh', rt ? { refreshToken: rt } : undefined);
+        if (res?.refreshToken) storeRefreshToken(res.refreshToken);
+      } catch {}
     }, REFRESH_INTERVAL_MS);
     return () => {
       if (refreshTimer.current) clearInterval(refreshTimer.current);
@@ -69,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { requires2FA: true, userId: res.userId };
     }
     const authRes = res as IAuthResponse;
+    storeRefreshToken((authRes as any).refreshToken);
     setUser(authRes.user);
     return { requires2FA: false };
   }, []);
@@ -89,6 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       state?: string;
     }) => {
       const res = await http.post<IAuthResponse>('/auth/register', data);
+      storeRefreshToken((res as any).refreshToken);
       setUser(res.user);
     },
     [],
@@ -107,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // If the call fails, redirect anyway
     }
+    storeRefreshToken(null);
     setUser(null);
     window.location.href = '/signin';
   }, []);
