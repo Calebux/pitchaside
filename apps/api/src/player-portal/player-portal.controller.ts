@@ -13,7 +13,7 @@ import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { PlayerPortalService } from './player-portal.service';
-import { setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
+import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
@@ -306,6 +306,7 @@ export class PlayerPortalController {
     private readonly portal: PlayerPortalService,
     private readonly notifications: NotificationsService,
     private readonly playerAuth: PlayerAuthService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get()
@@ -351,8 +352,10 @@ export class PlayerPortalController {
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @UseGuards(ThrottlerGuard)
   @Post('start-group')
-  startGroup(@Body() dto: StartGroupDto, @CurrentPerson() person: Person) {
-    return this.portal.startGroup(person, dto);
+  async startGroup(@Body() dto: StartGroupDto, @CurrentPerson() person: Person, @Res({ passthrough: true }) res: Response) {
+    const result = await this.portal.startGroup(person, dto);
+    setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
+    return { accessToken: result.accessToken, user: result.user };
   }
 
   @Patch('account')
