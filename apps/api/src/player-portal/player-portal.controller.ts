@@ -106,7 +106,13 @@ export class StartGroupDto {
   password: string;
 }
 
-/** Player sign-up and sign-in: email + password, with an emailed code to set or reset the password. */
+/**
+ * Player sign-up and sign-in: email + password, with an emailed code to set or reset the password.
+ *
+ * Sign-up and sign-in allow 30 a minute per address: a whole squad often joins
+ * from one network (pitch Wi-Fi, or a mobile carrier's shared address). Password
+ * guessing is held back by the per-account limit instead (see rate-limit.ts).
+ */
 @UseGuards(ThrottlerGuard)
 @Controller()
 export class PlayerAuthController {
@@ -126,7 +132,7 @@ export class PlayerAuthController {
   }
 
   @SkipCsrf()
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   @Post('player-auth/login')
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.login(dto.email, dto.password);
@@ -155,7 +161,7 @@ export class PlayerAuthController {
 
   /** New player signing up from a group link: email, name, password, optional phone. */
   @SkipCsrf()
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   @Post('public/groups/:code/signup')
   async signup(@Param('code') code: string, @Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
     // Check the link before creating anything, so a bad link doesn't leave an account behind.
@@ -175,7 +181,7 @@ export class PlayerAuthController {
 
   /** Club invite link (no specific group): create the account and join the club. */
   @SkipCsrf()
-  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @Throttle({ default: { ttl: 60000, limit: 30 } })
   @Post('public/clubs/:code/signup')
   async clubSignup(@Param('code') code: string, @Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
     const club = await this.auth.clubByInviteCode(code);
