@@ -52,7 +52,9 @@ export class AuthService {
 
     // Send verification email (non-blocking)
     const verifyToken = await this.usersService.createEmailVerificationToken(user.id);
-    this.mailService.sendEmailVerification(user.email, user.firstName, verifyToken).catch(() => {});
+    this.mailService.sendEmailVerification(user.email, user.firstName, verifyToken).catch((err) => {
+      console.error('[MAIL ERROR]', err?.message || err);
+    });
 
     const accessToken = this.jwtService.sign({ sub: user.id });
     const refreshToken = await this.usersService.createRefreshToken(user.id, null);
