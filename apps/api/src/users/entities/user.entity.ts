@@ -54,6 +54,21 @@ export class User {
   @Column({ default: false, name: 'two_factor_enabled' })
   twoFactorEnabled: boolean;
 
+  @Column({ name: 'email_verified', default: false })
+  emailVerified: boolean;
+
+  @Column({ name: 'email_verification_token', type: 'varchar', nullable: true })
+  emailVerificationToken: string | null;
+
+  @Column({ name: 'email_verification_expires_at', type: 'timestamp', nullable: true })
+  emailVerificationExpiresAt: Date | null;
+
+  @Column({ name: 'transfer_pin', type: 'varchar', nullable: true })
+  transferPin: string | null;
+
+  @Column({ name: 'transfer_pin_set_at', type: 'timestamp', nullable: true })
+  transferPinSetAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

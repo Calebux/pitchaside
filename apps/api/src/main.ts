@@ -1,13 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  // rawBody lets the Payrep webhook verify its signature over the exact bytes sent.
+  // rawBody lets the PulseMFB webhook verify its signature over the exact bytes sent.
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.setGlobalPrefix('api');
+  app.use(cookieParser());
   app.use(helmet());
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',

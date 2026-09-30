@@ -2,16 +2,20 @@ import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import {
   CreateAccountInput,
   IncomingTransfer,
-  PayrepClient,
+  NameEnquiryResult,
+  PulseClient,
   ProvisionedAccount,
-} from './payrep.client';
+  TransferOutInput,
+  TransferOutResult,
+  TransferStatusResult,
+} from './pulse.client';
 
 /**
- * Local stand-in for Payrep. Account numbers are deterministic per group so
+ * Local stand-in for PulseMFB. Account numbers are deterministic per group so
  * re-provisioning is stable, and webhooks use a simple HMAC-SHA256 signature
- * over the raw body with PAYREP_WEBHOOK_SECRET.
+ * over the raw body with PULSE_WEBHOOK_SECRET.
  */
-export class MockPayrepClient implements PayrepClient {
+export class MockPulseClient implements PulseClient {
   readonly mode = 'mock' as const;
 
   constructor(private readonly webhookSecret: string) {}
@@ -23,9 +27,23 @@ export class MockPayrepClient implements PayrepClient {
     return {
       accountNumber: `8${digits}`,
       accountName: input.accountName,
-      bankName: 'Payrep MFB (test)',
+      bankName: 'PulseMFB (test)',
       providerReference: `mock_${digest.toString('hex').slice(0, 16)}`,
     };
+  }
+
+  async nameEnquiry(_bankCode: string, accountNumber: string): Promise<NameEnquiryResult> {
+    // Return a fake but plausible name based on the account number.
+    return { accountName: `Test Account ${accountNumber.slice(-4)}` };
+  }
+
+  async transferOut(input: TransferOutInput): Promise<TransferOutResult> {
+    // Mock payouts complete immediately.
+    return { reference: input.reference, status: 'completed' };
+  }
+
+  async getTransfer(reference: string): Promise<TransferStatusResult> {
+    return { status: 'completed' };
   }
 
   sign(rawBody: string) {

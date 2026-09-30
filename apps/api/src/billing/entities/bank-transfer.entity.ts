@@ -20,7 +20,7 @@ export enum TransferStatus {
   IGNORED = 'ignored',
 }
 
-/** Every credit Payrep reports into a group account, matched or not. */
+/** Every credit PulseMFB reports into a group account, matched or not. */
 @Entity('bank_transfers')
 export class BankTransfer {
   @PrimaryGeneratedColumn('uuid')

@@ -1,7 +1,9 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { CsrfGuard } from './auth/guards/csrf.guard';
 import { GroupsModule } from './groups/groups.module';
 import { PlayersModule } from './players/players.module';
 import { SessionsModule } from './sessions/sessions.module';
@@ -59,6 +61,12 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     RsvpModule,
     PlayerPortalModule,
     RemindersModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: CsrfGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {

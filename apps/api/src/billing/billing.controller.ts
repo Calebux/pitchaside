@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Put,
   RawBodyRequest,
   Req,
   UseGuards,
@@ -13,19 +14,29 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { BillingService } from './billing.service';
-import { AssignTransferDto, SimulateTransferDto } from './dto/transfer.dto';
+import {
+  AssignTransferDto,
+  ChangeTransferPinDto,
+  InitiatePayoutDto,
+  NameEnquiryDto,
+  SetTransferPinDto,
+  SimulateTransferDto,
+} from './dto/transfer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
+import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 
-/** Admin endpoints for a group's account, invite link and incoming transfers. */
+/** Admin endpoints for a group's account, invite link, transfers and payouts. */
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class BillingController {
   constructor(
     private readonly billing: BillingService,
     private readonly config: ConfigService,
+    private readonly users: UsersService,
   ) {}
 
   private link(code: string) {
@@ -42,7 +53,7 @@ export class BillingController {
     return this.billingWithLink(id, user.organizationId);
   }
 
-  /** Retry account provisioning (e.g. if Payrep was down when the group was created). */
+  /** Retry account provisioning (e.g. if PulseMFB was down when the group was created). */
   @Post('groups/:id/account')
   provisionAccount(@Param('id') id: string, @CurrentUser() user: User) {
     return this.billingWithLink(id, user.organizationId);
@@ -75,9 +86,60 @@ export class BillingController {
   ignore(@Param('id') id: string, @CurrentUser() user: User) {
     return this.billing.ignoreTransfer(id, user.organizationId);
   }
+
+  // ── Payouts (transfer out) ──
+
+  @Get('groups/:id/balance')
+  getBalance(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.getGroupBalance(id, user.organizationId);
+  }
+
+  @Post('groups/:id/name-enquiry')
+  nameEnquiry(@Param('id') id: string, @Body() dto: NameEnquiryDto, @CurrentUser() user: User) {
+    return this.billing.nameEnquiry(id, user.organizationId, dto.bankCode, dto.accountNumber);
+  }
+
+  @Get('groups/:id/payouts')
+  listPayouts(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.listPayouts(id, user.organizationId);
+  }
+
+  @Post('groups/:id/payouts')
+  initiatePayout(@Param('id') id: string, @Body() dto: InitiatePayoutDto, @CurrentUser() user: User) {
+    return this.billing.initiateTransferOut(id, user.organizationId, user.id, dto);
+  }
+
+  @Post('payouts/:id/cancel')
+  cancelPayout(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.cancelPayout(id, user.organizationId);
+  }
+
+  @Get('banks')
+  getBanks() {
+    return this.billing.getNigerianBanks();
+  }
+
+  // ── Transfer PIN ──
+
+  @Get('me/transfer-pin')
+  async hasPin(@CurrentUser() user: User) {
+    return { hasPin: await this.users.hasTransferPin(user.id) };
+  }
+
+  @Post('me/transfer-pin')
+  async setPin(@Body() dto: SetTransferPinDto, @CurrentUser() user: User) {
+    await this.users.setTransferPin(user.id, dto.pin, dto.currentPin);
+    return { success: true };
+  }
+
+  @Put('me/transfer-pin')
+  async changePin(@Body() dto: ChangeTransferPinDto, @CurrentUser() user: User) {
+    await this.users.setTransferPin(user.id, dto.newPin, dto.currentPin);
+    return { success: true };
+  }
 }
 
-/** Unauthenticated endpoints: the shareable group link and the Payrep webhook. (Joining lives in player-portal.) */
+/** Unauthenticated endpoints: the shareable group link and the PulseMFB webhook. (Joining lives in player-portal.) */
 @Controller()
 export class PublicBillingController {
   constructor(private readonly billing: BillingService) {}
@@ -87,11 +149,12 @@ export class PublicBillingController {
     return this.billing.getPublicGroup(code);
   }
 
-  @Post('payrep/webhook')
+  @SkipCsrf()
+  @Post('pulse/webhook')
   @HttpCode(200)
   webhook(
     @Req() req: RawBodyRequest<Request>,
-    @Headers('x-payrep-signature') signature: string | undefined,
+    @Headers('x-webhook-signature') signature: string | undefined,
     @Body() body: unknown,
   ) {
     const raw = req.rawBody?.toString('utf8') ?? JSON.stringify(body);

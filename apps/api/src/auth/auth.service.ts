@@ -50,10 +50,16 @@ export class AuthService {
       phone: dto.phone?.trim() || null,
     });
 
-    const token = this.jwtService.sign({ sub: user.id });
+    // Send verification email (non-blocking)
+    const verifyToken = await this.usersService.createEmailVerificationToken(user.id);
+    this.mailService.sendEmailVerification(user.email, user.firstName, verifyToken).catch(() => {});
+
+    const accessToken = this.jwtService.sign({ sub: user.id });
+    const refreshToken = await this.usersService.createRefreshToken(user.id, null);
 
     return {
-      accessToken: token,
+      accessToken,
+      refreshToken,
       user: this.sanitizeUser(user, organization),
     };
   }
@@ -69,10 +75,12 @@ export class AuthService {
       return { requires2FA: true, userId: user.id };
     }
 
-    const token = this.jwtService.sign({ sub: user.id });
+    const accessToken = this.jwtService.sign({ sub: user.id });
+    const refreshToken = await this.usersService.createRefreshToken(user.id, null);
 
     return {
-      accessToken: token,
+      accessToken,
+      refreshToken,
       user: this.sanitizeUser(user, user.organization),
     };
   }
@@ -150,10 +158,12 @@ export class AuthService {
     const result = verifySync({ token: code, secret: user.twoFactorSecret, crypto: otpCrypto, base32: otpBase32 });
     if (!result.valid) throw new UnauthorizedException('Invalid 2FA code');
 
-    const token = this.jwtService.sign({ sub: user.id });
+    const accessToken = this.jwtService.sign({ sub: user.id });
+    const refreshToken = await this.usersService.createRefreshToken(user.id, null);
 
     return {
-      accessToken: token,
+      accessToken,
+      refreshToken,
       user: this.sanitizeUser(user, user.organization),
     };
   }
@@ -182,6 +192,42 @@ export class AuthService {
     return { message: 'Password has been reset successfully.' };
   }
 
+  // ── Refresh & Logout ──
+
+  async refresh(rawRefreshToken: string) {
+    const result = await this.usersService.rotateRefreshToken(rawRefreshToken);
+    if (!result) throw new UnauthorizedException('Session expired, please sign in again');
+
+    if (result.userId) {
+      const user = await this.usersService.findById(result.userId);
+      if (!user) throw new UnauthorizedException('User not found');
+      const accessToken = this.jwtService.sign({ sub: user.id });
+      return { accessToken, refreshToken: result.newRawToken, user: this.sanitizeUser(user, user.organization) };
+    }
+
+    throw new UnauthorizedException('Invalid refresh token');
+  }
+
+  async logout(rawRefreshToken: string | undefined) {
+    if (rawRefreshToken) {
+      await this.usersService.revokeRefreshToken(rawRefreshToken);
+    }
+  }
+
+  // ── Email Verification ──
+
+  async verifyEmailToken(token: string) {
+    return this.usersService.verifyEmail(token);
+  }
+
+  async resendVerification(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) throw new UnauthorizedException('User not found');
+    if (user.emailVerified) throw new BadRequestException('Email already verified');
+    const token = await this.usersService.createEmailVerificationToken(userId);
+    await this.mailService.sendEmailVerification(user.email, user.firstName, token);
+  }
+
   private sanitizeUser(user: any, organization?: any) {
     return {
       id: user.id,
@@ -195,6 +241,7 @@ export class AuthService {
         ? { id: organization.id, name: organization.name, createdAt: organization.createdAt }
         : undefined,
       twoFactorEnabled: user.twoFactorEnabled || false,
+      emailVerified: user.emailVerified || false,
       createdAt: user.createdAt,
     };
   }

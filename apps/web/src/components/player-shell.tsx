@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from '@/components/brand';
 import { BallLoader } from '@/components/skeleton';
-import { getPlayerProfile, getPlayerToken, PlayerAuthError, type PlayerProfile } from '@/lib/player';
+import { getPlayerProfile, PlayerAuthError, type PlayerProfile } from '@/lib/player';
 
 const ProfileContext = createContext<{ profile: PlayerProfile | null; refresh: () => Promise<void> }>({
   profile: null,
@@ -42,13 +42,8 @@ export function ModeSwitch({ organiser, tone = 'light' }: { organiser: PlayerPro
   const router = useRouter();
   if (!organiser) return null;
   const goOrganise = () => {
-    let signedIn = false;
-    try {
-      signedIn = !!localStorage.getItem('pitchaside_token');
-    } catch {
-      /* ignore */
-    }
-    router.push(signedIn ? '/dashboard' : `/signin?email=${encodeURIComponent(organiser.email)}`);
+    // Middleware redirects to /signin if no auth cookies exist
+    router.push('/dashboard');
   };
   return (
     <div
@@ -90,10 +85,6 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!getPlayerToken()) {
-      router.replace('/me/login');
-      return;
-    }
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

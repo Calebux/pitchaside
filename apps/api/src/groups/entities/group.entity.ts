@@ -65,7 +65,7 @@ export class Group {
   @Column({ name: 'invite_code', nullable: true, unique: true })
   inviteCode: string;
 
-  /** Dedicated collection account provisioned with Payrep for this group. */
+  /** Dedicated collection account provisioned with PulseMFB for this group. */
   @Column({ name: 'account_number', nullable: true, unique: true })
   accountNumber: string;
 

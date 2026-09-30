@@ -23,8 +23,8 @@ export default function AdminUsersPage() {
     }
 
     http
-      .get<any[]>('/admin/users')
-      .then(setUsers)
+      .get<any>('/admin/users')
+      .then((res) => setUsers(res.data ?? res))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, router]);

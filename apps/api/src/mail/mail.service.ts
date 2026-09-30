@@ -74,6 +74,27 @@ export class MailService {
     await this.transporter.sendMail({ from: this.from, to, subject, html });
   }
 
+  async sendEmailVerification(to: string, name: string, token: string) {
+    const verifyUrl = `${this.config.get('APP_URL', 'http://localhost:3000')}/verify-email?token=${token}`;
+
+    const subject = 'Verify your PitchAside email';
+    const html = `
+      <p>Hi ${name},</p>
+      <p>Thanks for signing up for PitchAside! Please verify your email address:</p>
+      <p><a href="${verifyUrl}">Verify Email</a></p>
+      <p>This link expires in 24 hours.</p>
+      <p>— PitchAside</p>
+    `;
+
+    if (!this.transporter) {
+      this.logger.log(`[DEV EMAIL] To: ${to} | Subject: ${subject}`);
+      this.logger.log(`[DEV EMAIL] Verify URL: ${verifyUrl}`);
+      return;
+    }
+
+    await this.transporter.sendMail({ from: this.from, to, subject, html });
+  }
+
   async sendPaymentReminder(to: string, name: string, groupName: string, amount: number, date: string) {
     const formattedDate = new Date(date).toLocaleDateString('en-US', {
       weekday: 'long',

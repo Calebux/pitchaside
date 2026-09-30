@@ -1,6 +1,6 @@
 import { periodFor } from './billing.service';
 import { PaymentType } from '../groups/entities/group.entity';
-import { MockPayrepClient } from './payrep/mock-payrep.client';
+import { MockPulseClient } from './pulse/mock-pulse.client';
 
 describe('periodFor', () => {
   const wed = new Date(2026, 8, 30); // Wed 30 Sep 2026
@@ -28,8 +28,8 @@ describe('periodFor', () => {
   });
 });
 
-describe('MockPayrepClient', () => {
-  const client = new MockPayrepClient('secret');
+describe('MockPulseClient', () => {
+  const client = new MockPulseClient('secret');
 
   it('provisions a stable 10-digit account per reference', async () => {
     const a = await client.createAccount({ reference: 'group-1', accountName: 'X' });

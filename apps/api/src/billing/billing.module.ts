@@ -9,34 +9,38 @@ import { Player } from '../players/entities/player.entity';
 import { PaymentsModule } from '../payments/payments.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BankTransfer } from './entities/bank-transfer.entity';
+import { OutgoingTransfer } from './entities/outgoing-transfer.entity';
+import { UsersModule } from '../users/users.module';
 import { BillingService } from './billing.service';
 import { BillingController, PublicBillingController } from './billing.controller';
-import { PAYREP_CLIENT, PayrepClient } from './payrep/payrep.client';
-import { MockPayrepClient } from './payrep/mock-payrep.client';
-import { HttpPayrepClient } from './payrep/http-payrep.client';
+import { PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
+import { MockPulseClient } from './pulse/mock-pulse.client';
+import { HttpPulseClient } from './pulse/http-pulse.client';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer]),
+    TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer, OutgoingTransfer]),
     PaymentsModule,
     NotificationsModule,
+    UsersModule,
   ],
   controllers: [BillingController, PublicBillingController],
   providers: [
     BillingService,
     {
-      provide: PAYREP_CLIENT,
+      provide: PULSE_CLIENT,
       inject: [ConfigService],
-      useFactory: (config: ConfigService): PayrepClient => {
-        const webhookSecret = config.get('PAYREP_WEBHOOK_SECRET', 'dev-webhook-secret');
-        if (config.get('PAYREP_MODE', 'mock') === 'live') {
-          return new HttpPayrepClient({
-            baseUrl: config.getOrThrow('PAYREP_BASE_URL'),
-            apiKey: config.getOrThrow('PAYREP_API_KEY'),
-            webhookSecret: config.getOrThrow('PAYREP_WEBHOOK_SECRET'),
+      useFactory: (config: ConfigService): PulseClient => {
+        const webhookSecret = config.get('PULSE_WEBHOOK_SECRET', 'dev-webhook-secret');
+        if (config.get('PULSE_MODE', 'mock') === 'live') {
+          return new HttpPulseClient({
+            baseUrl: config.getOrThrow('PULSE_BASE_URL'),
+            publicKey: config.getOrThrow('PULSE_PUBLIC_KEY'),
+            privateKey: config.getOrThrow('PULSE_PRIVATE_KEY'),
+            webhookSecret: config.getOrThrow('PULSE_WEBHOOK_SECRET'),
           });
         }
-        return new MockPayrepClient(webhookSecret);
+        return new MockPulseClient(webhookSecret);
       },
     },
   ],

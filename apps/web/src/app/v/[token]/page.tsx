@@ -10,7 +10,7 @@ import { Avatar, VoteResultsList, categoryMeta } from '@/components/ratings';
 import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
 import { ShareCardButton } from '@/components/share-card';
-import { getMyBallot, getPlayerToken, setPlayerToken, submitMyVotes, PlayerAuthError } from '@/lib/player';
+import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
 type Stage = 'phone' | 'ballot' | 'done';
 
@@ -44,12 +44,12 @@ export default function VotePage() {
 
   useEffect(() => {
     getBallot(token).then(setBallot).catch(() => setInvalid(true));
-    if (getPlayerToken()) loadMyBallot();
+    // Try loading ballot with existing player session cookie
+    loadMyBallot();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function onSignedIn(token: string) {
-    setPlayerToken(token);
+  async function onSignedIn(_token: string) {
     await loadMyBallot();
   }
 

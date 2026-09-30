@@ -132,10 +132,51 @@ export interface IUser {
   organizationId: string;
   organization?: IOrganization;
   twoFactorEnabled?: boolean;
+  emailVerified?: boolean;
   createdAt: string;
 }
 
 export interface IAuthResponse {
   accessToken: string;
   user: IUser;
+}
+
+// ── Payouts ──
+
+export enum PayoutStatus {
+  PENDING = 'pending',
+  PROCESSING = 'processing',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled',
+}
+
+export interface IOutgoingTransfer {
+  id: string;
+  groupId: string;
+  amount: number;
+  fee: number;
+  beneficiaryAccount: string;
+  beneficiaryName: string;
+  beneficiaryBankCode: string;
+  beneficiaryBankName: string;
+  narration?: string;
+  status: PayoutStatus;
+  providerReference?: string;
+  errorMessage?: string;
+  initiatedById?: string;
+  initiatedBy?: { firstName: string; lastName: string };
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface INigerianBank {
+  code: string;
+  name: string;
+}
+
+export interface IGroupBalance {
+  totalIn: number;
+  totalOut: number;
+  available: number;
 }

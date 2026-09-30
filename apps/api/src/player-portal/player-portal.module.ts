@@ -5,6 +5,7 @@ import { Player } from '../players/entities/player.entity';
 import { User } from '../users/entities/user.entity';
 import { Organization } from '../organizations/entities/organization.entity';
 import { AuthModule } from '../auth/auth.module';
+import { UsersModule } from '../users/users.module';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Session } from '../sessions/entities/session.entity';
@@ -23,6 +24,7 @@ import { PlayerAuthController, PlayerPortalController } from './player-portal.co
   imports: [
     TypeOrmModule.forFeature([PhoneOtp, PlayerAccount, Player, User, Organization, Group, GroupMembership, Session, Payment]),
     AuthModule,
+    UsersModule,
     JwtModule.register({}),
     BillingModule,
     RatingsModule,

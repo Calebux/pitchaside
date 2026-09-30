@@ -18,7 +18,7 @@ export class GroupsService {
 
   async create(dto: CreateGroupDto, organizationId: string) {
     const group = await this.groupsRepo.save(this.groupsRepo.create({ ...dto, organizationId }));
-    // Invite link, Payrep collection account and first dues period.
+    // Invite link, PulseMFB collection account and first dues period.
     return this.billing.setupGroup(group);
   }
 

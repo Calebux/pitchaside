@@ -7,7 +7,7 @@ import { PlayerCardHero, Section } from '@/components/player-ui';
 import { usePlayerProfile } from '@/components/player-shell';
 import { PlayerAccountSettings } from '@/components/player-account';
 import { KitLine } from '@/components/illustrations';
-import { clearPlayerToken, subscribePlayerPush } from '@/lib/player';
+import { logoutPlayer, subscribePlayerPush } from '@/lib/player';
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
@@ -66,18 +66,6 @@ export default function PlayerProfilePage() {
         {profile.organiser ? (
           <Link
             href="/dashboard"
-            onClick={(e) => {
-              let signedIn = false;
-              try {
-                signedIn = !!localStorage.getItem('pitchaside_token');
-              } catch {
-                /* ignore */
-              }
-              if (!signedIn) {
-                e.preventDefault();
-                router.push(`/signin?email=${encodeURIComponent(profile.organiser!.email)}`);
-              }
-            }}
             className="flex items-center justify-between gap-3 rounded-3xl bg-ink text-white px-5 py-4"
           >
             <span>
@@ -116,8 +104,8 @@ export default function PlayerProfilePage() {
           <InstallCard />
           <PushToggle save={subscribePlayerPush} />
           <button
-            onClick={() => {
-              clearPlayerToken();
+            onClick={async () => {
+              await logoutPlayer();
               router.replace('/me/login');
             }}
             className="w-full py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-2xl hover:border-ink"

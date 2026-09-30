@@ -1,54 +1,77 @@
 /**
- * Player-side API client. Players sign in with a one-time code and get their
- * own token (separate from the organiser's), stored under its own key.
+ * Player-side API client. Players sign in via phone and get their
+ * own token stored as an HttpOnly cookie (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
 import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
-const TOKEN_KEY = 'pitchaside_player_token';
-
-export function getPlayerToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem(TOKEN_KEY);
-  } catch {
-    return null;
-  }
-}
-
-export function setPlayerToken(token: string) {
-  try {
-    localStorage.setItem(TOKEN_KEY, token);
-  } catch {
-    /* private mode — session only */
-  }
-}
-
-export function clearPlayerToken() {
-  try {
-    localStorage.removeItem(TOKEN_KEY);
-  } catch {
-    /* ignore */
-  }
-}
 
 export class PlayerAuthError extends Error {}
 
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/pitchaside_csrf=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+let playerRefreshPromise: Promise<boolean> | null = null;
+
+async function silentPlayerRefresh(): Promise<boolean> {
+  if (playerRefreshPromise) return playerRefreshPromise;
+  playerRefreshPromise = (async () => {
+    try {
+      const res = await fetch(`${BASE_URL}/player-auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      playerRefreshPromise = null;
+    }
+  })();
+  return playerRefreshPromise;
+}
+
 async function request<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
-  const token = auth ? getPlayerToken() : null;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  if (method !== 'GET' && method !== 'HEAD') {
+    const csrf = getCsrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+
   const res = await fetch(`${BASE_URL}${path}`, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: auth ? 'include' : 'same-origin',
   });
+
   if (res.status === 401 && auth) {
-    clearPlayerToken();
+    const refreshed = await silentPlayerRefresh();
+    if (refreshed) {
+      const retryHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (method !== 'GET' && method !== 'HEAD') {
+        const csrf = getCsrfToken();
+        if (csrf) retryHeaders['X-CSRF-Token'] = csrf;
+      }
+      const retry = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers: retryHeaders,
+        body: body ? JSON.stringify(body) : undefined,
+        credentials: 'include',
+      });
+      if (retry.ok) {
+        const text = await retry.text();
+        return text ? JSON.parse(text) : (undefined as T);
+      }
+    }
     throw new PlayerAuthError('Please sign in again');
   }
+
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     const msg = Array.isArray(data.message) ? data.message[0] : data.message;
@@ -56,6 +79,19 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
   }
   const text = await res.text();
   return text ? JSON.parse(text) : (undefined as T);
+}
+
+// No-ops for backward compatibility — cookies handle token storage now
+export function getPlayerToken(): string | null { return null; }
+export function setPlayerToken(_token: string) {}
+export function clearPlayerToken() {}
+
+export async function logoutPlayer(): Promise<void> {
+  try {
+    await request<void>('POST', '/player-auth/logout');
+  } catch {
+    // Best-effort — redirect regardless
+  }
 }
 
 // ── Sign-in ──
@@ -313,4 +349,8 @@ export function submitMyVotes(token: string, picks: Partial<Record<VoteCategory,
 
 export function subscribePlayerPush(sub: PushSubscriptionJSON) {
   return request('POST', '/me/push', sub);
+}
+
+export function unsubscribePlayerPush(endpoint: string) {
+  return request('DELETE', '/me/push', { endpoint });
 }

@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
 import { JerseyBadge, kitFor } from '@/components/illustrations';
 import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
+import { PayoutsPanel } from '@/components/group-payouts';
 import { frequencyLabel, frequencyOptions } from '@/lib/billing';
 import { LeagueTableView } from '@/components/ratings';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
@@ -51,8 +52,8 @@ export default function GroupDetailPage() {
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab');
-  const [tab, setTab] = useState<'members' | 'sessions' | 'table' | 'transfers'>(
-    initialTab === 'sessions' || initialTab === 'table' || initialTab === 'transfers' ? initialTab : 'members',
+  const [tab, setTab] = useState<'members' | 'sessions' | 'table' | 'transfers' | 'payouts'>(
+    initialTab === 'sessions' || initialTab === 'table' || initialTab === 'transfers' || initialTab === 'payouts' ? initialTab : 'members',
   );
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [billing, setBilling] = useState<GroupBilling | null>(null);
@@ -103,7 +104,7 @@ export default function GroupDetailPage() {
       })
       .catch(() => router.push('/groups'))
       .finally(() => setLoading(false));
-    // Billing loads separately so a Payrep hiccup never blocks the page.
+    // Billing loads separately so a PulseMFB hiccup never blocks the page.
     getGroupBilling(id).then(setBilling).catch(() => {});
     getGroupTransfers(id).then(setTransfers).catch(() => {});
     getGroupTable(id).then(setTable).catch(() => {});
@@ -476,6 +477,14 @@ export default function GroupDetailPage() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setTab('payouts')}
+          className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors ${
+            tab === 'payouts' ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
+          }`}
+        >
+          Payouts
+        </button>
       </div>
 
       {tab === 'table' && (table ? <LeagueTableView table={table} /> : <div className="h-40 bg-gray-100 rounded-3xl animate-pulse" />)}
@@ -489,6 +498,10 @@ export default function GroupDetailPage() {
           mockMode={billing?.providerMode === 'mock'}
           onRefresh={refreshPayments}
         />
+      )}
+
+      {tab === 'payouts' && (
+        <PayoutsPanel groupId={id} onRefresh={refreshPayments} />
       )}
 
       {/* Members Tab */}

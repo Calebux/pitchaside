@@ -1,16 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { PasswordReset } from './entities/password-reset.entity';
+import { RefreshToken } from './entities/refresh-token.entity';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private usersRepo: Repository<User>,
     @InjectRepository(PasswordReset) private resetRepo: Repository<PasswordReset>,
+    @InjectRepository(RefreshToken) private refreshRepo: Repository<RefreshToken>,
   ) {}
 
   create(data: Partial<User>) {
@@ -131,5 +134,133 @@ export class UsersService {
 
   async markResetTokenUsed(id: string) {
     await this.resetRepo.update(id, { used: true });
+  }
+
+  // ── Refresh Tokens ──
+
+  private hashToken(raw: string): string {
+    return createHash('sha256').update(raw).digest('hex');
+  }
+
+  async createRefreshToken(userId: string | null, phoneKey: string | null): Promise<string> {
+    const raw = randomBytes(48).toString('hex');
+    const familyId = randomBytes(16).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    await this.refreshRepo.save(
+      this.refreshRepo.create({
+        userId,
+        phoneKey,
+        tokenHash: this.hashToken(raw),
+        expiresAt,
+        familyId,
+      }),
+    );
+
+    return raw;
+  }
+
+  async rotateRefreshToken(rawToken: string): Promise<{ newRawToken: string; userId: string | null; phoneKey: string | null } | null> {
+    const hash = this.hashToken(rawToken);
+    const existing = await this.refreshRepo.findOne({ where: { tokenHash: hash } });
+
+    if (!existing) return null;
+
+    // If already revoked, this is a replay attack — revoke the whole family
+    if (existing.revoked) {
+      await this.refreshRepo.update({ familyId: existing.familyId }, { revoked: true });
+      return null;
+    }
+
+    // Check expiry
+    if (existing.expiresAt < new Date()) {
+      existing.revoked = true;
+      await this.refreshRepo.save(existing);
+      return null;
+    }
+
+    // Revoke old token
+    existing.revoked = true;
+    await this.refreshRepo.save(existing);
+
+    // Issue new token in the same family
+    const newRaw = randomBytes(48).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    await this.refreshRepo.save(
+      this.refreshRepo.create({
+        userId: existing.userId,
+        phoneKey: existing.phoneKey,
+        tokenHash: this.hashToken(newRaw),
+        expiresAt,
+        familyId: existing.familyId,
+      }),
+    );
+
+    return { newRawToken: newRaw, userId: existing.userId, phoneKey: existing.phoneKey };
+  }
+
+  async revokeRefreshToken(rawToken: string): Promise<void> {
+    const hash = this.hashToken(rawToken);
+    await this.refreshRepo.update({ tokenHash: hash }, { revoked: true });
+  }
+
+  async revokeAllRefreshTokens(userId: string): Promise<void> {
+    await this.refreshRepo.update({ userId, revoked: false }, { revoked: true });
+  }
+
+  async revokeAllPlayerRefreshTokens(phoneKey: string): Promise<void> {
+    await this.refreshRepo.update({ phoneKey, revoked: false }, { revoked: true });
+  }
+
+  // ── Email Verification ──
+
+  async createEmailVerificationToken(userId: string): Promise<string> {
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await this.usersRepo.update(userId, {
+      emailVerificationToken: token,
+      emailVerificationExpiresAt: expiresAt,
+    });
+    return token;
+  }
+
+  async verifyEmail(token: string): Promise<User | null> {
+    const user = await this.usersRepo.findOne({
+      where: { emailVerificationToken: token },
+      relations: ['organization'],
+    });
+    if (!user) return null;
+    if (user.emailVerificationExpiresAt && user.emailVerificationExpiresAt < new Date()) return null;
+
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpiresAt = null;
+    return this.usersRepo.save(user);
+  }
+
+  // ── Transfer PIN ──
+
+  async setTransferPin(userId: string, pin: string, currentPin?: string): Promise<void> {
+    const user = await this.usersRepo.findOneOrFail({ where: { id: userId } });
+    if (user.transferPin) {
+      if (!currentPin) throw new BadRequestException('Current PIN is required');
+      const valid = await bcrypt.compare(currentPin, user.transferPin);
+      if (!valid) throw new BadRequestException('Current PIN is incorrect');
+    }
+    user.transferPin = await bcrypt.hash(pin, 10);
+    user.transferPinSetAt = new Date();
+    await this.usersRepo.save(user);
+  }
+
+  async verifyTransferPin(userId: string, pin: string): Promise<boolean> {
+    const user = await this.usersRepo.findOneOrFail({ where: { id: userId } });
+    if (!user.transferPin) throw new BadRequestException('Transfer PIN has not been set. Please set a PIN first.');
+    return bcrypt.compare(pin, user.transferPin);
+  }
+
+  async hasTransferPin(userId: string): Promise<boolean> {
+    const user = await this.usersRepo.findOneOrFail({ where: { id: userId } });
+    return !!user.transferPin;
   }
 }
