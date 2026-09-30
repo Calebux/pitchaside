@@ -80,4 +80,6 @@ export interface PulseClient {
   transferOut(input: TransferOutInput): Promise<TransferOutResult>;
   /** Look up the status of an outbound transfer by our reference. */
   getTransfer(reference: string): Promise<TransferStatusResult>;
+  /** What the bank itself holds in an account, in naira; null when there's no real bank (mock). */
+  getBalance(accountNumber: string): Promise<number | null>;
 }

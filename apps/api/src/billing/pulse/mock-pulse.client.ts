@@ -42,6 +42,10 @@ export class MockPulseClient implements PulseClient {
     return { reference: input.reference, status: 'completed' };
   }
 
+  async getBalance(): Promise<number | null> {
+    return null;
+  }
+
   async getTransfer(reference: string): Promise<TransferStatusResult> {
     return { status: 'completed' };
   }

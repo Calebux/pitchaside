@@ -107,3 +107,59 @@ describe('accountNameFor', () => {
     expect(accountNameFor('x'.repeat(100))).toHaveLength(60);
   });
 });
+
+describe('HttpPulseClient webhooks', () => {
+  const sign = (body: string) => createHmac('sha256', 'whsec_test').update(body).digest('hex');
+
+  it('accepts a signature over the raw body', () => {
+    const raw = '{"event":"transfer.completed","data":{"amount":1500}}';
+    expect(client.verifyWebhook(raw, sign(raw))).toBe(true);
+  });
+
+  it("accepts a signature over JSON.stringify(body), the way Pulse's docs sign it", () => {
+    const raw = '{\n  "event": "transfer.completed",\n  "data": { "amount": 1500 }\n}';
+    expect(client.verifyWebhook(raw, sign(JSON.stringify(JSON.parse(raw))))).toBe(true);
+  });
+
+  it('rejects a wrong or missing signature', () => {
+    const raw = '{"event":"transfer.completed"}';
+    expect(client.verifyWebhook(raw, sign('something else'))).toBe(false);
+    expect(client.verifyWebhook(raw, undefined)).toBe(false);
+  });
+
+  it('reads the documented transfer.completed payload as a credit', () => {
+    const credit = client.parseWebhook({
+      event: 'transfer.completed',
+      timestamp: '2026-09-30T19:20:00Z',
+      data: { reference: 'FT123', amount: 1500, debit_account: '0123456789', credit_account: '9999268301', status: 'completed', narration: 'PA8GHYE' },
+    });
+    expect(credit).toMatchObject({ providerTransactionId: 'FT123', accountNumber: '9999268301', amount: 1500, narration: 'PA8GHYE' });
+  });
+
+  it('reads a credit under another event name and field names', () => {
+    const credit = client.parseWebhook({
+      event: 'account.credited',
+      data: { transaction_reference: 'NIP-9', amount: '2000', account_number: '9999268301', sender_name: 'ADA OBI', description: 'dues' },
+    });
+    expect(credit).toMatchObject({ providerTransactionId: 'NIP-9', accountNumber: '9999268301', amount: 2000, senderName: 'ADA OBI', narration: 'dues' });
+  });
+
+  it('ignores failed transfers, VAS events and account creation', () => {
+    expect(client.parseWebhook({ event: 'transfer.failed', data: { reference: 'x', amount: 5, credit_account: '1' } })).toBeNull();
+    expect(client.parseWebhook({ event: 'transfer.completed', data: { reference: 'x', amount: 5, credit_account: '1', status: 'failed' } })).toBeNull();
+    expect(client.parseWebhook({ event: 'vas.completed', data: { reference: 'x', amount: 5, account_number: '1' } })).toBeNull();
+    expect(client.parseWebhook({ event: 'account.created', data: { account_number: '1' } })).toBeNull();
+  });
+});
+
+describe('HttpPulseClient.getBalance', () => {
+  it("returns the account's available balance", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { account_number: '9999268301', available_balance: 1500, ledger_balance: 1500, currency: 'NGN' } }),
+    });
+    await expect(client.getBalance('9999268301')).resolves.toBe(1500);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://pulse.example.test/api/v1/external-api/accounts/9999268301/balance');
+  });
+});

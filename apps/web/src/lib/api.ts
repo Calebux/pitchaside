@@ -415,6 +415,8 @@ export interface GroupBalance {
   totalIn: number;
   totalOut: number;
   available: number;
+  /** What PulseMFB holds in the account; null when unknown (mock, or Pulse unreachable). */
+  bankBalance: number | null;
 }
 
 export interface OutgoingTransfer {
