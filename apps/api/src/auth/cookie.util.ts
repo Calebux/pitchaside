@@ -17,13 +17,28 @@ export const COOKIE_NAMES = {
  */
 function cookieOptions(config: ConfigService, maxAgeMs: number, httpOnly = true) {
   const isProduction = config.get('NODE_ENV') === 'production';
-  return {
+  const opts: Record<string, any> = {
     httpOnly,
     secure: isProduction,
     sameSite: 'lax' as const,
     path: '/',
     maxAge: maxAgeMs,
   };
+
+  // Set explicit domain so cookies work across www / non-www.
+  if (isProduction) {
+    const appUrl = config.get('APP_URL', '');
+    if (appUrl) {
+      try {
+        const hostname = new URL(appUrl).hostname;
+        if (!hostname.includes('localhost')) {
+          opts.domain = hostname;
+        }
+      } catch {}
+    }
+  }
+
+  return opts;
 }
 
 /**
