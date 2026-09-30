@@ -325,8 +325,19 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       throw new UnauthorizedException('Invalid webhook signature');
     }
     const transfer = this.pulse.parseWebhook(payload);
-    if (!transfer) return { received: true, ignored: true };
-    return this.recordTransfer(transfer);
+    if (transfer) return this.recordTransfer(transfer);
+
+    // Check for outgoing transfer (payout) status updates
+    const p = payload as Record<string, any>;
+    const event = p?.event as string | undefined;
+    const ref = p?.data?.reference as string | undefined;
+    if (ref && (event === 'transfer.completed' || event === 'transfer.failed' || event === 'payout.completed' || event === 'payout.failed')) {
+      const status = event.includes('completed') ? 'completed' as const : 'failed' as const;
+      await this.handlePayoutWebhook(ref, status, p.data?.error_message ?? p.data?.errorMessage);
+      return { received: true, payout: true };
+    }
+
+    return { received: true, ignored: true };
   }
 
   async recordTransfer(incoming: IncomingTransfer) {
