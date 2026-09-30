@@ -607,7 +607,12 @@ export default function GroupDetailPage() {
                       <p className="text-sm font-bold text-ink">
                         {m.player.firstName} {m.player.lastName}
                       </p>
-                      <p className="text-xs text-gray-400 capitalize">{m.role}</p>
+                      <p className="text-xs text-gray-400">
+                        <span className="capitalize">{m.role}</span>
+                        {Number(m.credit) > 0 && (
+                          <span className="ml-1.5 font-bold text-pitch-600">· {formatCurrency(Number(m.credit))} credit</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <button

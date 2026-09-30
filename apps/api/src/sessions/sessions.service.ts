@@ -12,6 +12,7 @@ import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { MailService } from '../mail/mail.service';
 import { CreateSessionDto, RecurrenceType } from './dto/create-session.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
+import { BillingService } from '../billing/billing.service';
 
 @Injectable()
 export class SessionsService {
@@ -24,6 +25,7 @@ export class SessionsService {
     private rsvp: RsvpService,
     private ratings: RatingsService,
     private notifications: NotificationsService,
+    private billing: BillingService,
   ) {}
 
   async create(dto: CreateSessionDto, organizationId: string) {
@@ -62,6 +64,7 @@ export class SessionsService {
           }),
         );
         await this.paymentsRepo.save(payments);
+        await this.billing.applyCredits(dto.groupId, memberships.map((m) => m.playerId));
       }
 
       lastSession = saved;

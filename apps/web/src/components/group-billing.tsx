@@ -360,7 +360,8 @@ export function TransfersPanel({
         />
       ) : (
         transfers.map((t) => {
-          const who = t.payment?.player ? `${t.payment.player.firstName} ${t.payment.player.lastName}` : null;
+          const from = t.payment?.player ?? t.player;
+          const who = from ? `${from.firstName} ${from.lastName}` : null;
           return (
             <div key={t.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
               <div className="flex items-start justify-between gap-3">
@@ -379,10 +380,16 @@ export function TransfersPanel({
                 </span>
               </div>
 
-              {who && (
+              {who && t.payment && (
                 <p className="mt-3 text-xs text-gray-600">
                   Paid for <span className="font-bold text-ink">{who}</span>
-                  {t.payment?.session?.label ? ` · ${t.payment.session.label}` : ''}
+                  {t.payment.session?.label ? ` · ${t.payment.session.label}` : ''}
+                </p>
+              )}
+              {who && !t.payment && (
+                <p className="mt-3 text-xs text-gray-600">
+                  From <span className="font-bold text-ink">{who}</span> · less than a due, so it&apos;s held as their credit and
+                  pays their next due once it&apos;s enough
                 </p>
               )}
 

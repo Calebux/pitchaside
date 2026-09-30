@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
 import { Payment } from '../../payments/entities/payment.entity';
+import { Player } from '../../players/entities/player.entity';
 
 export enum TransferStatus {
   /** Automatically matched to a member's pending payment. */
@@ -57,6 +58,14 @@ export class BankTransfer {
 
   @Column({ name: 'payment_id', nullable: true })
   paymentId: string;
+
+  /** Who sent it, once known — set even when it only added to their credit and paid no due. */
+  @ManyToOne(() => Player, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'player_id' })
+  player: Player | null;
+
+  @Column({ name: 'player_id', type: 'uuid', nullable: true })
+  playerId: string | null;
 
   @Column({ name: 'received_at' })
   receivedAt: Date;

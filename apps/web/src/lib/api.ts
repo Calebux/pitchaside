@@ -41,6 +41,8 @@ export interface IGroupWithMembers extends IGroup {
     role: MemberRole;
     player: IPlayer;
     joinedAt: string;
+    /** Paid toward their next due but not enough to cover it yet (decimal string). */
+    credit?: string;
   }[];
 }
 
@@ -360,6 +362,8 @@ export interface BankTransfer {
   status: 'matched' | 'assigned' | 'unmatched' | 'ignored';
   receivedAt: string;
   payment?: (IPayment & { player?: IPlayer; session?: ISession & { label?: string } }) | null;
+  /** Who sent it, when known — also set when it only added to their credit. */
+  player?: IPlayer | null;
 }
 
 export interface PublicGroup {

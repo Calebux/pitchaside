@@ -14,6 +14,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { shortDate } from '../common/format.util';
 import { Rsvp, RsvpStatus } from './entities/rsvp.entity';
+import { BillingService } from '../billing/billing.service';
 
 type Person = { id: string; firstName: string; lastName: string };
 
@@ -28,6 +29,7 @@ export class RsvpService {
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     private payments: PaymentsService,
     private notifications: NotificationsService,
+    private billing: BillingService,
   ) {}
 
   // ── Reading ──
@@ -157,6 +159,7 @@ export class RsvpService {
       await this.paymentsRepo.save(
         this.paymentsRepo.create({ sessionId: session.id, playerId, amount: Number(session.group.feePerPlayer) }),
       );
+      await this.billing.applyCredits(session.groupId, [playerId]);
     } else if (status !== RsvpStatus.IN && payment && payment.status === PaymentStatus.PENDING) {
       // Paid players who drop out keep their payment; the organiser decides on refunds.
       await this.paymentsRepo.remove(payment);
