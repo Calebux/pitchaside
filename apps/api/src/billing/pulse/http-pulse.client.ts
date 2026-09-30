@@ -75,17 +75,44 @@ export class HttpPulseClient implements PulseClient {
     };
   }
 
+  // ── Prefixes ──
+
+  private cachedPrefixId: string | null = null;
+
+  private async getPrefixId(): Promise<string> {
+    if (this.cachedPrefixId) return this.cachedPrefixId;
+
+    const path = '/api/v1/external-api/accounts/prefixes';
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: this.authHeaders('GET', path, ''),
+    });
+
+    if (!res.ok) throw new Error(`PulseMFB getPrefixes failed (${res.status}): ${await pulseReason(res)}`);
+
+    const json = (await res.json()) as Record<string, any>;
+    const prefixes = json.data ?? [];
+    const active = prefixes.find((p: any) => p.account_number === '1008618754' && p.status === 'active')
+      ?? prefixes.find((p: any) => p.status === 'active');
+    if (!active) throw new Error('No active prefix found on PulseMFB account');
+
+    this.cachedPrefixId = String(active._id);
+    return this.cachedPrefixId;
+  }
+
   // ── Account creation ──
 
   async createAccount(input: CreateAccountInput): Promise<ProvisionedAccount> {
+    const prefixId = await this.getPrefixId();
     const path = '/api/v1/external-api/accounts/prefix';
-    // Leave out what we don't have: an empty string is "provided" to Pulse's validation,
-    // and "" is not a valid email, phone or 11-digit BVN.
     const body = JSON.stringify({
       customer_name: input.accountName,
       ...(input.phone ? { customer_phone: input.phone } : {}),
       ...(input.email ? { customer_email: input.email } : {}),
       ...(input.bvn ? { bvn: input.bvn } : {}),
+      sweep_mode: 'manual',
+      use_prefix: true,
+      prefix_id: prefixId,
       reference: input.reference,
     });
 
