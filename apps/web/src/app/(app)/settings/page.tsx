@@ -7,6 +7,7 @@ import { updateProfile, changePassword, setup2FA, verify2FA, disable2FA, getTran
 import { PushToggle } from '@/components/pwa';
 import { subscribeOrganiserPush } from '@/lib/api';
 import { PageHeader } from '@/components/brand';
+import { VerifyEmailRow } from '@/components/verify-email-modal';
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -194,7 +195,7 @@ export default function SettingsPage() {
           />
           <p className="text-[11px] text-gray-500 mt-1">Optional — so your players and co-organisers can reach you.</p>
         </div>
-        <p className="text-xs text-gray-400 mb-4">{user.email}</p>
+        <VerifyEmailRow email={user.email} verified={!!user.emailVerified} onCheck={refreshUser} />
         <button
           type="submit"
           disabled={savingProfile}
