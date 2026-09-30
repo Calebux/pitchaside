@@ -43,7 +43,7 @@ export class BillingController {
     return this.billingWithLink(id, user.organizationId);
   }
 
-  /** Retry account provisioning (e.g. if Payrep was down when the group was created). */
+  /** Retry account provisioning (e.g. if PulseMFB was down when the group was created). */
   @Post('groups/:id/account')
   provisionAccount(@Param('id') id: string, @CurrentUser() user: User) {
     return this.billingWithLink(id, user.organizationId);
@@ -78,7 +78,7 @@ export class BillingController {
   }
 }
 
-/** Unauthenticated endpoints: the shareable group link and the Payrep webhook. (Joining lives in player-portal.) */
+/** Unauthenticated endpoints: the shareable group link and the PulseMFB webhook. (Joining lives in player-portal.) */
 @Controller()
 export class PublicBillingController {
   constructor(private readonly billing: BillingService) {}
@@ -89,11 +89,11 @@ export class PublicBillingController {
   }
 
   @SkipCsrf()
-  @Post('payrep/webhook')
+  @Post('pulse/webhook')
   @HttpCode(200)
   webhook(
     @Req() req: RawBodyRequest<Request>,
-    @Headers('x-payrep-signature') signature: string | undefined,
+    @Headers('x-webhook-signature') signature: string | undefined,
     @Body() body: unknown,
   ) {
     const raw = req.rawBody?.toString('utf8') ?? JSON.stringify(body);

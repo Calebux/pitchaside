@@ -41,7 +41,7 @@ const CopyIcon = () => (
   </svg>
 );
 
-/** The group's Payrep collection account + shareable join/pay link. */
+/** The group's PulseMFB collection account + shareable join/pay link. */
 export function GroupAccountCard({
   groupId,
   groupName,
@@ -66,7 +66,7 @@ export function GroupAccountCard({
       const b = await provisionGroupAccount(groupId);
       onChange(b);
       if (b.account) toast.success('Account created');
-      else toast.error('Payrep is not responding — try again shortly');
+      else toast.error('PulseMFB is not responding — try again shortly');
     } catch {
       toast.error('Could not create the account');
     } finally {
@@ -116,7 +116,7 @@ export function GroupAccountCard({
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Group account</p>
-              <p className="text-sm font-semibold text-white/70 mt-1">{account?.bankName ?? 'Payrep Microfinance Bank'}</p>
+              <p className="text-sm font-semibold text-white/70 mt-1">{account?.bankName ?? 'Pulse Microfinance Bank'}</p>
             </div>
             <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-volt-400 text-ink tabular-nums whitespace-nowrap">
               {formatCurrency(fee)} {frequencyShort(billing.paymentType)}
@@ -166,7 +166,7 @@ export function GroupAccountCard({
           ) : (
             <div className="mt-5">
               <p className="text-sm text-white/70">
-                The collection account isn&apos;t ready yet. This usually means Payrep didn&apos;t respond when the group was created.
+                The collection account isn&apos;t ready yet. This usually means PulseMFB didn&apos;t respond when the group was created.
               </p>
               <button
                 onClick={retryAccount}
@@ -315,7 +315,7 @@ export function TransfersPanel({
             <p className="text-sm font-bold text-ink">Test mode: simulate a bank transfer</p>
           </div>
           <p className="text-xs text-gray-600 -mt-1">
-            Payrep is running in mock mode. Put a member&apos;s payment reference (e.g. PA7K3FQ) in the narration, or use their full name as the sender.
+            PulseMFB is running in mock mode. Put a member&apos;s payment reference (e.g. PA7K3FQ) in the narration, or use their full name as the sender.
           </p>
           <div className="grid grid-cols-[110px_1fr] gap-2">
             <input

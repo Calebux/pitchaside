@@ -101,7 +101,7 @@ export default function GroupDetailPage() {
       })
       .catch(() => router.push('/groups'))
       .finally(() => setLoading(false));
-    // Billing loads separately so a Payrep hiccup never blocks the page.
+    // Billing loads separately so a PulseMFB hiccup never blocks the page.
     getGroupBilling(id).then(setBilling).catch(() => {});
     getGroupTransfers(id).then(setTransfers).catch(() => {});
     getGroupTable(id).then(setTable).catch(() => {});

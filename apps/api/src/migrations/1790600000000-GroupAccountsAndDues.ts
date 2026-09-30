@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Group collection accounts (Payrep), shareable group links, billing
+ * Group collection accounts (PulseMFB), shareable group links, billing
  * frequencies (weekly → annually), dues periods and bank transfer records.
  *
  * Written to be idempotent because earlier schema changes were applied via

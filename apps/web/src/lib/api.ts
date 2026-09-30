@@ -332,7 +332,7 @@ export function getSessionsPaginated(
   return http.get<PaginatedResponse<ISessionWithDetails>>(`/sessions?${params}`);
 }
 
-// ── Group accounts, share links & transfers (Payrep) ──
+// ── Group accounts, share links & transfers (PulseMFB) ──
 
 export interface GroupAccount {
   accountNumber: string;

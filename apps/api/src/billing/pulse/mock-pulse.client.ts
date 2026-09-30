@@ -2,16 +2,16 @@ import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import {
   CreateAccountInput,
   IncomingTransfer,
-  PayrepClient,
+  PulseClient,
   ProvisionedAccount,
-} from './payrep.client';
+} from './pulse.client';
 
 /**
- * Local stand-in for Payrep. Account numbers are deterministic per group so
+ * Local stand-in for PulseMFB. Account numbers are deterministic per group so
  * re-provisioning is stable, and webhooks use a simple HMAC-SHA256 signature
- * over the raw body with PAYREP_WEBHOOK_SECRET.
+ * over the raw body with PULSE_WEBHOOK_SECRET.
  */
-export class MockPayrepClient implements PayrepClient {
+export class MockPulseClient implements PulseClient {
   readonly mode = 'mock' as const;
 
   constructor(private readonly webhookSecret: string) {}
@@ -23,7 +23,7 @@ export class MockPayrepClient implements PayrepClient {
     return {
       accountNumber: `8${digits}`,
       accountName: input.accountName,
-      bankName: 'Payrep MFB (test)',
+      bankName: 'PulseMFB (test)',
       providerReference: `mock_${digest.toString('hex').slice(0, 16)}`,
     };
   }

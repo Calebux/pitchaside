@@ -18,8 +18,8 @@ import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
-import { IncomingTransfer, PAYREP_CLIENT, PayrepClient } from './payrep/payrep.client';
-import { MockPayrepClient } from './payrep/mock-payrep.client';
+import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
+import { MockPulseClient } from './pulse/mock-pulse.client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, phoneKey } from '../common/format.util';
 
@@ -52,7 +52,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
     @InjectRepository(Player) private playersRepo: Repository<Player>,
     @InjectRepository(BankTransfer) private transfersRepo: Repository<BankTransfer>,
-    @Inject(PAYREP_CLIENT) private payrep: PayrepClient,
+    @Inject(PULSE_CLIENT) private pulse: PulseClient,
     private paymentsService: PaymentsService,
     private notifications: NotificationsService,
   ) {}
@@ -98,7 +98,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   async provisionAccount(group: Group): Promise<Group> {
-    const account = await this.payrep.createAccount({
+    const account = await this.pulse.createAccount({
       reference: group.id,
       accountName: `PitchAside – ${group.name}`.slice(0, 60),
     });
@@ -134,7 +134,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         : null,
       currentPeriod: current ? { id: current.id, label: current.label, date: current.date } : null,
       unmatchedTransfers: unmatched,
-      providerMode: this.payrep.mode,
+      providerMode: this.pulse.mode,
     };
   }
 
@@ -324,10 +324,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   // ── Incoming transfers ──
 
   async handleWebhook(rawBody: string, signature: string | undefined, payload: unknown) {
-    if (!this.payrep.verifyWebhook(rawBody, signature)) {
+    if (!this.pulse.verifyWebhook(rawBody, signature)) {
       throw new UnauthorizedException('Invalid webhook signature');
     }
-    const transfer = this.payrep.parseWebhook(payload);
+    const transfer = this.pulse.parseWebhook(payload);
     if (!transfer) return { received: true, ignored: true };
     return this.recordTransfer(transfer);
   }
@@ -437,7 +437,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       p.status = PaymentStatus.PAID;
       p.paidAt = now;
       p.source = 'transfer';
-      p.markedBy = 'payrep';
+      p.markedBy = 'pulse';
     }
     await this.paymentsRepo.save(payments);
     for (const sessionId of new Set(payments.map((p) => p.sessionId))) {
@@ -483,14 +483,14 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return this.transfersRepo.save(transfer);
   }
 
-  /** Dev/demo only: pretend Payrep sent us a credit for this group. */
+  /** Dev/demo only: pretend PulseMFB sent us a credit for this group. */
   async simulateTransfer(
     groupId: string,
     organizationId: string,
     input: { amount: number; senderName?: string; narration?: string },
   ) {
-    const client = this.payrep;
-    if (!(client instanceof MockPayrepClient)) {
+    const client = this.pulse;
+    if (!(client instanceof MockPulseClient)) {
       throw new BadRequestException('Simulated transfers are only available in mock mode');
     }
     const group = await this.findGroup(groupId, organizationId);

@@ -1,12 +1,12 @@
 /**
- * Payrep Microfinance Bank integration boundary.
+ * Pulse Microfinance Bank integration boundary.
  *
- * Everything the app needs from Payrep goes through this interface so the
+ * Everything the app needs from PulseMFB goes through this interface so the
  * real HTTP client can be dropped in without touching billing logic. Until
- * the API contract is confirmed we run the MockPayrepClient (PAYREP_MODE=mock).
+ * the API contract is confirmed we run the MockPulseClient (PULSE_MODE=mock).
  */
 
-export const PAYREP_CLIENT = Symbol('PAYREP_CLIENT');
+export const PULSE_CLIENT = Symbol('PULSE_CLIENT');
 
 export interface CreateAccountInput {
   /** Our stable reference for the account owner (the group id). */
@@ -15,6 +15,10 @@ export interface CreateAccountInput {
   accountName: string;
   /** Organisation contact, if the provider requires KYC-lite details. */
   email?: string;
+  /** Phone number for KYC (PulseMFB requires this). */
+  phone?: string;
+  /** BVN for KYC (PulseMFB requires this). */
+  bvn?: string;
 }
 
 export interface ProvisionedAccount {
@@ -38,7 +42,7 @@ export interface IncomingTransfer {
   raw: unknown;
 }
 
-export interface PayrepClient {
+export interface PulseClient {
   readonly mode: 'mock' | 'live';
   createAccount(input: CreateAccountInput): Promise<ProvisionedAccount>;
   /** Returns true when the webhook signature is valid for the raw body. */
