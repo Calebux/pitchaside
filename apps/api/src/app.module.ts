@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { CsrfGuard } from './auth/guards/csrf.guard';
+import { rateLimits } from './common/rate-limit';
 import { GroupsModule } from './groups/groups.module';
 import { PlayersModule } from './players/players.module';
 import { SessionsModule } from './sessions/sessions.module';
@@ -26,10 +27,7 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 10,
-    }]),
+    ThrottlerModule.forRoot(rateLimits),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

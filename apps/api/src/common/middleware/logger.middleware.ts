@@ -1,5 +1,6 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
+import { clientAddress } from '../rate-limit';
 
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
@@ -12,7 +13,8 @@ export class LoggerMiddleware implements NestMiddleware {
     res.on('finish', () => {
       const duration = Date.now() - start;
       const { statusCode } = res;
-      this.logger.log(`${method} ${originalUrl} ${statusCode} ${duration}ms`);
+      // The address is the one rate limits count against — if every line shows the same one, they're shared.
+      this.logger.log(`${method} ${originalUrl} ${statusCode} ${duration}ms ${clientAddress(req)}`);
     });
 
     next();
