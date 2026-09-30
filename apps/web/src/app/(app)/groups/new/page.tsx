@@ -192,7 +192,7 @@ export default function NewGroupPage() {
         <div className="flex items-start gap-3 rounded-2xl bg-chalk border border-gray-200 p-3.5">
           <div className="w-8 h-8 rounded-lg bg-ink text-volt-300 flex items-center justify-center shrink-0 font-display font-extrabold text-sm">₦</div>
           <p className="text-xs text-gray-600 leading-relaxed">
-            We&apos;ll open a dedicated <span className="font-bold text-ink">Pulse MFB account</span> for this group. Players pay into it and
+            We&apos;ll open a dedicated <span className="font-bold text-ink">Payrep MFB account</span> for this group. Players pay into it and
             transfers are matched to them automatically. You&apos;ll also get a link to share for players to join.
           </p>
         </div>

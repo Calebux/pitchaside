@@ -27,7 +27,7 @@ export class MockPulseClient implements PulseClient {
     return {
       accountNumber: `8${digits}`,
       accountName: input.accountName,
-      bankName: 'PulseMFB (test)',
+      bankName: 'Payrep MFB (test)',
       providerReference: `mock_${digest.toString('hex').slice(0, 16)}`,
     };
   }

@@ -50,7 +50,7 @@ describe('HttpPulseClient.createAccount', () => {
     expect(account).toEqual({
       accountNumber: '9995734440',
       accountName: "CAL'/'PitchAside Lekki Ballers",
-      bankName: 'Pulse Microfinance Bank',
+      bankName: 'Payrep Microfinance Bank',
       providerReference: 'group-1',
     });
   });
@@ -80,7 +80,7 @@ describe('HttpPulseClient.createAccount', () => {
     });
 
     await expect(client.createAccount({ reference: 'group-1', accountName: 'X' })).rejects.toThrow(
-      'PulseMFB createAccount failed (400): Validation failed — bvn: bvn is required',
+      'Payrep MFB createAccount failed (400): Validation failed — bvn: bvn is required',
     );
   });
 
@@ -88,7 +88,7 @@ describe('HttpPulseClient.createAccount', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => 'Bad gateway' });
 
     await expect(client.createAccount({ reference: 'group-1', accountName: 'X' })).rejects.toThrow(
-      'PulseMFB createAccount failed (502): Bad gateway',
+      'Payrep MFB createAccount failed (502): Bad gateway',
     );
   });
 });

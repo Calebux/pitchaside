@@ -95,14 +95,14 @@ export class HttpPulseClient implements PulseClient {
       body,
     });
 
-    if (!res.ok) throw new Error(`PulseMFB createAccount failed (${res.status}): ${await pulseReason(res)}`);
+    if (!res.ok) throw new Error(`Payrep MFB createAccount failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
     return {
       accountNumber: String(d.account_number),
       accountName: String(d.account_name ?? input.accountName),
-      bankName: 'Pulse Microfinance Bank',
+      bankName: 'Payrep Microfinance Bank',
       providerReference: String(d.reference ?? input.reference),
     };
   }
@@ -119,7 +119,7 @@ export class HttpPulseClient implements PulseClient {
       body,
     });
 
-    if (!res.ok) throw new Error(`PulseMFB name enquiry failed (${res.status}): ${await pulseReason(res)}`);
+    if (!res.ok) throw new Error(`Payrep MFB name enquiry failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
@@ -145,7 +145,7 @@ export class HttpPulseClient implements PulseClient {
       body,
     });
 
-    if (!res.ok) throw new Error(`PulseMFB transfer failed (${res.status}): ${await pulseReason(res)}`);
+    if (!res.ok) throw new Error(`Payrep MFB transfer failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
@@ -163,7 +163,7 @@ export class HttpPulseClient implements PulseClient {
       headers: this.authHeaders('GET', path, ''),
     });
 
-    if (!res.ok) throw new Error(`PulseMFB transfer lookup failed (${res.status}): ${await pulseReason(res)}`);
+    if (!res.ok) throw new Error(`Payrep MFB transfer lookup failed (${res.status}): ${await pulseReason(res)}`);
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
