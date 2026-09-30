@@ -6,7 +6,8 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "email:art": "ts-node -O '{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"jsx\":\"react-jsx\"}' scripts/email-art.tsx"
   },
   "dependencies": {
     "@pitchaside/shared": "*",

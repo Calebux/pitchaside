@@ -5,6 +5,7 @@
  *
  *   npm run mail:samples
  *   APP_URL=https://your-domain npm run mail:samples   # links point at your real domain
+ *   MAIL_ASSETS_URL=https://your-domain/email npm run mail:samples   # banner images from the live site
  */
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
@@ -12,6 +13,9 @@ import { EmailContent, escapeHtml, memberInviteEmail, noticeEmail, passwordReset
 
 const appUrl = process.env.APP_URL && !process.env.APP_URL.includes('localhost') ? process.env.APP_URL : 'https://pitchaside.com';
 const from = process.env.MAIL_FROM || 'PitchAside <noreply@pitchaside.com>';
+// Banner images. By default the local files, so the samples show the artwork even before it is
+// deployed; set MAIL_ASSETS_URL (e.g. https://your-domain/email) to link to the live copies instead.
+const assets = process.env.MAIL_ASSETS_URL || `file://${join(__dirname, '..', '..', '..', 'web', 'public', 'email')}`;
 const club = 'Lekki Ballers';
 
 const samples: { file: string; name: string; when: string; email: EmailContent }[] = [
@@ -19,31 +23,32 @@ const samples: { file: string; name: string; when: string; email: EmailContent }
     file: '1-password-reset',
     name: 'Password reset',
     when: 'An organiser taps "Forgot password" on the sign-in page.',
-    email: passwordResetEmail({ name: 'Tunde', resetUrl: `${appUrl}/reset-password?token=3f9a1c7e5b2d48a6` }),
+    email: passwordResetEmail({ assets, name: 'Tunde', resetUrl: `${appUrl}/reset-password?token=3f9a1c7e5b2d48a6` }),
   },
   {
     file: '2-co-organiser-invite',
     name: 'Co-organiser invite',
     when: 'A club admin adds a co-organiser or treasurer to their club.',
-    email: memberInviteEmail({ name: 'Ngozi', orgName: club, tempPassword: 'kickoff-4821', loginUrl: `${appUrl}/signin` }),
+    email: memberInviteEmail({ assets, name: 'Ngozi', orgName: club, tempPassword: 'kickoff-4821', loginUrl: `${appUrl}/signin` }),
   },
   {
     file: '3-verify-email',
     name: 'Email verification',
     when: 'An organiser creates their account.',
-    email: verifyEmailEmail({ name: 'Tunde', verifyUrl: `${appUrl}/verify-email?token=9c1e44b07a2f4d13` }),
+    email: verifyEmailEmail({ assets, name: 'Tunde', verifyUrl: `${appUrl}/verify-email?token=9c1e44b07a2f4d13` }),
   },
   {
     file: '4-player-password-code',
     name: 'Player password code',
     when: 'A player asks to set their first password or reset a forgotten one on the sign-in page.',
-    email: playerCodeEmail({ name: 'Emeka', code: '482913' }),
+    email: playerCodeEmail({ assets, name: 'Emeka', code: '482913' }),
   },
   {
     file: '5-payment-receipt',
     name: 'Payment receipt',
     when: "A player's payment is recorded — marked paid by the organiser, or matched from their bank transfer.",
     email: noticeEmail({
+      assets,
       name: 'Emeka',
       clubName: club,
       kind: 'receipt',
@@ -57,6 +62,7 @@ const samples: { file: string; name: string; when: string; email: EmailContent }
     name: 'Dues open',
     when: 'A new billing period starts for a group the player belongs to (weekly, monthly, quarterly or yearly dues).',
     email: noticeEmail({
+      assets,
       name: 'Bisi',
       clubName: club,
       kind: 'dues_open',
@@ -70,6 +76,7 @@ const samples: { file: string; name: string; when: string; email: EmailContent }
     name: 'Payment reminder',
     when: 'The morning after a game the player played in and has not paid for. Sent once per game.',
     email: noticeEmail({
+      assets,
       name: 'Amaka',
       clubName: club,
       kind: 'payment_reminder',
@@ -83,6 +90,7 @@ const samples: { file: string; name: string; when: string; email: EmailContent }
     name: 'Game reminder',
     when: "6pm the day before a game the player is in the squad for.",
     email: noticeEmail({
+      assets,
       name: 'Seyi',
       clubName: club,
       kind: 'reminder_eve',
@@ -96,6 +104,7 @@ const samples: { file: string; name: string; when: string; email: EmailContent }
     name: "Who's in?",
     when: 'An organiser schedules a game for a group where players confirm their place.',
     email: noticeEmail({
+      assets,
       name: 'Kola',
       clubName: club,
       kind: 'rsvp_open',

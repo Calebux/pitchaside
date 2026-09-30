@@ -195,7 +195,7 @@ export function Ball({ x = 0, y = 0, r = 12, spin = 0 }: { x?: number; y?: numbe
   );
 }
 
-function Sparkle({ x, y, s = 1, color = palette.volt }: { x: number; y: number; s?: number; color?: string }) {
+export function Sparkle({ x, y, s = 1, color = palette.volt }: { x: number; y: number; s?: number; color?: string }) {
   return (
     <path
       transform={`translate(${x} ${y}) scale(${s})`}
