@@ -571,7 +571,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .createQueryBuilder('t')
       .select('COALESCE(SUM(t.amount), 0)', 'totalIn')
       .where('t.groupId = :groupId', { groupId })
-      .andWhere('t.status IN (:...statuses)', { statuses: [TransferStatus.MATCHED, TransferStatus.ASSIGNED] })
+      .andWhere('t.status IN (:...statuses)', { statuses: [TransferStatus.MATCHED, TransferStatus.ASSIGNED, TransferStatus.UNMATCHED] })
       .getRawOne();
 
     const { totalOut } = await this.payoutsRepo
