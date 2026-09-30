@@ -6,6 +6,9 @@ import { EmailContent, memberInviteEmail, noticeEmail, passwordResetEmail, playe
 /** How long to wait on the mail provider before giving up — a request must never hang on it. */
 const SEND_TIMEOUT_MS = 15_000;
 
+/** Where links and banner images point when real email goes out but APP_URL can't be used. */
+const LIVE_SITE = 'https://www.pitchaside.com';
+
 /**
  * Sends email one of three ways, chosen from the environment:
  *
@@ -23,8 +26,9 @@ export class MailService {
   private readonly transporter: nodemailer.Transporter | null = null;
   private readonly resendToken: string | null;
   private readonly resendUrl: string;
+  private readonly siteUrl: string;
 
-  constructor(private config: ConfigService) {
+  constructor(config: ConfigService) {
     this.from = config.get('MAIL_FROM', 'PitchAside <hi@pitchaside.com>');
 
     const token = config.get<string>('RESEND_API_KEY', '').trim();
@@ -51,6 +55,15 @@ export class MailService {
     } else {
       this.logger.warn('No RESEND_API_KEY or SMTP_HOST configured — emails are NOT sent, only logged');
     }
+
+    this.siteUrl = config.get<string>('APP_URL', '').trim().replace(/\/+$/, '');
+    // A localhost link in a real inbox is a dead verify button and a broken banner — it happened
+    // in production with APP_URL unset. Fall back to the live site and say so loudly.
+    if (this.mode === 'live' && (!this.siteUrl || /\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(this.siteUrl))) {
+      this.logger.error(`APP_URL is "${this.siteUrl}" — emails would link to it. Using ${LIVE_SITE}; set APP_URL to the live site.`);
+      this.siteUrl = LIVE_SITE;
+    }
+    if (!this.siteUrl) this.siteUrl = 'http://localhost:3000';
   }
 
   /** 'mock' = nothing leaves the server (no mail provider configured). */
@@ -111,7 +124,7 @@ export class MailService {
   }
 
   private appUrl(path: string) {
-    return `${this.config.get('APP_URL', 'http://localhost:3000')}${path}`;
+    return `${this.siteUrl}${path}`;
   }
 
   sendPasswordReset(to: string, name: string, token: string) {
