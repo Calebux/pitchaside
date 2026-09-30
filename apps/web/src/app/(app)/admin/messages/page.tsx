@@ -97,7 +97,7 @@ export default function NotificationsLogPage() {
                       : '○ Not delivered — notifications off'
                     : m.status === 'failed'
                       ? 'Failed to send'
-                      : `${m.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}${m.status === 'mock' ? ' (test mode)' : ''}`}
+                      : `${m.channel === 'email' ? 'Email' : m.channel === 'whatsapp' ? 'WhatsApp' : 'SMS'}${m.status === 'mock' ? ' (test mode)' : ''}`}
                 </p>
               </div>
             );

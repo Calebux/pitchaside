@@ -30,7 +30,7 @@ export default function PlayerProfilePage() {
         firstName={profile.player.firstName}
         lastName={profile.player.lastName}
         ratings={r}
-        caption={profile.player.phone}
+        caption={profile.player.email}
       />
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4">
@@ -94,7 +94,7 @@ export default function PlayerProfilePage() {
         <PlayerAccountSettings
           firstName={profile.player.firstName}
           lastName={profile.player.lastName}
-          phone={profile.player.phone}
+          email={profile.player.email}
           onSaved={refresh}
         />
       </Section>

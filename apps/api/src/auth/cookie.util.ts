@@ -10,15 +10,30 @@ export const COOKIE_NAMES = {
   PLAYER_REFRESH: 'pitchaside_player_refresh',
 } as const;
 
+/**
+ * Path is "/" on purpose: the Next.js middleware checks the session cookies on
+ * page requests (/dashboard, …), and the browser reads the CSRF cookie from
+ * those pages to echo it back in a header. Scoped to "/api", neither can see them.
+ */
 function cookieOptions(config: ConfigService, maxAgeMs: number, httpOnly = true) {
   const isProduction = config.get('NODE_ENV') === 'production';
   return {
     httpOnly,
     secure: isProduction,
     sameSite: 'lax' as const,
-    path: '/api',
+    path: '/',
     maxAge: maxAgeMs,
   };
+}
+
+/**
+ * Cookies were first issued with Path=/api. A browser still holding one sends
+ * it ahead of the "/" cookie on API calls, so the stale value would win — expire it.
+ */
+function expireLegacyCookies(res: Response, config: ConfigService, names: string[]) {
+  for (const name of names) {
+    res.cookie(name, '', { ...cookieOptions(config, 0), path: '/api' });
+  }
 }
 
 export function setAuthCookies(
@@ -27,6 +42,7 @@ export function setAuthCookies(
   accessToken: string,
   refreshToken: string,
 ) {
+  expireLegacyCookies(res, config, [COOKIE_NAMES.ACCESS, COOKIE_NAMES.REFRESH, COOKIE_NAMES.CSRF]);
   res.cookie(COOKIE_NAMES.ACCESS, accessToken, cookieOptions(config, 15 * 60 * 1000));
   res.cookie(COOKIE_NAMES.REFRESH, refreshToken, cookieOptions(config, 7 * 24 * 60 * 60 * 1000));
   const csrfToken = randomBytes(32).toString('hex');
@@ -34,7 +50,11 @@ export function setAuthCookies(
 }
 
 export function clearAuthCookies(res: Response, config: ConfigService) {
-  for (const name of [COOKIE_NAMES.ACCESS, COOKIE_NAMES.REFRESH, COOKIE_NAMES.CSRF]) {
+  // The CSRF cookie stays: the same browser may still be signed in as a player,
+  // and it isn't a credential — it only has to match the header the page sends.
+  const names = [COOKIE_NAMES.ACCESS, COOKIE_NAMES.REFRESH];
+  expireLegacyCookies(res, config, [...names, COOKIE_NAMES.CSRF]);
+  for (const name of names) {
     res.cookie(name, '', { ...cookieOptions(config, 0), maxAge: 0 });
   }
 }
@@ -45,6 +65,7 @@ export function setPlayerAuthCookies(
   accessToken: string,
   refreshToken: string,
 ) {
+  expireLegacyCookies(res, config, [COOKIE_NAMES.PLAYER_ACCESS, COOKIE_NAMES.PLAYER_REFRESH, COOKIE_NAMES.CSRF]);
   res.cookie(COOKIE_NAMES.PLAYER_ACCESS, accessToken, cookieOptions(config, 15 * 60 * 1000));
   res.cookie(COOKIE_NAMES.PLAYER_REFRESH, refreshToken, cookieOptions(config, 7 * 24 * 60 * 60 * 1000));
   const csrfToken = randomBytes(32).toString('hex');
@@ -52,7 +73,9 @@ export function setPlayerAuthCookies(
 }
 
 export function clearPlayerAuthCookies(res: Response, config: ConfigService) {
-  for (const name of [COOKIE_NAMES.PLAYER_ACCESS, COOKIE_NAMES.PLAYER_REFRESH]) {
+  const names = [COOKIE_NAMES.PLAYER_ACCESS, COOKIE_NAMES.PLAYER_REFRESH];
+  expireLegacyCookies(res, config, names);
+  for (const name of names) {
     res.cookie(name, '', { ...cookieOptions(config, 0), maxAge: 0 });
   }
 }

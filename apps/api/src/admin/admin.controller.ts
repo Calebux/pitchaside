@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Body, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Query } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -11,6 +11,11 @@ import { AuditService } from '../audit/audit.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import * as bcrypt from 'bcrypt';
 
+/** Never send password hashes or 2FA secrets to the browser. */
+function publicUser({ passwordHash: _hash, twoFactorSecret: _secret, ...user }: User) {
+  return user;
+}
+
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('admin')
 export class AdminController {
@@ -21,31 +26,7 @@ export class AdminController {
     private readonly auditService: AuditService,
   ) {}
 
-  // ── Super Admin endpoints ──
-
-  @Get('stats')
-  @Roles(UserRole.SUPER_ADMIN)
-  getPlatformStats() {
-    return this.adminService.getPlatformStats();
-  }
-
-  @Get('organizations')
-  @Roles(UserRole.SUPER_ADMIN)
-  getAllOrganizations(@Query() query: PaginationDto) {
-    return this.adminService.getAllOrganizations(query);
-  }
-
-  @Get('organizations/:id')
-  @Roles(UserRole.SUPER_ADMIN)
-  getOrganization(@Param('id') id: string) {
-    return this.adminService.getOrganization(id);
-  }
-
-  @Get('users')
-  @Roles(UserRole.SUPER_ADMIN)
-  getAllUsers(@Query() query: PaginationDto) {
-    return this.adminService.getAllUsers(query);
-  }
+  // Platform-wide (super admin) endpoints live in PlatformController.
 
   // ── Org Admin endpoints ──
 
@@ -57,8 +38,9 @@ export class AdminController {
 
   @Get('org/members')
   @Roles(UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN)
-  getOrgMembers(@CurrentUser() user: User) {
-    return this.adminService.getOrgMembers(user.organizationId);
+  async getOrgMembers(@CurrentUser() user: User) {
+    const members = await this.adminService.getOrgMembers(user.organizationId);
+    return members.map(publicUser);
   }
 
   @Post('org/members')
@@ -87,7 +69,7 @@ export class AdminController {
       body.password,
     );
 
-    return newUser;
+    return publicUser(newUser);
   }
 
   @Get('org/audit-log')

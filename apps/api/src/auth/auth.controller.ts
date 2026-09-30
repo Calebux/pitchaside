@@ -1,5 +1,5 @@
 import { Controller, Post, Get, Patch, Body, UseGuards, Req, Res, Query, BadRequestException } from '@nestjs/common';
-import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { ThrottlerGuard, Throttle, SkipThrottle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
@@ -44,6 +44,8 @@ export class AuthController {
     return { accessToken: result.accessToken, user: result.user };
   }
 
+  // The app asks this on every page load; a rate limit here signs people out mid-session.
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard)
   @Get('me')
   me(@CurrentUser() user: any) {

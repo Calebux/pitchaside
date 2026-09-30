@@ -192,9 +192,7 @@ export default function SettingsPage() {
             placeholder="0803 123 4567"
             className={inputClass}
           />
-          <p className="text-[11px] text-gray-500 mt-1">
-            Links your player side — switch to <span className="font-bold text-ink">Playing</span> to RSVP, pay and vote in your own games.
-          </p>
+          <p className="text-[11px] text-gray-500 mt-1">Optional — so your players and co-organisers can reach you.</p>
         </div>
         <p className="text-xs text-gray-400 mb-4">{user.email}</p>
         <button

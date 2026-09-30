@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Group } from './entities/group.entity';
+import { CONTRIBUTIONS_VISIBILITY, Group } from './entities/group.entity';
 import { GroupMembership } from './entities/group-membership.entity';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
@@ -69,6 +69,10 @@ export class GroupsService {
 
   async update(id: string, dto: Partial<CreateGroupDto>, organizationId: string) {
     const group = await this.findOne(id, organizationId);
+    // PATCH bodies are typed Partial<CreateGroupDto>, which the ValidationPipe can't see through.
+    if (dto.contributionsVisibility !== undefined && !CONTRIBUTIONS_VISIBILITY.includes(dto.contributionsVisibility)) {
+      throw new BadRequestException('contributionsVisibility must be private, totals or names');
+    }
     Object.assign(group, dto);
     const saved = await this.groupsRepo.save(group);
     // Switching to a periodic type opens the current dues period straight away.

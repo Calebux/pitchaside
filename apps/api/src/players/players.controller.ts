@@ -26,7 +26,7 @@ export class PlayersController {
       players.map((p) => [
         p.firstName,
         p.lastName,
-        p.phone,
+        p.phone || '',
         p.email || '',
         new Date(p.createdAt).toISOString(),
       ]),

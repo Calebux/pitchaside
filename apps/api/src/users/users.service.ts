@@ -142,7 +142,7 @@ export class UsersService {
     return createHash('sha256').update(raw).digest('hex');
   }
 
-  async createRefreshToken(userId: string | null, phoneKey: string | null): Promise<string> {
+  async createRefreshToken(userId: string | null, personKey: string | null): Promise<string> {
     const raw = randomBytes(48).toString('hex');
     const familyId = randomBytes(16).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -150,7 +150,7 @@ export class UsersService {
     await this.refreshRepo.save(
       this.refreshRepo.create({
         userId,
-        phoneKey,
+        personKey,
         tokenHash: this.hashToken(raw),
         expiresAt,
         familyId,
@@ -160,7 +160,7 @@ export class UsersService {
     return raw;
   }
 
-  async rotateRefreshToken(rawToken: string): Promise<{ newRawToken: string; userId: string | null; phoneKey: string | null } | null> {
+  async rotateRefreshToken(rawToken: string): Promise<{ newRawToken: string; userId: string | null; personKey: string | null } | null> {
     const hash = this.hashToken(rawToken);
     const existing = await this.refreshRepo.findOne({ where: { tokenHash: hash } });
 
@@ -190,14 +190,14 @@ export class UsersService {
     await this.refreshRepo.save(
       this.refreshRepo.create({
         userId: existing.userId,
-        phoneKey: existing.phoneKey,
+        personKey: existing.personKey,
         tokenHash: this.hashToken(newRaw),
         expiresAt,
         familyId: existing.familyId,
       }),
     );
 
-    return { newRawToken: newRaw, userId: existing.userId, phoneKey: existing.phoneKey };
+    return { newRawToken: newRaw, userId: existing.userId, personKey: existing.personKey };
   }
 
   async revokeRefreshToken(rawToken: string): Promise<void> {
@@ -209,8 +209,8 @@ export class UsersService {
     await this.refreshRepo.update({ userId, revoked: false }, { revoked: true });
   }
 
-  async revokeAllPlayerRefreshTokens(phoneKey: string): Promise<void> {
-    await this.refreshRepo.update({ phoneKey, revoked: false }, { revoked: true });
+  async revokeAllPlayerRefreshTokens(personKey: string): Promise<void> {
+    await this.refreshRepo.update({ personKey, revoked: false }, { revoked: true });
   }
 
   // ── Email Verification ──

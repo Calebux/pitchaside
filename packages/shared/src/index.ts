@@ -28,6 +28,10 @@ export enum PaymentStatus {
   WAIVED = 'waived',
 }
 
+/** What players in a group can see of the kitty: nothing, totals, or totals plus who's paid. */
+export type ContributionsVisibility = 'private' | 'totals' | 'names';
+export const CONTRIBUTIONS_VISIBILITY: ContributionsVisibility[] = ['private', 'totals', 'names'];
+
 export interface IGroup {
   id: string;
   name: string;
@@ -38,6 +42,7 @@ export interface IGroup {
   paymentType: PaymentType;
   requireRsvp?: boolean;
   kickoffTime?: string | null;
+  contributionsVisibility?: ContributionsVisibility;
   inviteCode?: string;
   accountNumber?: string;
   accountName?: string;
@@ -49,8 +54,9 @@ export interface IPlayer {
   id: string;
   firstName: string;
   lastName: string;
-  phone: string;
-  email?: string;
+  /** Optional contact number. Players sign in with their email. */
+  phone?: string | null;
+  email?: string | null;
   createdAt: string;
 }
 

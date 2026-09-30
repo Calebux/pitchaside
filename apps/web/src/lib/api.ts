@@ -1,4 +1,5 @@
 import type {
+  ContributionsVisibility,
   IGroup,
   IPlayer,
   ISession,
@@ -68,6 +69,7 @@ export function createGroup(data: {
   paymentType?: PaymentType;
   requireRsvp?: boolean;
   kickoffTime?: string;
+  contributionsVisibility?: ContributionsVisibility;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -83,6 +85,7 @@ export function updateGroup(
     paymentType: PaymentType;
     requireRsvp: boolean;
     kickoffTime: string;
+    contributionsVisibility: ContributionsVisibility;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);
@@ -118,8 +121,8 @@ export function getPlayer(id: string): Promise<IPlayer> {
 export function createPlayer(data: {
   firstName: string;
   lastName: string;
-  phone: string;
   email?: string;
+  phone?: string;
 }): Promise<IPlayer> {
   return http.post<IPlayer>('/players', data);
 }
@@ -129,8 +132,9 @@ export function updatePlayer(
   data: Partial<{
     firstName: string;
     lastName: string;
-    phone: string;
-    email: string;
+    /** null clears it. */
+    phone: string | null;
+    email: string | null;
   }>,
 ): Promise<IPlayer> {
   return http.patch<IPlayer>(`/players/${id}`, data);
@@ -278,13 +282,6 @@ export function getOrgByInviteCode(
   code: string,
 ): Promise<{ organizationId: string; organizationName: string }> {
   return http.get(`/organizations/join/${code}`);
-}
-
-export function joinOrg(
-  code: string,
-  data: { firstName: string; lastName: string; phone: string; email?: string },
-): Promise<IPlayer> {
-  return http.post<IPlayer>(`/organizations/join/${code}`, data);
 }
 
 // ── Reminders ──

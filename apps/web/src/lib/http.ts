@@ -2,6 +2,13 @@
 // In development, NEXT_PUBLIC_API_URL can point directly at the backend
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
+/**
+ * Pages only an organiser uses. Anywhere else (landing page, invite links, the
+ * player app) being signed out as an organiser is normal, so a 401 there must
+ * not throw the visitor onto the organiser sign-in page.
+ */
+const ORGANISER_PAGES = /^\/(dashboard|groups|players|sessions|admin|settings|hq)(\/|$)/;
+
 function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(/pitchaside_csrf=([^;]+)/);
@@ -67,7 +74,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
         return text ? JSON.parse(text) : (undefined as T);
       }
     }
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && ORGANISER_PAGES.test(window.location.pathname)) {
       window.location.href = '/signin';
     }
     throw new Error('Unauthorized');

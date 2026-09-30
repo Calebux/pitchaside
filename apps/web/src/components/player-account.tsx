@@ -13,12 +13,12 @@ const input =
 export function PlayerAccountSettings({
   firstName,
   lastName,
-  phone,
+  email,
   onSaved,
 }: {
   firstName: string;
   lastName: string;
-  phone: string;
+  email: string;
   onSaved: () => Promise<void>;
 }) {
   const toast = useToast();
@@ -110,8 +110,8 @@ export function PlayerAccountSettings({
       )}
 
       <div className="px-4 py-3">
-        <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">Phone (sign-in)</span>
-        <span className="block text-sm font-bold text-ink">{phone}</span>
+        <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">Email (sign-in)</span>
+        <span className="block text-sm font-bold text-ink break-all">{email}</span>
       </div>
 
       {row('Password', '••••••••', 'password')}

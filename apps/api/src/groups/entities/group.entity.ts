@@ -19,6 +19,10 @@ export enum PaymentType {
   ANNUALLY = 'annually',
 }
 
+/** What players see of a group's contributions: nothing, totals, or totals plus who's paid. */
+export type ContributionsVisibility = 'private' | 'totals' | 'names';
+export const CONTRIBUTIONS_VISIBILITY: ContributionsVisibility[] = ['private', 'totals', 'names'];
+
 @Entity('groups')
 export class Group {
   @PrimaryGeneratedColumn('uuid')
@@ -52,6 +56,10 @@ export class Group {
   /** Usual kick-off time, 'HH:mm' local — drives game-time reminders. */
   @Column({ name: 'kickoff_time', type: 'varchar', length: 5, nullable: true })
   kickoffTime: string | null;
+
+  /** What players can see of the group's contributions: 'private' | 'totals' | 'names'. */
+  @Column({ name: 'contributions_visibility', type: 'varchar', length: 10, default: 'private' })
+  contributionsVisibility: ContributionsVisibility;
 
   /** Public code used in the group's join / pay link. */
   @Column({ name: 'invite_code', nullable: true, unique: true })

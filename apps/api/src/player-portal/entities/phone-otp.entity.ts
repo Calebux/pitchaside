@@ -1,15 +1,15 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
-/** One-time login codes sent to a player's phone. Only a hash of the code is stored. */
+/** One-time codes emailed to a player to set or reset their password. Only a hash of the code is stored. */
 @Entity('phone_otps')
-@Index(['phoneKey', 'createdAt'])
+@Index(['personKey', 'createdAt'])
 export class PhoneOtp {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** Last 10 digits of the phone number. */
+  /** Who the code is for (emailKey). Column name predates email sign-in. */
   @Column({ name: 'phone_key' })
-  phoneKey: string;
+  personKey: string;
 
   @Column({ name: 'code_hash' })
   codeHash: string;

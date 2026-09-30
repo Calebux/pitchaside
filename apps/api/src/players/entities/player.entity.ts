@@ -15,7 +15,7 @@ import { Organization } from '../../organizations/entities/organization.entity';
 
 /**
  * A player within one club (organisation). The same person can play for
- * several clubs — their phone number ties those records together.
+ * several clubs — their email address ties those records together.
  */
 @Entity('players')
 @Unique('UQ_players_org_phone', ['organizationId', 'phone'])
@@ -30,8 +30,9 @@ export class Player {
   @Column()
   lastName: string;
 
-  @Column()
-  phone: string;
+  /** Optional contact number. Players an organiser added before email sign-in may only have this. */
+  @Column({ type: 'varchar', nullable: true })
+  phone: string | null;
 
   @Column({ nullable: true })
   email: string;

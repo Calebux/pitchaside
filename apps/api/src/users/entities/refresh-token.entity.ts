@@ -21,8 +21,9 @@ export class RefreshToken {
   @Column({ name: 'user_id', nullable: true })
   userId: string | null;
 
+  /** Set for player sessions: the person's emailKey. Column name predates email sign-in. */
   @Column({ name: 'phone_key', type: 'varchar', nullable: true })
-  phoneKey: string | null;
+  personKey: string | null;
 
   @Column({ name: 'token_hash', unique: true })
   tokenHash: string;

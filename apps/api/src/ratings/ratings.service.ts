@@ -239,6 +239,57 @@ export class RatingsService {
     return this.results(session);
   }
 
+  /**
+   * Everything the match-day share card needs, by vote token: the winner of
+   * each award, Team of the Day and the day's table.
+   */
+  async getMatchCard(token: string) {
+    const session = await this.loadSessionByToken(token);
+    const [results, games, group] = await Promise.all([
+      this.results(session),
+      this.gamesRepo.find({ where: { sessionId: session.id }, order: { createdAt: 'ASC' } }),
+      this.groupsRepo.findOne({ where: { id: session.groupId }, relations: ['organization'] }),
+    ]);
+    const name = (p: SquadMember) => `${p.firstName} ${p.lastName}`;
+    const awards = results.categories
+      .map((c) => {
+        const top = c.standings[0];
+        if (!top?.player) return null;
+        // A tie at the top is shared: "Chidi & Tunde".
+        const tied = c.standings.filter((s) => s.count === top.count && s.player).map((s) => name(s.player!));
+        return { key: c.key, title: c.title, name: tied.join(' & '), votes: top.count, shared: tied.length > 1 };
+      })
+      .filter((a): a is NonNullable<typeof a> => !!a);
+
+    const table = this.standings(session.teamCount, games);
+    const tod = table.teamOfTheDay;
+    const todRow = tod ? table.rows.find((r) => r.team === tod) : null;
+    const w = this.window(session);
+
+    return {
+      groupName: group?.name ?? '',
+      clubName: group?.organization?.name ?? null,
+      date: session.date,
+      open: w.open,
+      ballots: results.ballots,
+      squadSize: results.squadSize,
+      awards,
+      teamOfTheDay:
+        tod && todRow
+          ? {
+              team: tod,
+              players: (session.payments ?? []).filter((p) => p.team === tod && p.player).map((p) => name(p.player)),
+              w: todRow.w,
+              d: todRow.d,
+              l: todRow.l,
+              pts: todRow.pts,
+            }
+          : null,
+      standings: games.length ? table.rows : [],
+      games: games.map((g) => ({ teamA: g.teamA, teamB: g.teamB, scoreA: g.scoreA, scoreB: g.scoreB })),
+    };
+  }
+
   // ── Match day: teams on the day + short games ──
 
   /** Per-side table for one match day: 3 for a win, 1 for a draw. */
@@ -516,6 +567,8 @@ export class RatingsService {
           vote: w.open
             ? { token: await this.ensureVotingToken(s.id), voted: sv.some((v) => v.voterId === playerId) }
             : null,
+          /** For the match-day share card, once the game has kicked off. */
+          shareToken: w.notYet ? null : await this.ensureVotingToken(s.id),
         };
       }),
     );

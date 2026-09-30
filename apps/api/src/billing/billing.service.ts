@@ -24,7 +24,8 @@ import { MockPulseClient } from './pulse/mock-pulse.client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
 import { NIGERIAN_BANKS } from './data/nigerian-banks';
-import { naira, phoneKey } from '../common/format.util';
+import { naira } from '../common/format.util';
+import { ClubPerson, clubPlayerFor } from '../players/club-player';
 
 const PERIODIC_TYPES = [
   PaymentType.WEEKLY,
@@ -252,49 +253,40 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** This person's player record in the group's club, creating it if they're new to the club. */
-  private async playerInClub(
-    group: Group,
-    person: { phone: string; firstName?: string; lastName?: string; email?: string },
-  ) {
-    const key = phoneKey(person.phone);
-    const existing = await this.playersRepo
-      .createQueryBuilder('p')
-      .where('p.organizationId = :org', { org: group.organizationId })
-      .andWhere(`regexp_replace(p.phone, '\\D', '', 'g') LIKE :suffix`, { suffix: `%${key}` })
-      .getOne();
-    if (existing) return existing;
-    if (!person.firstName?.trim() || !person.lastName?.trim()) {
-      throw new BadRequestException('First and last name are required');
-    }
-    const email = person.email?.trim() || undefined;
-    const emailTaken = email
-      ? await this.playersRepo.findOne({ where: { email, organizationId: group.organizationId } })
-      : null;
-    return this.playersRepo.save(
-      this.playersRepo.create({
-        firstName: person.firstName.trim(),
-        lastName: person.lastName.trim(),
-        phone: person.phone.trim(),
-        email: emailTaken ? undefined : email,
-        organizationId: group.organizationId,
-      }),
-    );
+  /** A club's groups for the club invite link's "which groups do you play in?" step. */
+  async publicGroupsForClub(organizationId: string) {
+    const groups = await this.groupsRepo.find({
+      where: { organizationId },
+      relations: ['memberships'],
+      order: { createdAt: 'ASC' },
+    });
+    for (const g of groups) if (!g.inviteCode) await this.setupGroup(g);
+    return groups.map((g) => ({
+      id: g.id,
+      code: g.inviteCode,
+      name: g.name,
+      schedule: g.schedule,
+      kickoffTime: g.kickoffTime,
+      feePerPlayer: Number(g.feePerPlayer),
+      paymentType: g.paymentType,
+      memberCount: g.memberships?.length ?? 0,
+      targetPlayers: g.targetPlayers,
+    }));
   }
 
-  /** New or returning player whose phone number was just confirmed. */
-  async joinGroup(code: string, input: { phone: string; firstName?: string; lastName?: string; email?: string }) {
+  /** New player who has just created their account from this group's link. */
+  async joinGroup(code: string, input: ClubPerson) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This link is invalid or has expired');
-    const player = await this.playerInClub(group, input);
+    const player = await clubPlayerFor(this.playersRepo, group.organizationId, input);
     return { playerId: player.id, ...(await this.addToGroup(group, player)) };
   }
 
   /** Signed-in person tapping a group link — even one from a club they've never played for. */
-  async joinGroupAsPerson(code: string, person: { phone: string; firstName: string; lastName: string }) {
+  async joinGroupAsPerson(code: string, person: ClubPerson) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This link is invalid or has expired');
-    const player = await this.playerInClub(group, person);
+    const player = await clubPlayerFor(this.playersRepo, group.organizationId, person);
     return this.addToGroup(group, player);
   }
 

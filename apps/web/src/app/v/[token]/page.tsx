@@ -9,15 +9,16 @@ import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { Avatar, VoteResultsList, categoryMeta } from '@/components/ratings';
 import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
+import { ShareCardButton } from '@/components/share-card';
 import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
-type Stage = 'phone' | 'ballot' | 'done';
+type Stage = 'signin' | 'ballot' | 'done';
 
 export default function VotePage() {
   const { token } = useParams<{ token: string }>();
   const [ballot, setBallot] = useState<Ballot | null>(null);
   const [invalid, setInvalid] = useState(false);
-  const [stage, setStage] = useState<Stage>('phone');
+  const [stage, setStage] = useState<Stage>('signin');
   const [voter, setVoter] = useState<{ playerId: string; firstName: string } | null>(null);
   const [picks, setPicks] = useState<Partial<Record<VoteCategory, string>>>({});
   const [results, setResults] = useState<VoteResults | null>(null);
@@ -33,9 +34,9 @@ export default function VotePage() {
       setPicks(v.picks);
       setStage('ballot');
     } catch (err: any) {
-      // Signed out, or signed in as someone who didn't play: back to the number step.
+      // Signed out, or signed in as someone who didn't play: back to the sign-in step.
       setError(err instanceof PlayerAuthError ? null : err.message);
-      setStage('phone');
+      setStage('signin');
     } finally {
       setBusy(false);
     }
@@ -48,7 +49,7 @@ export default function VotePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  async function onSignedIn(_token: string) {
+  async function onSignedIn() {
     await loadMyBallot();
   }
 
@@ -140,7 +141,7 @@ export default function VotePage() {
                 : `Closed on ${new Date(ballot.closesAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`}
             </p>
           </div>
-        ) : stage === 'phone' ? (
+        ) : stage === 'signin' ? (
           <div className="mt-6 space-y-3">
             {error && <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
             {busy ? (
@@ -220,18 +221,13 @@ export default function VotePage() {
               <div className="mt-5">
                 <VoteResultsList results={results} />
               </div>
-              <button
-                onClick={() => {
-                  const potm = results.categories.find((c) => c.key === 'potm')?.standings[0];
-                  const text = potm
-                    ? `🏆 ${potm.player.firstName} is leading Player of the Match for ${ballot.groupName} (${potm.count} votes). Have you voted? ${window.location.href}`
-                    : `Vote for Player of the Match — ${ballot.groupName}: ${window.location.href}`;
-                  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-                }}
+              <ShareCardButton
+                token={token}
+                caption={`⚽ ${ballot.groupName} — match day. Who were the stars? Have your say:`}
                 className="mt-5 w-full py-3.5 text-sm font-bold text-white bg-[#25D366] rounded-2xl hover:brightness-95 transition"
               >
-                Hype it up in the group chat
-              </button>
+                Share the match card
+              </ShareCardButton>
               <Link
                 href="/me"
                 className="mt-2 w-full flex items-center justify-center py-3.5 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors"

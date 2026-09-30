@@ -113,4 +113,10 @@ export class PublicRatingsController {
   results(@Param('token') token: string) {
     return this.ratings.getPublicResults(token);
   }
+
+  /** Match-day summary for the shareable card image. */
+  @Get(':token/card')
+  card(@Param('token') token: string) {
+    return this.ratings.getMatchCard(token);
+  }
 }

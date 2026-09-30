@@ -11,10 +11,9 @@ export class JoinDto {
   @MinLength(2)
   lastName: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   @Matches(/^[+\d][\d\s\-().]{6,}$/, { message: 'Phone number format is invalid' })
-  phone: string;
+  phone?: string;
 
   @IsOptional()
   @IsEmail()

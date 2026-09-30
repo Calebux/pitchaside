@@ -72,7 +72,7 @@ export default function PlayerDetailPage() {
     setEditData({
       firstName: player.firstName,
       lastName: player.lastName,
-      phone: player.phone,
+      phone: player.phone || '',
       email: player.email || '',
     });
     setEditing(true);
@@ -84,8 +84,8 @@ export default function PlayerDetailPage() {
       await updatePlayer(id, {
         firstName: editData.firstName.trim(),
         lastName: editData.lastName.trim(),
-        phone: editData.phone.trim(),
-        email: editData.email.trim() || undefined,
+        phone: editData.phone.trim() || null,
+        email: editData.email.trim() || null,
       });
       const updated = await getPlayer(id);
       setPlayer(updated);
@@ -134,7 +134,7 @@ export default function PlayerDetailPage() {
     g.memberships?.some((m) => m.player.id === id)
   );
 
-  const cleanPhone = player.phone.replace(/[^\d+]/g, '');
+  const cleanPhone = (player.phone ?? '').replace(/[^\d+]/g, '');
   const whatsappNumber = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone;
 
   return (
@@ -173,18 +173,21 @@ export default function PlayerDetailPage() {
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Phone</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
             <input
-              value={editData.phone}
-              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+              type="email"
+              value={editData.email}
+              onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+              placeholder="What they sign in with"
               className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Phone</label>
             <input
-              value={editData.email}
-              onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+              type="tel"
+              value={editData.phone}
+              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
               placeholder="Optional"
               className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
             />
@@ -198,7 +201,7 @@ export default function PlayerDetailPage() {
             </button>
             <button
               onClick={handleSaveEdit}
-              disabled={saving || !editData.firstName.trim() || !editData.lastName.trim() || !editData.phone.trim()}
+              disabled={saving || !editData.firstName.trim() || !editData.lastName.trim()}
               className="flex-1 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Saving...' : 'Save Changes'}
@@ -273,18 +276,19 @@ export default function PlayerDetailPage() {
               )}
 
               <div className="mt-auto pt-4 space-y-2">
-                <a
-                  href={`tel:${player.phone}`}
-                  className="block text-sm font-semibold text-white/80 hover:text-white transition-colors tabular-nums"
-                >
-                  {player.phone}
-                </a>
-                {player.email && (
-                  <a href={`mailto:${player.email}`} className="block text-xs text-white/50 hover:text-white/80 transition-colors truncate">
+                {player.email ? (
+                  <a href={`mailto:${player.email}`} className="block text-sm font-semibold text-white/80 hover:text-white transition-colors truncate">
                     {player.email}
                   </a>
+                ) : (
+                  <p className="text-xs text-white/50">No email yet — they can&apos;t sign in until you add one.</p>
                 )}
-                <a
+                {player.phone && (
+                  <a href={`tel:${player.phone}`} className="block text-xs text-white/50 hover:text-white/80 transition-colors tabular-nums">
+                    {player.phone}
+                  </a>
+                )}
+                {player.phone && <a
                   href={`https://wa.me/${whatsappNumber}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -295,7 +299,7 @@ export default function PlayerDetailPage() {
                     <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.496A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.594-.822-6.343-2.2l-.444-.355-3.187 1.07 1.07-3.187-.355-.444A9.955 9.955 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/>
                   </svg>
                   WhatsApp
-                </a>
+                </a>}
               </div>
             </div>
           </div>

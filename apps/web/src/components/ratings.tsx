@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
+import { ShareCardButton } from '@/components/share-card';
 import {
   getSessions,
   getSessionVoting,
@@ -250,6 +251,13 @@ export function SessionVotingCard({
         {voting.ballots > 0 && (
           <div className="mt-4">
             <VoteResultsList results={voting} compact />
+            <ShareCardButton
+              token={voting.token}
+              caption={`⚽ ${groupName} — match day. Who were the stars?`}
+              className="mt-3 w-full py-3 text-sm font-bold text-ink bg-white rounded-xl border-2 border-ink hover:bg-volt-300 transition-colors"
+            >
+              Share the match card
+            </ShareCardButton>
           </div>
         )}
       </div>

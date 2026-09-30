@@ -6,14 +6,12 @@ import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/brand';
 import { NightStadium } from '@/components/illustrations';
 import { PasswordSignIn } from '@/components/password-sign-in';
-import { setPlayerToken } from '@/lib/player';
 
 export default function PlayerLoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 
-  function onSignedIn(token: string) {
-    setPlayerToken(token);
+  function onSignedIn() {
     router.replace('/me');
   }
 
