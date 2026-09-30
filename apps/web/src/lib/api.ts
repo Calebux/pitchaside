@@ -407,6 +407,75 @@ export function getPublicGroup(code: string): Promise<PublicGroup> {
   return http.get(`/public/groups/${code}`);
 }
 
+// ── Payouts (transfer out) ──
+
+export interface GroupBalance {
+  totalIn: number;
+  totalOut: number;
+  available: number;
+}
+
+export interface OutgoingTransfer {
+  id: string;
+  groupId: string;
+  amount: number;
+  fee: number;
+  beneficiaryAccount: string;
+  beneficiaryName: string;
+  beneficiaryBankCode: string;
+  beneficiaryBankName: string;
+  narration?: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  providerReference?: string;
+  errorMessage?: string;
+  initiatedBy?: { firstName: string; lastName: string };
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface NigerianBank {
+  code: string;
+  name: string;
+}
+
+export function getGroupBalance(groupId: string): Promise<GroupBalance> {
+  return http.get(`/groups/${groupId}/balance`);
+}
+
+export function nameEnquiry(groupId: string, bankCode: string, accountNumber: string): Promise<{ accountName: string }> {
+  return http.post(`/groups/${groupId}/name-enquiry`, { bankCode, accountNumber });
+}
+
+export function getGroupPayouts(groupId: string): Promise<OutgoingTransfer[]> {
+  return http.get(`/groups/${groupId}/payouts`);
+}
+
+export function initiateGroupPayout(
+  groupId: string,
+  data: { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; pin: string },
+): Promise<OutgoingTransfer> {
+  return http.post(`/groups/${groupId}/payouts`, data);
+}
+
+export function cancelPayout(payoutId: string): Promise<OutgoingTransfer> {
+  return http.post(`/payouts/${payoutId}/cancel`);
+}
+
+export function getNigerianBanks(): Promise<NigerianBank[]> {
+  return http.get('/banks');
+}
+
+export function getTransferPinStatus(): Promise<{ hasPin: boolean }> {
+  return http.get('/me/transfer-pin');
+}
+
+export function setTransferPin(pin: string, currentPin?: string): Promise<{ success: boolean }> {
+  return http.post('/me/transfer-pin', { pin, currentPin });
+}
+
+export function changeTransferPin(currentPin: string, newPin: string): Promise<{ success: boolean }> {
+  return http.put('/me/transfer-pin', { currentPin, newPin });
+}
 
 // ── RSVP team sheet ──
 
