@@ -48,29 +48,34 @@ export class MailService {
     await this.transporter.sendMail({ from: this.from, to, subject: email.subject, html: email.html, text: email.text });
   }
 
+  /** Banner images live in the web app's public/email folder. */
+  private get assets() {
+    return this.appUrl('/email');
+  }
+
   private appUrl(path: string) {
     return `${this.config.get('APP_URL', 'http://localhost:3000')}${path}`;
   }
 
   sendPasswordReset(to: string, name: string, token: string) {
-    return this.send(to, passwordResetEmail({ name, resetUrl: this.appUrl(`/reset-password?token=${token}`) }));
+    return this.send(to, passwordResetEmail({ assets: this.assets, name, resetUrl: this.appUrl(`/reset-password?token=${token}`) }));
   }
 
   sendEmailVerification(to: string, name: string, token: string) {
-    return this.send(to, verifyEmailEmail({ name, verifyUrl: this.appUrl(`/verify-email?token=${token}`) }));
+    return this.send(to, verifyEmailEmail({ assets: this.assets, name, verifyUrl: this.appUrl(`/verify-email?token=${token}`) }));
   }
 
   sendMemberInvite(to: string, name: string, orgName: string, tempPassword: string) {
-    return this.send(to, memberInviteEmail({ name, orgName, tempPassword, loginUrl: this.appUrl('/signin') }));
+    return this.send(to, memberInviteEmail({ assets: this.assets, name, orgName, tempPassword, loginUrl: this.appUrl('/signin') }));
   }
 
   /** The code a player needs to set or reset their password. */
   sendPlayerCode(to: string, name: string, code: string) {
-    return this.send(to, playerCodeEmail({ name, code }));
+    return this.send(to, playerCodeEmail({ assets: this.assets, name, code }));
   }
 
   /** A player notification (receipt, reminder, "who's in?"…) as an email. `path` is a route in the app. */
   sendNotice(to: string, notice: { name: string; clubName: string; kind: string; title: string; body: string; path?: string }) {
-    return this.send(to, noticeEmail({ ...notice, url: notice.path ? this.appUrl(notice.path) : undefined }));
+    return this.send(to, noticeEmail({ ...notice, assets: this.assets, url: notice.path ? this.appUrl(notice.path) : undefined }));
   }
 }

@@ -3,7 +3,9 @@
  * something the recipient (or their organiser) just did — and share one layout.
  *
  * Email clients ignore stylesheets and flexbox, so the layout is tables with
- * inline styles and no images.
+ * inline styles. The one image is the banner under the wordmark: the app's own
+ * illustrations, rendered to PNG (and one animated GIF) by
+ * apps/web/scripts/email-art.tsx and served by the web app at /email/*.
  */
 
 export interface EmailContent {
@@ -18,6 +20,26 @@ const volt = '#d4f53c';
 const pitch = '#1f743a';
 const chalk = '#f5f3ea';
 const muted = '#767365';
+const volt300 = '#e3fb6c';
+const night = '#0d331c';
+
+/**
+ * Banner artwork. `background` is what shows while the image loads, or if the
+ * reader's email app blocks images — it matches the image's own background.
+ */
+const banners = {
+  stadium: { file: 'stadium.png', background: night },
+  paid: { file: 'paid.gif', background: volt300 },
+  kitty: { file: 'kitty.png', background: volt300 },
+  squad: { file: 'squad.png', background: volt300 },
+  tactics: { file: 'tactics.png', background: volt300 },
+  trophy: { file: 'trophy.png', background: volt300 },
+} as const;
+type Banner = keyof typeof banners;
+
+/** Every image the emails link to — each must exist in apps/web/public/email. */
+export const bannerFiles = Object.values(banners).map((b) => b.file);
+
 const font = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif`;
 
 /** Names, club names and messages come from users — never trust them as HTML. */
@@ -31,6 +53,9 @@ export function escapeHtml(value: string) {
 }
 
 interface Layout {
+  /** Where the banner images are served from, e.g. https://pitchaside.app/email */
+  assets: string;
+  banner: Banner;
   subject: string;
   /** Inbox preview line. */
   preheader: string;
@@ -71,6 +96,12 @@ function layout(l: Layout): EmailContent {
 
   const note = l.note ? `<p style="margin:0 0 14px;font-size:13px;line-height:1.5;color:${muted};">${escapeHtml(l.note)}</p>` : '';
 
+  const art = banners[l.banner];
+  // Decorative, so alt is empty: nothing is lost (and no stray caption shows) when images are off.
+  const banner = `<tr><td style="background:${art.background};font-size:0;line-height:0;">
+        <img src="${escapeHtml(`${l.assets.replace(/\/+$/, '')}/${art.file}`)}" width="520" height="150" alt="" style="display:block;width:100%;height:auto;border:0;outline:none;">
+      </td></tr>`;
+
   const html = `<!doctype html>
 <html lang="en">
 <head>
@@ -86,6 +117,7 @@ function layout(l: Layout): EmailContent {
       <tr><td style="background:${ink};border-radius:20px 20px 0 0;padding:18px 28px;">
         <span style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#ffffff;">Pitch<span style="color:${volt};">Aside</span></span>
       </td></tr>
+      ${banner}
       <tr><td style="background:#ffffff;border-radius:0 0 20px 20px;padding:28px;">
         <p style="margin:0 0 6px;font-size:14px;color:${muted};">${escapeHtml(l.greeting)}</p>
         <h1 style="margin:0 0 16px;font-size:22px;line-height:1.25;font-weight:800;letter-spacing:-0.02em;color:${ink};">${escapeHtml(l.heading)}</h1>
@@ -124,8 +156,10 @@ function layout(l: Layout): EmailContent {
 
 // ── Organiser account emails ──
 
-export function passwordResetEmail(input: { name: string; resetUrl: string }): EmailContent {
+export function passwordResetEmail(input: { assets: string; name: string; resetUrl: string }): EmailContent {
   return layout({
+    assets: input.assets,
+    banner: 'stadium',
     subject: 'Reset your PitchAside password',
     preheader: 'Use this link to choose a new password. It expires in 1 hour.',
     greeting: `Hi ${input.name},`,
@@ -137,8 +171,10 @@ export function passwordResetEmail(input: { name: string; resetUrl: string }): E
   });
 }
 
-export function verifyEmailEmail(input: { name: string; verifyUrl: string }): EmailContent {
+export function verifyEmailEmail(input: { assets: string; name: string; verifyUrl: string }): EmailContent {
   return layout({
+    assets: input.assets,
+    banner: 'stadium',
     subject: 'Verify your PitchAside email',
     preheader: 'Confirm this is your email address to finish setting up your account.',
     greeting: `Hi ${input.name},`,
@@ -150,8 +186,10 @@ export function verifyEmailEmail(input: { name: string; verifyUrl: string }): Em
   });
 }
 
-export function memberInviteEmail(input: { name: string; orgName: string; tempPassword: string; loginUrl: string }): EmailContent {
+export function memberInviteEmail(input: { assets: string; name: string; orgName: string; tempPassword: string; loginUrl: string }): EmailContent {
   return layout({
+    assets: input.assets,
+    banner: 'stadium',
     subject: `You've been added to ${input.orgName} on PitchAside`,
     preheader: `Sign in to help run ${input.orgName}.`,
     greeting: `Hi ${input.name},`,
@@ -170,8 +208,10 @@ export function memberInviteEmail(input: { name: string; orgName: string; tempPa
 // ── Player account emails ──
 
 /** The 6-digit code a player types in to set their first password or reset a forgotten one. */
-export function playerCodeEmail(input: { name: string; code: string }): EmailContent {
+export function playerCodeEmail(input: { assets: string; name: string; code: string }): EmailContent {
   return layout({
+    assets: input.assets,
+    banner: 'stadium',
     subject: `${input.code} is your PitchAside code`,
     preheader: 'Enter this code to choose your password. It expires in 10 minutes.',
     greeting: `Hi ${input.name},`,
@@ -184,6 +224,21 @@ export function playerCodeEmail(input: { name: string; code: string }): EmailCon
 }
 
 // ── Player notifications (the same notices we send as push) ──
+
+/** The artwork for each kind of notice. Only the payment receipt celebrates (the animated one). */
+const noticeBanners: Record<string, Banner> = {
+  receipt: 'paid',
+  payment_reminder: 'kitty',
+  dues_open: 'kitty',
+  dues_reminder: 'kitty',
+  rsvp_open: 'squad',
+  rsvp_nudge: 'squad',
+  rsvp_promoted: 'squad',
+  reminder_eve: 'tactics',
+  reminder_kickoff: 'tactics',
+  vote_open: 'trophy',
+  vote_nudge: 'trophy',
+};
 
 /** What the button says for each kind of notice. */
 const noticeActions: Record<string, string> = {
@@ -201,6 +256,7 @@ const noticeActions: Record<string, string> = {
 };
 
 export function noticeEmail(input: {
+  assets: string;
   name: string;
   clubName: string;
   kind: string;
@@ -215,6 +271,8 @@ export function noticeEmail(input: {
     .map((line) => line.trim())
     .filter(Boolean);
   return layout({
+    assets: input.assets,
+    banner: noticeBanners[input.kind] ?? 'stadium',
     subject: input.title,
     preheader: paragraphs[0] ?? input.title,
     greeting: `Hi ${input.name},`,
