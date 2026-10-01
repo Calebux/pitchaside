@@ -25,7 +25,7 @@ function created() {
 
 /** What the account-creation call answers; the prefix lookup before it always succeeds. */
 let accountResponse: unknown;
-const prefixes = { ok: true, status: 200, json: async () => ({ data: [{ _id: 'pfx-1', account_number: '1008618754', status: 'active' }] }) };
+const prefixes = { ok: true, status: 200, json: async () => ({ data: [{ prefix: 'PITCH', prefix_id: 'pfx-1', status: 'active' }] }) };
 
 /** The createAccount request itself (a prefix lookup may come first). */
 const accountCall = () => fetchMock.mock.calls.find(([url]) => String(url).endsWith('/accounts/prefix'))!;

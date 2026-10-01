@@ -18,6 +18,7 @@ import { Session, SessionKind, SessionStatus } from '../sessions/entities/sessio
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
 import { ConfigService } from '@nestjs/config';
+import { normaliseWebhookUrl, webhookUrlsFor } from './webhook-url';
 import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
@@ -436,13 +437,22 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     }
 
     const info = await this.pulse.getWebhookInfo();
-    const expectedUrl = `${this.config.get('APP_URL', 'https://www.pitchaside.com').replace(/\/+$/, '')}/api/pulse/webhook`;
+    const accepted = webhookUrlsFor({
+      appUrl: this.config.get<string>('APP_URL'),
+      apiPublicUrl: this.config.get<string>('API_PUBLIC_URL'),
+      railwayDomain: this.config.get<string>('RAILWAY_PUBLIC_DOMAIN'),
+    });
+    const urlOk = accepted.includes(normaliseWebhookUrl(info.url));
+    // Prefer showing the address Pulse already uses when it's a valid one.
+    const expectedUrl = urlOk ? normaliseWebhookUrl(info.url) : accepted[0];
     const ourSecretTail = (this.config.get('PULSE_WEBHOOK_SECRET', '') as string).slice(-4);
     const secretMatch = !!ourSecretTail && info.secretTail === ourSecretTail;
     const hasTransferEvents = info.events.some((e) => e.startsWith('transfer'));
 
     const problems: string[] = [];
-    if (info.url !== expectedUrl) problems.push(`Webhook URL mismatch: Pulse has "${info.url}", expected "${expectedUrl}"`);
+    if (!urlOk) {
+      problems.push(`Webhook URL mismatch: Pulse sends to "${info.url || '(none)'}", which doesn't reach this API. Use one of: ${accepted.join(', ')}`);
+    }
     if (!hasTransferEvents) problems.push(`Pulse is not sending transfer events (events: ${info.events.join(', ') || 'none'})`);
     if (!secretMatch) problems.push(`Webhook secret mismatch (Pulse ends with "${info.secretTail}", ours ends with "${ourSecretTail || '(unset)'}")`);
 
