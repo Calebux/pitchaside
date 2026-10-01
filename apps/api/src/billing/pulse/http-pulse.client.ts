@@ -96,12 +96,11 @@ export class HttpPulseClient implements PulseClient {
     const json = (await this.getPrefixes()) as Record<string, any>;
     const prefixes = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
 
-    const active = prefixes.find((p: any) => p.account_number === '1008618754')
-      ?? prefixes.find((p: any) => p.status === 'active')
+    const active = prefixes.find((p: any) => p.prefix === 'PITCH')
       ?? prefixes[0];
     if (!active) throw new Error('No active prefix found on PulseMFB account');
 
-    this.cachedPrefixId = String(active._id ?? active.id ?? active.prefix_id);
+    this.cachedPrefixId = String(active.prefix_id);
     return this.cachedPrefixId;
   }
 
