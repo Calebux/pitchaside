@@ -238,7 +238,7 @@ export function getPlayersPaginated(
 
 // ── Profile / Auth ──
 
-export function updateProfile(data: { firstName: string; lastName: string; phone?: string }): Promise<any> {
+export function updateProfile(data: { firstName: string; lastName: string; phone?: string; bvn?: string }): Promise<any> {
   return http.patch('/auth/profile', data);
 }
 

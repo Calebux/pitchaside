@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -30,9 +31,6 @@ import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
-import { PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
-import { Inject } from '@nestjs/common';
-import { HttpPulseClient } from './pulse/http-pulse.client';
 
 /** Admin endpoints for a group's account, invite link, transfers and payouts. */
 @UseGuards(JwtAuthGuard)
@@ -61,7 +59,11 @@ export class BillingController {
   /** Retry account provisioning (e.g. if PulseMFB was down when the group was created). */
   @Post('groups/:id/account')
   async provisionAccount(@Param('id') id: string, @CurrentUser() user: User) {
-    const billing = await this.billing.createGroupAccount(id, user.organizationId);
+    const fresh = await this.users.findById(user.id);
+    if (!fresh?.bvn) {
+      throw new BadRequestException('A BVN is required before creating a collection account. Please add your BVN in settings first.');
+    }
+    const billing = await this.billing.createGroupAccount(id, user.organizationId, fresh.bvn);
     return { ...billing, link: this.link(billing.inviteCode) };
   }
 
@@ -166,15 +168,7 @@ export class BillingController {
 export class PublicBillingController {
   constructor(
     private readonly billing: BillingService,
-    @Inject(PULSE_CLIENT) private readonly pulse: PulseClient,
   ) {}
-
-  /** Temporary: inspect Pulse prefixes. Remove after setup. */
-  @Get('pulse/prefixes')
-  getPrefixes() {
-    if (this.pulse instanceof HttpPulseClient) return this.pulse.getPrefixes();
-    return { message: 'Only available in live mode' };
-  }
 
   @Get('public/groups/:code')
   getGroup(@Param('code') code: string) {

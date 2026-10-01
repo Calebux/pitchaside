@@ -15,4 +15,9 @@ export class UpdateProfileDto {
   @IsOptional()
   @Matches(/^$|^[+\d][\d\s\-().]{6,}$/, { message: 'Phone number format is invalid' })
   phone?: string;
+
+  /** Bank Verification Number — required before creating a group collection account. */
+  @IsOptional()
+  @Matches(/^\d{11}$/, { message: 'BVN must be exactly 11 digits' })
+  bvn?: string;
 }

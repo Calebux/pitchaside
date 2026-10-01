@@ -106,7 +106,7 @@ export class AuthService {
     return { message: 'If that email exists, a reset link has been sent.' };
   }
 
-  async updateProfile(userId: string, data: { firstName: string; lastName: string; phone?: string }) {
+  async updateProfile(userId: string, data: { firstName: string; lastName: string; phone?: string; bvn?: string }) {
     const user = await this.usersService.updateProfile(userId, data);
     if (!user) throw new UnauthorizedException('User not found');
     return this.sanitizeUser(user, user.organization);
@@ -237,6 +237,7 @@ export class AuthService {
       lastName: user.lastName,
       email: user.email,
       phone: user.phone ?? null,
+      bvn: user.bvn ?? null,
       role: user.role,
       organizationId: user.organizationId,
       organization: organization

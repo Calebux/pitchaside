@@ -12,10 +12,12 @@ import {
   provisionGroupAccount,
   regenerateGroupInvite,
   simulateTransfer,
+  updateProfile,
   type BankTransfer,
   type GroupBilling,
   type ISessionWithDetails,
 } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
 
 function copy(text: string, toast: ReturnType<typeof useToast>, label: string) {
@@ -56,11 +58,41 @@ export function GroupAccountCard({
   onChange: (b: GroupBilling) => void;
 }) {
   const toast = useToast();
+  const { user, refreshUser } = useAuth();
   const [busy, setBusy] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
+  const [bvnInput, setBvnInput] = useState('');
+  const [showBvnPrompt, setShowBvnPrompt] = useState(false);
   const account = billing.account;
 
   async function retryAccount() {
+    // If the user has no BVN on file, show the inline BVN input first
+    if (!user?.bvn) {
+      setShowBvnPrompt(true);
+      return;
+    }
+    await doProvision();
+  }
+
+  async function handleBvnSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!/^\d{11}$/.test(bvnInput)) {
+      toast.error('BVN must be exactly 11 digits');
+      return;
+    }
+    setBusy(true);
+    try {
+      await updateProfile({ firstName: user!.firstName, lastName: user!.lastName, bvn: bvnInput });
+      await refreshUser();
+      setShowBvnPrompt(false);
+      await doProvision();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save BVN');
+      setBusy(false);
+    }
+  }
+
+  async function doProvision() {
     setBusy(true);
     try {
       const b = await provisionGroupAccount(groupId);
@@ -169,13 +201,47 @@ export function GroupAccountCard({
               <p className="text-sm text-white/70">
                 The collection account isn&apos;t ready yet. This usually means Payrep MFB didn&apos;t respond when the group was created.
               </p>
-              <button
-                onClick={retryAccount}
-                disabled={busy}
-                className="mt-4 px-4 py-2.5 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 disabled:opacity-50 transition-colors"
-              >
-                {busy ? 'Creating…' : 'Create account'}
-              </button>
+              {showBvnPrompt ? (
+                <form onSubmit={handleBvnSubmit} className="mt-4 space-y-3">
+                  <p className="text-xs text-white/80">
+                    A BVN (Bank Verification Number) is required to open the collection account.
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d{11}"
+                    maxLength={11}
+                    value={bvnInput}
+                    onChange={(e) => setBvnInput(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    placeholder="Enter your 11-digit BVN"
+                    className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-volt-400"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={busy || bvnInput.length !== 11}
+                      className="px-4 py-2.5 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 disabled:opacity-50 transition-colors"
+                    >
+                      {busy ? 'Creating…' : 'Save & create account'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowBvnPrompt(false)}
+                      className="px-4 py-2.5 text-sm font-bold text-white/70 hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  onClick={retryAccount}
+                  disabled={busy}
+                  className="mt-4 px-4 py-2.5 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 disabled:opacity-50 transition-colors"
+                >
+                  {busy ? 'Creating…' : 'Create account'}
+                </button>
+              )}
             </div>
           )}
         </div>

@@ -129,6 +129,7 @@ export interface IUser {
   lastName: string;
   email: string;
   phone?: string | null;
+  bvn?: string | null;
   role: UserRole;
   organizationId: string;
   organization?: IOrganization;

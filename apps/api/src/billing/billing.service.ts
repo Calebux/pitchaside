@@ -152,13 +152,14 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return group;
   }
 
-  async provisionAccount(group: Group): Promise<Group> {
+  async provisionAccount(group: Group, bvn?: string): Promise<Group> {
     const contact = await this.organiserContact(group.organizationId);
     const account = await this.pulse.createAccount({
       reference: group.id,
       accountName: accountNameFor(group.name),
       email: contact?.email,
       phone: contact?.phone ?? undefined,
+      bvn,
     });
     group.accountNumber = account.accountNumber;
     group.accountName = account.accountName;
@@ -178,11 +179,11 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
    * The organiser's "Create account" button. Unlike setupGroup, a failure comes back to
    * them with Pulse's reason, so it can be fixed instead of silently retried.
    */
-  async createGroupAccount(groupId: string, organizationId: string) {
+  async createGroupAccount(groupId: string, organizationId: string, bvn?: string) {
     const group = await this.findGroup(groupId, organizationId);
     if (!group.accountNumber) {
       try {
-        await this.provisionAccount(group);
+        await this.provisionAccount(group, bvn);
       } catch (err: any) {
         this.logger.warn(`Account provisioning failed for group ${group.id}: ${err.message}`);
         throw new BadGatewayException(`Couldn't create the account. ${err.message}`);
@@ -438,7 +439,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Money into one of our group accounts.
-    if (credit && (await this.groupsRepo.exists({ where: { accountNumber: credit.accountNumber } }))) {
+    // Compare the last 10 digits: Pulse may format the account number differently in webhooks vs account creation.
+    if (credit && (await this.groupsRepo.createQueryBuilder('g')
+        .where('RIGHT(g.account_number, 10) = :acct', { acct: credit.accountNumber })
+        .getExists())) {
       const result = await this.recordTransfer(credit);
       note('recorded');
       log(`credit of ${credit.amount} to ${credit.accountNumber} → ${result.status}${'duplicate' in result ? ' (duplicate)' : ''}`);
@@ -472,7 +476,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     if (seen) return { received: true, duplicate: true, status: seen.status };
 
-    const group = await this.groupsRepo.findOne({ where: { accountNumber: incoming.accountNumber } });
+    const group = await this.groupsRepo.createQueryBuilder('g')
+      .where('RIGHT(g.account_number, 10) = :acct', { acct: incoming.accountNumber })
+      .getOne();
     const transfer = await this.transfersRepo.save(
       this.transfersRepo.create({
         providerTransactionId: incoming.providerTransactionId,

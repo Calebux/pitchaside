@@ -255,7 +255,7 @@ export class HttpPulseClient implements PulseClient {
     const account = d.credit_account ?? d.creditAccount ?? d.account_number ?? d.accountNumber ?? d.beneficiary_account_number;
     const amount = Number(d.amount);
     const status = String(d.status ?? 'completed').toLowerCase();
-    if (!account || !(amount > 0) || /fail|revers|declin|pending/.test(status)) return null;
+    if (!account || !(amount > 0) || /fail|revers|declin/.test(status)) return null;
 
     return {
       providerTransactionId: String(d.reference ?? d.transaction_reference ?? d.session_id ?? d.id),
