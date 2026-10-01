@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmptyState } from '@/components/empty-state';
@@ -8,6 +8,7 @@ import { BallIcon } from '@/components/illustrations';
 import {
   assignTransfer,
   formatCurrency,
+  getWebhookStatus,
   ignoreTransfer,
   provisionGroupAccount,
   recordManualTransfer,
@@ -17,6 +18,7 @@ import {
   type BankTransfer,
   type GroupBilling,
   type ISessionWithDetails,
+  type WebhookStatus,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
@@ -327,6 +329,11 @@ export function TransfersPanel({
   const [simulating, setSimulating] = useState(false);
   const [rec, setRec] = useState({ amount: '', senderName: '', narration: '' });
   const [recording, setRecording] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
+
+  useEffect(() => {
+    if (!mockMode) getWebhookStatus().then(setWebhookStatus).catch(() => {});
+  }, [mockMode]);
 
   const pendingOptions = sessions
     .filter((s) => s.status !== 'cancelled')
@@ -438,6 +445,20 @@ export function TransfersPanel({
             </button>
           </div>
         </form>
+      )}
+
+      {webhookStatus && !webhookStatus.ok && (
+        <div className="bg-red-50 border border-red-200 rounded-3xl p-4 space-y-2">
+          <p className="text-sm font-bold text-red-800">Webhook setup problem</p>
+          <p className="text-xs text-red-700">
+            Payrep isn&apos;t sending payment notices to PitchAside. Transfers won&apos;t appear automatically until this is fixed.
+          </p>
+          <ul className="text-xs text-red-600 list-disc pl-4 space-y-1">
+            {webhookStatus.problems.map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <form onSubmit={handleRecord} className="bg-white rounded-3xl border border-gray-100 shadow-card p-4 space-y-3">

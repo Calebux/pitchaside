@@ -149,6 +149,12 @@ export class BillingController {
     return this.billing.getNigerianBanks();
   }
 
+  /** Check whether Pulse's webhook is pointed at us with the right secret and events. */
+  @Get('webhook-status')
+  webhookStatus() {
+    return this.billing.checkWebhookSetup();
+  }
+
   // ── Transfer PIN ──
 
   @Get('me/transfer-pin')

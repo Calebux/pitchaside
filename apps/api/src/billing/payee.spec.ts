@@ -29,7 +29,7 @@ function setup(groupOverrides: Partial<Group> = {}) {
 
   const service = new BillingService(
     groupsRepo as any, {} as any, {} as any, {} as any, {} as any, {} as any,
-    payoutsRepo as any, pulse, {} as any, {} as any, usersService as any,
+    payoutsRepo as any, pulse, {} as any, {} as any, usersService as any, {} as any,
   );
   jest.spyOn(service, 'getGroupBalance').mockResolvedValue({ totalIn: 50_000, totalOut: 0, available: 50_000 } as any);
   return { service, group, saved, pulse, transferOut };

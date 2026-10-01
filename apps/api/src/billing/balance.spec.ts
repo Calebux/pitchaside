@@ -18,7 +18,7 @@ function setup(bankBalance: number | null, recordedIn = 0) {
     groupsRepo as any, {} as any, {} as any, {} as any, {} as any,
     { createQueryBuilder: sum(recordedIn) } as any,
     { createQueryBuilder: sum(0) } as any,
-    pulse, {} as any, {} as any, {} as any,
+    pulse, {} as any, {} as any, {} as any, {} as any,
   );
   return { service, pulse };
 }

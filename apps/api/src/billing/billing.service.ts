@@ -17,10 +17,12 @@ import { GroupMembership, MemberRole } from '../groups/entities/group-membership
 import { Session, SessionKind, SessionStatus } from '../sessions/entities/session.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
+import { ConfigService } from '@nestjs/config';
 import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
+import { HttpPulseClient } from './pulse/http-pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UsersService } from '../users/users.service';
@@ -108,6 +110,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     private paymentsService: PaymentsService,
     private notifications: NotificationsService,
     private usersService: UsersService,
+    private config: ConfigService,
   ) {}
 
   // ── Lifecycle: open new dues periods as time rolls over ──
@@ -418,6 +421,41 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  // ── Webhook diagnostics ──
+
+  async checkWebhookSetup(): Promise<{
+    ok: boolean;
+    pulseUrl: string;
+    expectedUrl: string;
+    events: string[];
+    secretMatch: boolean;
+    problems: string[];
+  }> {
+    if (!(this.pulse instanceof HttpPulseClient)) {
+      return { ok: true, pulseUrl: '(mock)', expectedUrl: '(mock)', events: [], secretMatch: true, problems: [] };
+    }
+
+    const info = await this.pulse.getWebhookInfo();
+    const expectedUrl = `${this.config.get('APP_URL', 'https://www.pitchaside.com').replace(/\/+$/, '')}/api/pulse/webhook`;
+    const ourSecretTail = (this.config.get('PULSE_WEBHOOK_SECRET', '') as string).slice(-4);
+    const secretMatch = !!ourSecretTail && info.secretTail === ourSecretTail;
+    const hasTransferEvents = info.events.some((e) => e.startsWith('transfer'));
+
+    const problems: string[] = [];
+    if (info.url !== expectedUrl) problems.push(`Webhook URL mismatch: Pulse has "${info.url}", expected "${expectedUrl}"`);
+    if (!hasTransferEvents) problems.push(`Pulse is not sending transfer events (events: ${info.events.join(', ') || 'none'})`);
+    if (!secretMatch) problems.push(`Webhook secret mismatch (Pulse ends with "${info.secretTail}", ours ends with "${ourSecretTail || '(unset)'}")`);
+
+    return {
+      ok: problems.length === 0,
+      pulseUrl: info.url,
+      expectedUrl,
+      events: info.events,
+      secretMatch,
+      problems,
+    };
+  }
+
   // ── Incoming transfers ──
 
   async handleWebhook(rawBody: string, signature: string | undefined, payload: unknown) {
@@ -514,10 +552,21 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       transfer.status = TransferStatus.MATCHED;
       transfer.playerId = playerId;
       transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+      // Prepend the player's PA reference so admins always see it in the narration.
+      const ref = await this.getPlayerRef(group.id, playerId);
+      if (ref && !transfer.narration?.includes(ref)) {
+        transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
+      }
       await this.transfersRepo.save(transfer);
     }
     if (transfer.status === TransferStatus.UNMATCHED) notifyUnmatched();
     return { received: true, status: transfer.status };
+  }
+
+  /** Look up a player's PA reference for a given group membership. */
+  private async getPlayerRef(groupId: string, playerId: string): Promise<string | null> {
+    const m = await this.membershipsRepo.findOne({ where: { groupId, playerId } });
+    return m?.paymentRef ?? null;
   }
 
   /** Reference in the narration wins; otherwise a unique full-name match on the sender. */
@@ -722,6 +771,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       transfer.status = TransferStatus.MATCHED;
       transfer.playerId = playerId;
       transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+      const ref = await this.getPlayerRef(group.id, playerId);
+      if (ref && !transfer.narration?.includes(ref)) {
+        transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
+      }
       await this.transfersRepo.save(transfer);
     }
     return transfer;

@@ -378,6 +378,19 @@ export interface PublicGroup {
   account: GroupAccount | null;
 }
 
+export interface WebhookStatus {
+  ok: boolean;
+  pulseUrl: string;
+  expectedUrl: string;
+  events: string[];
+  secretMatch: boolean;
+  problems: string[];
+}
+
+export function getWebhookStatus(): Promise<WebhookStatus> {
+  return http.get('/webhook-status');
+}
+
 export function getGroupBilling(groupId: string): Promise<GroupBilling> {
   return http.get(`/groups/${groupId}/billing`);
 }

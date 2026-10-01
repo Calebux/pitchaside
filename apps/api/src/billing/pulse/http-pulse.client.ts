@@ -219,6 +219,26 @@ export class HttpPulseClient implements PulseClient {
     return Number(d.available_balance ?? d.availableBalance ?? d.balance ?? 0);
   }
 
+  // ── Webhook diagnostics ──
+
+  async getWebhookInfo(): Promise<{ url: string; events: string[]; secretTail: string }> {
+    const path = '/api/v1/external-api/webhooks';
+    const res = await fetch(`${this.baseUrl}${path}`, {
+      method: 'GET',
+      headers: this.authHeaders('GET', path, ''),
+    });
+
+    if (!res.ok) throw new Error(`PulseMFB webhook info failed (${res.status}): ${await pulseReason(res)}`);
+
+    const json = (await res.json()) as Record<string, any>;
+    const d = json.data ?? json;
+    return {
+      url: String(d.webhook_url ?? ''),
+      events: Array.isArray(d.events) ? d.events : [],
+      secretTail: String(d.webhook_secret ?? '').slice(-4),
+    };
+  }
+
   // ── Webhook verification ──
 
   /**
