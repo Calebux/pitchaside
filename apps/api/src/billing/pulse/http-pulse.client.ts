@@ -79,9 +79,7 @@ export class HttpPulseClient implements PulseClient {
 
   private cachedPrefixId: string | null = null;
 
-  private async getPrefixId(): Promise<string> {
-    if (this.cachedPrefixId) return this.cachedPrefixId;
-
+  async getPrefixes(): Promise<unknown> {
     const path = '/api/v1/external-api/accounts/prefixes';
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'GET',
@@ -89,10 +87,14 @@ export class HttpPulseClient implements PulseClient {
     });
 
     if (!res.ok) throw new Error(`PulseMFB getPrefixes failed (${res.status}): ${await pulseReason(res)}`);
+    return res.json();
+  }
 
-    const json = (await res.json()) as Record<string, any>;
+  private async getPrefixId(): Promise<string> {
+    if (this.cachedPrefixId) return this.cachedPrefixId;
+
+    const json = (await this.getPrefixes()) as Record<string, any>;
     const prefixes = Array.isArray(json.data) ? json.data : Array.isArray(json) ? json : [];
-    console.log('[Pulse] prefixes response:', JSON.stringify(json, null, 2));
 
     const active = prefixes.find((p: any) => p.account_number === '1008618754')
       ?? prefixes.find((p: any) => p.status === 'active')

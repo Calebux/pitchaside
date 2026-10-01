@@ -30,6 +30,9 @@ import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
+import { Inject } from '@nestjs/common';
+import { HttpPulseClient } from './pulse/http-pulse.client';
 
 /** Admin endpoints for a group's account, invite link, transfers and payouts. */
 @UseGuards(JwtAuthGuard)
@@ -161,7 +164,17 @@ export class BillingController {
 /** Unauthenticated endpoints: the shareable group link and the PulseMFB webhook. (Joining lives in player-portal.) */
 @Controller()
 export class PublicBillingController {
-  constructor(private readonly billing: BillingService) {}
+  constructor(
+    private readonly billing: BillingService,
+    @Inject(PULSE_CLIENT) private readonly pulse: PulseClient,
+  ) {}
+
+  /** Temporary: inspect Pulse prefixes. Remove after setup. */
+  @Get('pulse/prefixes')
+  getPrefixes() {
+    if (this.pulse instanceof HttpPulseClient) return this.pulse.getPrefixes();
+    return { message: 'Only available in live mode' };
+  }
 
   @Get('public/groups/:code')
   getGroup(@Param('code') code: string) {
