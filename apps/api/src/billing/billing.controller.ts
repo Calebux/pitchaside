@@ -83,6 +83,12 @@ export class BillingController {
     return this.billing.simulateTransfer(id, user.organizationId, dto);
   }
 
+  /** Manually record an incoming transfer that the webhook missed. */
+  @Post('groups/:id/transfers/record')
+  recordTransfer(@Param('id') id: string, @Body() dto: SimulateTransferDto, @CurrentUser() user: User) {
+    return this.billing.recordManualTransfer(id, user.organizationId, dto);
+  }
+
   @AllowTreasurer()
   @Post('transfers/:id/assign')
   assign(@Param('id') id: string, @Body() dto: AssignTransferDto, @CurrentUser() user: User) {

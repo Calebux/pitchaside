@@ -401,6 +401,13 @@ export function simulateTransfer(
   return http.post(`/groups/${groupId}/transfers/simulate`, data);
 }
 
+export function recordManualTransfer(
+  groupId: string,
+  data: { amount: number; senderName?: string; narration?: string },
+): Promise<BankTransfer> {
+  return http.post(`/groups/${groupId}/transfers/record`, data);
+}
+
 export function assignTransfer(transferId: string, paymentId: string): Promise<BankTransfer> {
   return http.post(`/transfers/${transferId}/assign`, { paymentId });
 }

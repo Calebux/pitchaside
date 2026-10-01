@@ -10,6 +10,7 @@ import {
   formatCurrency,
   ignoreTransfer,
   provisionGroupAccount,
+  recordManualTransfer,
   regenerateGroupInvite,
   simulateTransfer,
   updateProfile,
@@ -324,6 +325,8 @@ export function TransfersPanel({
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [sim, setSim] = useState({ amount: String(fee), senderName: '', narration: '' });
   const [simulating, setSimulating] = useState(false);
+  const [rec, setRec] = useState({ amount: '', senderName: '', narration: '' });
+  const [recording, setRecording] = useState(false);
 
   const pendingOptions = sessions
     .filter((s) => s.status !== 'cancelled')
@@ -367,6 +370,25 @@ export function TransfersPanel({
       toast.error(err.message || 'Simulation failed');
     } finally {
       setSimulating(false);
+    }
+  }
+
+  async function handleRecord(e: React.FormEvent) {
+    e.preventDefault();
+    setRecording(true);
+    try {
+      await recordManualTransfer(groupId, {
+        amount: Number(rec.amount),
+        senderName: rec.senderName || undefined,
+        narration: rec.narration || undefined,
+      });
+      await onRefresh();
+      toast.success('Transfer recorded');
+      setRec({ amount: '', senderName: '', narration: '' });
+    } catch (err: any) {
+      toast.error(err.message || 'Could not record transfer');
+    } finally {
+      setRecording(false);
     }
   }
 
@@ -417,6 +439,50 @@ export function TransfersPanel({
           </div>
         </form>
       )}
+
+      <form onSubmit={handleRecord} className="bg-white rounded-3xl border border-gray-100 shadow-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <svg className="w-5 h-5 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          <p className="text-sm font-bold text-ink">Record a transfer</p>
+        </div>
+        <p className="text-xs text-gray-500 -mt-1">
+          Manually log money that arrived but wasn&apos;t picked up by the webhook.
+        </p>
+        <div className="grid grid-cols-[110px_1fr] gap-2">
+          <input
+            type="number"
+            min={1}
+            placeholder="Amount"
+            value={rec.amount}
+            onChange={(e) => setRec({ ...rec, amount: e.target.value })}
+            className={input}
+            aria-label="Amount"
+          />
+          <input
+            placeholder="Sender name"
+            value={rec.senderName}
+            onChange={(e) => setRec({ ...rec, senderName: e.target.value })}
+            className={input}
+          />
+        </div>
+        <div className="flex gap-2">
+          <input
+            placeholder="Narration / reference"
+            value={rec.narration}
+            onChange={(e) => setRec({ ...rec, narration: e.target.value })}
+            className={input}
+          />
+          <button
+            type="submit"
+            disabled={recording || !Number(rec.amount)}
+            className="px-4 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 whitespace-nowrap transition-colors"
+          >
+            {recording ? 'Saving…' : 'Record'}
+          </button>
+        </div>
+      </form>
 
       {transfers.length === 0 ? (
         <EmptyState

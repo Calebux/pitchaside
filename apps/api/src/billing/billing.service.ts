@@ -684,6 +684,49 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return this.transfersRepo.save(transfer);
   }
 
+  /** Admin manually records an incoming transfer that the webhook missed. */
+  async recordManualTransfer(
+    groupId: string,
+    organizationId: string,
+    input: { amount: number; senderName?: string; narration?: string },
+  ) {
+    const group = await this.findGroup(groupId, organizationId);
+    const incoming: IncomingTransfer = {
+      providerTransactionId: `manual_${randomBytes(8).toString('hex')}`,
+      accountNumber: group.accountNumber ?? '',
+      amount: input.amount,
+      senderName: input.senderName,
+      narration: input.narration,
+      receivedAt: new Date(),
+      raw: { manual: true },
+    };
+
+    const transfer = await this.transfersRepo.save(
+      this.transfersRepo.create({
+        providerTransactionId: incoming.providerTransactionId,
+        groupId: group.id,
+        accountNumber: incoming.accountNumber,
+        amount: incoming.amount,
+        senderName: incoming.senderName,
+        narration: incoming.narration,
+        receivedAt: incoming.receivedAt,
+        raw: incoming.raw as object,
+        status: TransferStatus.UNMATCHED,
+      }),
+    );
+
+    await this.ensureCurrentPeriod(group);
+    const playerId = await this.identifyPayer(group.id, incoming);
+    if (playerId) {
+      const { settled } = await this.applyCredit(group.id, playerId, incoming.amount);
+      transfer.status = TransferStatus.MATCHED;
+      transfer.playerId = playerId;
+      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+      await this.transfersRepo.save(transfer);
+    }
+    return transfer;
+  }
+
   /** Dev/demo only: pretend PulseMFB sent us a credit for this group. */
   async simulateTransfer(
     groupId: string,
