@@ -52,12 +52,15 @@ export function GroupAccountCard({
   groupName,
   fee,
   billing,
+  balance,
   onChange,
 }: {
   groupId: string;
   groupName: string;
   fee: number;
   billing: GroupBilling;
+  /** What's in the account now (the bank's figure when we can get it); null while unknown. */
+  balance?: number | null;
   onChange: (b: GroupBilling) => void;
 }) {
   const toast = useToast();
@@ -174,6 +177,13 @@ export function GroupAccountCard({
                 </span>
               </button>
               <p className="text-sm text-white/60 mt-2 truncate">{account.accountName}</p>
+
+              {balance != null && (
+                <div className="mt-4 flex w-fit items-baseline gap-2 rounded-xl bg-white/10 px-3 py-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-white/60">Balance</span>
+                  <span className="font-display text-2xl font-extrabold text-volt-300 tabular-nums leading-none">{formatCurrency(balance)}</span>
+                </div>
+              )}
 
               {billing.currentPeriod && (
                 <p className="mt-4 inline-flex items-center gap-2 text-xs text-white/70">

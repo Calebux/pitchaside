@@ -26,6 +26,7 @@ import {
   deleteGroup,
   updateGroup,
   formatCurrency,
+  getGroupBalance,
   getGroupBilling,
   getGroupTable,
   getGroupTransfers,
@@ -61,6 +62,7 @@ export default function GroupDetailPage() {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [billing, setBilling] = useState<GroupBilling | null>(null);
   const [transfers, setTransfers] = useState<BankTransfer[]>([]);
+  const [balance, setBalance] = useState<number | null>(null);
 
   // Add member state
   const [showAddMember, setShowAddMember] = useState(false);
@@ -110,15 +112,22 @@ export default function GroupDetailPage() {
       .finally(() => setLoading(false));
     // Billing loads separately so a PulseMFB hiccup never blocks the page.
     getGroupBilling(id).then(setBilling).catch(() => {});
+    getGroupBalance(id).then((b) => setBalance(b.available)).catch(() => {});
     getGroupTransfers(id).then(setTransfers).catch(() => {});
     getGroupTable(id).then(setTable).catch(() => {});
   }, [id, router]);
 
   async function refreshPayments() {
-    const [s, t, b] = await Promise.all([getSessions(id), getGroupTransfers(id), getGroupBilling(id)]);
+    const [s, t, b, bal] = await Promise.all([
+      getSessions(id),
+      getGroupTransfers(id),
+      getGroupBilling(id),
+      getGroupBalance(id).catch(() => null),
+    ]);
     setSessions(s);
     setTransfers(t);
     setBilling(b);
+    if (bal) setBalance(bal.available);
   }
 
   function startEdit() {
@@ -455,6 +464,7 @@ export default function GroupDetailPage() {
           groupName={group.name}
           fee={Number(group.feePerPlayer)}
           billing={billing}
+          balance={balance}
           onChange={setBilling}
         />
       )}
