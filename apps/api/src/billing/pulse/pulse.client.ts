@@ -47,6 +47,7 @@ export interface TransferOutInput {
   debitAccountNumber: string;
   beneficiaryAccountNumber: string;
   beneficiaryBankCode: string;
+  beneficiaryBankName: string;
   amount: number;
   narration?: string;
   /** Our unique reference for idempotency. */
