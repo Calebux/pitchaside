@@ -33,8 +33,25 @@ import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
 import { paidByTransfer, refundToCredit } from '../payments/credit';
 
-/** Pulse MFB flat fee per incoming transfer; added back so the stored amount matches what the player sent. */
-const INCOMING_FEE = 4;
+/**
+ * Pulse MFB charges 2.5% per incoming transfer, min ₦2, max ₦25.
+ * The webhook reports the net amount (after their fee). This reverses
+ * the fee so we store what the player actually sent.
+ *
+ *   fee(gross) = clamp(gross × 0.025, 2, 25)
+ *   net = gross − fee
+ *
+ * Reversed:
+ *   net > 975  → gross = net + 25   (fee was capped at ₦25)
+ *   net ≥ 78   → gross = net / 0.975 (fee was 2.5%)
+ *   net < 78   → gross = net + 2    (fee was floored at ₦2)
+ */
+function grossAmount(net: number): number {
+  if (net > 975) return Math.round(net + 25);
+  if (net >= 78) return Math.round(net / 0.975);
+  return Math.round(net + 2);
+}
+
 /** PitchAside service fee per outbound payout, transferred to the platform account. */
 const PLATFORM_FEE = 350;
 
@@ -552,8 +569,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     if (seen) return { received: true, duplicate: true, status: seen.status };
 
-    // Pulse deducts a flat ₦4 per credit; add it back so the stored amount matches what the player sent.
-    incoming.amount += INCOMING_FEE;
+    // Pulse takes 2.5% (min ₦2, max ₦25); reverse it so we store what the player sent.
+    incoming.amount = grossAmount(incoming.amount);
 
     const group = await this.groupsRepo.createQueryBuilder('g')
       .where('RIGHT(g.account_number, 10) = :acct', { acct: incoming.accountNumber })
