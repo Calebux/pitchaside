@@ -72,6 +72,8 @@ export interface PulseClient {
   createAccount(input: CreateAccountInput): Promise<ProvisionedAccount>;
   /** Returns true when the webhook signature is valid for the raw body. */
   verifyWebhook(rawBody: string, signature: string | undefined): boolean;
+  /** Re-reads the webhook secret from the provider, where it can; true when one is known. */
+  refreshWebhookSecret?(): Promise<boolean>;
   /** Maps the provider's webhook payload to our shape; null if it isn't a credit. */
   parseWebhook(payload: unknown): IncomingTransfer | null;
   /** Verify a recipient's account name via NIBSS. */

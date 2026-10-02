@@ -144,6 +144,27 @@ describe('HttpPulseClient webhooks', () => {
     expect(client.verifyWebhook(raw, undefined)).toBe(false);
   });
 
+  it("accepts webhooks signed with the secret Pulse's API reports, even when PULSE_WEBHOOK_SECRET is stale", async () => {
+    // Its own instance: the learnt secret and the once-a-minute limit are per client.
+    const c = new HttpPulseClient({ baseUrl: 'https://pulse.example.test', publicKey: 'pk', privateKey: 'sk', webhookSecret: 'stale_secret' });
+    const raw = '{"event":"transfer.completed","data":{"amount":500}}';
+    const signed = createHmac('sha256', 'pulse_secret_cbf3').update(raw).digest('hex');
+    expect(c.verifyWebhook(raw, signed)).toBe(false);
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: { webhook_url: 'https://x/api/pulse/webhook', events: ['transfer.completed'], webhook_secret: 'pulse_secret_cbf3' } }),
+    });
+    await expect(c.refreshWebhookSecret()).resolves.toBe(true);
+    expect(c.verifyWebhook(raw, signed)).toBe(true);
+    expect(c.verifyWebhook(raw, createHmac('sha256', 'stale_secret').update(raw).digest('hex'))).toBe(true);
+
+    // A second refresh within the minute doesn't call Pulse again.
+    await c.refreshWebhookSecret();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('reads the documented transfer.completed payload as a credit', () => {
     const credit = client.parseWebhook({
       event: 'transfer.completed',

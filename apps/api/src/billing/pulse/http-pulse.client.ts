@@ -48,6 +48,9 @@ export class HttpPulseClient implements PulseClient {
   readonly mode = 'live' as const;
 
   private readonly baseUrl: string;
+  /** The secret Pulse signs webhooks with, as its API reports it; see refreshWebhookSecret. */
+  private pulseWebhookSecret = '';
+  private secretFetchedAt = 0;
 
   constructor(private readonly config: HttpPulseConfig) {
     // Every path below starts with /api/v1/external-api, so the base is just the host. Accept a
@@ -232,6 +235,8 @@ export class HttpPulseClient implements PulseClient {
 
     const json = (await res.json()) as Record<string, any>;
     const d = json.data ?? json;
+    if (d.webhook_secret) this.pulseWebhookSecret = String(d.webhook_secret);
+    this.secretFetchedAt = Date.now();
     return {
       url: String(d.webhook_url ?? ''),
       events: Array.isArray(d.events) ? d.events : [],
@@ -239,11 +244,32 @@ export class HttpPulseClient implements PulseClient {
     };
   }
 
+  /**
+   * Learns the webhook secret from Pulse's API. Its dashboard never shows that secret (the
+   * "API Key Hash" there is something else), so PULSE_WEBHOOK_SECRET is easy to get wrong.
+   * At most once a minute; true when a secret is known afterwards.
+   */
+  async refreshWebhookSecret(): Promise<boolean> {
+    if (Date.now() - this.secretFetchedAt < 60_000) return !!this.pulseWebhookSecret;
+    try {
+      await this.getWebhookInfo();
+    } catch {
+      this.secretFetchedAt = Date.now();
+    }
+    return !!this.pulseWebhookSecret;
+  }
+
+  /** Whether webhooks are being checked against the secret Pulse reported, not only ours. */
+  get knowsPulseWebhookSecret() {
+    return !!this.pulseWebhookSecret;
+  }
+
   // ── Webhook verification ──
 
   /**
    * Pulse's docs sign JSON.stringify(parsed body), which differs from the raw bytes
-   * if the body was sent with other spacing, so accept a signature over either.
+   * if the body was sent with other spacing, so accept a signature over either. The secret
+   * may be PULSE_WEBHOOK_SECRET or the one Pulse's API reported.
    */
   verifyWebhook(rawBody: string, signature: string | undefined): boolean {
     if (!signature) return false;
@@ -254,10 +280,13 @@ export class HttpPulseClient implements PulseClient {
     } catch {
       /* not JSON — only the raw form can match */
     }
-    return candidates.some((body) => {
-      const expected = Buffer.from(createHmac('sha256', this.config.webhookSecret).update(body).digest('hex'));
-      return expected.length === given.length && timingSafeEqual(expected, given);
-    });
+    const secrets = [this.config.webhookSecret, this.pulseWebhookSecret].filter(Boolean);
+    return secrets.some((secret) =>
+      candidates.some((body) => {
+        const expected = Buffer.from(createHmac('sha256', secret).update(body).digest('hex'));
+        return expected.length === given.length && timingSafeEqual(expected, given);
+      }),
+    );
   }
 
   /**
