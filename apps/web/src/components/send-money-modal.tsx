@@ -10,6 +10,8 @@ import { formatCurrency, initiateGroupPayout, nameEnquiry, type NigerianBank } f
 const input =
   'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
+const SERVICE_FEE = 350;
+
 type Lookup = { state: 'idle' } | { state: 'checking' } | { state: 'found'; name: string } | { state: 'failed'; message: string };
 
 /**
@@ -77,7 +79,7 @@ export function SendMoneyModal({
   const lookup = useAccountName(groupId, bankCode, account);
 
   const member = refundable.find((m) => m.playerId === refundFor);
-  const limit = member ? Math.min(available, member.credit) : available;
+  const limit = member ? Math.min(available - SERVICE_FEE, member.credit) : available - SERVICE_FEE;
   const value = Number(amount);
   const tooMuch = value > limit;
   const ready = lookup.state === 'found' && value >= 100 && !tooMuch && pin.length === 4;
@@ -196,10 +198,13 @@ export function SendMoneyModal({
           />
           {tooMuch && (
             <p className="text-xs text-kit-600 mt-1">
-              {member && member.credit < available
+              {member && member.credit < available - SERVICE_FEE
                 ? `More than ${member.name}'s ${formatCurrency(member.credit)} credit.`
-                : `More than the ${formatCurrency(available)} available.`}
+                : `More than the ${formatCurrency(Math.max(0, available - SERVICE_FEE))} available after the ${formatCurrency(SERVICE_FEE)} service fee.`}
             </p>
+          )}
+          {value > 0 && !tooMuch && (
+            <p className="text-xs text-gray-500 mt-1">{formatCurrency(SERVICE_FEE)} service fee applies · total debit: {formatCurrency(value + SERVICE_FEE)}</p>
           )}
         </div>
 
@@ -235,7 +240,7 @@ export function SendMoneyModal({
           className="w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {sending && <BallSpinner />}
-          {sending ? 'Sending…' : value ? `${member ? 'Refund' : 'Send'} ${formatCurrency(value)}` : member ? 'Refund' : 'Send'}
+          {sending ? 'Sending…' : value ? `${member ? 'Refund' : 'Send'} ${formatCurrency(value)} + ${formatCurrency(SERVICE_FEE)} fee` : member ? 'Refund' : 'Send'}
         </button>
       </form>
     </Sheet>

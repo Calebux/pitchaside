@@ -234,7 +234,10 @@ export function PayoutsPanel({
           <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-display text-xl font-extrabold text-ink tabular-nums">{formatCurrency(Number(p.amount))}</p>
+                <p className="font-display text-xl font-extrabold text-ink tabular-nums">
+                  {formatCurrency(Number(p.amount))}
+                  {Number(p.fee) > 0 && <span className="text-sm font-bold text-gray-400 ml-1">+ {formatCurrency(Number(p.fee))} fee</span>}
+                </p>
                 {p.refundPlayer && (
                   <p className="text-xs font-bold text-pitch-600 mt-0.5 truncate">
                     Refund to {p.refundPlayer.firstName} {p.refundPlayer.lastName}

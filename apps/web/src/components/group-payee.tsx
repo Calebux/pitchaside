@@ -13,6 +13,8 @@ import {
   type NigerianBank,
 } from '@/lib/api';
 
+const SERVICE_FEE = 350;
+
 const input =
   'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
@@ -269,7 +271,7 @@ export function PayeeCard({
     );
   }
 
-  const tooMuch = Number(amount) > available;
+  const tooMuch = Number(amount) + SERVICE_FEE > available;
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
@@ -298,7 +300,10 @@ export function PayeeCard({
           <div>
             <label className="text-xs font-semibold text-gray-600 mb-1 block">Amount (₦)</label>
             <input type="number" min={100} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" className={input} autoFocus />
-            {tooMuch && <p className="text-xs text-kit-600 mt-1">More than the {formatCurrency(available)} available.</p>}
+            {tooMuch && <p className="text-xs text-kit-600 mt-1">More than the {formatCurrency(Math.max(0, available - SERVICE_FEE))} available after the {formatCurrency(SERVICE_FEE)} service fee.</p>}
+            {Number(amount) > 0 && !tooMuch && (
+              <p className="text-xs text-gray-500 mt-1">{formatCurrency(SERVICE_FEE)} service fee applies</p>
+            )}
           </div>
           <PinInput value={pin} onChange={setPin} />
           <div className="flex gap-2">
@@ -315,7 +320,7 @@ export function PayeeCard({
               className="flex-1 py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {sending && <BallSpinner />}
-              {sending ? 'Sending…' : `Send ${Number(amount) ? formatCurrency(Number(amount)) : ''} to ${payee.name.split(' ')[0]}`}
+              {sending ? 'Sending…' : `Send ${Number(amount) ? `${formatCurrency(Number(amount))} + ${formatCurrency(SERVICE_FEE)} fee` : ''} to ${payee.name.split(' ')[0]}`}
             </button>
           </div>
         </form>

@@ -33,6 +33,11 @@ import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
 import { paidByTransfer, refundToCredit } from '../payments/credit';
 
+/** Pulse MFB charges ₦2 per incoming transfer; we add it back so players see the amount they sent. */
+const INCOMING_FEE = 2;
+/** PitchAside service fee per outbound payout, transferred to the platform account. */
+const PLATFORM_FEE = 350;
+
 const PERIODIC_TYPES = [
   PaymentType.WEEKLY,
   PaymentType.MONTHLY,
@@ -547,6 +552,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     if (seen) return { received: true, duplicate: true, status: seen.status };
 
+    // Pulse deducts ₦2 per credit; add it back so the stored amount matches what the player sent.
+    incoming.amount += INCOMING_FEE;
+
     const group = await this.groupsRepo.createQueryBuilder('g')
       .where('RIGHT(g.account_number, 10) = :acct', { acct: incoming.accountNumber })
       .getOne();
@@ -951,10 +959,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (dto.refundPlayerId && dto.toPayee) throw new BadRequestException("A refund goes to the member's account, not the payee");
     const to = await this.payoutRecipient(group, dto);
 
-    // Check balance
+    // Check balance (amount + platform fee)
     const balance = await this.getGroupBalance(groupId, organizationId);
-    if (dto.amount > balance.available) {
-      throw new BadRequestException(`Insufficient balance. Available: ${naira(balance.available)}`);
+    if (dto.amount + PLATFORM_FEE > balance.available) {
+      throw new BadRequestException(`Insufficient balance. Available: ${naira(balance.available)} (includes ${naira(PLATFORM_FEE)} service fee)`);
     }
 
     // Platform daily limit: ₦10M per group
@@ -975,6 +983,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     const draft = this.payoutsRepo.create({
       groupId,
       amount: dto.amount,
+      fee: PLATFORM_FEE,
       beneficiaryAccount: to.account,
       beneficiaryName: to.name,
       beneficiaryBankCode: to.bankCode,
@@ -1018,6 +1027,25 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
       payout.status = result.status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.PROCESSING;
       if (result.status === 'completed') payout.completedAt = new Date();
+
+      // Transfer the platform fee to PitchAside's account
+      const feeAccount = this.config.get<string>('PLATFORM_FEE_ACCOUNT');
+      if (feeAccount) {
+        try {
+          await this.pulse.transferOut({
+            debitAccountNumber: group.accountNumber,
+            beneficiaryAccountNumber: feeAccount,
+            beneficiaryBankCode: this.config.get('PLATFORM_FEE_BANK_CODE', '090713'),
+            beneficiaryBankName: 'Payrep Microfinance Bank',
+            beneficiaryName: 'PitchAside',
+            amount: PLATFORM_FEE,
+            narration: `PitchAside service fee – ${group.name}`,
+            reference: `${reference}-FEE`,
+          });
+        } catch (feeErr: any) {
+          this.logger.warn(`Fee transfer for payout ${payout.id} failed: ${feeErr.message}`);
+        }
+      }
     } catch (err: any) {
       payout.status = PayoutStatus.FAILED;
       payout.errorMessage = err.message?.slice(0, 200);
