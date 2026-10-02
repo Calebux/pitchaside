@@ -885,7 +885,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   ) {
     // Verify PIN
     const pinValid = await this.usersService.verifyTransferPin(userId, dto.pin);
-    if (!pinValid) throw new UnauthorizedException('Incorrect transfer PIN');
+    if (!pinValid) throw new BadRequestException('Incorrect transfer PIN');
 
     const group = await this.findGroup(groupId, organizationId);
     if (!group.accountNumber) throw new BadRequestException('Group has no collection account');
