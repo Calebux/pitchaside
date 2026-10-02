@@ -7,6 +7,7 @@ import { UsersModule } from '../users/users.module';
 import { GroupsModule } from '../groups/groups.module';
 import { PlayersModule } from '../players/players.module';
 import { SessionsModule } from '../sessions/sessions.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SessionsModule } from '../sessions/sessions.module';
     GroupsModule,
     PlayersModule,
     SessionsModule,
+    BillingModule,
   ],
   controllers: [AdminController, PlatformController],
   providers: [AdminService, PlatformService],

@@ -31,6 +31,7 @@ import { User, UserRole } from '../users/entities/user.entity';
 import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
+import { paidByTransfer, refundToCredit } from '../payments/credit';
 
 const PERIODIC_TYPES = [
   PaymentType.WEEKLY,
@@ -92,6 +93,7 @@ export interface BillingPeriod {
 export class BillingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BillingService.name);
   private timer?: NodeJS.Timeout;
+  private resendTimer?: NodeJS.Timeout;
   /**
    * The last notification Payrep sent about each account, kept in memory since the last restart.
    * Lets the app say "Payrep never told us" apart from "we rejected it" without reading the logs.
@@ -119,6 +121,12 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
     this.pulse.refreshWebhookSecret?.().catch(() => undefined);
+    // Webhooks Pulse couldn't deliver (or that we rejected) come back on their own: shortly
+    // after startup, then every 15 minutes.
+    const catchUp = () => this.resendFailedWebhooks().catch((err) => this.logger.error(`Resending failed webhooks failed: ${err.message}`));
+    setTimeout(catchUp, 30_000).unref();
+    this.resendTimer = setInterval(catchUp, 15 * 60 * 1000);
+    this.resendTimer.unref();
     this.timer = setInterval(() => {
       this.ensureAllCurrentPeriods()
         .catch((err) => this.logger.error(`Dues rollover failed: ${err.message}`))
@@ -131,6 +139,14 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() {
     if (this.timer) clearInterval(this.timer);
+    if (this.resendTimer) clearInterval(this.resendTimer);
+  }
+
+  /** Asks Pulse to deliver again the webhooks that didn't get through, so their money gets recorded. */
+  async resendFailedWebhooks() {
+    if (!this.pulse.resendFailedWebhooks) return;
+    const { resent, failed } = await this.pulse.resendFailedWebhooks();
+    if (resent || failed) this.logger.log(`Asked Pulse to resend ${resent} undelivered webhook(s)${failed ? `; ${failed} couldn't be resent` : ''}`);
   }
 
   async ensureAllCurrentPeriods() {
@@ -661,6 +677,41 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
     await this.afterPaid(result.settled);
     return result;
+  }
+
+  /**
+   * A game being cancelled or deleted (call after the change is saved): what members paid for
+   * it by transfer goes back to their credit, then on to their next due. With `reopen` the
+   * game's dues go back to pending, so un-cancelling it settles them from credit again.
+   */
+  async releaseTransferDues(session: Pick<Session, 'groupId' | 'payments'>, { reopen }: { reopen: boolean }) {
+    const payments = session.payments ?? [];
+    const credited = await refundToCredit(this.paymentsRepo.manager, session.groupId, payments);
+    if (!credited.length) return;
+    if (reopen) {
+      const reopened = payments.filter((p) => paidByTransfer(p) && credited.includes(p.playerId));
+      for (const p of reopened) {
+        p.status = PaymentStatus.PENDING;
+        p.paidAt = null as unknown as Date;
+        p.source = null as unknown as string;
+        p.markedBy = null as unknown as string;
+      }
+      await this.paymentsRepo.save(reopened);
+      await this.paymentsService.recalculateSessionTotal(reopened[0].sessionId);
+    }
+    await this.applyCredits(session.groupId, credited);
+  }
+
+  /** Money that has come into the club's group accounts, whether or not it has paid a due yet. */
+  async totalReceivedByOrganization(organizationId: string): Promise<number> {
+    const { total } = await this.transfersRepo
+      .createQueryBuilder('t')
+      .innerJoin('t.group', 'g')
+      .select('COALESCE(SUM(t.amount), 0)', 'total')
+      .where('g.organizationId = :organizationId', { organizationId })
+      .andWhere('t.status != :ignored', { ignored: TransferStatus.IGNORED })
+      .getRawOne();
+    return Number(total);
   }
 
   /** Dues just created for these members: pay them from any credit they already have. */

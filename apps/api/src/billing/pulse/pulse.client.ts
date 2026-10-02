@@ -84,4 +84,6 @@ export interface PulseClient {
   getTransfer(reference: string): Promise<TransferStatusResult>;
   /** What the bank itself holds in an account, in naira; null when there's no real bank (mock). */
   getBalance(accountNumber: string): Promise<number | null>;
+  /** Asks the provider to deliver again every recent webhook that didn't get through. */
+  resendFailedWebhooks?(): Promise<{ resent: number; failed: number }>;
 }

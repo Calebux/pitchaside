@@ -66,8 +66,8 @@ export default function PlayersPage() {
       await deletePlayer(deleteTarget.id);
       await fetchPlayers(page, debouncedSearch);
       toast.success(`${name} deleted`);
-    } catch {
-      toast.error('Failed to delete player');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete player');
     }
   }
 

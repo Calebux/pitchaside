@@ -184,8 +184,8 @@ export default function GroupDetailPage() {
           await deleteGroup(id);
           toast.success('Group deleted');
           router.push('/groups');
-        } catch {
-          toast.error('Failed to delete group');
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to delete group');
         }
       },
     });
@@ -224,21 +224,25 @@ export default function GroupDetailPage() {
     }
   }
 
-  function handleRemoveMember(playerId: string, playerName: string) {
+  function handleRemoveMember(playerId: string, playerName: string, credit = 0) {
     setConfirm({
       title: 'Remove Member',
-      message: `Remove ${playerName} from this group?`,
-      confirmLabel: 'Remove',
+      // Their credit is dropped with them, so say how much before it goes.
+      message:
+        credit > 0
+          ? `${playerName} has ${formatCurrency(credit)} credit in this group that hasn't paid a due yet. Removing them drops it from the books, so refund them first if it's owed back. Remove anyway?`
+          : `Remove ${playerName} from this group?`,
+      confirmLabel: credit > 0 ? 'Remove anyway' : 'Remove',
       variant: 'danger',
       onConfirm: async () => {
         setConfirm(null);
         try {
-          await removeMember(id, playerId);
+          await removeMember(id, playerId, credit > 0);
           const updated = await getGroup(id);
           setGroup(updated);
           toast.success(`${playerName} removed`);
-        } catch {
-          toast.error('Failed to remove member');
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : 'Failed to remove member');
         }
       },
     });
@@ -629,7 +633,8 @@ export default function GroupDetailPage() {
                     onClick={() =>
                       handleRemoveMember(
                         m.player.id,
-                        `${m.player.firstName} ${m.player.lastName}`
+                        `${m.player.firstName} ${m.player.lastName}`,
+                        Number(m.credit ?? 0)
                       )
                     }
                     className="p-1.5 text-gray-300 hover:text-kit-600 transition-colors"

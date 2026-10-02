@@ -6,6 +6,7 @@ import { Session } from '../sessions/entities/session.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, shortDate } from '../common/format.util';
+import { refundToCredit } from './credit';
 
 @Injectable()
 export class PaymentsService {
@@ -73,6 +74,8 @@ export class PaymentsService {
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
     if (!payment) throw new NotFoundException('Payment not found');
+    // Already paid (perhaps by transfer): keep when and how, and don't send a second receipt.
+    if (payment.status === PaymentStatus.PAID) return payment;
 
     payment.status = PaymentStatus.PAID;
     payment.paidAt = new Date();
@@ -110,13 +113,16 @@ export class PaymentsService {
   async waive(id: string, organizationId: string, waivedBy?: string) {
     const payment = await this.paymentsRepo
       .createQueryBuilder('payment')
-      .innerJoin('payment.session', 'session')
+      .innerJoinAndSelect('payment.session', 'session')
       .innerJoin('session.group', 'group')
       .where('payment.id = :id', { id })
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
     if (!payment) throw new NotFoundException('Payment not found');
 
+    // Waiving a due they'd already paid by transfer: the money goes to their credit (and on to
+    // their next due within the hour) instead of vanishing from the books.
+    await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
     payment.status = PaymentStatus.WAIVED;
     if (waivedBy) payment.markedBy = waivedBy;
     const saved = await this.paymentsRepo.save(payment);
@@ -138,6 +144,7 @@ export class PaymentsService {
         .andWhere('group.organizationId = :organizationId', { organizationId })
         .getOne();
       if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+      if (payment.status === PaymentStatus.PAID) continue;
 
       payment.status = PaymentStatus.PAID;
       payment.paidAt = new Date();

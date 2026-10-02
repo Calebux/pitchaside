@@ -44,8 +44,8 @@ export default function GroupsPage() {
       await deleteGroup(deleteTarget.id);
       await fetchGroups(page);
       toast.success(`"${name}" deleted`);
-    } catch {
-      toast.error('Failed to delete group');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete group');
     }
   }
 
