@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { http } from '@/lib/http';
+import { formatCurrency } from '@/lib/api';
 import { StatCard } from '@/components/stat-card';
 import { UserRole } from '@pitchaside/shared';
 import { PageHeader } from '@/components/brand';
@@ -115,18 +116,23 @@ export default function AdminPage() {
           <h2 className="text-lg font-bold text-ink mb-3">
             {user?.organization?.name || 'Organization'}
           </h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <StatCard
+              label="Received"
+              value={formatCurrency(orgStats.totalReceived ?? 0)}
+              sub="Every transfer in, matched or not"
+              tone="ink"
+            />
+            <StatCard
+              label="Dues paid"
+              value={formatCurrency(orgStats.totalCollected)}
+              sub="Marked paid, by transfer or by hand"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
             <StatCard label="Groups" value={orgStats.totalGroups} />
             <StatCard label="Players" value={orgStats.totalPlayers} />
             <StatCard label="Sessions" value={orgStats.totalSessions} />
-            <StatCard
-              label="Collected"
-              value={new Intl.NumberFormat('en-NG', {
-                style: 'currency',
-                currency: 'NGN',
-                minimumFractionDigits: 0,
-              }).format(orgStats.totalCollected)}
-            />
           </div>
         </div>
       )}

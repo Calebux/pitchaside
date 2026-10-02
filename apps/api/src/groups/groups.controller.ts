@@ -75,8 +75,9 @@ export class GroupsController {
     @Param('id') id: string,
     @Param('playerId') playerId: string,
     @CurrentUser() user: User,
+    @Query('force') force?: string,
   ) {
-    return this.groupsService.removeMember(id, playerId, user.organizationId);
+    return this.groupsService.removeMember(id, playerId, user.organizationId, force === 'true');
   }
 
   @Delete(':id')

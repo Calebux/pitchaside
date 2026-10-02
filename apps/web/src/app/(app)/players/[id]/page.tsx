@@ -104,8 +104,8 @@ export default function PlayerDetailPage() {
       await deletePlayer(id);
       toast.success('Player deleted');
       router.push('/players');
-    } catch {
-      toast.error('Failed to delete player');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete player');
     }
   }
 

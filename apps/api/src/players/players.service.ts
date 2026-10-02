@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { Player } from './entities/player.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { CreatePlayerDto } from './dto/create-player.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 
@@ -67,8 +68,15 @@ export class PlayersService {
     return this.playersRepo.save(player);
   }
 
+  /** Not while they hold credit in a group: it would vanish with them. */
   async remove(id: string, organizationId: string) {
     const player = await this.findOne(id, organizationId);
+    const withCredit = await this.playersRepo.manager.count(GroupMembership, {
+      where: { playerId: id, credit: MoreThan('0') },
+    });
+    if (withCredit) {
+      throw new ConflictException('This player has credit in a group that hasn\'t paid a due yet. Remove them from that group first.');
+    }
     await this.playersRepo.remove(player);
   }
 

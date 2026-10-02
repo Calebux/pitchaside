@@ -109,8 +109,9 @@ export function addMeToGroup(groupId: string): Promise<void> {
   return http.post<void>(`/groups/${groupId}/members/me`);
 }
 
-export function removeMember(groupId: string, playerId: string): Promise<void> {
-  return http.delete<void>(`/groups/${groupId}/members/${playerId}`);
+/** `force` removes a member who still has credit, which goes with them. */
+export function removeMember(groupId: string, playerId: string, force = false): Promise<void> {
+  return http.delete<void>(`/groups/${groupId}/members/${playerId}${force ? '?force=true' : ''}`);
 }
 
 // ── Players ──

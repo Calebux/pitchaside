@@ -169,8 +169,17 @@ export class SessionsService {
   async updateStatus(id: string, status: string, organizationId: string) {
     const session = await this.findOne(id, organizationId);
     const wasCompleted = session.status === SessionStatus.COMPLETED;
+    const wasCancelled = session.status === SessionStatus.CANCELLED;
     session.status = status as SessionStatus;
     const saved = await this.sessionsRepo.save(session);
+
+    // Called off: what members paid for it by transfer goes back to their credit. Back on: its
+    // dues are payable from credit again.
+    if (!wasCancelled && saved.status === SessionStatus.CANCELLED) {
+      await this.billing.releaseTransferDues(session, { reopen: true });
+    } else if (wasCancelled && saved.status !== SessionStatus.CANCELLED) {
+      await this.billing.applyCredits(session.groupId, (session.payments ?? []).map((p) => p.playerId));
+    }
 
     // Full-time: invite the squad to vote.
     if (!wasCompleted && saved.status === SessionStatus.COMPLETED && saved.kind !== SessionKind.DUES) {
@@ -192,7 +201,10 @@ export class SessionsService {
 
   async remove(id: string, organizationId: string) {
     const session = await this.findOne(id, organizationId);
+    const { groupId, payments } = session;
     await this.sessionsRepo.remove(session);
+    // Its payments go with it; money members paid for it by transfer goes to their credit.
+    await this.billing.releaseTransferDues({ groupId, payments }, { reopen: false });
   }
 
   async countByOrganization(organizationId: string) {

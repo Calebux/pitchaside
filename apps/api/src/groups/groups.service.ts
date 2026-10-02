@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CONTRIBUTIONS_VISIBILITY, Group } from './entities/group.entity';
@@ -8,6 +8,7 @@ import { AddMemberDto } from './dto/add-member.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
 import { User } from '../users/entities/user.entity';
+import { naira } from '../common/format.util';
 
 @Injectable()
 export class GroupsService {
@@ -98,14 +99,29 @@ export class GroupsService {
     return this.billing.addOrganiserToGroup(groupId, user);
   }
 
-  async removeMember(groupId: string, playerId: string, organizationId: string) {
+  /** A member's credit goes with them, so removing one who has some needs `force`. */
+  async removeMember(groupId: string, playerId: string, organizationId: string, force = false) {
     await this.findOne(groupId, organizationId);
-    const result = await this.membershipsRepo.delete({ groupId, playerId });
-    if (result.affected === 0) throw new NotFoundException('Membership not found');
+    const membership = await this.membershipsRepo.findOne({ where: { groupId, playerId } });
+    if (!membership) throw new NotFoundException('Membership not found');
+    const credit = Number(membership.credit);
+    if (credit > 0 && !force) {
+      throw new ConflictException(
+        `They have ${naira(credit)} credit in this group that hasn't paid a due yet. Removing them drops it from the books, so refund them first if it's owed back.`,
+      );
+    }
+    await this.membershipsRepo.delete({ groupId, playerId });
   }
 
+  /** Not while its account holds money: the group's transfers and payouts go with it. */
   async remove(id: string, organizationId: string) {
     const group = await this.findOne(id, organizationId);
+    const { available } = await this.billing.getGroupBalance(id, organizationId);
+    if (available > 0.001) {
+      throw new ConflictException(
+        `This group's account still holds ${naira(available)}. Send it out before deleting the group, or its payment history goes with it.`,
+      );
+    }
     await this.groupsRepo.remove(group);
   }
 

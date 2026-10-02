@@ -83,7 +83,7 @@ describe('PaymentsService', () => {
 
   describe('waive', () => {
     it('should set status to WAIVED and recalculate session', async () => {
-      const payment = { ...mockPayment };
+      const payment = { ...mockPayment, session: { groupId: 'group-1' } };
       const qb = { ...mockQueryBuilder, getOne: jest.fn().mockResolvedValue(payment) };
       paymentsRepo.createQueryBuilder.mockReturnValue(qb);
       paymentsRepo.save.mockResolvedValue({ ...payment, status: PaymentStatus.WAIVED });
@@ -94,6 +94,20 @@ describe('PaymentsService', () => {
       expect(payment.status).toBe(PaymentStatus.WAIVED);
       expect(payment.markedBy).toBe('admin-1');
       expect(sessionsRepo.update).toHaveBeenCalledWith('session-1', { collectedAmount: 0 });
+    });
+
+    it('moves a due already paid by transfer to the member\'s credit', async () => {
+      const payment = { ...mockPayment, status: PaymentStatus.PAID, source: 'transfer', session: { groupId: 'group-1' } };
+      const membership = { groupId: 'group-1', playerId: 'player-1', credit: '0.00' };
+      const tx = { findOne: jest.fn().mockResolvedValue(membership), save: jest.fn() };
+      (paymentsRepo as any).manager = { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) };
+      paymentsRepo.createQueryBuilder.mockReturnValue({ ...mockQueryBuilder, getOne: jest.fn().mockResolvedValue(payment) });
+      paymentsRepo.find.mockResolvedValue([]);
+
+      await service.waive('pay-1', 'org-1', 'admin-1');
+
+      expect(membership.credit).toBe('1000.00');
+      expect(payment.status).toBe(PaymentStatus.WAIVED);
     });
   });
 

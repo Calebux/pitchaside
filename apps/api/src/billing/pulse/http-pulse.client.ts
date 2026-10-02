@@ -48,6 +48,8 @@ export class HttpPulseClient implements PulseClient {
   readonly mode = 'live' as const;
 
   private readonly baseUrl: string;
+  /** Webhook log ids already resent by this process. */
+  private readonly resentLogs = new Set<string>();
   /** The secret Pulse signs webhooks with, as its API reports it; see refreshWebhookSecret. */
   private pulseWebhookSecret = '';
   private secretFetchedAt = 0;
@@ -264,6 +266,49 @@ export class HttpPulseClient implements PulseClient {
   /** Whether webhooks are being checked against the secret Pulse reported, not only ours. */
   get knowsPulseWebhookSecret() {
     return !!this.pulseWebhookSecret;
+  }
+
+  /** Webhook deliveries Pulse marked as not delivered, from the last 14 days, oldest first. */
+  private async failedWebhookLogs(): Promise<{ id: string; event: string }[]> {
+    const since = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    const failed: { id: string; event: string; at: number }[] = [];
+    // Logs come newest first; stop at the first page that reaches back past `since`.
+    for (let page = 1; page <= 10; page++) {
+      const path = `/api/v1/external-api/webhooks/logs?page=${page}&limit=50`;
+      const res = await fetch(`${this.baseUrl}${path}`, { method: 'GET', headers: this.authHeaders('GET', path, '') });
+      if (!res.ok) throw new Error(`PulseMFB webhook logs failed (${res.status}): ${await pulseReason(res)}`);
+      const json = (await res.json()) as Record<string, any>;
+      const d = json.data ?? json;
+      const logs: Record<string, any>[] = Array.isArray(d) ? d : (d.logs ?? d.items ?? d.data ?? []);
+      let older = false;
+      for (const l of logs) {
+        const at = new Date(l.created_at ?? l.createdAt ?? l.timestamp ?? 0).getTime();
+        if (at && at < since) older = true;
+        const status = String(l.status ?? l.delivery_status ?? '').toLowerCase();
+        const code = Number(l.response_code ?? l.status_code ?? l.responseStatus ?? 0);
+        const delivered = /^(success|successful|delivered|sent|ok)$/.test(status) || (code >= 200 && code < 300);
+        const id = l._id ?? l.id;
+        if (id && !delivered && (!at || at >= since)) failed.push({ id: String(id), event: String(l.event ?? l.event_type ?? ''), at });
+      }
+      if (older || logs.length < 50) break;
+    }
+    return failed.sort((a, b) => a.at - b.at);
+  }
+
+  async resendFailedWebhooks(): Promise<{ resent: number; failed: number }> {
+    let resent = 0;
+    let failed = 0;
+    for (const log of await this.failedWebhookLogs()) {
+      // Once each: Pulse may keep the original entry marked failed after a resend succeeds.
+      if (/^(vas|webhook\.test)/.test(log.event) || this.resentLogs.has(log.id)) continue;
+      const path = `/api/v1/external-api/webhooks/logs/${encodeURIComponent(log.id)}/resend`;
+      const res = await fetch(`${this.baseUrl}${path}`, { method: 'POST', headers: this.authHeaders('POST', path, '') });
+      if (res.ok) {
+        this.resentLogs.add(log.id);
+        resent++;
+      } else failed++;
+    }
+    return { resent, failed };
   }
 
   // ── Webhook verification ──
