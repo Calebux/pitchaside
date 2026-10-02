@@ -65,6 +65,7 @@ export function getGroup(id: string): Promise<IGroupWithMembers> {
 export function createGroup(data: {
   name: string;
   description?: string;
+  location?: string;
   schedule?: string;
   targetPlayers: number;
   feePerPlayer: number;
@@ -81,6 +82,7 @@ export function updateGroup(
   data: Partial<{
     name: string;
     description: string;
+    location: string;
     schedule: string;
     targetPlayers: number;
     feePerPlayer: number;

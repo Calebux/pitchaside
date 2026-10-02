@@ -51,6 +51,7 @@ export default function NewGroupPage() {
       const group = await createGroup({
         name: (form.get('name') as string).trim(),
         description: (form.get('description') as string) || undefined,
+        location: (form.get('location') as string) || undefined,
         schedule: (form.get('schedule') as string) || undefined,
         kickoffTime: (form.get('kickoffTime') as string) || undefined,
         targetPlayers: Number(form.get('targetPlayers')),
@@ -107,6 +108,19 @@ export default function NewGroupPage() {
             rows={2}
             placeholder="Optional description"
             className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 resize-none"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="location" className="block text-xs font-bold text-gray-700 mb-1.5">
+            Pitch Location
+          </label>
+          <input
+            id="location"
+            name="location"
+            type="text"
+            placeholder="e.g. Teslim Balogun Stadium, Surulere"
+            className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
           />
         </div>
 

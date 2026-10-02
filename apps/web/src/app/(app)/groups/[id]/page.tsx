@@ -82,6 +82,7 @@ export default function GroupDetailPage() {
   const [editData, setEditData] = useState({
     name: '',
     description: '',
+    location: '',
     schedule: '',
     kickoffTime: '',
     targetPlayers: 10,
@@ -135,6 +136,7 @@ export default function GroupDetailPage() {
     setEditData({
       name: group.name,
       description: group.description || '',
+      location: group.location || '',
       schedule: group.schedule || '',
       kickoffTime: group.kickoffTime || '',
       targetPlayers: group.targetPlayers,
@@ -152,6 +154,7 @@ export default function GroupDetailPage() {
       await updateGroup(id, {
         name: editData.name,
         description: editData.description || undefined,
+        location: editData.location || undefined,
         schedule: editData.schedule || undefined,
         kickoffTime: editData.kickoffTime || undefined,
         targetPlayers: editData.targetPlayers,
@@ -323,6 +326,15 @@ export default function GroupDetailPage() {
               className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600 resize-none"
             />
           </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Pitch Location</label>
+            <input
+              value={editData.location}
+              onChange={(e) => setEditData({ ...editData, location: e.target.value })}
+              placeholder="e.g. Teslim Balogun Stadium, Surulere"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          </div>
           <div className="grid grid-cols-[1fr_130px] gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-700 mb-1.5">Schedule</label>
@@ -438,6 +450,15 @@ export default function GroupDetailPage() {
 
           {/* Meta pills */}
           <div className="relative flex flex-wrap gap-2 text-xs">
+            {group.location && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-chalk border border-gray-200 text-gray-700 font-semibold rounded-full">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                </svg>
+                {group.location}
+              </span>
+            )}
             {group.schedule && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-chalk border border-gray-200 text-gray-700 font-semibold rounded-full">
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

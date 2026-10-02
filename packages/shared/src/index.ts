@@ -36,6 +36,7 @@ export interface IGroup {
   id: string;
   name: string;
   description?: string;
+  location?: string;
   schedule?: string;
   targetPlayers: number;
   feePerPlayer: number;

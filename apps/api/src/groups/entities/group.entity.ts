@@ -34,6 +34,10 @@ export class Group {
   @Column({ nullable: true })
   description: string;
 
+  /** Name or address of the pitch where the group plays. */
+  @Column({ nullable: true })
+  location: string;
+
   @Column({ nullable: true })
   schedule: string;
 

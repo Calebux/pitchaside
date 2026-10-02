@@ -13,6 +13,10 @@ export class CreateGroupDto {
 
   @IsOptional()
   @IsString()
+  location?: string;
+
+  @IsOptional()
+  @IsString()
   schedule?: string;
 
   @IsNumber()
