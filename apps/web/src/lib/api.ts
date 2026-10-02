@@ -441,17 +441,7 @@ export function getPublicGroup(code: string): Promise<PublicGroup> {
 export interface GroupBalance {
   totalIn: number;
   totalOut: number;
-  /** In minus out, from our records. */
-  recorded: number;
-  /** What Payrep MFB holds in the account; null when unknown (mock, or the bank unreachable). */
-  bankBalance: number | null;
-  /** What can be sent: the bank's balance when known, otherwise our records. */
   available: number;
-  /** Money at the bank that no payment notice told us about, so it isn't matched to a player. */
-  unrecorded: number;
-  /** The last payment notice Payrep sent about this account, since `noticesSince`. */
-  lastNotice: { at: string; outcome: 'recorded' | 'rejected' } | null;
-  noticesSince: string;
 }
 
 export interface OutgoingTransfer {

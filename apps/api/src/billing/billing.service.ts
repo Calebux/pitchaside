@@ -33,8 +33,6 @@ import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
 import { paidByTransfer, refundToCredit } from '../payments/credit';
 
-/** Pulse MFB charges ₦2 per incoming transfer; we add it back so players see the amount they sent. */
-const INCOMING_FEE = 2;
 /** PitchAside service fee per outbound payout, transferred to the platform account. */
 const PLATFORM_FEE = 350;
 
@@ -552,9 +550,6 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     if (seen) return { received: true, duplicate: true, status: seen.status };
 
-    // Pulse deducts ₦2 per credit; add it back so the stored amount matches what the player sent.
-    incoming.amount += INCOMING_FEE;
-
     const group = await this.groupsRepo.createQueryBuilder('g')
       .where('RIGHT(g.account_number, 10) = :acct', { acct: incoming.accountNumber })
       .getOne();
@@ -902,33 +897,12 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .andWhere('p.status IN (:...statuses)', { statuses: [PayoutStatus.PROCESSING, PayoutStatus.COMPLETED] })
       .getRawOne();
 
-    const recorded = Number(totalIn) - Number(totalOut);
-    const bankBalance = await this.bankBalance(group.accountNumber);
-    const notice = group.accountNumber ? this.notices.get(accountKey(group.accountNumber)) : undefined;
+    const available = Number(totalIn) - Number(totalOut);
     return {
       totalIn: Number(totalIn),
       totalOut: Number(totalOut),
-      /** What we've recorded coming in and going out. */
-      recorded,
-      /** What the bank holds, when we can ask it. */
-      bankBalance,
-      /** What can be sent: the bank's balance is the truth, our records are the fallback. */
-      available: bankBalance ?? recorded,
-      /** Money at the bank that no notification told us about, so it isn't matched to anyone. */
-      unrecorded: bankBalance != null ? Math.max(0, bankBalance - recorded) : 0,
-      lastNotice: notice ? { at: notice.at, outcome: notice.outcome } : null,
-      noticesSince: this.noticesSince,
+      available,
     };
-  }
-
-  private async bankBalance(accountNumber: string | null) {
-    if (!accountNumber) return null;
-    try {
-      return await this.pulse.getBalance(accountNumber);
-    } catch (err: any) {
-      this.logger.warn(`Couldn't read the Pulse balance of ${accountNumber}: ${err.message}`);
-      return null;
-    }
   }
 
   async nameEnquiry(groupId: string, organizationId: string, bankCode: string, accountNumber: string) {

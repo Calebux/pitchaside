@@ -87,28 +87,6 @@ function SetPinForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-/**
- * Money is in the account but no notice from Payrep told us about it, so it isn't
- * matched to a player. Says what we know about why, from the last notice.
- */
-function UnrecordedNote({ balance }: { balance: GroupBalance }) {
-  const time = (d: string) => new Date(d).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-  const why = !balance.lastNotice
-    ? `Payrep hasn't sent PitchAside a payment notice for this account since ${time(balance.noticesSince)}.`
-    : balance.lastNotice.outcome === 'rejected'
-      ? `Payrep's last notice (${time(balance.lastNotice.at)}) was turned away: its security signature didn't match.`
-      : `The last notice we recorded was at ${time(balance.lastNotice.at)}.`;
-  return (
-    <div className="mt-3 text-xs text-amber-900 bg-sun-400/30 rounded-xl px-3 py-2 space-y-1">
-      <p className="font-semibold">
-        {formatCurrency(balance.unrecorded)} arrived that isn&apos;t matched to a player yet. It&apos;s in the balance and can be
-        sent, but doesn&apos;t count toward anyone&apos;s dues.
-      </p>
-      <p>{why}</p>
-    </div>
-  );
-}
-
 export function PayoutsPanel({
   groupId,
   groupName,
@@ -183,7 +161,6 @@ export function PayoutsPanel({
             <span>Recorded in: <span className="font-bold text-ink">{formatCurrency(balance.totalIn)}</span></span>
             <span>Out: <span className="font-bold text-ink">{formatCurrency(balance.totalOut)}</span></span>
           </div>
-          {balance.unrecorded > 0 && <UnrecordedNote balance={balance} />}
           <button
             onClick={() => setShowForm(true)}
             className="mt-4 w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors"
