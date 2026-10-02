@@ -169,6 +169,7 @@ export class HttpPulseClient implements PulseClient {
       beneficiary_account_number: input.beneficiaryAccountNumber,
       beneficiary_bank_code: input.beneficiaryBankCode,
       beneficiary_bank_name: input.beneficiaryBankName,
+      beneficiary_name: input.beneficiaryName,
       amount: input.amount,
       narration: input.narration ?? '',
       reference: input.reference,

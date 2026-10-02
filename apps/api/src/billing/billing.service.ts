@@ -933,6 +933,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         beneficiaryAccountNumber: to.account,
         beneficiaryBankCode: to.bankCode,
         beneficiaryBankName: to.bankName,
+        beneficiaryName: to.name,
         amount: dto.amount,
         narration: dto.narration ?? `PitchAside payout – ${group.name}`,
         reference,
