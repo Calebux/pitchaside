@@ -145,7 +145,7 @@ export class HttpPulseClient implements PulseClient {
 
   async nameEnquiry(bankCode: string, accountNumber: string): Promise<NameEnquiryResult> {
     const path = '/api/v1/external-api/transfers/name-enquiry';
-    const body = JSON.stringify({ accountNumber, bankCode });
+    const body = JSON.stringify({ account_number: accountNumber, bank_code: bankCode });
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
