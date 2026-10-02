@@ -466,6 +466,9 @@ export interface OutgoingTransfer {
   providerReference?: string;
   errorMessage?: string;
   initiatedBy?: { firstName: string; lastName: string };
+  /** The member whose credit this refunds, if it's a refund. */
+  refundPlayerId?: string | null;
+  refundPlayer?: { firstName: string; lastName: string } | null;
   createdAt: string;
   completedAt?: string;
 }
@@ -490,7 +493,7 @@ export function getGroupPayouts(groupId: string): Promise<OutgoingTransfer[]> {
 export function initiateGroupPayout(
   groupId: string,
   data:
-    | { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; pin: string }
+    | { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; refundPlayerId?: string; pin: string }
     | { amount: number; toPayee: true; narration?: string; pin: string },
 ): Promise<OutgoingTransfer> {
   return http.post(`/groups/${groupId}/payouts`, data);

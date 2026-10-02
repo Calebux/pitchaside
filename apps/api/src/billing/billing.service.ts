@@ -932,7 +932,15 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     groupId: string,
     organizationId: string,
     userId: string,
-    dto: { amount: number; toPayee?: boolean; beneficiaryAccount?: string; beneficiaryBankCode?: string; narration?: string; pin: string },
+    dto: {
+      amount: number;
+      toPayee?: boolean;
+      beneficiaryAccount?: string;
+      beneficiaryBankCode?: string;
+      narration?: string;
+      refundPlayerId?: string;
+      pin: string;
+    },
   ) {
     // Verify PIN
     const pinValid = await this.usersService.verifyTransferPin(userId, dto.pin);
@@ -940,6 +948,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
     const group = await this.findGroup(groupId, organizationId);
     if (!group.accountNumber) throw new BadRequestException('Group has no collection account');
+    if (dto.refundPlayerId && dto.toPayee) throw new BadRequestException("A refund goes to the member's account, not the payee");
     const to = await this.payoutRecipient(group, dto);
 
     // Check balance
@@ -963,20 +972,37 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     }
 
     const reference = `PA-${randomBytes(8).toString('hex').toUpperCase()}`;
+    const draft = this.payoutsRepo.create({
+      groupId,
+      amount: dto.amount,
+      beneficiaryAccount: to.account,
+      beneficiaryName: to.name,
+      beneficiaryBankCode: to.bankCode,
+      beneficiaryBankName: to.bankName,
+      narration: dto.narration,
+      providerReference: reference,
+      initiatedById: userId,
+      refundPlayerId: dto.refundPlayerId ?? null,
+    });
 
-    const payout = await this.payoutsRepo.save(
-      this.payoutsRepo.create({
-        groupId,
-        amount: dto.amount,
-        beneficiaryAccount: to.account,
-        beneficiaryName: to.name,
-        beneficiaryBankCode: to.bankCode,
-        beneficiaryBankName: to.bankName,
-        narration: dto.narration,
-        providerReference: reference,
-        initiatedById: userId,
-      }),
-    );
+    // A refund comes off the member's credit in the same transaction that records it, so two
+    // refunds sent at once can't both spend it.
+    const payout = dto.refundPlayerId
+      ? await this.payoutsRepo.manager.transaction(async (tx) => {
+          const membership = await tx.findOne(GroupMembership, {
+            where: { groupId, playerId: dto.refundPlayerId },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!membership) throw new BadRequestException("That player isn't in this group");
+          const credit = Number(membership.credit);
+          if (dto.amount > credit + 0.001) {
+            throw new BadRequestException(`They only have ${naira(credit)} credit to refund`);
+          }
+          membership.credit = (credit - dto.amount).toFixed(2);
+          await tx.save(membership);
+          return tx.save(draft);
+        })
+      : await this.payoutsRepo.save(draft);
 
     try {
       const result = await this.pulse.transferOut({
@@ -996,17 +1022,38 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       payout.status = PayoutStatus.FAILED;
       payout.errorMessage = err.message?.slice(0, 200);
       this.logger.error(`Payout ${payout.id} failed: ${err.message}`);
+      await this.moveRefundCredit(payout, Number(payout.amount));
     }
 
     await this.payoutsRepo.save(payout);
     return payout;
   }
 
+  /**
+   * Adds `delta` back to (or, negative, takes it from) the credit of the member a refund
+   * payout is for. Used when a refund fails or is cancelled, and if a failed one later completes.
+   */
+  private async moveRefundCredit(payout: OutgoingTransfer, delta: number) {
+    if (!payout.refundPlayerId) return;
+    await this.membershipsRepo.manager.transaction(async (tx) => {
+      const membership = await tx.findOne(GroupMembership, {
+        where: { groupId: payout.groupId, playerId: payout.refundPlayerId! },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!membership) {
+        this.logger.warn(`Refund ${payout.id}: ${payout.refundPlayerId} is no longer in the group, so ${naira(delta)} credit wasn't moved`);
+        return;
+      }
+      membership.credit = (Number(membership.credit) + delta).toFixed(2);
+      await tx.save(membership);
+    });
+  }
+
   async listPayouts(groupId: string, organizationId: string) {
     await this.findGroup(groupId, organizationId);
     return this.payoutsRepo.find({
       where: { groupId },
-      relations: ['initiatedBy'],
+      relations: ['initiatedBy', 'refundPlayer'],
       order: { createdAt: 'DESC' },
       take: 50,
     });
@@ -1024,7 +1071,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Only pending payouts can be cancelled');
     }
     payout.status = PayoutStatus.CANCELLED;
-    return this.payoutsRepo.save(payout);
+    const saved = await this.payoutsRepo.save(payout);
+    await this.moveRefundCredit(payout, Number(payout.amount));
+    return saved;
   }
 
   /** Called when PulseMFB notifies us about an outbound transfer status change. */
@@ -1091,10 +1140,15 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (!payout) return;
     if (payout.status === PayoutStatus.COMPLETED || payout.status === PayoutStatus.CANCELLED) return;
 
+    const wasFailed = payout.status === PayoutStatus.FAILED;
     payout.status = status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.FAILED;
     if (status === 'completed') payout.completedAt = new Date();
     if (errorMessage) payout.errorMessage = errorMessage;
     await this.payoutsRepo.save(payout);
+
+    // A refund's credit is given back when it fails, and taken again if it completes after all.
+    if (!wasFailed && payout.status === PayoutStatus.FAILED) await this.moveRefundCredit(payout, Number(payout.amount));
+    if (wasFailed && payout.status === PayoutStatus.COMPLETED) await this.moveRefundCredit(payout, -Number(payout.amount));
   }
 
   getNigerianBanks() {
