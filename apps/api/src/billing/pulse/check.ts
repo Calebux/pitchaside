@@ -50,7 +50,13 @@ async function main() {
   const secret = String(hooks.webhook_secret ?? '');
   console.log(`Secret ends with:    ${secret.slice(-4) || '(none)'}   ours ends with: ${(process.env.PULSE_WEBHOOK_SECRET ?? '').slice(-4) || '(unset)'}`);
   if (!acceptedUrls.includes(normaliseWebhookUrl(url))) console.log(`\n✗ Pulse should send webhooks to one of: ${acceptedUrls.join(', ')}`);
-  if (secret && secret !== process.env.PULSE_WEBHOOK_SECRET) console.log('✗ PULSE_WEBHOOK_SECRET differs from Pulse\'s webhook secret — every webhook will be rejected');
+  const ourSecret = process.env.PULSE_WEBHOOK_SECRET ?? '';
+  // Pulse masks the secret (e.g. "********cbf3"), so compare tails only.
+  if (secret && ourSecret && secret.slice(-4) !== ourSecret.slice(-4)) {
+    console.log('✗ PULSE_WEBHOOK_SECRET differs from Pulse\'s webhook secret — every webhook will be rejected');
+  } else if (secret && ourSecret && secret.slice(-4) === ourSecret.slice(-4)) {
+    console.log('✓ Webhook secret tails match');
+  }
   if (!events.some((e) => e.startsWith('transfer'))) console.log('✗ Pulse is not sending transfer events');
 
   const account = args.find((a) => /^\d{10}$/.test(a));
