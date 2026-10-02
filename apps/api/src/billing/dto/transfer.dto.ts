@@ -35,6 +35,11 @@ export class InitiatePayoutDto {
   @Max(5_000_000)
   amount: number;
 
+  /** Refund this member's credit: the amount comes off what they've paid toward dues. */
+  @IsOptional()
+  @IsUUID()
+  refundPlayerId?: string;
+
   /** Pay the group's saved payee (pitch owner) instead of the account below. */
   @IsOptional()
   @IsBoolean()

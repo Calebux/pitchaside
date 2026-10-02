@@ -37,22 +37,37 @@ function useAccountName(groupId: string, bankCode: string, account: string): Loo
   return lookup;
 }
 
-/** Send money from the group's account to any Nigerian bank account. */
+/** A member with credit (paid in, not yet against a due) who can be refunded. */
+export interface RefundableMember {
+  playerId: string;
+  name: string;
+  credit: number;
+}
+
+/**
+ * Send money from the group's account to any Nigerian bank account — or refund a member,
+ * which also takes the amount off their credit.
+ */
 export function SendMoneyModal({
   groupId,
+  groupName,
   banks,
   available,
+  refundable = [],
   onClose,
   onSent,
 }: {
   groupId: string;
+  groupName: string;
   banks: NigerianBank[];
   available: number;
+  refundable?: RefundableMember[];
   onClose: () => void;
   onSent: () => Promise<void>;
 }) {
   const titleId = useId();
   const toast = useToast();
+  const [refundFor, setRefundFor] = useState('');
   const [amount, setAmount] = useState('');
   const [bankCode, setBankCode] = useState('');
   const [account, setAccount] = useState('');
@@ -61,9 +76,19 @@ export function SendMoneyModal({
   const [sending, setSending] = useState(false);
   const lookup = useAccountName(groupId, bankCode, account);
 
+  const member = refundable.find((m) => m.playerId === refundFor);
+  const limit = member ? Math.min(available, member.credit) : available;
   const value = Number(amount);
-  const tooMuch = value > available;
+  const tooMuch = value > limit;
   const ready = lookup.state === 'found' && value >= 100 && !tooMuch && pin.length === 4;
+
+  function chooseRefund(playerId: string) {
+    setRefundFor(playerId);
+    const m = refundable.find((x) => x.playerId === playerId);
+    if (!m) return;
+    setAmount(String(Math.floor(Math.min(available, m.credit))));
+    if (!narration.trim()) setNarration(`Refund from ${groupName}`);
+  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -75,9 +100,10 @@ export function SendMoneyModal({
         beneficiaryAccount: account,
         beneficiaryBankCode: bankCode,
         narration: narration.trim() || undefined,
+        refundPlayerId: member?.playerId,
         pin,
       });
-      toast.success(`Sending ${formatCurrency(value)} to ${lookup.name}`);
+      toast.success(`${member ? 'Refunding' : 'Sending'} ${formatCurrency(value)} to ${lookup.name}`);
       await onSent();
       onClose();
     } catch (err) {
@@ -101,6 +127,27 @@ export function SendMoneyModal({
         <p className="text-xs text-gray-500 -mt-1">
           From the group&apos;s account · <span className="font-bold text-ink">{formatCurrency(available)}</span> available
         </p>
+
+        {refundable.length > 0 && (
+          <div>
+            <label htmlFor={`${titleId}-for`} className="text-xs font-semibold text-gray-600 mb-1 block">
+              What&apos;s it for?
+            </label>
+            <select id={`${titleId}-for`} value={refundFor} onChange={(e) => chooseRefund(e.target.value)} className={input}>
+              <option value="">A payment (pitch, kit, anything else)</option>
+              {refundable.map((m) => (
+                <option key={m.playerId} value={m.playerId}>
+                  Refund {m.name} — {formatCurrency(m.credit)} credit
+                </option>
+              ))}
+            </select>
+            {member && (
+              <p className="text-xs text-gray-500 mt-1">
+                Comes off {member.name}&apos;s credit. Send it to their own account.
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="text-xs font-semibold text-gray-600 mb-1 block">Bank</label>
@@ -147,7 +194,13 @@ export function SendMoneyModal({
             placeholder="0"
             className={input}
           />
-          {tooMuch && <p className="text-xs text-kit-600 mt-1">More than the {formatCurrency(available)} available.</p>}
+          {tooMuch && (
+            <p className="text-xs text-kit-600 mt-1">
+              {member && member.credit < available
+                ? `More than ${member.name}'s ${formatCurrency(member.credit)} credit.`
+                : `More than the ${formatCurrency(available)} available.`}
+            </p>
+          )}
         </div>
 
         <div>
@@ -182,7 +235,7 @@ export function SendMoneyModal({
           className="w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {sending && <BallSpinner />}
-          {sending ? 'Sending…' : value ? `Send ${formatCurrency(value)}` : 'Send'}
+          {sending ? 'Sending…' : value ? `${member ? 'Refund' : 'Send'} ${formatCurrency(value)}` : member ? 'Refund' : 'Send'}
         </button>
       </form>
     </Sheet>

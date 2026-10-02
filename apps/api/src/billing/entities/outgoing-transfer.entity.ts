@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
 import { User } from '../../users/entities/user.entity';
+import { Player } from '../../players/entities/player.entity';
 
 export enum PayoutStatus {
   PENDING = 'pending',
@@ -58,6 +59,17 @@ export class OutgoingTransfer {
 
   @Column({ name: 'error_message', nullable: true })
   errorMessage: string;
+
+  /**
+   * Set when this payout refunds a member's credit: it's taken from their credit when sent
+   * and given back if the transfer fails or is cancelled.
+   */
+  @ManyToOne(() => Player, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'refund_player_id' })
+  refundPlayer: Player;
+
+  @Column({ name: 'refund_player_id', type: 'uuid', nullable: true })
+  refundPlayerId: string | null;
 
   @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'initiated_by_id' })

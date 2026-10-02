@@ -532,7 +532,18 @@ export default function GroupDetailPage() {
       )}
 
       {tab === 'payouts' && (
-        <PayoutsPanel groupId={id} groupName={group.name} onRefresh={refreshPayments} />
+        <PayoutsPanel
+          groupId={id}
+          groupName={group.name}
+          refundable={(group.memberships ?? [])
+            .filter((m) => Number(m.credit ?? 0) > 0)
+            .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}`, credit: Number(m.credit) }))}
+          onRefresh={async () => {
+            await refreshPayments();
+            // A refund changes the member's credit.
+            setGroup(await getGroup(id));
+          }}
+        />
       )}
 
       {/* Members Tab */}

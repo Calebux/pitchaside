@@ -5,7 +5,7 @@ import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmptyState } from '@/components/empty-state';
 import { PayeeCard } from '@/components/group-payee';
-import { SendMoneyModal } from '@/components/send-money-modal';
+import { SendMoneyModal, type RefundableMember } from '@/components/send-money-modal';
 import {
   cancelPayout,
   formatCurrency,
@@ -112,10 +112,13 @@ function UnrecordedNote({ balance }: { balance: GroupBalance }) {
 export function PayoutsPanel({
   groupId,
   groupName,
+  refundable = [],
   onRefresh,
 }: {
   groupId: string;
   groupName: string;
+  /** Members holding credit, who can be refunded. */
+  refundable?: RefundableMember[];
   onRefresh: () => Promise<void>;
 }) {
   const toast = useToast();
@@ -207,8 +210,10 @@ export function PayoutsPanel({
       {showForm && balance && (
         <SendMoneyModal
           groupId={groupId}
+          groupName={groupName}
           banks={banks}
           available={balance.available}
+          refundable={refundable}
           onClose={() => setShowForm(false)}
           onSent={async () => {
             await load();
@@ -230,6 +235,11 @@ export function PayoutsPanel({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-display text-xl font-extrabold text-ink tabular-nums">{formatCurrency(Number(p.amount))}</p>
+                {p.refundPlayer && (
+                  <p className="text-xs font-bold text-pitch-600 mt-0.5 truncate">
+                    Refund to {p.refundPlayer.firstName} {p.refundPlayer.lastName}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 mt-0.5 truncate">
                   → {p.beneficiaryName || p.beneficiaryAccount} · {p.beneficiaryBankName}
                 </p>
