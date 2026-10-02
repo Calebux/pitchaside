@@ -33,6 +33,8 @@ import { naira } from '../common/format.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
 import { paidByTransfer, refundToCredit } from '../payments/credit';
 
+/** Pulse MFB flat fee per incoming transfer; added back so the stored amount matches what the player sent. */
+const INCOMING_FEE = 4;
 /** PitchAside service fee per outbound payout, transferred to the platform account. */
 const PLATFORM_FEE = 350;
 
@@ -549,6 +551,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       where: { providerTransactionId: incoming.providerTransactionId },
     });
     if (seen) return { received: true, duplicate: true, status: seen.status };
+
+    // Pulse deducts a flat ₦4 per credit; add it back so the stored amount matches what the player sent.
+    incoming.amount += INCOMING_FEE;
 
     const group = await this.groupsRepo.createQueryBuilder('g')
       .where('RIGHT(g.account_number, 10) = :acct', { acct: incoming.accountNumber })
