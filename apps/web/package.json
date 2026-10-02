@@ -15,6 +15,7 @@
     "autoprefixer": "^10.6.1",
     "next": "^14.2.0",
     "postcss": "^8.4.31",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tailwindcss": "^4.3.3"

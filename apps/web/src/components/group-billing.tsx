@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmptyState } from '@/components/empty-state';
@@ -45,6 +46,50 @@ const CopyIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
   </svg>
 );
+
+function QrToggle({ accountNumber, bankName, accountName }: { accountNumber: string; bankName: string; accountName: string }) {
+  const [open, setOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  function saveQr() {
+    const canvas = canvasRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `${accountName.replace(/\s+/g, '-')}-QR.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  const qrData = [accountNumber, bankName, accountName].join('\n');
+
+  return (
+    <div className="mt-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 text-xs font-bold text-white/60 hover:text-white transition-colors"
+      >
+        <svg className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+        {open ? 'Hide QR code' : 'Show QR code'}
+      </button>
+      {open && (
+        <div className="mt-3 flex flex-col items-center gap-3">
+          <div ref={canvasRef} className="rounded-2xl bg-white p-4">
+            <QRCodeCanvas value={qrData} size={180} level="M" />
+          </div>
+          <p className="text-[11px] text-white/50">Show this to players so they can scan and transfer</p>
+          <button
+            onClick={saveQr}
+            className="text-xs font-bold text-volt-300 hover:text-white transition-colors"
+          >
+            Save QR image
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** The group's PulseMFB collection account + shareable join/pay link. */
 export function GroupAccountCard({
@@ -208,6 +253,12 @@ export function GroupAccountCard({
                   Copy details
                 </button>
               </div>
+
+              <QrToggle
+                accountNumber={account.accountNumber}
+                bankName={account.bankName}
+                accountName={account.accountName}
+              />
             </>
           ) : (
             <div className="mt-5">
