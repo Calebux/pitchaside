@@ -118,6 +118,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (process.env.NODE_ENV === 'test') return;
+    this.pulse.refreshWebhookSecret?.().catch(() => undefined);
     this.timer = setInterval(() => {
       this.ensureAllCurrentPeriods()
         .catch((err) => this.logger.error(`Dues rollover failed: ${err.message}`))
@@ -446,7 +447,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     // Prefer showing the address Pulse already uses when it's a valid one.
     const expectedUrl = urlOk ? normaliseWebhookUrl(info.url) : accepted[0];
     const ourSecretTail = (this.config.get('PULSE_WEBHOOK_SECRET', '') as string).slice(-4);
-    const secretMatch = !!ourSecretTail && info.secretTail === ourSecretTail;
+    // Webhooks are also checked against the secret Pulse just reported, so a stale
+    // PULSE_WEBHOOK_SECRET no longer stops them.
+    const secretMatch = (!!ourSecretTail && info.secretTail === ourSecretTail) || this.pulse.knowsPulseWebhookSecret;
     const hasTransferEvents = info.events.some((e) => e.startsWith('transfer'));
 
     const problems: string[] = [];
@@ -480,9 +483,13 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (credit) credit.accountNumber = accountKey(credit.accountNumber);
     const note = (outcome: WebhookOutcome) => credit && this.notices.set(credit.accountNumber, { at: new Date(), outcome });
 
-    if (!this.pulse.verifyWebhook(rawBody, signature)) {
+    // A miss may mean Pulse's secret changed since we last read it: re-read it once and retry.
+    if (
+      !this.pulse.verifyWebhook(rawBody, signature) &&
+      !((await this.pulse.refreshWebhookSecret?.()) && this.pulse.verifyWebhook(rawBody, signature))
+    ) {
       note('rejected');
-      this.logger.warn(`Pulse webhook ${event}: rejected, signature doesn't match PULSE_WEBHOOK_SECRET — ${rawBody.slice(0, 500)}`);
+      this.logger.warn(`Pulse webhook ${event}: rejected, signature doesn't match PULSE_WEBHOOK_SECRET or Pulse's webhook secret — ${rawBody.slice(0, 500)}`);
       throw new UnauthorizedException('Invalid webhook signature');
     }
 
