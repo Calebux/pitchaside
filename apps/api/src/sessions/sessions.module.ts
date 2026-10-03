@@ -5,7 +5,6 @@ import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { SessionsService } from './sessions.service';
-import { MatchClockService } from './match-clock.service';
 import { SessionsController } from './sessions.controller';
 import { RsvpModule } from '../rsvp/rsvp.module';
 import { RatingsModule } from '../ratings/ratings.module';
@@ -21,7 +20,7 @@ import { BillingModule } from '../billing/billing.module';
     BillingModule,
   ],
   controllers: [SessionsController],
-  providers: [SessionsService, MatchClockService],
+  providers: [SessionsService],
   exports: [SessionsService],
 })
 export class SessionsModule {}

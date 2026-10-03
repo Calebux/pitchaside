@@ -16,7 +16,6 @@ import { SessionVotingCard } from '@/components/ratings';
 import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
 import { prettyTime } from '@/components/player-ui';
-import { MatchClock } from '@/components/match-clock';
 
 type Tab = 'payments' | 'teams' | 'stars';
 const TABS: Tab[] = ['payments', 'teams', 'stars'];
@@ -60,7 +59,7 @@ export default function SessionDetailPage() {
     fetchSession().finally(() => setLoading(false));
   }, [fetchSession]);
 
-  // Opening tab: ?tab= (the clock's push links to Teams), else Teams on match day, else Payments.
+  // Opening tab: ?tab= if given, else Teams on match day, else Payments.
   useEffect(() => {
     if (!session || tab) return;
     const asked = new URLSearchParams(window.location.search).get('tab');
@@ -442,7 +441,6 @@ export default function SessionDetailPage() {
 
       {isGame && tab === 'teams' && (
         <>
-          {session.status === SessionStatus.UPCOMING && <MatchClock sessionId={id} teamCount={session.teamCount ?? 2} />}
           {session.status === SessionStatus.UPCOMING && <TeamSheet sessionId={id} onChange={fetchSession} />}
           {session.status !== SessionStatus.CANCELLED && (
             <div id="lineup" className="scroll-mt-20">

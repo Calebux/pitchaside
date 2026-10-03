@@ -644,15 +644,6 @@ export function resendVerification(): Promise<{ message: string }> {
   return http.post('/auth/resend-verification');
 }
 
-/** Match clock: the API pushes "Time's up" to this organiser's phone at `endsAt`. */
-export function startMatchClock(sessionId: string, endsAt: string, label: string): Promise<{ scheduled: boolean }> {
-  return http.post(`/sessions/${sessionId}/clock`, { endsAt, label });
-}
-
-export function stopMatchClock(sessionId: string): Promise<{ scheduled: boolean }> {
-  return http.delete(`/sessions/${sessionId}/clock`);
-}
-
 export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
   return http.post('/push/subscribe', sub);
 }
