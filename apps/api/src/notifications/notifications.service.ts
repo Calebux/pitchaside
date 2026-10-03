@@ -262,6 +262,20 @@ export class NotificationsService implements OnModuleInit {
     return this.push(subs, notice);
   }
 
+  /** Push only — no log, no email or WhatsApp fallback — for in-the-moment alerts like full time. */
+  async pushToPlayers(playerIds: string[], notice: Pick<Notice, 'title' | 'body' | 'url' | 'kind'>) {
+    const ids = [...new Set(playerIds.filter(Boolean))];
+    if (!ids.length) return 0;
+    const players = await this.playersRepo.find({ where: { id: In(ids) } });
+    const keys = [...new Set(players.filter((p) => p.email).map((p) => emailKey(p.email)))];
+    const subs = await this.subsRepo.find({
+      where: [{ playerId: In(ids) }, ...(keys.length ? [{ personKey: In(keys) }] : [])],
+    });
+    // One device can be subscribed under both a player and a person: push it once.
+    const unique = [...new Map(subs.map((s) => [s.endpoint, s])).values()];
+    return this.push(unique, notice);
+  }
+
   /** Fire-and-forget wrapper so a notification problem never breaks the request. */
   later(fn: () => Promise<unknown>) {
     fn().catch((err) => this.logger.warn(`Notification failed: ${err?.message ?? err}`));

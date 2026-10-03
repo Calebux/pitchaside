@@ -17,9 +17,10 @@ import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
 import { prettyTime } from '@/components/player-ui';
 import { MatchClock } from '@/components/match-clock';
+import { actOnMatchClock, getMatchClock, subscribeOrganiserPush, type ClockAction } from '@/lib/api';
 
-type Tab = 'payments' | 'teams' | 'stars';
-const TABS: Tab[] = ['payments', 'teams', 'stars'];
+type Tab = 'payments' | 'teams' | 'clock' | 'stars';
+const TABS: Tab[] = ['payments', 'teams', 'clock', 'stars'];
 
 /** Shirts shown in the summary card; the rest are a count. */
 const SHIRTS = 24;
@@ -73,6 +74,9 @@ export default function SessionDetailPage() {
           : 'payments',
     );
   }, [session, tab]);
+
+  const loadClock = useCallback(() => getMatchClock(id), [id]);
+  const actOnClock = useCallback((a: ClockAction) => actOnMatchClock(id, a), [id]);
 
   function chooseTab(t: Tab) {
     setTab(t);
@@ -421,6 +425,7 @@ export default function SessionDetailPage() {
             {([
               ['payments', coveredByDues ? 'Dues' : 'Payments', owingCount ? `${owingCount} to pay` : null],
               ['teams', 'Teams', null],
+              ['clock', 'Clock', null],
               ['stars', 'Stars', null],
             ] as [Tab, string, string | null][]).map(([t, name, note]) => (
               <button
@@ -428,7 +433,7 @@ export default function SessionDetailPage() {
                 role="tab"
                 aria-selected={tab === t}
                 onClick={() => chooseTab(t)}
-                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${
+                className={`flex-1 min-w-0 py-2 rounded-xl text-[13px] font-bold transition-colors ${
                   tab === t ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
                 }`}
               >
@@ -442,7 +447,6 @@ export default function SessionDetailPage() {
 
       {isGame && tab === 'teams' && (
         <>
-          {session.status === SessionStatus.UPCOMING && <MatchClock sessionId={id} teamCount={session.teamCount ?? 2} />}
           {session.status === SessionStatus.UPCOMING && <TeamSheet sessionId={id} onChange={fetchSession} />}
           {session.status !== SessionStatus.CANCELLED && (
             <div id="lineup" className="scroll-mt-20">
@@ -450,6 +454,19 @@ export default function SessionDetailPage() {
             </div>
           )}
         </>
+      )}
+
+      {isGame && tab === 'clock' && session.status !== SessionStatus.CANCELLED && (
+        <MatchClock
+          sessionId={id}
+          load={loadClock}
+          act={actOnClock}
+          savePush={subscribeOrganiserPush}
+          onRecordScore={() => {
+            chooseTab('teams');
+            setTimeout(() => document.getElementById('lineup')?.scrollIntoView({ behavior: 'smooth' }), 50);
+          }}
+        />
       )}
 
       {isGame && tab === 'stars' && session.status !== SessionStatus.CANCELLED && (

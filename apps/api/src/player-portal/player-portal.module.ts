@@ -19,6 +19,7 @@ import { PlayerAccount } from './entities/player-account.entity';
 import { PlayerAuthGuard, PlayerAuthService } from './player-auth.service';
 import { PlayerPortalService } from './player-portal.service';
 import { PlayerAuthController, PlayerPortalController } from './player-portal.controller';
+import { SessionsModule } from '../sessions/sessions.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { PlayerAuthController, PlayerPortalController } from './player-portal.co
     RatingsModule,
     RsvpModule,
     NotificationsModule,
+    SessionsModule,
   ],
   controllers: [PlayerAuthController, PlayerPortalController],
   providers: [PlayerAuthService, PlayerAuthGuard, PlayerPortalService],
