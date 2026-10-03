@@ -6,6 +6,7 @@ import { Ball, Player, kitFor, skins } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
 import { TEAMS } from '@/components/lineup-card';
+import { MatchDayBibs } from '@/components/match-day-bibs';
 import { useToast } from '@/components/toast';
 import { ShareCardButton } from '@/components/share-card';
 import { formatCurrency, type PlayerRatings } from '@/lib/api';
@@ -168,6 +169,8 @@ export function GameCard({ game, onChange }: { game: UpcomingGame; onChange: () 
           {formatCurrency(game.payment.amount)} to pay for this game — tap for the account details ›
         </Link>
       )}
+
+      {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
 
       <div className="grid grid-cols-2 gap-2 mt-4">
         {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (

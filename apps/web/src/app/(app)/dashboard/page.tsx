@@ -178,10 +178,15 @@ export default function Dashboard() {
   const nextProgress = nextSession && nextSession.targetAmount > 0
     ? Math.round((nextSession.collectedAmount / nextSession.targetAmount) * 100)
     : 0;
-  const nextPaidCount = nextSession?.payments?.filter((p) => p.status === 'paid').length ?? 0;
+  // gamePaid covers groups whose monthly (weekly…) dues pay for games; otherwise the game's own due.
+  const paidForGame = (p: { status: string; gamePaid?: string }) => (p.gamePaid ? p.gamePaid === 'paid' : p.status === 'paid');
+  const owesForGame = (p: { status: string; gamePaid?: string }) => (p.gamePaid ? p.gamePaid === 'unpaid' : p.status === 'pending');
+  const nextPaidCount = nextSession?.payments?.filter(paidForGame).length ?? 0;
   const nextTotalCount = nextSession?.payments?.length ?? 0;
-  const nextPendingCount = nextTotalCount - nextPaidCount;
-  const nextUnpaid = (nextSession?.payments ?? []).filter((p) => p.status === 'pending');
+  const nextUnpaid = (nextSession?.payments ?? []).filter(owesForGame);
+  const nextPendingCount = nextUnpaid.length;
+  const coveredByDues = !!nextSession && Number(nextSession.targetAmount) === 0 && nextTotalCount > 0;
+  const gameProgress = coveredByDues ? Math.round((nextPaidCount / nextTotalCount) * 100) : nextProgress;
   const daysToGo = nextSession
     ? Math.max(0, Math.ceil((new Date(nextSession.date).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000))
     : 0;
@@ -264,17 +269,26 @@ export default function Dashboard() {
                 {/* Payment progress */}
                 <div className="mt-6">
                   <div className="flex items-baseline gap-2 mb-2">
-                    <span className="font-display text-3xl font-extrabold tabular-nums">
-                      {formatCurrency(nextSession.collectedAmount)}
-                    </span>
-                    <span className="text-sm text-white/50 tabular-nums">
-                      of {formatCurrency(nextSession.targetAmount)}
-                    </span>
+                    {coveredByDues ? (
+                      <>
+                        <span className="font-display text-3xl font-extrabold tabular-nums">{nextPaidCount}</span>
+                        <span className="text-sm text-white/50 tabular-nums">of {nextTotalCount} paid their dues</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-display text-3xl font-extrabold tabular-nums">
+                          {formatCurrency(nextSession.collectedAmount)}
+                        </span>
+                        <span className="text-sm text-white/50 tabular-nums">
+                          of {formatCurrency(nextSession.targetAmount)}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <div className="w-full bg-black/25 rounded-full h-2.5">
                     <div
                       className="bg-volt-400 h-2.5 rounded-full animate-progress"
-                      style={{ width: `${Math.min(nextProgress, 100)}%` }}
+                      style={{ width: `${Math.min(gameProgress, 100)}%` }}
                     />
                   </div>
                   <div className="flex gap-4 mt-3">
@@ -288,7 +302,7 @@ export default function Dashboard() {
                         <span className="font-bold text-white tabular-nums">{nextPendingCount}</span> pending
                       </span>
                     )}
-                    <span className="text-xs font-extrabold text-volt-300 tabular-nums">{nextProgress}%</span>
+                    <span className="text-xs font-extrabold text-volt-300 tabular-nums">{gameProgress}%</span>
                   </div>
                 </div>
               </div>
@@ -331,7 +345,7 @@ export default function Dashboard() {
                         {name.charAt(0)}
                       </span>
                       <span className="text-xs font-semibold text-ink">{p.player?.firstName ?? name}</span>
-                      <span className="text-[11px] text-gray-500 tabular-nums">{formatCurrency(p.amount)}</span>
+                      {Number(p.amount) > 0 && <span className="text-[11px] text-gray-500 tabular-nums">{formatCurrency(p.amount)}</span>}
                     </span>
                   );
                 })}

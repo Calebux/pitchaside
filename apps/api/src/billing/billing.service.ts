@@ -33,6 +33,10 @@ import { naira } from '../common/format.util';
 import { localDate } from '../common/time.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
 import { paidByTransfer, refundToCredit } from '../payments/credit';
+import { PERIODIC_TYPES, periodFor } from './periods';
+import { COVERED_BY_DUES, gameTarget, squadEntry } from '../payments/game-dues';
+
+export { periodFor };
 
 /**
  * Pulse MFB charges 2.5% per incoming transfer, min ₦2, max ₦25.
@@ -56,12 +60,6 @@ function grossAmount(net: number): number {
 /** PitchAside service fee per outbound payout, transferred to the platform account. */
 const PLATFORM_FEE = 350;
 
-const PERIODIC_TYPES = [
-  PaymentType.WEEKLY,
-  PaymentType.MONTHLY,
-  PaymentType.QUARTERLY,
-  PaymentType.ANNUALLY,
-];
 
 // Unambiguous characters for human-typed references (no 0/O, 1/I/L).
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -106,11 +104,6 @@ function accountKey(accountNumber: string) {
   return accountNumber.replace(/\D/g, '').slice(-10);
 }
 
-export interface BillingPeriod {
-  /** ISO date (YYYY-MM-DD) of the first day of the period. */
-  start: string;
-  label: string;
-}
 
 @Injectable()
 export class BillingService implements OnModuleInit, OnModuleDestroy {
@@ -313,18 +306,21 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * The group's fee changed: unpaid dues for games still to come, and for the current dues
-   * period, move to the new fee (with their targets). Dues already paid, and past games, keep
-   * the amount they were. Then any credit members hold pays what it now covers.
+   * Brings what's still unpaid in line with the group's fee and how it collects. For games
+   * still to come: a due at the current fee in pay-per-game groups, or a ₦0 entry covered by
+   * dues in monthly-type groups (so switching type doesn't double-charge). The current dues
+   * period moves to the current fee. Paid dues and past games keep what they were. Then any
+   * credit members hold pays what it now covers.
    */
   async repriceOpenDues(group: Group, now = new Date()) {
     const fee = Number(group.feePerPlayer);
+    const periodic = PERIODIC_TYPES.includes(group.paymentType);
     const today = localDate(0, undefined, now);
     const qb = this.sessionsRepo
       .createQueryBuilder('s')
       .where('s.groupId = :groupId', { groupId: group.id })
       .andWhere('s.status = :upcoming', { upcoming: SessionStatus.UPCOMING });
-    if (PERIODIC_TYPES.includes(group.paymentType)) {
+    if (periodic) {
       qb.andWhere('((s.kind = :game AND s.date >= :today) OR (s.kind = :dues AND s.date = :period))', {
         game: SessionKind.GAME,
         dues: SessionKind.DUES,
@@ -337,19 +333,37 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     const sessions = await qb.getMany();
     if (!sessions.length) return;
 
-    const sessionIds = sessions.map((s) => s.id);
-    const pending = await this.paymentsRepo.find({ where: { sessionId: In(sessionIds), status: PaymentStatus.PENDING } });
-    const changed = pending.filter((p) => Number(p.amount) !== fee);
-    for (const p of changed) p.amount = fee;
+    const kindOf = new Map(sessions.map((s) => [s.id, s.kind]));
+    const open = await this.paymentsRepo.find({
+      where: [
+        { sessionId: In(sessions.map((s) => s.id)), status: PaymentStatus.PENDING },
+        { sessionId: In(sessions.map((s) => s.id)), source: COVERED_BY_DUES },
+      ],
+    });
+    const changed: Payment[] = [];
+    for (const p of open) {
+      const isGame = kindOf.get(p.sessionId) === SessionKind.GAME;
+      const want = isGame ? squadEntry(group, p.sessionId, p.playerId) : { amount: fee, status: PaymentStatus.PENDING, source: undefined };
+      const wantSource = want.source ?? null;
+      if (Number(p.amount) === Number(want.amount) && p.status === (want.status ?? PaymentStatus.PENDING) && (p.source ?? null) === wantSource) continue;
+      p.amount = Number(want.amount);
+      p.status = want.status ?? PaymentStatus.PENDING;
+      p.source = wantSource as unknown as string;
+      p.markedBy = null as unknown as string;
+      changed.push(p);
+    }
     if (changed.length) await this.paymentsRepo.save(changed);
 
     const members = await this.membershipsRepo.count({ where: { groupId: group.id } });
     for (const s of sessions) {
-      const heads = s.kind === SessionKind.DUES ? Math.max(members, 1) : group.targetPlayers;
-      await this.sessionsRepo.update(s.id, { targetAmount: fee * heads });
+      const target = s.kind === SessionKind.DUES ? fee * Math.max(members, 1) : gameTarget(group);
+      await this.sessionsRepo.update(s.id, { targetAmount: target });
+      await this.paymentsService.recalculateSessionTotal(s.id);
     }
-    await this.applyCredits(group.id, [...new Set(pending.map((p) => p.playerId))]);
+    const owing = open.filter((p) => p.status === PaymentStatus.PENDING).map((p) => p.playerId);
+    await this.applyCredits(group.id, [...new Set(owing)]);
   }
+
 
   /** Called whenever someone joins a group: give them a reference and this period's due. */
   async onMemberAdded(membership: GroupMembership) {
@@ -1249,31 +1263,3 @@ function normaliseName(name: string): string[] {
 }
 
 /** The billing period containing `now`. Weeks start on Monday. */
-export function periodFor(type: PaymentType, now = new Date()): BillingPeriod {
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const iso = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-  switch (type) {
-    case PaymentType.WEEKLY: {
-      const start = new Date(y, m, now.getDate() - ((now.getDay() + 6) % 7));
-      return {
-        start: iso(start),
-        label: `Week of ${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
-      };
-    }
-    case PaymentType.MONTHLY: {
-      const start = new Date(y, m, 1);
-      return { start: iso(start), label: start.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) };
-    }
-    case PaymentType.QUARTERLY: {
-      const q = Math.floor(m / 3);
-      return { start: iso(new Date(y, q * 3, 1)), label: `Q${q + 1} ${y}` };
-    }
-    case PaymentType.ANNUALLY:
-      return { start: iso(new Date(y, 0, 1)), label: `${y} season` };
-    default:
-      throw new Error(`No billing period for payment type ${type}`);
-  }
-}

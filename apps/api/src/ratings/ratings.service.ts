@@ -12,6 +12,8 @@ import { Group } from '../groups/entities/group.entity';
 import { Player } from '../players/entities/player.entity';
 import { Vote, VoteCategory } from './entities/vote.entity';
 import { SessionGame } from './entities/session-game.entity';
+import { GamePaid, paidForGames } from '../payments/game-dues';
+import { localDate } from '../common/time.util';
 
 /** Sides on match day. Colours live in the UI (Orange, Yellow, Blue, White, Green, Red). */
 export const TEAM_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
@@ -317,9 +319,10 @@ export class RatingsService {
 
   async getLineup(sessionId: string, organizationId: string) {
     const session = await this.loadSession(sessionId, organizationId);
-    const [ovr, games] = await Promise.all([
+    const [ovr, games, paid] = await Promise.all([
       this.ovrMap(organizationId),
       this.gamesRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
+      this.paidFor(session),
     ]);
     const table = this.standings(session.teamCount, games);
     return {
@@ -330,8 +333,10 @@ export class RatingsService {
           id: p.player.id,
           firstName: p.player.firstName,
           lastName: p.player.lastName,
-          team: p.team && TEAM_KEYS.indexOf(p.team as TeamKey) < session.teamCount ? p.team : null,
+          team: this.teamOf(session, p.team),
           ovr: ovr.get(p.player.id) ?? null,
+          // Organisers always see who's paid for this game (or the period it falls in).
+          paid: paid.get(p.playerId) ?? 'unpaid',
         })),
       games: games.map((g) => ({ id: g.id, teamA: g.teamA, teamB: g.teamB, scoreA: g.scoreA, scoreB: g.scoreB })),
       standings: table.rows,
@@ -371,6 +376,66 @@ export class RatingsService {
       await this.sessionsRepo.manager.save(changed);
     }
     return this.getLineup(sessionId, organizationId);
+  }
+
+  private teamOf(session: Session, team: string | null) {
+    return team && TEAM_KEYS.indexOf(team as TeamKey) < session.teamCount ? team : null;
+  }
+
+  private async paidFor(session: Session) {
+    if (session.kind === SessionKind.DUES) return new Map<string, GamePaid>();
+    return (await paidForGames(this.sessionsRepo.manager, [session])).get(session.id) ?? new Map<string, GamePaid>();
+  }
+
+  // ── Bibs, from the player's side ──
+
+  /** A game's squad as one of its players sees it: bibs, and who's paid if the group shares that. */
+  async playerLineup(sessionId: string, playerIds: string[]) {
+    const session = await this.sessionsRepo.findOne({
+      where: { id: sessionId },
+      relations: ['group', 'payments', 'payments.player'],
+    });
+    const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
+    if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
+
+    const paid = await this.paidFor(session);
+    const showPaid = session.group.contributionsVisibility === 'names';
+    return {
+      teamCount: session.teamCount,
+      bibsOpen: this.bibsOpen(session),
+      myTeam: this.teamOf(session, mine.team),
+      myPaid: paid.get(mine.playerId) ?? 'unpaid',
+      showPaid,
+      squad: (session.payments ?? [])
+        .filter((p) => p.player)
+        .map((p) => ({
+          name: `${p.player.firstName} ${p.player.lastName}`.trim(),
+          me: p.playerId === mine.playerId,
+          team: this.teamOf(session, p.team),
+          // Everyone sees their own; others only when the group shares who's paid.
+          paid: showPaid || p.playerId === mine.playerId ? (paid.get(p.playerId) ?? 'unpaid') : null,
+        }))
+        .sort((a, b) => Number(b.me) - Number(a.me) || a.name.localeCompare(b.name)),
+    };
+  }
+
+  /** From kick-off day until the game is marked finished or called off. */
+  private bibsOpen(session: Session) {
+    return session.status === SessionStatus.UPCOMING && localDate(0) >= String(session.date).slice(0, 10);
+  }
+
+  /** A player picks the bib they've been handed on the day (null to clear it). */
+  async pickTeam(sessionId: string, playerIds: string[], team: string | null) {
+    const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['payments'] });
+    const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
+    if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
+    if (!this.bibsOpen(session)) throw new BadRequestException('Bibs open on match day');
+    if (team !== null && !TEAM_KEYS.slice(0, session.teamCount).includes(team as TeamKey)) {
+      throw new BadRequestException("That bib isn't in this game");
+    }
+    mine.team = team;
+    await this.sessionsRepo.manager.save(mine);
+    return this.playerLineup(sessionId, playerIds);
   }
 
   /** Snake draft by OVR across N sides so each gets a fair share of the best players. */

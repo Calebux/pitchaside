@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { BackButton } from '@/components/back-button';
 import { PlayerPaymentRow } from '@/components/player-payment-row';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -15,6 +16,9 @@ import { SessionVotingCard } from '@/components/ratings';
 import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
 import { prettyTime } from '@/components/player-ui';
+
+/** Groups whose period dues cover their games. */
+const PERIODIC = ['weekly', 'monthly', 'quarterly', 'annually'];
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
   upcoming: { bg: 'bg-volt-400', text: 'text-ink' },
@@ -134,12 +138,26 @@ export default function SessionDetailPage() {
   }
 
   const payments = session.payments || [];
-  const paidCount = payments.filter((p) => p.status === PaymentStatus.PAID).length;
-  const waivedCount = payments.filter((p) => p.status === PaymentStatus.WAIVED).length;
-  const pendingPayments = payments.filter((p) => p.status === PaymentStatus.PENDING);
-  const progress = session.targetAmount > 0
-    ? Math.round((session.collectedAmount / session.targetAmount) * 100)
-    : 0;
+  // Monthly-type groups: a game costs nothing extra; a player has paid for it when their dues
+  // for that period are paid, and that's where they're collected.
+  const coveredByDues = session.kind !== 'dues' && PERIODIC.includes(session.group?.paymentType ?? '');
+  const statusOf = (p: (typeof payments)[number]) =>
+    !coveredByDues
+      ? p.status
+      : p.gamePaid === 'paid'
+        ? PaymentStatus.PAID
+        : p.gamePaid === 'waived'
+          ? PaymentStatus.WAIVED
+          : PaymentStatus.PENDING;
+  const paidCount = payments.filter((p) => statusOf(p) === PaymentStatus.PAID).length;
+  const waivedCount = payments.filter((p) => statusOf(p) === PaymentStatus.WAIVED).length;
+  const owingCount = payments.filter((p) => statusOf(p) === PaymentStatus.PENDING).length;
+  const pendingPayments = coveredByDues ? [] : payments.filter((p) => p.status === PaymentStatus.PENDING);
+  const progress = coveredByDues
+    ? payments.length ? Math.round((paidCount / payments.length) * 100) : 0
+    : session.targetAmount > 0
+      ? Math.round((session.collectedAmount / session.targetAmount) * 100)
+      : 0;
   const style = statusStyles[session.status] || { bg: 'bg-gray-100', text: 'text-gray-500' };
   const kickoff = session.kickoffTime || session.group?.kickoffTime;
 
@@ -190,10 +208,17 @@ export default function SessionDetailPage() {
 
           {/* Financial summary */}
           <div className="flex items-end justify-between gap-3 mb-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-4xl font-extrabold tabular-nums">{formatCurrency(session.collectedAmount)}</span>
-              <span className="text-white/45 text-sm tabular-nums">/ {formatCurrency(session.targetAmount)}</span>
-            </div>
+            {coveredByDues ? (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-4xl font-extrabold tabular-nums">{paidCount}</span>
+                <span className="text-white/45 text-sm tabular-nums">/ {payments.length} paid their dues</span>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-4xl font-extrabold tabular-nums">{formatCurrency(session.collectedAmount)}</span>
+                <span className="text-white/45 text-sm tabular-nums">/ {formatCurrency(session.targetAmount)}</span>
+              </div>
+            )}
             <span className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{progress}%</span>
           </div>
 
@@ -215,18 +240,18 @@ export default function SessionDetailPage() {
                   key={p.id}
                   viewBox="0 0 48 48"
                   className="w-7 h-7"
-                  aria-label={`${p.player?.firstName ?? 'Player'}: ${p.status}`}
+                  aria-label={`${p.player?.firstName ?? 'Player'}: ${statusOf(p)}`}
                 >
-                  <title>{`${p.player?.firstName ?? 'Player'} — ${p.status}`}</title>
+                  <title>{`${p.player?.firstName ?? 'Player'} — ${statusOf(p)}`}</title>
                   <path
                     d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z"
-                    fill={p.status === PaymentStatus.PAID ? '#d4f53c' : p.status === PaymentStatus.WAIVED ? 'rgba(255,255,255,0.25)' : 'transparent'}
-                    stroke={p.status === PaymentStatus.PENDING ? '#ffc93c' : 'transparent'}
+                    fill={statusOf(p) === PaymentStatus.PAID ? '#d4f53c' : statusOf(p) === PaymentStatus.WAIVED ? 'rgba(255,255,255,0.25)' : 'transparent'}
+                    stroke={statusOf(p) === PaymentStatus.PENDING ? '#ffc93c' : 'transparent'}
                     strokeWidth="2.5"
-                    strokeDasharray={p.status === PaymentStatus.PENDING ? '4 3' : undefined}
+                    strokeDasharray={statusOf(p) === PaymentStatus.PENDING ? '4 3' : undefined}
                     strokeLinejoin="round"
                   />
-                  <text x="24" y="34" textAnchor="middle" fontSize="15" fontWeight="800" fill={p.status === PaymentStatus.PAID ? '#0f1a14' : 'rgba(255,255,255,0.8)'}>
+                  <text x="24" y="34" textAnchor="middle" fontSize="15" fontWeight="800" fill={statusOf(p) === PaymentStatus.PAID ? '#0f1a14' : 'rgba(255,255,255,0.8)'}>
                     {p.player?.firstName?.charAt(0) ?? '?'}
                   </text>
                 </svg>
@@ -242,7 +267,7 @@ export default function SessionDetailPage() {
             </span>
             <span className="flex items-center gap-1.5 text-white/70">
               <span className="w-2 h-2 rounded-full border-2 border-dashed border-sun-400" />
-              <span className="font-bold text-white tabular-nums">{pendingPayments.length}</span> pending
+              <span className="font-bold text-white tabular-nums">{owingCount}</span> {coveredByDues ? 'not paid' : 'pending'}
             </span>
             {waivedCount > 0 && (
               <span className="flex items-center gap-1.5 text-white/70">
@@ -254,7 +279,7 @@ export default function SessionDetailPage() {
         </div>
       </div>
 
-      {payments.length > 0 && pendingPayments.length === 0 && (
+      {payments.length > 0 && owingCount === 0 && (
         <div className="flex items-center gap-4 bg-volt-300 border-2 border-ink shadow-sticker rounded-3xl p-4 mb-5">
           <Trophy className="w-20 h-auto shrink-0" />
           <div>
@@ -389,7 +414,36 @@ export default function SessionDetailPage() {
         )}
       </div>
 
-      {payments.length === 0 ? (
+      {coveredByDues && payments.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500 mb-1">
+            This group collects {session.group?.paymentType} dues, so the game costs nothing extra. A player has paid for it when
+            their dues for that period are paid —{' '}
+            <Link href={`/groups/${session.groupId}`} className="font-bold text-pitch-600 hover:text-pitch-800">
+              collect them on the group
+            </Link>
+            .
+          </p>
+          {payments.map((p) => (
+            <div key={p.id} className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-card px-4 py-3">
+              <span className="text-sm font-semibold text-ink truncate">
+                {p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Unknown Player'}
+              </span>
+              <span
+                className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                  statusOf(p) === PaymentStatus.PAID
+                    ? 'bg-volt-300 text-ink'
+                    : statusOf(p) === PaymentStatus.WAIVED
+                      ? 'bg-gray-100 text-gray-500'
+                      : 'bg-kit-500/15 text-kit-600'
+                }`}
+              >
+                {statusOf(p) === PaymentStatus.PAID ? 'Dues paid' : statusOf(p) === PaymentStatus.WAIVED ? 'Waived' : 'Dues not paid'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : payments.length === 0 ? (
         <EmptyState
           icon="receipt"
           title="No payments yet"

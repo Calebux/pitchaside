@@ -3,7 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
-import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup } from './api';
+import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -213,6 +213,10 @@ export interface PlayerHome {
     capacity: number;
     waitlist: number;
     payment: { status: 'paid' | 'pending' | 'waived'; amount: number } | null;
+    /** Match day: the player can pick the bib they've been handed. */
+    bibsOpen?: boolean;
+    myTeam?: TeamKey | null;
+    teamCount?: number;
   }[];
   /** `amount` is what's left to pay; `paidSoFar` is credit from partial transfers already counted against it. */
   owed: { id: string; amount: number; paidSoFar: number; groupId: string; groupName: string; label: string | null; date: string }[];
@@ -295,6 +299,30 @@ export function getPlayerHome() {
 
 export function setRsvp(sessionId: string, status: 'in' | 'out') {
   return request<{ status: 'in' | 'out' | 'waitlist' }>('POST', `/me/sessions/${sessionId}/rsvp`, { status });
+}
+
+// ── Bibs on match day ──
+
+/** Paid for this game: their own due, or the month's (week's…) dues when those cover games. */
+export type GamePaid = 'paid' | 'unpaid' | 'waived';
+
+export interface GameLineup {
+  teamCount: number;
+  bibsOpen: boolean;
+  myTeam: TeamKey | null;
+  myPaid: GamePaid;
+  /** Whether the group shares who's paid with players. */
+  showPaid: boolean;
+  /** `paid` is null for others when the group keeps that private. */
+  squad: { name: string; me: boolean; team: TeamKey | null; paid: GamePaid | null }[];
+}
+
+export function getGameLineup(sessionId: string) {
+  return request<GameLineup>('GET', `/me/games/${sessionId}/lineup`);
+}
+
+export function pickBib(sessionId: string, team: TeamKey | null) {
+  return request<GameLineup>('POST', `/me/games/${sessionId}/team`, { team });
 }
 
 // ── Voting ──

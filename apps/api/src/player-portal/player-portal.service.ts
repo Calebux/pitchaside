@@ -95,6 +95,10 @@ export class PlayerPortalService {
         capacity: board.capacity,
         waitlist: board.waitlist.length,
         payment: payment ? { status: payment.status, amount: Number(payment.amount) } : null,
+        // Match day: players pick the bib they're handed.
+        bibsOpen: !!payment && g.date.slice(0, 10) <= localDate(0),
+        myTeam: payment?.team ?? null,
+        teamCount: g.teamCount,
       });
     }
     return result;
@@ -333,6 +337,14 @@ export class PlayerPortalService {
   async setRsvp(person: Person, sessionId: string, status: 'in' | 'out') {
     const player = await this.playerForSession(person, sessionId);
     return this.rsvp.setByPlayer(sessionId, player.id, status);
+  }
+
+  gameLineup(person: Person, sessionId: string) {
+    return this.ratings.playerLineup(sessionId, this.ids(person));
+  }
+
+  pickTeam(person: Person, sessionId: string, team: string | null) {
+    return this.ratings.pickTeam(sessionId, this.ids(person), team);
   }
 
   myBallot(person: Person, token: string) {

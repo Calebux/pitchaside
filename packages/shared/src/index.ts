@@ -83,7 +83,10 @@ export interface IPayment {
   status: PaymentStatus;
   paidAt?: string;
   markedBy?: string;
-  source?: 'manual' | 'transfer';
+  /** 'dues' on a game's ₦0 entry in a group whose period dues cover games. */
+  source?: 'manual' | 'transfer' | 'dues' | null;
+  /** On games: paid for this game — their own due, or the period's dues that cover it. */
+  gamePaid?: 'paid' | 'unpaid' | 'waived';
   player?: IPlayer;
 }
 

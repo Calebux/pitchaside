@@ -14,6 +14,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { shortDate } from '../common/format.util';
 import { prettyTime } from '../common/time.util';
+import { coveredByDues, squadEntry } from '../payments/game-dues';
 import { Rsvp, RsvpStatus } from './entities/rsvp.entity';
 import { BillingService } from '../billing/billing.service';
 
@@ -157,11 +158,9 @@ export class RsvpService {
     if (!session.group.requireRsvp) return;
     const payment = await this.paymentsRepo.findOne({ where: { sessionId: session.id, playerId } });
     if (status === RsvpStatus.IN && !payment) {
-      await this.paymentsRepo.save(
-        this.paymentsRepo.create({ sessionId: session.id, playerId, amount: Number(session.group.feePerPlayer) }),
-      );
+      await this.paymentsRepo.save(this.paymentsRepo.create(squadEntry(session.group, session.id, playerId)));
       await this.billing.applyCredits(session.groupId, [playerId]);
-    } else if (status !== RsvpStatus.IN && payment && payment.status === PaymentStatus.PENDING) {
+    } else if (status !== RsvpStatus.IN && payment && (payment.status === PaymentStatus.PENDING || coveredByDues(payment))) {
       // Paid players who drop out keep their payment; the organiser decides on refunds.
       await this.paymentsRepo.remove(payment);
     }

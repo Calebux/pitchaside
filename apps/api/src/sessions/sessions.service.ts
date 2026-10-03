@@ -14,6 +14,7 @@ import { MailService } from '../mail/mail.service';
 import { CreateSessionDto, RecurrenceType } from './dto/create-session.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
+import { gameTarget, paidForGames, squadEntry } from '../payments/game-dues';
 
 @Injectable()
 export class SessionsService {
@@ -53,20 +54,15 @@ export class SessionsService {
         groupId: dto.groupId,
         date,
         kickoffTime: dto.kickoffTime || null,
-        targetAmount: group.targetPlayers * Number(group.feePerPlayer),
+        targetAmount: gameTarget(group),
       });
       const saved = await this.sessionsRepo.save(session);
       firstSession ??= saved;
 
       // RSVP groups bill players as they confirm, not up front.
       if (memberships.length > 0 && !group.requireRsvp) {
-        const payments = memberships.map((m) =>
-          this.paymentsRepo.create({
-            sessionId: saved.id,
-            playerId: m.playerId,
-            amount: Number(group.feePerPlayer),
-          }),
-        );
+        // Monthly-type groups: everyone's in the squad, but their dues cover the game.
+        const payments = memberships.map((m) => this.paymentsRepo.create(squadEntry(group, saved.id, m.playerId)));
         await this.paymentsRepo.save(payments);
         await this.billing.applyCredits(dto.groupId, memberships.map((m) => m.playerId));
       }
@@ -139,7 +135,7 @@ export class SessionsService {
       qb.andWhere('session.groupId = :groupId', { groupId });
     }
 
-    return qb.getMany();
+    return this.markGamePaid(await qb.getMany());
   }
 
   async findAllPaginated(
@@ -165,11 +161,21 @@ export class SessionsService {
     }
 
     const [data, total] = await qb.getManyAndCount();
+    await this.markGamePaid(data);
 
     return {
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
+  }
+
+  /** Sets payment.gamePaid on each game's squad: paid for the game, or for its dues period. */
+  private async markGamePaid(sessions: Session[]) {
+    const games = sessions.filter((s) => s.kind !== SessionKind.DUES && s.group);
+    if (!games.length) return sessions;
+    const paid = await paidForGames(this.sessionsRepo.manager, games);
+    for (const g of games) for (const p of g.payments ?? []) p.gamePaid = paid.get(g.id)?.get(p.playerId) ?? 'unpaid';
+    return sessions;
   }
 
   async findOne(id: string, organizationId: string) {
@@ -183,6 +189,7 @@ export class SessionsService {
       .getOne();
 
     if (!session) throw new NotFoundException('Session not found');
+    await this.markGamePaid([session]);
     return session;
   }
 
