@@ -4,9 +4,22 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { getGroups, getSessions, formatCurrency, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
+import {
+  getGroups,
+  getSessions,
+  getGroupBilling,
+  getGroupBalance,
+  formatCurrency,
+  type GroupBilling,
+  type IGroupWithMembers,
+  type ISessionWithDetails,
+} from '@/lib/api';
 import { SessionStatus, UserRole } from '@pitchaside/shared';
 import { Celebration, Player, Ball, BallIcon, kitFor, palette, skins } from '@/components/illustrations';
+import { GroupAccountCard } from '@/components/group-billing';
+import { NewSessionSheet } from '@/components/new-session-sheet';
+import { useToast } from '@/components/toast';
+import { formatAccountNumber } from '@/lib/billing';
 
 const onboardingSteps = [
   {
@@ -49,7 +62,15 @@ export default function Dashboard() {
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNewGame, setShowNewGame] = useState(false);
+  // Most organisers run one team: their account sits right on the home page.
+  const [billing, setBilling] = useState<GroupBilling | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
   const router = useRouter();
+  const toast = useToast();
+  // Treasurers can look but not change anything.
+  const canManage = user?.role !== UserRole.TREASURER;
+  const isOwner = user?.role === UserRole.ORG_ADMIN;
 
   // The PitchAside team doesn't run a club — their home is HQ.
   useEffect(() => {
@@ -61,6 +82,10 @@ export default function Dashboard() {
       .then(([g, s]) => {
         setGroups(g);
         setSessions(s);
+        if (g.length === 1) {
+          getGroupBilling(g[0].id).then(setBilling).catch(() => {});
+          getGroupBalance(g[0].id).then((b) => setBalance(b.available)).catch(() => {});
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -180,16 +205,39 @@ export default function Dashboard() {
             {greeting}, {user?.firstName || 'there'}
           </h1>
         </div>
-        <Link
-          href="/groups/new"
-          className="hidden sm:inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          New Group
-        </Link>
+        {canManage && (
+          <div className="hidden sm:flex items-center gap-2">
+            <Link
+              href="/groups/new"
+              className="inline-flex items-center gap-2 py-2.5 px-4 bg-white text-ink text-sm font-bold rounded-xl border border-gray-200 hover:border-ink transition-colors"
+            >
+              <PlusIcon />
+              New group
+            </Link>
+            <button
+              onClick={() => setShowNewGame(true)}
+              className="inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
+            >
+              <PlusIcon />
+              New game
+            </button>
+          </div>
+        )}
       </div>
+
+      {showNewGame && <NewSessionSheet groups={groups} onClose={() => setShowNewGame(false)} />}
+
+      {/* One team: its account, balance and share buttons, first thing on the page */}
+      {groups.length === 1 && billing && (
+        <GroupAccountCard
+          groupId={groups[0].id}
+          groupName={groups[0].name}
+          fee={Number(groups[0].feePerPlayer)}
+          billing={billing}
+          balance={balance}
+          onChange={setBilling}
+        />
+      )}
 
       <div className="grid md:grid-cols-[1.45fr_1fr] gap-4 items-start">
         <div className="space-y-4">
@@ -269,8 +317,17 @@ export default function Dashboard() {
           ) : (
             <div className="bg-white rounded-[28px] border border-dashed border-gray-300 chalk-dots p-6 text-center">
               <BallIcon className="w-10 h-10 mx-auto mb-3 animate-bounce-ball" />
-              <p className="text-base font-bold text-ink mb-0.5">No upcoming sessions</p>
-              <p className="text-xs text-gray-500">Create a session from a group to get started.</p>
+              <p className="text-base font-bold text-ink mb-0.5">No upcoming games</p>
+              <p className="text-xs text-gray-500">Schedule one and everyone in the group gets a due for it.</p>
+              {canManage && (
+                <button
+                  onClick={() => setShowNewGame(true)}
+                  className="mt-4 inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
+                >
+                  <PlusIcon />
+                  Schedule a game
+                </button>
+              )}
             </div>
           )}
 
@@ -355,6 +412,43 @@ export default function Dashboard() {
 
         {/* Right rail */}
         <div className="space-y-4">
+          {groups.length > 1 && (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
+              <h2 className="text-base font-bold text-ink mb-3">Group accounts</h2>
+              <div className="space-y-2">
+                {groups.map((g) => (
+                  <div key={g.id} className="flex items-center gap-3 rounded-2xl bg-chalk px-3 py-2.5">
+                    <Link href={`/groups/${g.id}`} className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-ink truncate">{g.name}</p>
+                      {g.accountNumber ? (
+                        <p className="text-xs text-gray-500 truncate">
+                          <span className="font-display font-extrabold text-ink tracking-[0.04em] tabular-nums">
+                            {formatAccountNumber(g.accountNumber)}
+                          </span>{' '}
+                          · {g.bankName}
+                        </p>
+                      ) : (
+                        <p className="text-xs font-semibold text-pitch-600">Set up its account →</p>
+                      )}
+                    </Link>
+                    {g.accountNumber && (
+                      <button
+                        onClick={() =>
+                          navigator.clipboard
+                            .writeText(g.accountNumber!)
+                            .then(() => toast.success(`${g.name} account number copied`))
+                        }
+                        className="shrink-0 px-2.5 py-1.5 text-xs font-bold text-ink bg-white border border-gray-200 rounded-lg hover:border-ink transition-colors"
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-volt-300 rounded-2xl p-4 border border-volt-400">
               <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/60">Groups</p>
@@ -402,18 +496,36 @@ export default function Dashboard() {
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 gap-3">
-            <Link
-              href="/groups/new"
-              className="sm:hidden flex items-center justify-center gap-2 py-3 px-4 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              New Group
-            </Link>
+            {canManage && (
+              <>
+                <button
+                  onClick={() => setShowNewGame(true)}
+                  className="sm:hidden flex items-center justify-center gap-2 py-3 px-4 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors"
+                >
+                  <PlusIcon />
+                  New game
+                </button>
+                <Link
+                  href="/groups/new"
+                  className="sm:hidden flex items-center justify-center gap-2 py-3 px-4 bg-white text-ink text-sm font-bold rounded-2xl border border-gray-200 hover:border-ink transition-colors"
+                >
+                  <PlusIcon />
+                  New group
+                </Link>
+              </>
+            )}
+            {isOwner && (
+              <Link
+                href="/admin?invite=1"
+                className="flex items-center justify-center gap-2 py-3 px-4 bg-white text-ink text-sm font-bold rounded-2xl border border-gray-200 hover:border-ink transition-colors"
+              >
+                <PlusIcon />
+                Add organiser
+              </Link>
+            )}
             <Link
               href="/players"
-              className="flex items-center justify-center gap-2 py-3 px-4 bg-white text-ink text-sm font-bold rounded-2xl border border-gray-200 hover:border-ink transition-colors sm:col-span-2"
+              className={`flex items-center justify-center gap-2 py-3 px-4 bg-white text-ink text-sm font-bold rounded-2xl border border-gray-200 hover:border-ink transition-colors ${isOwner ? '' : 'col-span-2'}`}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
@@ -424,5 +536,13 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
   );
 }
