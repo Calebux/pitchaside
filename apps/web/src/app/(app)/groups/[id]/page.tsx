@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { JerseyBadge, kitFor } from '@/components/illustrations';
 import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
 import { PayoutsPanel } from '@/components/group-payouts';
+import { NewSessionSheet } from '@/components/new-session-sheet';
 import { frequencyLabel, frequencyOptions } from '@/lib/billing';
 import { LeagueTableView } from '@/components/ratings';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
@@ -22,7 +23,6 @@ import {
   addMember,
   addMeToGroup,
   removeMember,
-  createSession,
   deleteGroup,
   updateGroup,
   formatCurrency,
@@ -72,10 +72,6 @@ export default function GroupDetailPage() {
 
   // Create session state
   const [showCreateSession, setShowCreateSession] = useState(false);
-  const [sessionDate, setSessionDate] = useState('');
-  const [recurrenceType, setRecurrenceType] = useState('none');
-  const [recurrenceCount, setRecurrenceCount] = useState(4);
-  const [creatingSess, setCreatingSess] = useState(false);
 
   // Edit group state
   const [editing, setEditing] = useState(false);
@@ -249,27 +245,6 @@ export default function GroupDetailPage() {
         }
       },
     });
-  }
-
-  async function handleCreateSession() {
-    if (!sessionDate) return;
-    setCreatingSess(true);
-    try {
-      const session = await createSession({
-        groupId: id,
-        date: sessionDate,
-        recurrenceType: recurrenceType !== 'none' ? recurrenceType : undefined,
-        recurrenceCount: recurrenceType !== 'none' ? recurrenceCount : undefined,
-      });
-      const msg = recurrenceType !== 'none'
-        ? `${recurrenceCount} sessions created`
-        : 'Session created';
-      toast.success(msg);
-      router.push(`/sessions/${session.id}`);
-    } catch {
-      toast.error('Failed to create session');
-      setCreatingSess(false);
-    }
   }
 
   if (loading || !group) {
@@ -687,64 +662,13 @@ export default function GroupDetailPage() {
       {tab === 'sessions' && (
         <div>
           <button
-            onClick={() => setShowCreateSession(!showCreateSession)}
+            onClick={() => setShowCreateSession(true)}
             className="w-full mb-3 py-3 text-sm font-bold text-ink border-2 border-dashed border-gray-300 rounded-2xl hover:border-ink hover:bg-white transition-colors"
           >
-            + Create Session
+            + Schedule a game
           </button>
+          {showCreateSession && <NewSessionSheet groups={[group]} onClose={() => setShowCreateSession(false)} />}
 
-          {showCreateSession && (
-            <div className="bg-white border border-gray-100 shadow-card rounded-3xl p-5 mb-3 space-y-3 animate-fade-in-up">
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Game Date</label>
-                <input
-                  type="date"
-                  value={sessionDate}
-                  onChange={(e) => setSessionDate(e.target.value)}
-                  className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Recurrence</label>
-                  <select
-                    value={recurrenceType}
-                    onChange={(e) => setRecurrenceType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-                  >
-                    <option value="none">None</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Biweekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </div>
-                {recurrenceType !== 'none' && (
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5">Count</label>
-                    <input
-                      type="number"
-                      min={2}
-                      max={52}
-                      value={recurrenceCount}
-                      onChange={(e) => setRecurrenceCount(Number(e.target.value))}
-                      className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-                    />
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={handleCreateSession}
-                disabled={!sessionDate || creatingSess}
-                className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
-              >
-                {creatingSess
-                  ? 'Creating...'
-                  : recurrenceType !== 'none'
-                    ? `Create ${recurrenceCount} Sessions`
-                    : 'Create Session'}
-              </button>
-            </div>
-          )}
 
           {sessions.length === 0 ? (
             <EmptyState

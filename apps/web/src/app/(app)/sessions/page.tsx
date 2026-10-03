@@ -9,7 +9,10 @@ import { useToast } from '@/components/toast';
 import { PageHeader } from '@/components/brand';
 import { isVotingOpen } from '@/components/ratings';
 import { getSessionsPaginated, getGroups, deleteSession, formatCurrency, type ISessionWithDetails, type IGroupWithMembers, type PaginatedResponse } from '@/lib/api';
-import { SessionStatus } from '@pitchaside/shared';
+import { SessionStatus, UserRole } from '@pitchaside/shared';
+import { NewSessionSheet } from '@/components/new-session-sheet';
+import { prettyTime } from '@/components/player-ui';
+import { useAuth } from '@/lib/auth';
 
 const statusFilters = [
   { label: 'All', value: '' },
@@ -26,6 +29,9 @@ const statusStyles: Record<string, string> = {
 
 export default function SessionsPage() {
   const toast = useToast();
+  const { user } = useAuth();
+  const canManage = user?.role !== UserRole.TREASURER;
+  const [showNewGame, setShowNewGame] = useState(false);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
@@ -101,7 +107,19 @@ export default function SessionsPage() {
         eyebrow="Fixtures"
         title="Sessions"
         subtitle={meta.total > 0 ? `${meta.total} match day${meta.total === 1 ? '' : 's'} logged` : undefined}
+        actions={
+          canManage && groups.length > 0 ? (
+            <button
+              onClick={() => setShowNewGame(true)}
+              className="px-3.5 py-2 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 transition-colors"
+            >
+              + New game
+            </button>
+          ) : undefined
+        }
       />
+
+      {showNewGame && <NewSessionSheet groups={groups} onClose={() => setShowNewGame(false)} />}
 
       {/* Filters */}
       <div className="inline-flex gap-1 p-1 mb-5 bg-white border border-gray-200 rounded-2xl overflow-x-auto max-w-full">
@@ -124,9 +142,14 @@ export default function SessionsPage() {
         <EmptyState
           icon="calendar"
           title="No sessions yet"
-          description="Create sessions from a group page to start tracking game payments."
-          actionLabel="Go to Groups"
-          actionHref="/groups"
+          description={
+            groups.length > 0
+              ? 'Schedule a game and everyone in the group gets a due for it.'
+              : 'Create a group first, then schedule its games here.'
+          }
+          actionLabel={groups.length > 0 ? (canManage ? 'Schedule a game' : undefined) : 'Create a group'}
+          onAction={groups.length > 0 && canManage ? () => setShowNewGame(true) : undefined}
+          actionHref={groups.length > 0 ? undefined : '/groups/new'}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -166,9 +189,13 @@ export default function SessionsPage() {
                           <p className="text-xs text-gray-500 mt-0.5">
                             {session.kind === 'dues' && session.label
                               ? `${session.label} dues`
-                              : new Date(session.date).toLocaleDateString('en-US', {
+                              : `${new Date(session.date).toLocaleDateString('en-US', {
                                   weekday: 'long',
-                                })}
+                                })}${
+                                  (session.kickoffTime || group?.kickoffTime)
+                                    ? ` · ${prettyTime(session.kickoffTime || group?.kickoffTime)}`
+                                    : ''
+                                }`}
                           </p>
                         </div>
                       </div>

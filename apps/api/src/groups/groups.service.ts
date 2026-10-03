@@ -79,6 +79,10 @@ export class GroupsService {
     const saved = await this.groupsRepo.save(group);
     // Switching to a periodic type opens the current dues period straight away.
     await this.billing.ensureCurrentPeriod(saved);
+    // The fee and how the group collects apply to what's still unpaid, not just to dues
+    // created from now on. Run on every save (it only touches unpaid upcoming dues), so
+    // re-saving fixes dues left at an old amount.
+    if (dto.feePerPlayer !== undefined || dto.paymentType !== undefined) await this.billing.repriceOpenDues(saved);
     return saved;
   }
 

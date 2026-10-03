@@ -6,6 +6,8 @@ interface EmptyStateProps {
   description: string;
   actionLabel?: string;
   actionHref?: string;
+  /** A button instead of a link, e.g. to open a sheet. */
+  onAction?: () => void;
   icon?: 'box' | 'users' | 'calendar' | 'receipt';
 }
 
@@ -16,14 +18,22 @@ const art = {
   receipt: KittyJar,
 };
 
-export function EmptyState({ title, description, actionLabel, actionHref, icon = 'box' }: EmptyStateProps) {
+export function EmptyState({ title, description, actionLabel, actionHref, onAction, icon = 'box' }: EmptyStateProps) {
   const Art = art[icon];
   return (
     <div className="text-center py-10 px-6 bg-white rounded-3xl border border-dashed border-gray-300 chalk-dots">
       <Art className="w-44 h-32 mx-auto mb-4" />
       <h3 className="text-lg font-bold text-ink">{title}</h3>
       <p className="text-sm text-gray-500 mt-1 max-w-xs mx-auto">{description}</p>
-      {actionLabel && actionHref && (
+      {actionLabel && onAction && (
+        <button
+          onClick={onAction}
+          className="inline-flex items-center gap-1.5 mt-5 px-5 py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
+        >
+          {actionLabel}
+        </button>
+      )}
+      {actionLabel && actionHref && !onAction && (
         <Link
           href={actionHref}
           className="inline-flex items-center gap-1.5 mt-5 px-5 py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"

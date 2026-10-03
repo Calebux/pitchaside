@@ -169,6 +169,8 @@ export function getSession(id: string): Promise<ISessionWithDetails> {
 export function createSession(data: {
   groupId: string;
   date: string;
+  /** "HH:mm"; left out, the group's kick-off time applies. */
+  kickoffTime?: string;
   recurrenceType?: string;
   recurrenceCount?: number;
 }): Promise<ISession> {
@@ -582,7 +584,8 @@ export interface TeamStanding {
 
 export interface Lineup {
   teamCount: number;
-  squad: (SquadMember & { team: TeamKey | null; ovr: number | null })[];
+  /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
+  squad: (SquadMember & { team: TeamKey | null; ovr: number | null; paid?: 'paid' | 'unpaid' | 'waived' })[];
   games: MatchGame[];
   standings: TeamStanding[];
   teamOfTheDay: TeamKey | null;

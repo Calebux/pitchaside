@@ -56,4 +56,10 @@ export class Payment {
 
   @CreateDateColumn()
   createdAt: Date;
+
+  /**
+   * Not stored: whether the player has paid for this game, set when sessions are loaded —
+   * their own due, or their period's dues when those cover the game.
+   */
+  gamePaid?: 'paid' | 'unpaid' | 'waived';
 }

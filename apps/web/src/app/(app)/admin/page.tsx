@@ -43,7 +43,14 @@ export default function AdminPage() {
 
     Promise.all(promises)
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        // "Add organiser" on the home page lands here with the form open.
+        if (new URLSearchParams(window.location.search).has('invite')) {
+          setShowInvite(true);
+          setTimeout(() => document.getElementById('co-admins')?.scrollIntoView({ behavior: 'smooth' }), 50);
+        }
+      });
   }, [user, router]);
 
   async function handleInvite(e: React.FormEvent) {
@@ -170,7 +177,7 @@ export default function AdminPage() {
       )}
 
       {/* Org Members */}
-      <div>
+      <div id="co-admins">
         <div className="flex items-center justify-between mb-3">
           <div>
             <h2 className="text-lg font-bold text-ink">Co-admins</h2>

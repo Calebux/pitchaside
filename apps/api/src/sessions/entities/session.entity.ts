@@ -55,6 +55,10 @@ export class Session {
   @Column({ nullable: true })
   label: string;
 
+  /** "HH:mm" for this game; null means the group's kick-off time. Use kickoffFor(). */
+  @Column({ name: 'kickoff_time', type: 'varchar', length: 5, nullable: true })
+  kickoffTime: string | null;
+
   /** How many sides the squad is split into on match day (2–6). */
   @Column({ name: 'team_count', type: 'int', default: 2 })
   teamCount: number;
@@ -75,4 +79,9 @@ export class Session {
 
   @UpdateDateColumn()
   updatedAt: Date;
+}
+
+/** When a game kicks off ("HH:mm"): its own time, else its group's, else unknown. */
+export function kickoffFor(session: Pick<Session, 'kickoffTime'> & { group?: { kickoffTime: string | null } | null }) {
+  return session.kickoffTime || session.group?.kickoffTime || null;
 }

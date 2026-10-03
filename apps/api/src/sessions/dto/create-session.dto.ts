@@ -1,4 +1,4 @@
-import { IsUUID, IsDateString, IsNotEmpty, IsOptional, IsEnum, IsInt, Min, Max } from 'class-validator';
+import { IsUUID, IsDateString, IsNotEmpty, IsOptional, IsEnum, IsInt, Matches, Min, Max } from 'class-validator';
 
 export enum RecurrenceType {
   NONE = 'none',
@@ -15,6 +15,11 @@ export class CreateSessionDto {
   @IsDateString()
   @IsNotEmpty()
   date: string;
+
+  /** "HH:mm"; left out, the group's kick-off time applies. */
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'Kick-off time must be HH:mm' })
+  kickoffTime?: string;
 
   @IsOptional()
   @IsEnum(RecurrenceType)

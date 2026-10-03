@@ -70,6 +70,10 @@ export interface ISession {
   status: SessionStatus;
   kind?: SessionKind;
   label?: string;
+  /** "HH:mm" set for this game; null means the group's kick-off time. */
+  kickoffTime?: string | null;
+  /** Coloured sides on match day (2–6). */
+  teamCount?: number;
   payments?: IPayment[];
 }
 
@@ -81,7 +85,10 @@ export interface IPayment {
   status: PaymentStatus;
   paidAt?: string;
   markedBy?: string;
-  source?: 'manual' | 'transfer';
+  /** 'dues' on a game's ₦0 entry in a group whose period dues cover games. */
+  source?: 'manual' | 'transfer' | 'dues' | null;
+  /** On games: paid for this game — their own due, or the period's dues that cover it. */
+  gamePaid?: 'paid' | 'unpaid' | 'waived';
   player?: IPlayer;
 }
 

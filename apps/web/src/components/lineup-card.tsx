@@ -114,7 +114,9 @@ export function LineupCard({ sessionId }: { sessionId: string }) {
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
       >
         <Avatar name={`${m.firstName} ${m.lastName}`} className="w-7 h-7 text-[10px]" />
-        <span className="flex-1 text-sm font-semibold text-ink truncate">{m.firstName}</span>
+        <span className="flex-1 min-w-0 text-sm font-semibold text-ink truncate">{m.firstName}</span>
+        {m.paid === 'paid' && <span className="text-[10px] font-extrabold text-pitch-600" title="Paid for this game">✓</span>}
+        {m.paid === 'unpaid' && <span className="text-[10px] font-extrabold text-kit-600 whitespace-nowrap">Not paid</span>}
         {busy === m.id ? (
           <BallSpinner className="w-3.5 h-3.5" />
         ) : (

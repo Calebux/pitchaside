@@ -30,7 +30,8 @@ function setup(credit: number) {
 
   const service = new BillingService(
     { findOne: async () => group } as any, { manager } as any, {} as any, {} as any, {} as any, {} as any,
-    payoutsRepo as any, pulse, {} as any, {} as any, usersService as any, {} as any,
+    payoutsRepo as any, pulse, {} as any, {} as any, usersService as any,
+    { get: (_key: string, fallback?: unknown) => fallback } as any,
   );
   jest.spyOn(service, 'getGroupBalance').mockResolvedValue({ available: 50_000 } as any);
   const refund = (amount: number, refundPlayerId = 'p1') =>

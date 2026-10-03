@@ -4,9 +4,23 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { getGroups, getSessions, formatCurrency, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
+import {
+  getGroups,
+  getSessions,
+  getGroupBilling,
+  getGroupBalance,
+  formatCurrency,
+  type GroupBilling,
+  type IGroupWithMembers,
+  type ISessionWithDetails,
+} from '@/lib/api';
 import { SessionStatus, UserRole } from '@pitchaside/shared';
 import { Celebration, Player, Ball, BallIcon, kitFor, palette, skins } from '@/components/illustrations';
+import { GroupAccountCard } from '@/components/group-billing';
+import { NewSessionSheet } from '@/components/new-session-sheet';
+import { useToast } from '@/components/toast';
+import { formatAccountNumber } from '@/lib/billing';
+import { prettyTime } from '@/components/player-ui';
 
 const onboardingSteps = [
   {
@@ -49,7 +63,14 @@ export default function Dashboard() {
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNewGame, setShowNewGame] = useState(false);
+  // Most organisers run one team: their account sits right on the home page.
+  const [billing, setBilling] = useState<GroupBilling | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
   const router = useRouter();
+  const toast = useToast();
+  // Treasurers can look but not change anything.
+  const canManage = user?.role !== UserRole.TREASURER;
 
   // The PitchAside team doesn't run a club — their home is HQ.
   useEffect(() => {
@@ -61,6 +82,10 @@ export default function Dashboard() {
       .then(([g, s]) => {
         setGroups(g);
         setSessions(s);
+        if (g.length === 1) {
+          getGroupBilling(g[0].id).then(setBilling).catch(() => {});
+          getGroupBalance(g[0].id).then((b) => setBalance(b.available)).catch(() => {});
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -73,10 +98,6 @@ export default function Dashboard() {
   const nextSession = upcomingSessions[0];
 
   const nextGroup = nextSession ? groups.find((g) => g.id === nextSession.groupId) : null;
-
-  // Amounts arrive from Postgres DECIMAL columns as strings; coerce before summing.
-  const totalTarget = sessions.reduce((sum, s) => sum + Number(s.targetAmount), 0);
-  const totalCollected = sessions.reduce((sum, s) => sum + Number(s.collectedAmount), 0);
 
   if (loading) {
     return (
@@ -157,11 +178,15 @@ export default function Dashboard() {
   const nextProgress = nextSession && nextSession.targetAmount > 0
     ? Math.round((nextSession.collectedAmount / nextSession.targetAmount) * 100)
     : 0;
-  const nextPaidCount = nextSession?.payments?.filter((p) => p.status === 'paid').length ?? 0;
+  // gamePaid covers groups whose monthly (weekly…) dues pay for games; otherwise the game's own due.
+  const paidForGame = (p: { status: string; gamePaid?: string }) => (p.gamePaid ? p.gamePaid === 'paid' : p.status === 'paid');
+  const owesForGame = (p: { status: string; gamePaid?: string }) => (p.gamePaid ? p.gamePaid === 'unpaid' : p.status === 'pending');
+  const nextPaidCount = nextSession?.payments?.filter(paidForGame).length ?? 0;
   const nextTotalCount = nextSession?.payments?.length ?? 0;
-  const nextPendingCount = nextTotalCount - nextPaidCount;
-  const nextUnpaid = (nextSession?.payments ?? []).filter((p) => p.status === 'pending');
-  const overallProgress = totalTarget > 0 ? Math.min(Math.round((totalCollected / totalTarget) * 100), 100) : 0;
+  const nextUnpaid = (nextSession?.payments ?? []).filter(owesForGame);
+  const nextPendingCount = nextUnpaid.length;
+  const coveredByDues = !!nextSession && Number(nextSession.targetAmount) === 0 && nextTotalCount > 0;
+  const gameProgress = coveredByDues ? Math.round((nextPaidCount / nextTotalCount) * 100) : nextProgress;
   const daysToGo = nextSession
     ? Math.max(0, Math.ceil((new Date(nextSession.date).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000))
     : 0;
@@ -180,18 +205,23 @@ export default function Dashboard() {
             {greeting}, {user?.firstName || 'there'}
           </h1>
         </div>
-        <Link
-          href="/groups/new"
-          className="hidden sm:inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          New Group
-        </Link>
       </div>
 
-      <div className="grid md:grid-cols-[1.45fr_1fr] gap-4 items-start">
+      {showNewGame && <NewSessionSheet groups={groups} onClose={() => setShowNewGame(false)} />}
+
+      {/* One team: its account, balance and share buttons, first thing on the page */}
+      {groups.length === 1 && billing && (
+        <GroupAccountCard
+          groupId={groups[0].id}
+          groupName={groups[0].name}
+          fee={Number(groups[0].feePerPlayer)}
+          billing={billing}
+          balance={balance}
+          onChange={setBilling}
+        />
+      )}
+
+      <div className={groups.length > 1 ? 'grid md:grid-cols-[1.45fr_1fr] gap-4 items-start' : ''}>
         <div className="space-y-4">
           {/* Next Game Card — the hero section */}
           {nextSession ? (
@@ -232,22 +262,33 @@ export default function Dashboard() {
                     month: 'short',
                     day: 'numeric',
                   })}
+                  {(nextSession.kickoffTime || nextGroup?.kickoffTime) &&
+                    ` · ${prettyTime(nextSession.kickoffTime || nextGroup?.kickoffTime)}`}
                 </p>
 
                 {/* Payment progress */}
                 <div className="mt-6">
                   <div className="flex items-baseline gap-2 mb-2">
-                    <span className="font-display text-3xl font-extrabold tabular-nums">
-                      {formatCurrency(nextSession.collectedAmount)}
-                    </span>
-                    <span className="text-sm text-white/50 tabular-nums">
-                      of {formatCurrency(nextSession.targetAmount)}
-                    </span>
+                    {coveredByDues ? (
+                      <>
+                        <span className="font-display text-3xl font-extrabold tabular-nums">{nextPaidCount}</span>
+                        <span className="text-sm text-white/50 tabular-nums">of {nextTotalCount} paid their dues</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-display text-3xl font-extrabold tabular-nums">
+                          {formatCurrency(nextSession.collectedAmount)}
+                        </span>
+                        <span className="text-sm text-white/50 tabular-nums">
+                          of {formatCurrency(nextSession.targetAmount)}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <div className="w-full bg-black/25 rounded-full h-2.5">
                     <div
                       className="bg-volt-400 h-2.5 rounded-full animate-progress"
-                      style={{ width: `${Math.min(nextProgress, 100)}%` }}
+                      style={{ width: `${Math.min(gameProgress, 100)}%` }}
                     />
                   </div>
                   <div className="flex gap-4 mt-3">
@@ -261,7 +302,7 @@ export default function Dashboard() {
                         <span className="font-bold text-white tabular-nums">{nextPendingCount}</span> pending
                       </span>
                     )}
-                    <span className="text-xs font-extrabold text-volt-300 tabular-nums">{nextProgress}%</span>
+                    <span className="text-xs font-extrabold text-volt-300 tabular-nums">{gameProgress}%</span>
                   </div>
                 </div>
               </div>
@@ -269,8 +310,19 @@ export default function Dashboard() {
           ) : (
             <div className="bg-white rounded-[28px] border border-dashed border-gray-300 chalk-dots p-6 text-center">
               <BallIcon className="w-10 h-10 mx-auto mb-3 animate-bounce-ball" />
-              <p className="text-base font-bold text-ink mb-0.5">No upcoming sessions</p>
-              <p className="text-xs text-gray-500">Create a session from a group to get started.</p>
+              <p className="text-base font-bold text-ink mb-0.5">No upcoming games</p>
+              <p className="text-xs text-gray-500">Schedule one and everyone in the group gets a due for it.</p>
+              {canManage && (
+                <button
+                  onClick={() => setShowNewGame(true)}
+                  className="mt-4 inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Schedule a game
+                </button>
+              )}
             </div>
           )}
 
@@ -293,7 +345,7 @@ export default function Dashboard() {
                         {name.charAt(0)}
                       </span>
                       <span className="text-xs font-semibold text-ink">{p.player?.firstName ?? name}</span>
-                      <span className="text-[11px] text-gray-500 tabular-nums">{formatCurrency(p.amount)}</span>
+                      {Number(p.amount) > 0 && <span className="text-[11px] text-gray-500 tabular-nums">{formatCurrency(p.amount)}</span>}
                     </span>
                   );
                 })}
@@ -353,75 +405,45 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Right rail */}
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-volt-300 rounded-2xl p-4 border border-volt-400">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-ink/60">Groups</p>
-              <p className="font-display text-4xl font-extrabold text-ink mt-1 tabular-nums leading-none">{groups.length}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-card">
-              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">Upcoming</p>
-              <p className="font-display text-4xl font-extrabold text-ink mt-1 tabular-nums leading-none">{upcomingSessions.length}</p>
-            </div>
-          </div>
-
-          {totalTarget > 0 && (
-            <div className="bg-ink text-white rounded-3xl p-5 relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/50">Total collected</p>
-                <span className="text-xs font-extrabold text-ink bg-volt-400 px-2 py-0.5 rounded-full tabular-nums">
-                  {overallProgress}%
-                </span>
-              </div>
-              {/* Ring gauge */}
-              <div className="flex items-center gap-4 mt-4">
-                <svg viewBox="0 0 80 80" className="w-20 h-20 shrink-0 -rotate-90" aria-hidden>
-                  <circle cx="40" cy="40" r="32" stroke="rgba(255,255,255,0.12)" strokeWidth="10" fill="none" />
-                  <circle
-                    cx="40"
-                    cy="40"
-                    r="32"
-                    stroke="#d4f53c"
-                    strokeWidth="10"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeDasharray={`${(overallProgress / 100) * 201} 201`}
-                  />
-                </svg>
-                <div className="min-w-0">
-                  <p className="font-display text-2xl font-extrabold tabular-nums leading-tight">{formatCurrency(totalCollected)}</p>
-                  <p className="text-xs text-white/50 mt-0.5 tabular-nums">of {formatCurrency(totalTarget)} expected</p>
-                  <p className="text-xs text-kit-400 font-semibold mt-1.5 tabular-nums">
-                    {formatCurrency(Math.max(totalTarget - totalCollected, 0))} outstanding
-                  </p>
-                </div>
+        {/* Several groups: their accounts in a rail */}
+        {groups.length > 1 && (
+          <div>
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
+              <h2 className="text-base font-bold text-ink mb-3">Group accounts</h2>
+              <div className="space-y-2">
+                {groups.map((g) => (
+                  <div key={g.id} className="flex items-center gap-3 rounded-2xl bg-chalk px-3 py-2.5">
+                    <Link href={`/groups/${g.id}`} className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-ink truncate">{g.name}</p>
+                      {g.accountNumber ? (
+                        <p className="text-xs text-gray-500 truncate">
+                          <span className="font-display font-extrabold text-ink tracking-[0.04em] tabular-nums">
+                            {formatAccountNumber(g.accountNumber)}
+                          </span>{' '}
+                          · {g.bankName}
+                        </p>
+                      ) : (
+                        <p className="text-xs font-semibold text-pitch-600">Set up its account →</p>
+                      )}
+                    </Link>
+                    {g.accountNumber && (
+                      <button
+                        onClick={() =>
+                          navigator.clipboard
+                            .writeText(g.accountNumber!)
+                            .then(() => toast.success(`${g.name} account number copied`))
+                        }
+                        className="shrink-0 px-2.5 py-1.5 text-xs font-bold text-ink bg-white border border-gray-200 rounded-lg hover:border-ink transition-colors"
+                      >
+                        Copy
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
-          )}
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              href="/groups/new"
-              className="sm:hidden flex items-center justify-center gap-2 py-3 px-4 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              New Group
-            </Link>
-            <Link
-              href="/players"
-              className="flex items-center justify-center gap-2 py-3 px-4 bg-white text-ink text-sm font-bold rounded-2xl border border-gray-200 hover:border-ink transition-colors sm:col-span-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
-              </svg>
-              Players
-            </Link>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

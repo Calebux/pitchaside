@@ -29,6 +29,12 @@ export class RsvpDto {
   status: 'in' | 'out';
 }
 
+export class PickTeamDto {
+  /** The bib colour's side, A–F; null to clear it. */
+  @IsIn(['A', 'B', 'C', 'D', 'E', 'F', null])
+  team: string | null;
+}
+
 export class VoteDto {
   @IsObject()
   picks: Record<string, string>;
@@ -256,6 +262,18 @@ export class PlayerPortalController {
   @Get('profile')
   profile(@CurrentPerson() person: Person) {
     return this.portal.profile(person);
+  }
+
+  /** A game's squad with bibs, and who's paid when the group shares that. */
+  @Get('games/:id/lineup')
+  lineup(@Param('id') id: string, @CurrentPerson() person: Person) {
+    return this.portal.gameLineup(person, id);
+  }
+
+  /** The bib the player was handed on the day. */
+  @Post('games/:id/team')
+  pickTeam(@Param('id') id: string, @Body() dto: PickTeamDto, @CurrentPerson() person: Person) {
+    return this.portal.pickTeam(person, id, dto.team);
   }
 
   @Post('sessions/:id/rsvp')

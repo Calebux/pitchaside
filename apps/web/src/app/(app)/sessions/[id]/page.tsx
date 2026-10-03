@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { BackButton } from '@/components/back-button';
 import { PlayerPaymentRow } from '@/components/player-payment-row';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -14,6 +15,16 @@ import { BallSpinner } from '@/components/skeleton';
 import { SessionVotingCard } from '@/components/ratings';
 import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
+import { prettyTime } from '@/components/player-ui';
+
+type Tab = 'payments' | 'teams' | 'stars';
+const TABS: Tab[] = ['payments', 'teams', 'stars'];
+
+/** Shirts shown in the summary card; the rest are a count. */
+const SHIRTS = 24;
+
+/** Groups whose period dues cover their games. */
+const PERIODIC = ['weekly', 'monthly', 'quarterly', 'annually'];
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
   upcoming: { bg: 'bg-volt-400', text: 'text-ink' },
@@ -33,6 +44,10 @@ export default function SessionDetailPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMarking, setBulkMarking] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
+  // Long squads (30+) made this page endless: payments, teams and stars each get a tab.
+  const [tab, setTab] = useState<Tab | null>(null);
+  const [filter, setFilter] = useState<'owing' | 'paid' | 'all' | null>(null);
+  const [search, setSearch] = useState('');
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -43,6 +58,27 @@ export default function SessionDetailPage() {
   useEffect(() => {
     fetchSession().finally(() => setLoading(false));
   }, [fetchSession]);
+
+  // Opening tab: ?tab= if given, else Teams on match day, else Payments.
+  useEffect(() => {
+    if (!session || tab) return;
+    const asked = new URLSearchParams(window.location.search).get('tab');
+    const today = new Date().toLocaleDateString('en-CA');
+    setTab(
+      TABS.includes(asked as Tab)
+        ? (asked as Tab)
+        : session.status === SessionStatus.UPCOMING && String(session.date).slice(0, 10) === today
+          ? 'teams'
+          : 'payments',
+    );
+  }, [session, tab]);
+
+  function chooseTab(t: Tab) {
+    setTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', t);
+    window.history.replaceState(null, '', url);
+  }
 
   async function handleMarkPaid(paymentId: string) {
     setMarkingId(paymentId);
@@ -133,13 +169,39 @@ export default function SessionDetailPage() {
   }
 
   const payments = session.payments || [];
-  const paidCount = payments.filter((p) => p.status === PaymentStatus.PAID).length;
-  const waivedCount = payments.filter((p) => p.status === PaymentStatus.WAIVED).length;
-  const pendingPayments = payments.filter((p) => p.status === PaymentStatus.PENDING);
-  const progress = session.targetAmount > 0
-    ? Math.round((session.collectedAmount / session.targetAmount) * 100)
-    : 0;
+  // Monthly-type groups: a game costs nothing extra; a player has paid for it when their dues
+  // for that period are paid, and that's where they're collected.
+  const coveredByDues = session.kind !== 'dues' && PERIODIC.includes(session.group?.paymentType ?? '');
+  const statusOf = (p: (typeof payments)[number]) =>
+    !coveredByDues
+      ? p.status
+      : p.gamePaid === 'paid'
+        ? PaymentStatus.PAID
+        : p.gamePaid === 'waived'
+          ? PaymentStatus.WAIVED
+          : PaymentStatus.PENDING;
+  const paidCount = payments.filter((p) => statusOf(p) === PaymentStatus.PAID).length;
+  const waivedCount = payments.filter((p) => statusOf(p) === PaymentStatus.WAIVED).length;
+  const owingCount = payments.filter((p) => statusOf(p) === PaymentStatus.PENDING).length;
+  const pendingPayments = coveredByDues ? [] : payments.filter((p) => p.status === PaymentStatus.PENDING);
+  const progress = coveredByDues
+    ? payments.length ? Math.round((paidCount / payments.length) * 100) : 0
+    : session.targetAmount > 0
+      ? Math.round((session.collectedAmount / session.targetAmount) * 100)
+      : 0;
   const style = statusStyles[session.status] || { bg: 'bg-gray-100', text: 'text-gray-500' };
+  const isGame = session.kind !== 'dues';
+  // Unpaid first: with 30+ players the paid ones are noise until everyone's in.
+  const shownFilter = filter ?? (owingCount > 0 ? 'owing' : 'all');
+  const needle = search.trim().toLowerCase();
+  const visible = payments.filter((p) => {
+    const st = statusOf(p);
+    if (shownFilter === 'owing' && st !== PaymentStatus.PENDING) return false;
+    if (shownFilter === 'paid' && st !== PaymentStatus.PAID) return false;
+    if (!needle) return true;
+    return `${p.player?.firstName ?? ''} ${p.player?.lastName ?? ''}`.toLowerCase().includes(needle);
+  });
+  const kickoff = session.kickoffTime || session.group?.kickoffTime;
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -171,11 +233,11 @@ export default function SessionDetailPage() {
               <p className="text-white/60 text-xs font-semibold">
                 {session.kind === 'dues' && session.label
                   ? `${session.label} dues`
-                  : new Date(session.date).toLocaleDateString('en-US', {
+                  : `${new Date(session.date).toLocaleDateString('en-US', {
                       weekday: 'long',
                       month: 'long',
                       day: 'numeric',
-                    })}
+                    })}${kickoff ? ` · ${prettyTime(kickoff)}` : ''}`}
               </p>
               <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1 line-clamp-2">
                 {session.group?.name || 'Game Session'}
@@ -188,10 +250,17 @@ export default function SessionDetailPage() {
 
           {/* Financial summary */}
           <div className="flex items-end justify-between gap-3 mb-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-display text-4xl font-extrabold tabular-nums">{formatCurrency(session.collectedAmount)}</span>
-              <span className="text-white/45 text-sm tabular-nums">/ {formatCurrency(session.targetAmount)}</span>
-            </div>
+            {coveredByDues ? (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-4xl font-extrabold tabular-nums">{paidCount}</span>
+                <span className="text-white/45 text-sm tabular-nums">/ {payments.length} paid their dues</span>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-display text-4xl font-extrabold tabular-nums">{formatCurrency(session.collectedAmount)}</span>
+                <span className="text-white/45 text-sm tabular-nums">/ {formatCurrency(session.targetAmount)}</span>
+              </div>
+            )}
             <span className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{progress}%</span>
           </div>
 
@@ -207,28 +276,31 @@ export default function SessionDetailPage() {
 
           {/* Squad board — one shirt per player, coloured by payment status */}
           {payments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-4" aria-label="Payment status by player">
-              {payments.map((p) => (
+            <div className="flex flex-wrap items-center gap-1.5 mb-4" aria-label="Payment status by player">
+              {payments.slice(0, SHIRTS).map((p) => (
                 <svg
                   key={p.id}
                   viewBox="0 0 48 48"
                   className="w-7 h-7"
-                  aria-label={`${p.player?.firstName ?? 'Player'}: ${p.status}`}
+                  aria-label={`${p.player?.firstName ?? 'Player'}: ${statusOf(p)}`}
                 >
-                  <title>{`${p.player?.firstName ?? 'Player'} — ${p.status}`}</title>
+                  <title>{`${p.player?.firstName ?? 'Player'} — ${statusOf(p)}`}</title>
                   <path
                     d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z"
-                    fill={p.status === PaymentStatus.PAID ? '#d4f53c' : p.status === PaymentStatus.WAIVED ? 'rgba(255,255,255,0.25)' : 'transparent'}
-                    stroke={p.status === PaymentStatus.PENDING ? '#ffc93c' : 'transparent'}
+                    fill={statusOf(p) === PaymentStatus.PAID ? '#d4f53c' : statusOf(p) === PaymentStatus.WAIVED ? 'rgba(255,255,255,0.25)' : 'transparent'}
+                    stroke={statusOf(p) === PaymentStatus.PENDING ? '#ffc93c' : 'transparent'}
                     strokeWidth="2.5"
-                    strokeDasharray={p.status === PaymentStatus.PENDING ? '4 3' : undefined}
+                    strokeDasharray={statusOf(p) === PaymentStatus.PENDING ? '4 3' : undefined}
                     strokeLinejoin="round"
                   />
-                  <text x="24" y="34" textAnchor="middle" fontSize="15" fontWeight="800" fill={p.status === PaymentStatus.PAID ? '#0f1a14' : 'rgba(255,255,255,0.8)'}>
+                  <text x="24" y="34" textAnchor="middle" fontSize="15" fontWeight="800" fill={statusOf(p) === PaymentStatus.PAID ? '#0f1a14' : 'rgba(255,255,255,0.8)'}>
                     {p.player?.firstName?.charAt(0) ?? '?'}
                   </text>
                 </svg>
               ))}
+              {payments.length > SHIRTS && (
+                <span className="text-xs font-bold text-white/70 tabular-nums">+{payments.length - SHIRTS}</span>
+              )}
             </div>
           )}
 
@@ -240,7 +312,7 @@ export default function SessionDetailPage() {
             </span>
             <span className="flex items-center gap-1.5 text-white/70">
               <span className="w-2 h-2 rounded-full border-2 border-dashed border-sun-400" />
-              <span className="font-bold text-white tabular-nums">{pendingPayments.length}</span> pending
+              <span className="font-bold text-white tabular-nums">{owingCount}</span> {coveredByDues ? 'not paid' : 'pending'}
             </span>
             {waivedCount > 0 && (
               <span className="flex items-center gap-1.5 text-white/70">
@@ -252,7 +324,7 @@ export default function SessionDetailPage() {
         </div>
       </div>
 
-      {payments.length > 0 && pendingPayments.length === 0 && (
+      {payments.length > 0 && owingCount === 0 && (
         <div className="flex items-center gap-4 bg-volt-300 border-2 border-ink shadow-sticker rounded-3xl p-4 mb-5">
           <Trophy className="w-20 h-auto shrink-0" />
           <div>
@@ -260,18 +332,6 @@ export default function SessionDetailPage() {
             <p className="text-xs text-ink/70 mt-1">No chasing needed for this one.</p>
           </div>
         </div>
-      )}
-
-      {session.kind !== 'dues' && session.status === SessionStatus.UPCOMING && (
-        <TeamSheet sessionId={id} onChange={fetchSession} />
-      )}
-
-      {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (
-        <LineupCard sessionId={id} />
-      )}
-
-      {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (
-        <SessionVotingCard sessionId={id} groupName={session.group?.name ?? 'Game'} />
       )}
 
       {/* Action buttons */}
@@ -353,6 +413,49 @@ export default function SessionDetailPage() {
         </button>
       </div>
 
+      {/* Tabs: payments / teams / stars */}
+      {isGame && (
+        <div className="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mb-4 bg-chalk/95 backdrop-blur">
+          <div className="flex p-1 bg-white border border-gray-200 rounded-2xl" role="tablist">
+            {([
+              ['payments', coveredByDues ? 'Dues' : 'Payments', owingCount ? `${owingCount} to pay` : null],
+              ['teams', 'Teams', null],
+              ['stars', 'Stars', null],
+            ] as [Tab, string, string | null][]).map(([t, name, note]) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => chooseTab(t)}
+                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${
+                  tab === t ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
+                }`}
+              >
+                {name}
+                {note && <span className={`block text-[10px] font-semibold ${tab === t ? 'text-white/60' : 'text-kit-600'}`}>{note}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isGame && tab === 'teams' && (
+        <>
+          {session.status === SessionStatus.UPCOMING && <TeamSheet sessionId={id} onChange={fetchSession} />}
+          {session.status !== SessionStatus.CANCELLED && (
+            <div id="lineup" className="scroll-mt-20">
+              <LineupCard sessionId={id} />
+            </div>
+          )}
+        </>
+      )}
+
+      {isGame && tab === 'stars' && session.status !== SessionStatus.CANCELLED && (
+        <SessionVotingCard sessionId={id} groupName={session.group?.name ?? 'Game'} />
+      )}
+
+      {(!isGame || tab === 'payments') && (
+        <>
       {/* Payment tracker */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-bold text-ink">Payment tracker</h2>
@@ -387,7 +490,71 @@ export default function SessionDetailPage() {
         )}
       </div>
 
-      {payments.length === 0 ? (
+      {payments.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {([
+            ['owing', coveredByDues ? 'Not paid' : 'To pay', owingCount],
+            ['paid', 'Paid', paidCount],
+            ['all', 'All', payments.length],
+          ] as const).map(([f, name, n]) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold tabular-nums ${
+                shownFilter === f ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-gray-600 hover:border-ink'
+              }`}
+            >
+              {name} · {n}
+            </button>
+          ))}
+          {payments.length > 12 && (
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Find a player"
+              aria-label="Find a player"
+              className="flex-1 min-w-[140px] px-3 py-1.5 border border-gray-200 rounded-full text-xs focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          )}
+        </div>
+      )}
+      {payments.length > 0 && visible.length === 0 && (
+        <p className="text-sm text-gray-500 text-center py-6">
+          {needle ? `No one called “${search.trim()}”.` : shownFilter === 'owing' ? 'Everyone has paid. 🎉' : 'Nobody here yet.'}
+        </p>
+      )}
+
+      {coveredByDues && payments.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500 mb-1">
+            This group collects {session.group?.paymentType} dues, so the game costs nothing extra. A player has paid for it when
+            their dues for that period are paid —{' '}
+            <Link href={`/groups/${session.groupId}`} className="font-bold text-pitch-600 hover:text-pitch-800">
+              collect them on the group
+            </Link>
+            .
+          </p>
+          {visible.map((p) => (
+            <div key={p.id} className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-card px-4 py-3">
+              <span className="text-sm font-semibold text-ink truncate">
+                {p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Unknown Player'}
+              </span>
+              <span
+                className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                  statusOf(p) === PaymentStatus.PAID
+                    ? 'bg-volt-300 text-ink'
+                    : statusOf(p) === PaymentStatus.WAIVED
+                      ? 'bg-gray-100 text-gray-500'
+                      : 'bg-kit-500/15 text-kit-600'
+                }`}
+              >
+                {statusOf(p) === PaymentStatus.PAID ? 'Dues paid' : statusOf(p) === PaymentStatus.WAIVED ? 'Waived' : 'Dues not paid'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : payments.length === 0 ? (
         <EmptyState
           icon="receipt"
           title="No payments yet"
@@ -395,7 +562,7 @@ export default function SessionDetailPage() {
         />
       ) : (
         <div className="space-y-2">
-          {payments.map((payment) => (
+          {visible.map((payment) => (
             <PlayerPaymentRow
               key={payment.id}
               playerName={
@@ -414,6 +581,8 @@ export default function SessionDetailPage() {
             />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );
