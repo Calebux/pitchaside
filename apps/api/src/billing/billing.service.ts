@@ -1080,21 +1080,26 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
       // Transfer the platform fee to PitchAside's account
       const feeAccount = this.config.get<string>('PLATFORM_FEE_ACCOUNT');
+      const feeBankCode = this.config.get('PLATFORM_FEE_BANK_CODE', '090713');
+      this.logger.log(`Fee transfer: account=${feeAccount ?? '(not set)'} bankCode=${feeBankCode} from=${group.accountNumber} ref=${reference}-FEE`);
       if (feeAccount) {
         try {
-          await this.pulse.transferOut({
+          const feeResult = await this.pulse.transferOut({
             debitAccountNumber: group.accountNumber,
             beneficiaryAccountNumber: feeAccount,
-            beneficiaryBankCode: this.config.get('PLATFORM_FEE_BANK_CODE', '090713'),
+            beneficiaryBankCode: feeBankCode,
             beneficiaryBankName: 'Payrep Microfinance Bank',
             beneficiaryName: 'PitchAside',
             amount: PLATFORM_FEE,
             narration: `PitchAside service fee – ${group.name}`,
             reference: `${reference}-FEE`,
           });
+          this.logger.log(`Fee transfer for payout ${payout.id} succeeded: ${feeResult.status}`);
         } catch (feeErr: any) {
-          this.logger.warn(`Fee transfer for payout ${payout.id} failed: ${feeErr.message}`);
+          this.logger.error(`Fee transfer for payout ${payout.id} failed: ${feeErr.message}`);
         }
+      } else {
+        this.logger.warn('PLATFORM_FEE_ACCOUNT not set — fee transfer skipped');
       }
     } catch (err: any) {
       payout.status = PayoutStatus.FAILED;
