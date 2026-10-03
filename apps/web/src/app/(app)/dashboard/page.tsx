@@ -17,6 +17,7 @@ import {
 import { SessionStatus, UserRole } from '@pitchaside/shared';
 import { Celebration, Player, Ball, BallIcon, kitFor, palette, skins } from '@/components/illustrations';
 import { GroupAccountCard } from '@/components/group-billing';
+import { NewSessionSheet } from '@/components/new-session-sheet';
 import { useToast } from '@/components/toast';
 import { formatAccountNumber } from '@/lib/billing';
 
@@ -61,11 +62,14 @@ export default function Dashboard() {
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showNewGame, setShowNewGame] = useState(false);
   // Most organisers run one team: their account sits right on the home page.
   const [billing, setBilling] = useState<GroupBilling | null>(null);
   const [balance, setBalance] = useState<number | null>(null);
   const router = useRouter();
   const toast = useToast();
+  // Treasurers can look but not change anything.
+  const canManage = user?.role !== UserRole.TREASURER;
 
   // The PitchAside team doesn't run a club — their home is HQ.
   useEffect(() => {
@@ -197,6 +201,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {showNewGame && <NewSessionSheet groups={groups} onClose={() => setShowNewGame(false)} />}
+
       {/* One team: its account, balance and share buttons, first thing on the page */}
       {groups.length === 1 && billing && (
         <GroupAccountCard
@@ -288,7 +294,18 @@ export default function Dashboard() {
             <div className="bg-white rounded-[28px] border border-dashed border-gray-300 chalk-dots p-6 text-center">
               <BallIcon className="w-10 h-10 mx-auto mb-3 animate-bounce-ball" />
               <p className="text-base font-bold text-ink mb-0.5">No upcoming games</p>
-              <p className="text-xs text-gray-500">Schedule one from Sessions and everyone in the group gets a due for it.</p>
+              <p className="text-xs text-gray-500">Schedule one and everyone in the group gets a due for it.</p>
+              {canManage && (
+                <button
+                  onClick={() => setShowNewGame(true)}
+                  className="mt-4 inline-flex items-center gap-2 py-2.5 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Schedule a game
+                </button>
+              )}
             </div>
           )}
 
