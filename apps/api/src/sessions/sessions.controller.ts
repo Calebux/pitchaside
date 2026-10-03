@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Put, Delete, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
@@ -8,8 +8,20 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AllowTreasurer } from '../auth/decorators/allow-treasurer.decorator';
 import { User } from '../users/entities/user.entity';
+import { IsDateString, IsOptional, IsString, MaxLength } from 'class-validator';
 import { MatchClockService } from './match-clock.service';
-import { ClockActionDto } from './dto/clock-action.dto';
+
+export class StartClockDto {
+  /** When the set ends (ISO). */
+  @IsDateString()
+  endsAt: string;
+
+  /** What's on, e.g. "Orange v Yellow" — said in the full-time push. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  label?: string;
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('sessions')
@@ -72,16 +84,16 @@ export class SessionsController {
     return this.sessionsService.updateStatus(id, status, user.organizationId);
   }
 
-  /** The game's shared match clock. */
-  @Get(':id/clock')
-  async getClock(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.clock.state(await this.clock.forOrganiser(id, user.organizationId));
+  /** Match clock: buzz this organiser's phone (push) when the set is up. */
+  @Post(':id/clock')
+  async startClock(@Param('id') id: string, @Body() dto: StartClockDto, @CurrentUser() user: User) {
+    await this.sessionsService.findOne(id, user.organizationId);
+    return this.clock.start(id, user.id, new Date(dto.endsAt), dto.label?.trim() || 'Set');
   }
 
-  @Put(':id/clock')
-  async actOnClock(@Param('id') id: string, @Body() dto: ClockActionDto, @CurrentUser() user: User) {
-    const game = await this.clock.forOrganiser(id, user.organizationId);
-    return this.clock.act(game, Object.assign(new ClockActionDto(), dto).toAction(), { userId: user.id });
+  @Delete(':id/clock')
+  stopClock(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.clock.stop(id, user.id);
   }
 
   @Delete(':id')

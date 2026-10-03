@@ -171,15 +171,6 @@ export function GameCard({ game, onChange }: { game: UpcomingGame; onChange: () 
       )}
 
       {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
-      {game.bibsOpen && (
-        <Link
-          href={`/me/games/${game.id}/clock`}
-          className="mt-3 flex items-center justify-between rounded-2xl bg-ink text-white px-4 py-3 text-sm font-bold hover:bg-pitch-900"
-        >
-          <span>⏱ Match clock</span>
-          <span className="text-volt-300">›</span>
-        </Link>
-      )}
 
       <div className="grid grid-cols-2 gap-2 mt-4">
         {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (

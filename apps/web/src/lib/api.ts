@@ -644,34 +644,13 @@ export function resendVerification(): Promise<{ message: string }> {
   return http.post('/auth/resend-verification');
 }
 
-/** A game's match clock, shared by the organiser and everyone in the squad. Times are the server's. */
-export interface ClockState {
-  minutes: number;
-  /** When the running set ends; null when stopped or paused. */
-  endsAt: string | null;
-  /** Time left on a paused set. */
-  leftMs: number | null;
-  teams: TeamKey[];
-  /** Colours in this game (2–6). */
-  teamCount: number;
-  label: string;
-  updatedAt: string | null;
-  serverNow: string;
+/** Match clock: the API pushes "Time's up" to this organiser's phone at `endsAt`. */
+export function startMatchClock(sessionId: string, endsAt: string, label: string): Promise<{ scheduled: boolean }> {
+  return http.post(`/sessions/${sessionId}/clock`, { endsAt, label });
 }
 
-export type ClockAction =
-  | { action: 'start' }
-  | { action: 'pause' }
-  | { action: 'reset'; minutes?: number }
-  | { action: 'adjust'; delta: number }
-  | { action: 'teams'; teams: TeamKey[] };
-
-export function getMatchClock(sessionId: string): Promise<ClockState> {
-  return http.get(`/sessions/${sessionId}/clock`);
-}
-
-export function actOnMatchClock(sessionId: string, action: ClockAction): Promise<ClockState> {
-  return http.put(`/sessions/${sessionId}/clock`, action);
+export function stopMatchClock(sessionId: string): Promise<{ scheduled: boolean }> {
+  return http.delete(`/sessions/${sessionId}/clock`);
 }
 
 export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {

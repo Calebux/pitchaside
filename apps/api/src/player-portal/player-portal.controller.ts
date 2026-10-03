@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsObject, IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
@@ -16,8 +16,6 @@ import { PlayerPortalService } from './player-portal.service';
 import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
-import { MatchClockService } from '../sessions/match-clock.service';
-import { ClockActionDto } from '../sessions/dto/clock-action.dto';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
 
@@ -244,7 +242,6 @@ export class PlayerPortalController {
     private readonly notifications: NotificationsService,
     private readonly playerAuth: PlayerAuthService,
     private readonly configService: ConfigService,
-    private readonly clock: MatchClockService,
   ) {}
 
   @Get()
@@ -277,18 +274,6 @@ export class PlayerPortalController {
   @Post('games/:id/team')
   pickTeam(@Param('id') id: string, @Body() dto: PickTeamDto, @CurrentPerson() person: Person) {
     return this.portal.pickTeam(person, id, dto.team);
-  }
-
-  /** The game's shared match clock: anyone in the squad can see and run it. */
-  @Get('games/:id/clock')
-  async clockState(@Param('id') id: string, @CurrentPerson() person: Person) {
-    return this.clock.state(await this.clock.forPlayer(id, person.players.map((p) => p.id)));
-  }
-
-  @Put('games/:id/clock')
-  async actOnClock(@Param('id') id: string, @Body() dto: ClockActionDto, @CurrentPerson() person: Person) {
-    const game = await this.clock.forPlayer(id, person.players.map((p) => p.id));
-    return this.clock.act(game, Object.assign(new ClockActionDto(), dto).toAction());
   }
 
   @Post('sessions/:id/rsvp')

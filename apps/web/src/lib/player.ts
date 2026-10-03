@@ -3,7 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
-import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey, ClockState, ClockAction } from './api';
+import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -323,16 +323,6 @@ export function getGameLineup(sessionId: string) {
 
 export function pickBib(sessionId: string, team: TeamKey | null) {
   return request<GameLineup>('POST', `/me/games/${sessionId}/team`, { team });
-}
-
-// ── Match clock (shared with the organiser) ──
-
-export function getPlayerClock(sessionId: string) {
-  return request<ClockState>('GET', `/me/games/${sessionId}/clock`);
-}
-
-export function actOnPlayerClock(sessionId: string, action: ClockAction) {
-  return request<ClockState>('PUT', `/me/games/${sessionId}/clock`, action);
 }
 
 // ── Voting ──

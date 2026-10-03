@@ -22,6 +22,6 @@ import { BillingModule } from '../billing/billing.module';
   ],
   controllers: [SessionsController],
   providers: [SessionsService, MatchClockService],
-  exports: [SessionsService, MatchClockService],
+  exports: [SessionsService],
 })
 export class SessionsModule {}

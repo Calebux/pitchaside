@@ -59,31 +59,6 @@ export class Session {
   @Column({ name: 'kickoff_time', type: 'varchar', length: 5, nullable: true })
   kickoffTime: string | null;
 
-  // ── Match clock, shared by everyone in the game (see MatchClockService) ──
-
-  /** Length of a set. */
-  @Column({ name: 'clock_minutes', type: 'int', default: 10 })
-  clockMinutes: number;
-
-  /** When the running set ends; null when stopped or paused. */
-  @Column({ name: 'clock_ends_at', type: 'timestamptz', nullable: true })
-  clockEndsAt: Date | null;
-
-  /** Time left on a paused set. */
-  @Column({ name: 'clock_left_ms', type: 'int', nullable: true })
-  clockLeftMs: number | null;
-
-  /** The two sides on, e.g. "A,B". */
-  @Column({ name: 'clock_teams', type: 'varchar', length: 11, nullable: true })
-  clockTeams: string | null;
-
-  /** Organiser who last ran it, so their phone buzzes too. */
-  @Column({ name: 'clock_user_id', type: 'uuid', nullable: true })
-  clockUserId: string | null;
-
-  @Column({ name: 'clock_updated_at', type: 'timestamptz', nullable: true })
-  clockUpdatedAt: Date | null;
-
   /** How many sides the squad is split into on match day (2–6). */
   @Column({ name: 'team_count', type: 'int', default: 2 })
   teamCount: number;
