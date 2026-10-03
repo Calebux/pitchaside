@@ -970,7 +970,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .createQueryBuilder('p')
       .select('COALESCE(SUM(p.amount + p.fee), 0)', 'totalOut')
       .where('p.groupId = :groupId', { groupId })
-      .andWhere('p.status IN (:...statuses)', { statuses: [PayoutStatus.PROCESSING, PayoutStatus.COMPLETED] })
+      .andWhere('p.status NOT IN (:...excluded)', { excluded: [PayoutStatus.FAILED, PayoutStatus.CANCELLED] })
       .getRawOne();
 
     const available = Number(totalIn) - Number(totalOut);
