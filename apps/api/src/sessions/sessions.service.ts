@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Session, SessionKind, SessionStatus } from './entities/session.entity';
+import { Session, SessionKind, SessionStatus, kickoffFor } from './entities/session.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, shortDate } from '../common/format.util';
+import { prettyTime } from '../common/time.util';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
@@ -44,15 +45,18 @@ export class SessionsService {
       dto.recurrenceCount || 1,
     );
 
+    let firstSession: Session | null = null;
     let lastSession: Session | null = null;
 
     for (const date of dates) {
       const session = this.sessionsRepo.create({
         groupId: dto.groupId,
         date,
+        kickoffTime: dto.kickoffTime || null,
         targetAmount: group.targetPlayers * Number(group.feePerPlayer),
       });
       const saved = await this.sessionsRepo.save(session);
+      firstSession ??= saved;
 
       // RSVP groups bill players as they confirm, not up front.
       if (memberships.length > 0 && !group.requireRsvp) {
@@ -73,6 +77,22 @@ export class SessionsService {
     if (group.requireRsvp) {
       const first = await this.sessionsRepo.findOne({ where: { groupId: dto.groupId, date: dates[0] } });
       if (first) this.notifications.later(() => this.rsvp.announceGame(first.id));
+    } else if (memberships.length && firstSession) {
+      // Everyone's billed straight away, so tell them when it is and what it costs.
+      const first = firstSession;
+      const ko = kickoffFor({ kickoffTime: first.kickoffTime, group });
+      const more = dates.length > 1 ? ` (and ${dates.length - 1} more)` : '';
+      this.notifications.later(() =>
+        this.notifications.notifyPlayers(
+          memberships.map((m) => m.playerId),
+          {
+            kind: 'game_scheduled',
+            title: `New game: ${group.name} ⚽`,
+            body: `${shortDate(first.date)}${ko ? `, kick-off ${prettyTime(ko)}` : ''}${more}. ${naira(group.feePerPlayer)} — tap for where to pay.`,
+            url: '/me',
+          },
+        ),
+      );
     }
 
     // Return the first session (or the only one)

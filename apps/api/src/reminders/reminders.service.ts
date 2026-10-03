@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
-import { Session, SessionKind, SessionStatus } from '../sessions/entities/session.entity';
+import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/entities/session.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Vote } from '../ratings/entities/vote.entity';
@@ -91,21 +91,20 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     for (const game of await this.games(localDate(1, undefined, now))) {
       if (game.status !== SessionStatus.UPCOMING || !(await this.claim(`eve:${game.id}`))) continue;
       const g = game.group;
-      const when = g.kickoffTime ? `Kick-off ${prettyTime(g.kickoffTime)}. ` : '';
+      const ko = kickoffFor(game);
+      const when = ko ? `Kick-off ${prettyTime(ko)}. ` : '';
       const squad = await this.squad(game);
       const board = await this.rsvp.board(game);
       const confirmed = g.requireRsvp ? `${board.in.length}/${board.capacity} confirmed.` : `${squad.length} in the squad.`;
-      const unpaid = new Set(
-        (game.payments ?? []).filter((p) => p.status === PaymentStatus.PENDING).map((p) => p.playerId),
-      );
-      const refs = await this.refs(g.id, [...unpaid]);
+      const unpaid = owing(game);
+      const refs = await this.refs(g.id, [...unpaid.keys()]);
 
       for (const playerId of squad) {
-        const owes = unpaid.has(playerId);
+        const owes = unpaid.get(playerId);
         await this.notifications.notifyPlayers([playerId], {
           kind: 'reminder_eve',
           title: `Tomorrow: ${g.name} ⚽`,
-          body: `${when}You're in — ${confirmed}${owes ? ` ${naira(g.feePerPlayer)} to pay, ref ${refs.get(playerId) ?? ''}.` : ''}`.trim(),
+          body: `${when}You're in — ${confirmed}${owes ? ` ${naira(owes)} to pay, ref ${refs.get(playerId) ?? ''}.` : ''}`.trim(),
           url: '/me',
         });
       }
@@ -117,7 +116,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
           {
             kind: 'rsvp_nudge',
             title: `${spots} spot${spots === 1 ? '' : 's'} left for tomorrow`,
-            body: `${g.name}${g.kickoffTime ? ` at ${prettyTime(g.kickoffTime)}` : ''}. Tap “I'm in” before they're gone.`,
+            body: `${g.name}${ko ? ` at ${prettyTime(ko)}` : ''}. Tap “I'm in” before they're gone.`,
             url: '/me',
           },
         );
@@ -129,23 +128,22 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
   private async kickOff(now: Date) {
     for (const game of await this.games(localDate(0, undefined, now))) {
       const g = game.group;
-      if (!g.kickoffTime || game.status !== SessionStatus.UPCOMING) continue;
-      const ko = zonedInstant(game.date, g.kickoffTime);
+      const time = kickoffFor(game);
+      if (!time || game.status !== SessionStatus.UPCOMING) continue;
+      const ko = zonedInstant(game.date, time);
       if (now < new Date(ko.getTime() - 2 * 3600_000) || now >= ko) continue;
       if (!(await this.claim(`ko:${game.id}`))) continue;
 
       const squad = await this.squad(game);
-      const unpaid = new Set(
-        (game.payments ?? []).filter((p) => p.status === PaymentStatus.PENDING).map((p) => p.playerId),
-      );
-      const refs = await this.refs(g.id, [...unpaid]);
+      const unpaid = owing(game);
+      const refs = await this.refs(g.id, [...unpaid.keys()]);
       for (const playerId of squad) {
-        const owes = unpaid.has(playerId);
+        const owes = unpaid.get(playerId);
         await this.notifications.notifyPlayers([playerId], {
           kind: 'reminder_kickoff',
           title: 'Kick-off in 2 hours ⏱',
-          body: `${g.name} · ${prettyTime(g.kickoffTime)}. ${squad.length} playing — lace up.${
-            owes ? ` Still ${naira(g.feePerPlayer)} to pay (ref ${refs.get(playerId) ?? ''}).` : ''
+          body: `${g.name} · ${prettyTime(time)}. ${squad.length} playing — lace up.${
+            owes ? ` Still ${naira(owes)} to pay (ref ${refs.get(playerId) ?? ''}).` : ''
           }`,
           url: '/me',
         });
@@ -223,4 +221,11 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       });
     }
   }
+}
+
+/** What each player still owes for a game: their own due, which may differ from today's fee. */
+function owing(game: Session) {
+  return new Map(
+    (game.payments ?? []).filter((p) => p.status === PaymentStatus.PENDING).map((p) => [p.playerId, Number(p.amount)]),
+  );
 }

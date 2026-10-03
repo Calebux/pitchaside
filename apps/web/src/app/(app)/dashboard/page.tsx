@@ -20,6 +20,7 @@ import { GroupAccountCard } from '@/components/group-billing';
 import { NewSessionSheet } from '@/components/new-session-sheet';
 import { useToast } from '@/components/toast';
 import { formatAccountNumber } from '@/lib/billing';
+import { prettyTime } from '@/components/player-ui';
 
 const onboardingSteps = [
   {
@@ -256,6 +257,8 @@ export default function Dashboard() {
                     month: 'short',
                     day: 'numeric',
                   })}
+                  {(nextSession.kickoffTime || nextGroup?.kickoffTime) &&
+                    ` · ${prettyTime(nextSession.kickoffTime || nextGroup?.kickoffTime)}`}
                 </p>
 
                 {/* Payment progress */}

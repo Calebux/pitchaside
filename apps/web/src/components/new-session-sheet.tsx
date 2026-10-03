@@ -20,6 +20,8 @@ export function NewSessionSheet({ groups, onClose }: { groups: IGroupWithMembers
   const toast = useToast();
   const [groupId, setGroupId] = useState(groups.length === 1 ? groups[0].id : '');
   const [date, setDate] = useState('');
+  // Starts at the group's usual kick-off; players are told it and reminded 2 hours before.
+  const [time, setTime] = useState(groups.length === 1 ? (groups[0].kickoffTime ?? '') : '');
   const [recurrenceType, setRecurrenceType] = useState('none');
   const [recurrenceCount, setRecurrenceCount] = useState(4);
   const [creating, setCreating] = useState(false);
@@ -34,6 +36,7 @@ export function NewSessionSheet({ groups, onClose }: { groups: IGroupWithMembers
       const session = await createSession({
         groupId,
         date,
+        kickoffTime: time || undefined,
         recurrenceType: repeating ? recurrenceType : undefined,
         recurrenceCount: repeating ? recurrenceCount : undefined,
       });
@@ -63,7 +66,15 @@ export function NewSessionSheet({ groups, onClose }: { groups: IGroupWithMembers
             <label htmlFor={`${titleId}-group`} className="block text-xs font-bold text-gray-700 mb-1.5">
               Group
             </label>
-            <select id={`${titleId}-group`} value={groupId} onChange={(e) => setGroupId(e.target.value)} className={field}>
+            <select
+              id={`${titleId}-group`}
+              value={groupId}
+              onChange={(e) => {
+                setGroupId(e.target.value);
+                setTime(groups.find((g) => g.id === e.target.value)?.kickoffTime ?? '');
+              }}
+              className={field}
+            >
               <option value="">Choose a group</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>
@@ -76,12 +87,21 @@ export function NewSessionSheet({ groups, onClose }: { groups: IGroupWithMembers
           <p className="text-sm font-bold text-ink">{groups[0]?.name}</p>
         )}
 
-        <div>
-          <label htmlFor={`${titleId}-date`} className="block text-xs font-bold text-gray-700 mb-1.5">
-            Game date
-          </label>
-          <input id={`${titleId}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+        <div className="grid grid-cols-[1fr_auto] gap-3">
+          <div>
+            <label htmlFor={`${titleId}-date`} className="block text-xs font-bold text-gray-700 mb-1.5">
+              Game date
+            </label>
+            <input id={`${titleId}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+          </div>
+          <div>
+            <label htmlFor={`${titleId}-time`} className="block text-xs font-bold text-gray-700 mb-1.5">
+              Kick-off
+            </label>
+            <input id={`${titleId}-time`} type="time" value={time} onChange={(e) => setTime(e.target.value)} className={field} />
+          </div>
         </div>
+        <p className="text-xs text-gray-500 -mt-1">Players get the time when it&apos;s scheduled, and a reminder 2 hours before.</p>
 
         <div className="grid grid-cols-2 gap-3">
           <div>

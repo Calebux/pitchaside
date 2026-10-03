@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { Player } from '../players/entities/player.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
-import { Session, SessionKind, SessionStatus } from '../sessions/entities/session.entity';
+import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/entities/session.entity';
 import { PaymentType } from '../groups/entities/group.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
@@ -87,7 +87,7 @@ export class PlayerPortalService {
         groupId: g.groupId,
         groupName: g.group.name,
         schedule: g.group.schedule,
-        kickoffTime: g.group.kickoffTime,
+        kickoffTime: kickoffFor(g),
         requireRsvp: g.group.requireRsvp,
         myStatus: statuses.get(g.id) ?? null,
         waitlistPosition: board.waitlist.findIndex((p) => ids.includes(p.id)) + 1 || null,

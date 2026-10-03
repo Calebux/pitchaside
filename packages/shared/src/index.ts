@@ -70,6 +70,8 @@ export interface ISession {
   status: SessionStatus;
   kind?: SessionKind;
   label?: string;
+  /** "HH:mm" set for this game; null means the group's kick-off time. */
+  kickoffTime?: string | null;
   payments?: IPayment[];
 }
 

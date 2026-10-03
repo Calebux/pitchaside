@@ -18,14 +18,17 @@ function validate(form: FormData): Errors | null {
   const errors: Errors = {};
   const name = (form.get('name') as string).trim();
   const targetPlayers = Number(form.get('targetPlayers'));
-  const feePerPlayer = Number(form.get('feePerPlayer'));
+  const feeInput = String(form.get('feePerPlayer') ?? '').trim();
+  const feePerPlayer = Number(feeInput);
 
   if (!name) errors.name = 'Group name is required';
   else if (name.length < 2) errors.name = 'Name must be at least 2 characters';
 
   if (!targetPlayers || targetPlayers < 1) errors.targetPlayers = 'Must have at least 1 player';
 
-  if (isNaN(feePerPlayer) || feePerPlayer < 0) errors.feePerPlayer = 'Fee cannot be negative';
+  // No pre-filled amount: organisers always type their own fee.
+  if (!feeInput) errors.feePerPlayer = 'Enter what each player pays';
+  else if (isNaN(feePerPlayer) || feePerPlayer < 0) errors.feePerPlayer = 'Fee cannot be negative';
 
   return Object.keys(errors).length ? errors : null;
 }
@@ -171,7 +174,7 @@ export default function NewGroupPage() {
               type="number"
               min={0}
               step="0.01"
-              defaultValue={3000}
+              placeholder="e.g. 1500"
               className={inputClass('feePerPlayer')}
             />
             {errors.feePerPlayer && <p className="text-xs text-kit-600 mt-1">{errors.feePerPlayer}</p>}

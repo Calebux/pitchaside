@@ -14,6 +14,7 @@ import { BallSpinner } from '@/components/skeleton';
 import { SessionVotingCard } from '@/components/ratings';
 import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
+import { prettyTime } from '@/components/player-ui';
 
 const statusStyles: Record<string, { bg: string; text: string }> = {
   upcoming: { bg: 'bg-volt-400', text: 'text-ink' },
@@ -140,6 +141,7 @@ export default function SessionDetailPage() {
     ? Math.round((session.collectedAmount / session.targetAmount) * 100)
     : 0;
   const style = statusStyles[session.status] || { bg: 'bg-gray-100', text: 'text-gray-500' };
+  const kickoff = session.kickoffTime || session.group?.kickoffTime;
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -171,11 +173,11 @@ export default function SessionDetailPage() {
               <p className="text-white/60 text-xs font-semibold">
                 {session.kind === 'dues' && session.label
                   ? `${session.label} dues`
-                  : new Date(session.date).toLocaleDateString('en-US', {
+                  : `${new Date(session.date).toLocaleDateString('en-US', {
                       weekday: 'long',
                       month: 'long',
                       day: 'numeric',
-                    })}
+                    })}${kickoff ? ` · ${prettyTime(kickoff)}` : ''}`}
               </p>
               <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1 line-clamp-2">
                 {session.group?.name || 'Game Session'}

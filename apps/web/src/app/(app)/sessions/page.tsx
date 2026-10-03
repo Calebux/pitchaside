@@ -11,6 +11,7 @@ import { isVotingOpen } from '@/components/ratings';
 import { getSessionsPaginated, getGroups, deleteSession, formatCurrency, type ISessionWithDetails, type IGroupWithMembers, type PaginatedResponse } from '@/lib/api';
 import { SessionStatus, UserRole } from '@pitchaside/shared';
 import { NewSessionSheet } from '@/components/new-session-sheet';
+import { prettyTime } from '@/components/player-ui';
 import { useAuth } from '@/lib/auth';
 
 const statusFilters = [
@@ -188,9 +189,13 @@ export default function SessionsPage() {
                           <p className="text-xs text-gray-500 mt-0.5">
                             {session.kind === 'dues' && session.label
                               ? `${session.label} dues`
-                              : new Date(session.date).toLocaleDateString('en-US', {
+                              : `${new Date(session.date).toLocaleDateString('en-US', {
                                   weekday: 'long',
-                                })}
+                                })}${
+                                  (session.kickoffTime || group?.kickoffTime)
+                                    ? ` · ${prettyTime(session.kickoffTime || group?.kickoffTime)}`
+                                    : ''
+                                }`}
                           </p>
                         </div>
                       </div>

@@ -30,6 +30,7 @@ import { UsersService } from '../users/users.service';
 import { User, UserRole } from '../users/entities/user.entity';
 import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira } from '../common/format.util';
+import { localDate } from '../common/time.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
 import { paidByTransfer, refundToCredit } from '../payments/credit';
 
@@ -309,6 +310,45 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       );
     }
     return session;
+  }
+
+  /**
+   * The group's fee changed: unpaid dues for games still to come, and for the current dues
+   * period, move to the new fee (with their targets). Dues already paid, and past games, keep
+   * the amount they were. Then any credit members hold pays what it now covers.
+   */
+  async repriceOpenDues(group: Group, now = new Date()) {
+    const fee = Number(group.feePerPlayer);
+    const today = localDate(0, undefined, now);
+    const qb = this.sessionsRepo
+      .createQueryBuilder('s')
+      .where('s.groupId = :groupId', { groupId: group.id })
+      .andWhere('s.status = :upcoming', { upcoming: SessionStatus.UPCOMING });
+    if (PERIODIC_TYPES.includes(group.paymentType)) {
+      qb.andWhere('((s.kind = :game AND s.date >= :today) OR (s.kind = :dues AND s.date = :period))', {
+        game: SessionKind.GAME,
+        dues: SessionKind.DUES,
+        today,
+        period: periodFor(group.paymentType, now).start,
+      });
+    } else {
+      qb.andWhere('s.kind = :game AND s.date >= :today', { game: SessionKind.GAME, today });
+    }
+    const sessions = await qb.getMany();
+    if (!sessions.length) return;
+
+    const sessionIds = sessions.map((s) => s.id);
+    const pending = await this.paymentsRepo.find({ where: { sessionId: In(sessionIds), status: PaymentStatus.PENDING } });
+    const changed = pending.filter((p) => Number(p.amount) !== fee);
+    for (const p of changed) p.amount = fee;
+    if (changed.length) await this.paymentsRepo.save(changed);
+
+    const members = await this.membershipsRepo.count({ where: { groupId: group.id } });
+    for (const s of sessions) {
+      const heads = s.kind === SessionKind.DUES ? Math.max(members, 1) : group.targetPlayers;
+      await this.sessionsRepo.update(s.id, { targetAmount: fee * heads });
+    }
+    await this.applyCredits(group.id, [...new Set(pending.map((p) => p.playerId))]);
   }
 
   /** Called whenever someone joins a group: give them a reference and this period's due. */

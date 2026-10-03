@@ -169,6 +169,8 @@ export function getSession(id: string): Promise<ISessionWithDetails> {
 export function createSession(data: {
   groupId: string;
   date: string;
+  /** "HH:mm"; left out, the group's kick-off time applies. */
+  kickoffTime?: string;
   recurrenceType?: string;
   recurrenceCount?: number;
 }): Promise<ISession> {
