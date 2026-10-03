@@ -75,7 +75,7 @@ export default function HqLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       {/* Phone: logo bar + scrolling section tabs */}
-      <header className="md:hidden sticky top-0 z-40 bg-ink text-white">
+      <header className="md:hidden sticky top-0 z-40 bg-ink text-white pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between px-4 pt-3">
           <div className="flex items-center gap-2">
             <Logo href="/hq" tone="light" size="sm" />

@@ -328,6 +328,13 @@ export class PlayerPortalController {
     return this.notifications.subscribe(dto, { playerId: person.players[0]?.id, personKey: person.key });
   }
 
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @UseGuards(ThrottlerGuard)
+  @Post('push/test')
+  testPush(@CurrentPerson() person: Person) {
+    return this.notifications.testPerson({ playerId: person.players[0]?.id, personKey: person.key });
+  }
+
   @Delete('push')
   unsubscribe(@Body() dto: UnsubscribeDto) {
     return this.notifications.unsubscribe(dto.endpoint);
