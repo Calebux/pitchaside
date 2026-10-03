@@ -72,6 +72,8 @@ export interface ISession {
   label?: string;
   /** "HH:mm" set for this game; null means the group's kick-off time. */
   kickoffTime?: string | null;
+  /** Coloured sides on match day (2–6). */
+  teamCount?: number;
   payments?: IPayment[];
 }
 

@@ -16,6 +16,13 @@ import { SessionVotingCard } from '@/components/ratings';
 import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
 import { prettyTime } from '@/components/player-ui';
+import { MatchClock } from '@/components/match-clock';
+
+type Tab = 'payments' | 'teams' | 'stars';
+const TABS: Tab[] = ['payments', 'teams', 'stars'];
+
+/** Shirts shown in the summary card; the rest are a count. */
+const SHIRTS = 24;
 
 /** Groups whose period dues cover their games. */
 const PERIODIC = ['weekly', 'monthly', 'quarterly', 'annually'];
@@ -38,6 +45,10 @@ export default function SessionDetailPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMarking, setBulkMarking] = useState(false);
   const [sendingReminders, setSendingReminders] = useState(false);
+  // Long squads (30+) made this page endless: payments, teams and stars each get a tab.
+  const [tab, setTab] = useState<Tab | null>(null);
+  const [filter, setFilter] = useState<'owing' | 'paid' | 'all' | null>(null);
+  const [search, setSearch] = useState('');
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -48,6 +59,27 @@ export default function SessionDetailPage() {
   useEffect(() => {
     fetchSession().finally(() => setLoading(false));
   }, [fetchSession]);
+
+  // Opening tab: ?tab= (the clock's push links to Teams), else Teams on match day, else Payments.
+  useEffect(() => {
+    if (!session || tab) return;
+    const asked = new URLSearchParams(window.location.search).get('tab');
+    const today = new Date().toLocaleDateString('en-CA');
+    setTab(
+      TABS.includes(asked as Tab)
+        ? (asked as Tab)
+        : session.status === SessionStatus.UPCOMING && String(session.date).slice(0, 10) === today
+          ? 'teams'
+          : 'payments',
+    );
+  }, [session, tab]);
+
+  function chooseTab(t: Tab) {
+    setTab(t);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', t);
+    window.history.replaceState(null, '', url);
+  }
 
   async function handleMarkPaid(paymentId: string) {
     setMarkingId(paymentId);
@@ -159,6 +191,17 @@ export default function SessionDetailPage() {
       ? Math.round((session.collectedAmount / session.targetAmount) * 100)
       : 0;
   const style = statusStyles[session.status] || { bg: 'bg-gray-100', text: 'text-gray-500' };
+  const isGame = session.kind !== 'dues';
+  // Unpaid first: with 30+ players the paid ones are noise until everyone's in.
+  const shownFilter = filter ?? (owingCount > 0 ? 'owing' : 'all');
+  const needle = search.trim().toLowerCase();
+  const visible = payments.filter((p) => {
+    const st = statusOf(p);
+    if (shownFilter === 'owing' && st !== PaymentStatus.PENDING) return false;
+    if (shownFilter === 'paid' && st !== PaymentStatus.PAID) return false;
+    if (!needle) return true;
+    return `${p.player?.firstName ?? ''} ${p.player?.lastName ?? ''}`.toLowerCase().includes(needle);
+  });
   const kickoff = session.kickoffTime || session.group?.kickoffTime;
 
   return (
@@ -234,8 +277,8 @@ export default function SessionDetailPage() {
 
           {/* Squad board — one shirt per player, coloured by payment status */}
           {payments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-4" aria-label="Payment status by player">
-              {payments.map((p) => (
+            <div className="flex flex-wrap items-center gap-1.5 mb-4" aria-label="Payment status by player">
+              {payments.slice(0, SHIRTS).map((p) => (
                 <svg
                   key={p.id}
                   viewBox="0 0 48 48"
@@ -256,6 +299,9 @@ export default function SessionDetailPage() {
                   </text>
                 </svg>
               ))}
+              {payments.length > SHIRTS && (
+                <span className="text-xs font-bold text-white/70 tabular-nums">+{payments.length - SHIRTS}</span>
+              )}
             </div>
           )}
 
@@ -287,18 +333,6 @@ export default function SessionDetailPage() {
             <p className="text-xs text-ink/70 mt-1">No chasing needed for this one.</p>
           </div>
         </div>
-      )}
-
-      {session.kind !== 'dues' && session.status === SessionStatus.UPCOMING && (
-        <TeamSheet sessionId={id} onChange={fetchSession} />
-      )}
-
-      {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (
-        <LineupCard sessionId={id} />
-      )}
-
-      {session.kind !== 'dues' && session.status !== SessionStatus.CANCELLED && (
-        <SessionVotingCard sessionId={id} groupName={session.group?.name ?? 'Game'} />
       )}
 
       {/* Action buttons */}
@@ -380,6 +414,50 @@ export default function SessionDetailPage() {
         </button>
       </div>
 
+      {/* Tabs: payments / teams / stars */}
+      {isGame && (
+        <div className="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mb-4 bg-chalk/95 backdrop-blur">
+          <div className="flex p-1 bg-white border border-gray-200 rounded-2xl" role="tablist">
+            {([
+              ['payments', coveredByDues ? 'Dues' : 'Payments', owingCount ? `${owingCount} to pay` : null],
+              ['teams', 'Teams', null],
+              ['stars', 'Stars', null],
+            ] as [Tab, string, string | null][]).map(([t, name, note]) => (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => chooseTab(t)}
+                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${
+                  tab === t ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
+                }`}
+              >
+                {name}
+                {note && <span className={`block text-[10px] font-semibold ${tab === t ? 'text-white/60' : 'text-kit-600'}`}>{note}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isGame && tab === 'teams' && (
+        <>
+          {session.status === SessionStatus.UPCOMING && <MatchClock sessionId={id} teamCount={session.teamCount ?? 2} />}
+          {session.status === SessionStatus.UPCOMING && <TeamSheet sessionId={id} onChange={fetchSession} />}
+          {session.status !== SessionStatus.CANCELLED && (
+            <div id="lineup" className="scroll-mt-20">
+              <LineupCard sessionId={id} />
+            </div>
+          )}
+        </>
+      )}
+
+      {isGame && tab === 'stars' && session.status !== SessionStatus.CANCELLED && (
+        <SessionVotingCard sessionId={id} groupName={session.group?.name ?? 'Game'} />
+      )}
+
+      {(!isGame || tab === 'payments') && (
+        <>
       {/* Payment tracker */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-bold text-ink">Payment tracker</h2>
@@ -414,6 +492,41 @@ export default function SessionDetailPage() {
         )}
       </div>
 
+      {payments.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {([
+            ['owing', coveredByDues ? 'Not paid' : 'To pay', owingCount],
+            ['paid', 'Paid', paidCount],
+            ['all', 'All', payments.length],
+          ] as const).map(([f, name, n]) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold tabular-nums ${
+                shownFilter === f ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-gray-600 hover:border-ink'
+              }`}
+            >
+              {name} · {n}
+            </button>
+          ))}
+          {payments.length > 12 && (
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Find a player"
+              aria-label="Find a player"
+              className="flex-1 min-w-[140px] px-3 py-1.5 border border-gray-200 rounded-full text-xs focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          )}
+        </div>
+      )}
+      {payments.length > 0 && visible.length === 0 && (
+        <p className="text-sm text-gray-500 text-center py-6">
+          {needle ? `No one called “${search.trim()}”.` : shownFilter === 'owing' ? 'Everyone has paid. 🎉' : 'Nobody here yet.'}
+        </p>
+      )}
+
       {coveredByDues && payments.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs text-gray-500 mb-1">
@@ -424,7 +537,7 @@ export default function SessionDetailPage() {
             </Link>
             .
           </p>
-          {payments.map((p) => (
+          {visible.map((p) => (
             <div key={p.id} className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 shadow-card px-4 py-3">
               <span className="text-sm font-semibold text-ink truncate">
                 {p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Unknown Player'}
@@ -451,7 +564,7 @@ export default function SessionDetailPage() {
         />
       ) : (
         <div className="space-y-2">
-          {payments.map((payment) => (
+          {visible.map((payment) => (
             <PlayerPaymentRow
               key={payment.id}
               playerName={
@@ -470,6 +583,8 @@ export default function SessionDetailPage() {
             />
           ))}
         </div>
+      )}
+        </>
       )}
     </div>
   );

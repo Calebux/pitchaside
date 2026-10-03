@@ -59,7 +59,9 @@ export function TeamSheet({ sessionId, onChange }: { sessionId: string; onChange
           <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-pitch-600">Team sheet</p>
           <h2 className="text-lg font-extrabold text-ink leading-tight">Who&apos;s playing</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            {board.requireRsvp ? 'Only confirmed players are billed.' : 'Attendance only — everyone in the group is billed.'}
+            {board.requireRsvp
+              ? "Players say if they're in; tap to move anyone."
+              : "Attendance only — it doesn't change what anyone owes."}
           </p>
         </div>
         <span className="font-display text-2xl font-extrabold text-ink tabular-nums">

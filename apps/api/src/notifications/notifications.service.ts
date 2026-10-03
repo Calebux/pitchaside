@@ -256,6 +256,12 @@ export class NotificationsService implements OnModuleInit {
     );
   }
 
+  /** Push to one organiser's own devices, e.g. their match clock running out. */
+  async pushToUser(userId: string, notice: Pick<Notice, 'title' | 'body' | 'url' | 'kind'>) {
+    const subs = await this.subsRepo.find({ where: { userId } });
+    return this.push(subs, notice);
+  }
+
   /** Fire-and-forget wrapper so a notification problem never breaks the request. */
   later(fn: () => Promise<unknown>) {
     fn().catch((err) => this.logger.warn(`Notification failed: ${err?.message ?? err}`));
