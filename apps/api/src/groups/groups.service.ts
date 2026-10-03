@@ -75,13 +75,14 @@ export class GroupsService {
     if (dto.contributionsVisibility !== undefined && !CONTRIBUTIONS_VISIBILITY.includes(dto.contributionsVisibility)) {
       throw new BadRequestException('contributionsVisibility must be private, totals or names');
     }
-    const feeChanged = dto.feePerPlayer !== undefined && Number(dto.feePerPlayer) !== Number(group.feePerPlayer);
     Object.assign(group, dto);
     const saved = await this.groupsRepo.save(group);
     // Switching to a periodic type opens the current dues period straight away.
     await this.billing.ensureCurrentPeriod(saved);
-    // A new fee applies to what's still unpaid, not just to dues created from now on.
-    if (feeChanged) await this.billing.repriceOpenDues(saved);
+    // The fee applies to what's still unpaid, not just to dues created from now on. Run on
+    // every save (it only touches unpaid upcoming dues), so re-saving fixes dues left at an
+    // old amount.
+    if (dto.feePerPlayer !== undefined) await this.billing.repriceOpenDues(saved);
     return saved;
   }
 
