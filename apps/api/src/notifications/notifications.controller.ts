@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, Post, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsObject, IsString, IsUrl } from 'class-validator';
 import { NotificationsService } from './notifications.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -34,6 +35,13 @@ export class NotificationsController {
   @Post('push/subscribe')
   subscribe(@Body() dto: PushSubscriptionDto, @CurrentUser() user: User) {
     return this.notifications.subscribe(dto, { userId: user.id });
+  }
+
+  @Throttle({ default: { ttl: 60000, limit: 3 } })
+  @UseGuards(ThrottlerGuard, JwtAuthGuard)
+  @Post('push/test')
+  test(@CurrentUser() user: User) {
+    return this.notifications.testUser(user.id);
   }
 
   @UseGuards(JwtAuthGuard)

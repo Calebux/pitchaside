@@ -47,7 +47,7 @@ export default function AppLayout({
     <>
       {!user.emailVerified && <VerifyEmailModal email={user.email} onCheck={refreshUser} />}
       {celebrate && <EmailVerifiedModal onClose={() => setCelebrate(false)} />}
-      <main className="min-h-screen pb-28 md:pb-10 md:pl-60 md:pt-4">
+      <main className="min-h-screen pb-28 pt-[env(safe-area-inset-top)] md:pb-10 md:pl-60 md:pt-4">
         {children}
       </main>
       <Nav />

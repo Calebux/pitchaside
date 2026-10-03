@@ -158,7 +158,7 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
 
       <div className="min-h-screen pb-28 md:pb-12 md:pl-60">
         {/* Phone header */}
-        <header className="md:hidden sticky top-0 z-40 bg-white/85 backdrop-blur-lg border-b border-ink/5">
+        <header className="md:hidden sticky top-0 z-40 bg-white/85 backdrop-blur-lg border-b border-ink/5 pt-[env(safe-area-inset-top)]">
           <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
             <Logo href="/me" size="sm" />
             <ModeSwitch organiser={profile.organiser} />

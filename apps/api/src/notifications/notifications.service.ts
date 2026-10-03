@@ -127,6 +127,34 @@ export class NotificationsService implements OnModuleInit {
     return { subscribed: false };
   }
 
+  /** Send a test notification only to the current organiser's subscribed devices. */
+  async testUser(userId: string) {
+    const subs = await this.subsRepo.find({ where: { userId } });
+    const delivered = await this.push(subs, {
+      title: 'PitchAside test',
+      body: 'Push notifications are working on this device.',
+      url: '/settings',
+      kind: 'test_push',
+    });
+    return { delivered, missed: Math.max(0, subs.length - delivered) };
+  }
+
+  /** Send a test notification to the current player's subscribed devices. */
+  async testPerson(owner: { playerId?: string; personKey?: string }) {
+    const where = [
+      ...(owner.playerId ? [{ playerId: owner.playerId }] : []),
+      ...(owner.personKey ? [{ personKey: owner.personKey }] : []),
+    ];
+    const subs = where.length ? await this.subsRepo.find({ where }) : [];
+    const delivered = await this.push(subs, {
+      title: 'PitchAside test',
+      body: 'Push notifications are working on this device.',
+      url: '/me',
+      kind: 'test_push',
+    });
+    return { delivered, missed: Math.max(0, subs.length - delivered) };
+  }
+
   private async push(subs: PushSubscriptionEntity[], notice: Pick<Notice, 'title' | 'body' | 'url' | 'kind'>) {
     if (!this.pushEnabled || !subs.length) return 0;
     const payload = JSON.stringify({ title: notice.title, body: notice.body, url: notice.url ?? '/', tag: notice.kind });
