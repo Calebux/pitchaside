@@ -19,6 +19,11 @@ export class LineupDto {
   @IsOptional()
   @IsObject()
   teams?: Record<string, string | null>;
+
+  /** 'A'…'F' → playerId | null: who captains each side (they're moved onto it). */
+  @IsOptional()
+  @IsObject()
+  captains?: Record<string, string | null>;
 }
 
 export class BalanceDto {

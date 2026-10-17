@@ -35,7 +35,8 @@ export function TeamSheet({ sessionId, onChange }: { sessionId: string; onChange
     <div className="flex items-center gap-2.5 py-2">
       <Avatar name={`${p.firstName} ${p.lastName}`} className="w-8 h-8 text-[11px]" />
       <span className="flex-1 text-sm font-semibold text-ink truncate">
-        {p.firstName} {p.lastName}
+        {p.nickname || `${p.firstName} ${p.lastName}`}
+        {p.nickname && <span className="font-normal text-gray-500"> · {p.firstName} {p.lastName}</span>}
       </span>
       {action}
     </div>

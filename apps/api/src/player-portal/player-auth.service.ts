@@ -21,6 +21,7 @@ import { User } from '../users/entities/user.entity';
 import { emailKey } from '../common/format.util';
 import { MailService } from '../mail/mail.service';
 import { clubPlayerFor } from '../players/club-player';
+import { cleanNickname } from '../players/player-name';
 import { PhoneOtp } from './entities/phone-otp.entity';
 import { PlayerAccount } from './entities/player-account.entity';
 import { Organization } from '../organizations/entities/organization.entity';
@@ -275,19 +276,21 @@ export class PlayerAuthService {
   }
 
   /** Renames the person everywhere: their account and their player record in every club. */
-  async updateName(person: Person, firstName: string, lastName: string) {
+  async updateName(person: Person, firstName: string, lastName: string, nickname?: string) {
     const account = await this.accountFor(person.key);
     if (account) {
       account.firstName = firstName.trim();
       account.lastName = lastName.trim();
       await this.accountsRepo.save(account);
     }
+    // The nickname lives on each club's player record, so every club's team sheet shows it.
     for (const p of person.players) {
       p.firstName = firstName.trim();
       p.lastName = lastName.trim();
+      if (nickname !== undefined) p.nickname = cleanNickname(nickname);
     }
     if (person.players.length) await this.playersRepo.save(person.players);
-    return { firstName: firstName.trim(), lastName: lastName.trim() };
+    return { firstName: firstName.trim(), lastName: lastName.trim(), nickname: person.players[0]?.nickname ?? null };
   }
 
   /** An organiser switching to Playing gets a player record in their own club (so they can join their own games). */

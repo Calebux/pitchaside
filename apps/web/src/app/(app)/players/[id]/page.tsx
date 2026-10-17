@@ -48,6 +48,7 @@ export default function PlayerDetailPage() {
   const [editData, setEditData] = useState({
     firstName: '',
     lastName: '',
+    nickname: '',
     phone: '',
     email: '',
     level: 'average' as PlayerLevel,
@@ -75,6 +76,7 @@ export default function PlayerDetailPage() {
     setEditData({
       firstName: player.firstName,
       lastName: player.lastName,
+      nickname: player.nickname || '',
       phone: player.phone || '',
       email: player.email || '',
       level: player.level ?? 'average',
@@ -88,6 +90,7 @@ export default function PlayerDetailPage() {
       await updatePlayer(id, {
         firstName: editData.firstName.trim(),
         lastName: editData.lastName.trim(),
+        nickname: editData.nickname.trim(),
         phone: editData.phone.trim() || null,
         email: editData.email.trim() || null,
         level: editData.level,
@@ -178,6 +181,16 @@ export default function PlayerDetailPage() {
             </div>
           </div>
           <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Nickname</label>
+            <input
+              value={editData.nickname}
+              maxLength={24}
+              placeholder="What they're called on the pitch"
+              onChange={(e) => setEditData({ ...editData, nickname: e.target.value })}
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          </div>
+          <div>
             <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
             <input
               type="email"
@@ -252,6 +265,7 @@ export default function PlayerDetailPage() {
                   <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1">
                     {player.firstName} {player.lastName}
                   </h1>
+                  {player.nickname && <p className="text-sm font-bold text-volt-300 mt-1">“{player.nickname}”</p>}
                 </div>
                 <div className="flex gap-1.5 shrink-0">
                   <button

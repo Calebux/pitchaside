@@ -9,21 +9,23 @@ import { changeMyPassword, updateMyName } from '@/lib/player';
 const input =
   'w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
-/** Edit name (updates every club) and change password, on the player's Me tab. */
+/** Edit name and nickname (updates every club) and change password, on the player's Me tab. */
 export function PlayerAccountSettings({
   firstName,
   lastName,
+  nickname,
   email,
   onSaved,
 }: {
   firstName: string;
   lastName: string;
+  nickname: string | null;
   email: string;
   onSaved: () => Promise<void>;
 }) {
   const toast = useToast();
   const [open, setOpen] = useState<'name' | 'password' | null>(null);
-  const [name, setName] = useState({ firstName, lastName });
+  const [name, setName] = useState({ firstName, lastName, nickname: nickname ?? '' });
   const [pw, setPw] = useState({ current: '', next: '' });
   const [busy, setBusy] = useState(false);
 
@@ -31,7 +33,7 @@ export function PlayerAccountSettings({
     e.preventDefault();
     setBusy(true);
     try {
-      await updateMyName(name.firstName.trim(), name.lastName.trim());
+      await updateMyName(name.firstName.trim(), name.lastName.trim(), name.nickname.trim());
       await onSaved();
       toast.success('Name updated in all your clubs');
       setOpen(null);
@@ -84,7 +86,7 @@ export function PlayerAccountSettings({
 
   return (
     <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100">
-      {row('Name', `${firstName} ${lastName}`, 'name')}
+      {row('Name', nickname ? `${firstName} “${nickname}” ${lastName}` : `${firstName} ${lastName}`, 'name')}
       {open === 'name' && (
         <form onSubmit={saveName} className="px-4 pb-4 pt-3 space-y-3">
           <div className="grid grid-cols-2 gap-3">
@@ -104,6 +106,17 @@ export function PlayerAccountSettings({
               onChange={(e) => setName({ ...name, lastName: e.target.value })}
               className={input}
             />
+          </div>
+          <div>
+            <input
+              aria-label="Nickname"
+              placeholder="Nickname (optional)"
+              maxLength={24}
+              value={name.nickname}
+              onChange={(e) => setName({ ...name, nickname: e.target.value })}
+              className={input}
+            />
+            <p className="text-[11px] text-gray-500 mt-1">What they call you on the pitch. Team sheets show it instead of your name.</p>
           </div>
           {save('Save name')}
         </form>

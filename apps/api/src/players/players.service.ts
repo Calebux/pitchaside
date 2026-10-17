@@ -6,6 +6,7 @@ import { Payment } from '../payments/entities/payment.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { CreatePlayerDto, UpdatePlayerDto } from './dto/create-player.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
+import { cleanNickname } from './player-name';
 
 @Injectable()
 export class PlayersService {
@@ -15,7 +16,7 @@ export class PlayersService {
   ) {}
 
   create(dto: CreatePlayerDto, organizationId: string) {
-    const player = this.playersRepo.create({ ...dto, organizationId });
+    const player = this.playersRepo.create({ ...dto, nickname: cleanNickname(dto.nickname), organizationId });
     return this.playersRepo.save(player);
   }
 
@@ -36,7 +37,7 @@ export class PlayersService {
 
     if (query.search) {
       qb.andWhere(
-        '(player.firstName ILIKE :s OR player.lastName ILIKE :s OR player.phone ILIKE :s OR player.email ILIKE :s)',
+        '(player.firstName ILIKE :s OR player.lastName ILIKE :s OR player.nickname ILIKE :s OR player.phone ILIKE :s OR player.email ILIKE :s)',
         { s: `%${query.search}%` },
       );
     }
@@ -65,6 +66,7 @@ export class PlayersService {
   async update(id: string, dto: UpdatePlayerDto, organizationId: string) {
     const player = await this.findOne(id, organizationId);
     Object.assign(player, dto);
+    if (dto.nickname !== undefined) player.nickname = cleanNickname(dto.nickname);
     return this.playersRepo.save(player);
   }
 

@@ -70,6 +70,7 @@ export default function NewPlayerPage() {
       const player = await createPlayer({
         firstName: (form.get('firstName') as string).trim(),
         lastName: (form.get('lastName') as string).trim(),
+        nickname: (form.get('nickname') as string).trim() || undefined,
         email: (form.get('email') as string).trim() || undefined,
         phone: (form.get('phone') as string).trim() || undefined,
         level,
@@ -134,6 +135,13 @@ export default function NewPlayerPage() {
             />
             {errors.lastName && <p className="text-xs text-kit-600 mt-1">{errors.lastName}</p>}
           </div>
+        </div>
+
+        <div>
+          <label htmlFor="nickname" className="block text-xs font-bold text-gray-700 mb-1.5">
+            Nickname
+          </label>
+          <input id="nickname" name="nickname" type="text" maxLength={24} placeholder="What they're called on the pitch" className={inputClass('nickname')} />
         </div>
 
         <div>

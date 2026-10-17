@@ -140,6 +140,7 @@ export function getPlayer(id: string): Promise<IPlayer> {
 export function createPlayer(data: {
   firstName: string;
   lastName: string;
+  nickname?: string;
   email?: string;
   phone?: string;
   level?: PlayerLevel;
@@ -152,6 +153,8 @@ export function updatePlayer(
   data: Partial<{
     firstName: string;
     lastName: string;
+    /** Blank clears it. */
+    nickname: string;
     /** null clears it. */
     phone: string | null;
     email: string | null;
@@ -615,8 +618,10 @@ export interface TeamStanding {
 
 export interface Lineup {
   teamCount: number;
+  /** Side → its captain's name; a side with a captain goes by "Team <name>". */
+  captains: Partial<Record<TeamKey, string>>;
   /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
-  squad: (SquadMember & { team: TeamKey | null; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
+  squad: (SquadMember & { team: TeamKey | null; captain: boolean; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
   games: MatchGame[];
   standings: TeamStanding[];
   teamOfTheDay: TeamKey | null;
@@ -628,7 +633,7 @@ export function getLineup(sessionId: string): Promise<Lineup> {
 
 export function saveLineup(
   sessionId: string,
-  data: { teamCount?: number; teams?: Record<string, TeamKey | null> },
+  data: { teamCount?: number; teams?: Record<string, TeamKey | null>; captains?: Partial<Record<TeamKey, string | null>> },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
 }
@@ -688,6 +693,7 @@ export interface SquadMember {
   id: string;
   firstName: string;
   lastName: string;
+  nickname?: string | null;
 }
 
 export interface VoteResults {

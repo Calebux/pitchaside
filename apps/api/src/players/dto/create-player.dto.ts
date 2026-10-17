@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsIn, IsNotEmpty, MinLength, Matches } from 'class-validator';
+import { IsString, IsOptional, IsEmail, IsIn, IsNotEmpty, MinLength, MaxLength, Matches } from 'class-validator';
 import { PLAYER_LEVELS, type PlayerLevel } from '../../ratings/skill';
 
 export class CreatePlayerDto {
@@ -11,6 +11,12 @@ export class CreatePlayerDto {
   @IsNotEmpty()
   @MinLength(2)
   lastName: string;
+
+  /** What they're called on the pitch; blank clears it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  nickname?: string;
 
   @IsOptional()
   @Matches(/^[+\d][\d\s\-().]{6,}$/, { message: 'Phone number format is invalid' })
@@ -42,6 +48,12 @@ export class UpdatePlayerDto {
   @IsNotEmpty()
   @MinLength(2)
   lastName?: string;
+
+  /** What they're called on the pitch; blank clears it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  nickname?: string;
 
   @IsOptional()
   @Matches(/^[+\d][\d\s\-().]{6,}$/, { message: 'Phone number format is invalid' })

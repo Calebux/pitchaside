@@ -25,6 +25,23 @@ export const TEAMS: Record<TeamKey, { name: string; swatch: string; soft: string
 };
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
+/** A side goes by its captain once it has one ("Team Baba"), else its bib colour. */
+export function teamName(team: TeamKey, captains?: Partial<Record<TeamKey, string>>) {
+  const captain = captains?.[team];
+  return captain ? `Team ${captain}` : TEAMS[team].name;
+}
+
+/** On a team sheet: their nickname, else their first name. */
+const pitchName = (m: { firstName: string; nickname?: string | null }) => m.nickname || m.firstName;
+
+function CaptainBadge() {
+  return (
+    <span className="w-4 h-4 rounded-full bg-ink text-volt-300 text-[9px] font-extrabold leading-4 text-center shrink-0" title="Captain">
+      C
+    </span>
+  );
+}
+
 function Swatch({ team, className = 'w-3 h-3 rounded-sm' }: { team: TeamKey; className?: string }) {
   return <span className={`${className} ${TEAMS[team].swatch} inline-block shrink-0`} aria-hidden />;
 }
@@ -43,7 +60,19 @@ function Stepper({ value, onChange, label }: { value: number; onChange: (v: numb
   );
 }
 
-function TeamPicker({ teams, value, onChange, exclude }: { teams: TeamKey[]; value: TeamKey; onChange: (t: TeamKey) => void; exclude?: TeamKey }) {
+function TeamPicker({
+  teams,
+  captains,
+  value,
+  onChange,
+  exclude,
+}: {
+  teams: TeamKey[];
+  captains: Partial<Record<TeamKey, string>>;
+  value: TeamKey;
+  onChange: (t: TeamKey) => void;
+  exclude?: TeamKey;
+}) {
   return (
     <div className="flex flex-wrap justify-center gap-1.5">
       {teams.map((t) => (
@@ -54,7 +83,7 @@ function TeamPicker({ teams, value, onChange, exclude }: { teams: TeamKey[]; val
           className={`w-7 h-7 rounded-full ${TEAMS[t].swatch} transition-transform disabled:opacity-20 ${
             value === t ? 'ring-2 ring-offset-2 ring-offset-ink ring-volt-400 scale-110' : ''
           }`}
-          aria-label={TEAMS[t].name}
+          aria-label={teamName(t, captains)}
           aria-pressed={value === t}
         />
       ))}
@@ -62,7 +91,10 @@ function TeamPicker({ teams, value, onChange, exclude }: { teams: TeamKey[]; val
   );
 }
 
-/** Match day: split the squad into 2–6 coloured sides, record each short game, crown the Team of the Day. */
+/**
+ * Match day: split the squad into 2–6 coloured sides — each can have a captain it's named after —
+ * record each short game, crown the Team of the Day.
+ */
 /** `matchDay`: the game is today or has been played, so scores can be recorded. */
 export function LineupCard({ sessionId, matchDay = false }: { sessionId: string; matchDay?: boolean }) {
   const toast = useToast();
@@ -101,6 +133,11 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
     run(playerId, () => saveLineup(sessionId, { teams: { [playerId]: team } }));
   };
 
+  const makeCaptain = (team: TeamKey, playerId: string | null) => {
+    setPicking(null);
+    run(playerId ?? `cap-${team}`, () => saveLineup(sessionId, { captains: { [team]: playerId } }));
+  };
+
   const avg = (team: TeamKey) => {
     const rated = lineup.squad.filter((m) => m.team === team && m.ovr != null);
     return rated.length ? Math.round(rated.reduce((s, m) => s + (m.ovr ?? 0), 0) / rated.length) : null;
@@ -115,7 +152,8 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
       >
         <Avatar name={`${m.firstName} ${m.lastName}`} className="w-7 h-7 text-[10px]" />
-        <span className="flex-1 min-w-0 text-sm font-semibold text-ink truncate">{m.firstName}</span>
+        <span className="flex-1 min-w-0 text-sm font-semibold text-ink truncate">{pitchName(m)}</span>
+        {m.captain && <CaptainBadge />}
         {m.paid === 'paid' && <span className="text-[10px] font-extrabold text-pitch-600" title="Paid for this game">✓</span>}
         {m.paid === 'unpaid' && (
           <span className="w-2 h-2 rounded-full bg-kit-500 shrink-0" title="Hasn't paid for this game">
@@ -135,9 +173,19 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
               key={t}
               onClick={() => assign(m.id, t)}
               className={`w-7 h-7 rounded-full ${TEAMS[t].swatch} ${m.team === t ? 'ring-2 ring-offset-1 ring-ink' : ''}`}
-              aria-label={`Move to ${TEAMS[t].name}`}
+              aria-label={`Move to ${teamName(t, lineup.captains)}`}
             />
           ))}
+          {m.team && !m.captain && (
+            <button onClick={() => makeCaptain(m.team!, m.id)} className="text-[11px] font-semibold text-pitch-600 hover:text-ink ml-1">
+              Make captain
+            </button>
+          )}
+          {m.captain && (
+            <button onClick={() => makeCaptain(m.team!, null)} className="text-[11px] font-semibold text-gray-500 hover:text-ink ml-1">
+              Not captain
+            </button>
+          )}
           {m.team && (
             <button onClick={() => assign(m.id, null)} className="text-[11px] font-semibold text-gray-500 hover:text-ink ml-1">
               Unpick
@@ -173,7 +221,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
           </div>
         </div>
         <div className="flex items-center justify-between gap-2 mt-3">
-          <p className="text-xs text-white/60">Tap a player to move them. Every game counts towards their <span className="whitespace-nowrap">W-D-L</span>.</p>
+          <p className="text-xs text-white/60">Pick a captain for each team, then tap a player to move them. Every game counts towards their <span className="whitespace-nowrap">W-D-L</span>.</p>
           <button
             onClick={() => run('balance', () => balanceLineup(sessionId), `Split into ${lineup.teamCount} balanced teams`)}
             disabled={!!busy}
@@ -188,17 +236,38 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
       <div className="p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {teams.map((t) => {
-            const members = lineup.squad.filter((m) => m.team === t);
+            // Captain at the top of their side.
+            const members = lineup.squad.filter((m) => m.team === t).sort((a, b) => Number(b.captain) - Number(a.captain));
+            const captain = members.find((m) => m.captain);
             return (
               <div key={t} className={`rounded-2xl p-2.5 ${TEAMS[t].soft}`}>
-                <div className="flex items-center justify-between px-1 mb-2">
-                  <span className="flex items-center gap-1.5 text-xs font-extrabold text-ink">
+                <div className="flex items-center justify-between gap-1 px-1 mb-1.5">
+                  <span className="flex items-center gap-1.5 min-w-0 text-xs font-extrabold text-ink">
                     <Swatch team={t} />
-                    {TEAMS[t].name} · {members.length}
+                    <span className="truncate">{teamName(t, lineup.captains)}</span> · {members.length}
                     {lineup.teamOfTheDay === t && <span title="Team of the Day">🏆</span>}
                   </span>
-                  {avg(t) != null && <span className="text-[10px] font-bold text-gray-500">avg {avg(t)}</span>}
+                  {avg(t) != null && <span className="shrink-0 text-[10px] font-bold text-gray-500">avg {avg(t)}</span>}
                 </div>
+                <label className="block px-1 mb-2">
+                  <span className="sr-only">Captain of {TEAMS[t].name}</span>
+                  <select
+                    value={captain?.id ?? ''}
+                    onChange={(e) => makeCaptain(t, e.target.value || null)}
+                    disabled={!!busy}
+                    className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-semibold text-ink disabled:opacity-50"
+                  >
+                    <option value="">{captain ? 'No captain' : '+ Pick captain'}</option>
+                    {lineup.squad
+                      .filter((m) => !m.captain || m.team === t)
+                      .sort((a, b) => Number(b.team === t) - Number(a.team === t) || pitchName(a).localeCompare(pitchName(b)))
+                      .map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.team === t || !m.team ? pitchName(m) : `${pitchName(m)} (${teamName(m.team, lineup.captains)})`}
+                        </option>
+                      ))}
+                  </select>
+                </label>
                 <div className="space-y-1.5">
                   {members.map((m) => (
                     <Chip key={m.id} m={m} />
@@ -239,18 +308,18 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
           <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
             <div className="flex flex-col items-center gap-2">
               <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${TEAMS[draft.teamA].swatch} ${TEAMS[draft.teamA].text}`}>
-                {TEAMS[draft.teamA].name}
+                {teamName(draft.teamA, lineup.captains)}
               </span>
-              <Stepper label={TEAMS[draft.teamA].name} value={draft.scoreA} onChange={(v) => setDraft({ ...draft, scoreA: v })} />
-              <TeamPicker teams={teams} value={draft.teamA} exclude={draft.teamB} onChange={(t) => setDraft({ ...draft, teamA: t })} />
+              <Stepper label={teamName(draft.teamA, lineup.captains)} value={draft.scoreA} onChange={(v) => setDraft({ ...draft, scoreA: v })} />
+              <TeamPicker teams={teams} captains={lineup.captains} value={draft.teamA} exclude={draft.teamB} onChange={(t) => setDraft({ ...draft, teamA: t })} />
             </div>
             <span className="font-display text-2xl font-extrabold text-white/30 mt-9">–</span>
             <div className="flex flex-col items-center gap-2">
               <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${TEAMS[draft.teamB].swatch} ${TEAMS[draft.teamB].text}`}>
-                {TEAMS[draft.teamB].name}
+                {teamName(draft.teamB, lineup.captains)}
               </span>
-              <Stepper label={TEAMS[draft.teamB].name} value={draft.scoreB} onChange={(v) => setDraft({ ...draft, scoreB: v })} />
-              <TeamPicker teams={teams} value={draft.teamB} exclude={draft.teamA} onChange={(t) => setDraft({ ...draft, teamB: t })} />
+              <Stepper label={teamName(draft.teamB, lineup.captains)} value={draft.scoreB} onChange={(v) => setDraft({ ...draft, scoreB: v })} />
+              <TeamPicker teams={teams} captains={lineup.captains} value={draft.teamB} exclude={draft.teamA} onChange={(t) => setDraft({ ...draft, teamB: t })} />
             </div>
           </div>
           <button
@@ -275,7 +344,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
               <li key={g.id} className="flex items-center gap-2 rounded-xl bg-chalk px-3 py-2">
                 <span className="text-[10px] font-extrabold text-gray-500 w-5 tabular-nums">{i + 1}</span>
                 <span className="flex-1 flex items-center justify-end gap-1.5 text-sm font-bold text-ink">
-                  {TEAMS[g.teamA].name}
+                  {teamName(g.teamA, lineup.captains)}
                   <Swatch team={g.teamA} />
                 </span>
                 <span className="font-display text-base font-extrabold text-ink tabular-nums px-1">
@@ -283,7 +352,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
                 </span>
                 <span className="flex-1 flex items-center gap-1.5 text-sm font-bold text-ink">
                   <Swatch team={g.teamB} />
-                  {TEAMS[g.teamB].name}
+                  {teamName(g.teamB, lineup.captains)}
                 </span>
                 <button
                   onClick={() => run(`del-${g.id}`, () => deleteMatchGame(sessionId, g.id))}
@@ -318,7 +387,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
               >
                 <span className="flex items-center gap-2 font-bold text-ink">
                   <Swatch team={r.team} />
-                  {TEAMS[r.team].name}
+                  {teamName(r.team, lineup.captains)}
                   {lineup.teamOfTheDay === r.team && <span className="text-[10px] font-extrabold uppercase tracking-wider text-pitch-700">Team of the Day</span>}
                 </span>
                 {[r.p, r.w, r.d, r.l].map((v, i) => (

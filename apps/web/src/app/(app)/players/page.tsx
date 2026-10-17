@@ -294,6 +294,7 @@ export default function PlayersPage() {
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-ink truncate">
                       {player.firstName} {player.lastName}
+                      {player.nickname && <span className="font-semibold text-gray-500"> · “{player.nickname}”</span>}
                     </p>
                     <p className="text-xs text-gray-500 truncate">
                       {player.email || player.phone || 'No contact details'}

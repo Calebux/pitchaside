@@ -7,7 +7,7 @@ export interface MatchCard {
   ballots: number;
   squadSize: number;
   awards: { key: string; title: string; name: string; votes: number; shared: boolean }[];
-  teamOfTheDay: { team: string; players: string[]; w: number; d: number; l: number; pts: number } | null;
+  teamOfTheDay: { team: string; captain?: string | null; players: string[]; w: number; d: number; l: number; pts: number } | null;
   standings: { team: string; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }[];
   games: { teamA: string; teamB: string; scoreA: number; scoreB: number }[];
 }
