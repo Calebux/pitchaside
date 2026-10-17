@@ -510,9 +510,9 @@ export class RatingsService {
     };
   }
 
-  /** From kick-off day until the game is marked finished or called off. */
+  /** From kick-off day on — still open once the game is marked finished, so players can fix it after — unless it was called off. */
   private bibsOpen(session: Session) {
-    return session.status === SessionStatus.UPCOMING && localDate(0) >= String(session.date).slice(0, 10);
+    return session.status !== SessionStatus.CANCELLED && localDate(0) >= String(session.date).slice(0, 10);
   }
 
   /** A player picks the side they're on for the day — by bib or by captain (null to clear it). */
