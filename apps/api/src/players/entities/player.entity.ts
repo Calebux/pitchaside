@@ -31,6 +31,10 @@ export class Player {
   @Column()
   lastName: string;
 
+  /** What they're called on the pitch ("Baba"); shown on team sheets in place of their first name. */
+  @Column({ type: 'varchar', length: 24, nullable: true })
+  nickname: string | null;
+
   /** Optional contact number. Players an organiser added before email sign-in may only have this. */
   @Column({ type: 'varchar', nullable: true })
   phone: string | null;

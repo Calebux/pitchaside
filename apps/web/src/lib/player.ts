@@ -151,8 +151,8 @@ export function joinClubAsPlayer(code: string) {
   return request<ClubJoinResult>('POST', `/me/clubs/${code}/join`);
 }
 
-export function updateMyName(firstName: string, lastName: string) {
-  return request<{ firstName: string; lastName: string }>('PATCH', '/me/account', { firstName, lastName });
+export function updateMyName(firstName: string, lastName: string, nickname: string) {
+  return request<{ firstName: string; lastName: string; nickname: string | null }>('PATCH', '/me/account', { firstName, lastName, nickname });
 }
 
 export function changeMyPassword(currentPassword: string, newPassword: string) {
@@ -187,7 +187,7 @@ export type PlayerGroup = {
 export type Organiser = { clubName: string; email: string } | null;
 
 export interface PlayerHome {
-  player: { id: string; firstName: string; lastName: string; email: string; phone: string | null };
+  player: { id: string; firstName: string; lastName: string; nickname: string | null; email: string; phone: string | null };
   organiser: Organiser;
   groups: {
     id: string;
@@ -241,6 +241,9 @@ export interface RecentMatchDay {
   groupName?: string;
   teamCount: number;
   myTeam: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
+  captains?: Partial<Record<TeamKey, string>>;
+  /** Whether the player can still pick or change their team (until voting closes). */
+  teamOpen?: boolean;
   teamOfTheDay: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
   record: { w: number; d: number; l: number };
   games: number;
@@ -329,12 +332,16 @@ export type GamePaid = 'paid' | 'unpaid' | 'waived';
 export interface GameLineup {
   teamCount: number;
   bibsOpen: boolean;
+  /** A week after the game, when voting closes: teams are locked. */
+  bibsClosed: boolean;
   myTeam: TeamKey | null;
+  /** Side → its captain's name; a side with a captain goes by "Team <name>". */
+  captains: Partial<Record<TeamKey, string>>;
   myPaid: GamePaid;
   /** Whether the group shares who's paid with players. */
   showPaid: boolean;
   /** `paid` is null for others when the group keeps that private. */
-  squad: { name: string; me: boolean; team: TeamKey | null; paid: GamePaid | null }[];
+  squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; paid: GamePaid | null }[];
 }
 
 export function getGameLineup(sessionId: string) {

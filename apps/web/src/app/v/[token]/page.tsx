@@ -188,7 +188,7 @@ export default function VotePage() {
                           aria-pressed={selected}
                         >
                           <Avatar name={name} className="w-10 h-10 text-xs" />
-                          <span className="text-xs font-bold text-ink truncate max-w-full">{p.firstName}</span>
+                          <span className="text-xs font-bold text-ink truncate max-w-full">{p.nickname || p.firstName}</span>
                         </button>
                       );
                     })}

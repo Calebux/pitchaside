@@ -54,6 +54,10 @@ export class Payment {
   @Column({ type: 'varchar', nullable: true })
   team: string | null;
 
+  /** Captain of their side for this game; the side goes by their name. At most one per side. */
+  @Column({ default: false })
+  captain: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 

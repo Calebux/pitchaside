@@ -55,6 +55,8 @@ export interface IPlayer {
   id: string;
   firstName: string;
   lastName: string;
+  /** What they're called on the pitch; shown on team sheets. */
+  nickname?: string | null;
   /** Optional contact number. Players sign in with their email. */
   phone?: string | null;
   email?: string | null;

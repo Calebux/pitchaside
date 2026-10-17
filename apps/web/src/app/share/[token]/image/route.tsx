@@ -261,14 +261,14 @@ function Card({ card }: { card: MatchCard }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 4, color: C.volt300 }}>
-              TEAM OF THE DAY · {todColour.name.toUpperCase()}
+              TEAM OF THE DAY · {(tod.captain ? `Team ${tod.captain}` : todColour.name).toUpperCase()}
             </div>
             <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, marginTop: 4 }}>
               W{tod.w} D{tod.d} L{tod.l} · {tod.pts} pts
             </div>
             {tod.players.length > 0 && (
               <div style={{ display: 'flex', fontSize: 24, color: C.muted, marginTop: 4 }}>
-                {tod.players.map((p) => p.split(' ')[0]).join(' · ')}
+                {tod.players.join(' · ')}
               </div>
             )}
           </div>

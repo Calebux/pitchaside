@@ -12,6 +12,7 @@ import { DEFAULT_START } from '../ratings/skill';
 import { BillingService } from '../billing/billing.service';
 import { AuthService } from '../auth/auth.service';
 import { localDate } from '../common/time.util';
+import { sheetName } from '../players/player-name';
 import { Person, PlayerAuthService } from './player-auth.service';
 
 /** The player app: everything is scoped to a person (phone), across every club they play for. */
@@ -135,8 +136,8 @@ export class PlayerPortalService {
       this.paymentsRepo.find({ where: { sessionId: g.id }, relations: ['player'] }),
     ]);
     const payment = squad.find((p) => ids.includes(p.playerId));
-    const named = (p: { id: string; firstName: string; lastName: string }) => ({
-      name: `${p.firstName} ${p.lastName}`.trim(),
+    const named = (p: { id: string; firstName: string; lastName: string; nickname?: string | null }) => ({
+      name: sheetName(p),
       me: ids.includes(p.id),
     });
     // Without RSVPs everyone in the squad plays, except anyone who's said they can't make it.
@@ -266,6 +267,7 @@ export class PlayerPortalService {
     return {
       firstName: person.firstName,
       lastName: person.lastName,
+      nickname: person.players.find((p) => p.nickname)?.nickname ?? null,
       email: person.email,
       phone: person.phone,
       id: person.players[0]?.id ?? person.key,

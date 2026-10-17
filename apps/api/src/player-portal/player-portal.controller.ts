@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { IsEmail, IsIn, IsNumber, IsObject, IsOptional, IsString, Length, Matches, Max, Min, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsNumber, IsObject, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { BillingService } from '../billing/billing.service';
@@ -107,6 +107,12 @@ export class UpdateNameDto {
   @IsString()
   @MinLength(2)
   lastName: string;
+
+  /** What they're called on the pitch; blank clears it, left out keeps it. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  nickname?: string;
 }
 
 export class StartGroupDto {
@@ -333,7 +339,7 @@ export class PlayerPortalController {
 
   @Patch('account')
   updateName(@Body() dto: UpdateNameDto, @CurrentPerson() person: Person) {
-    return this.playerAuth.updateName(person, dto.firstName, dto.lastName);
+    return this.playerAuth.updateName(person, dto.firstName, dto.lastName, dto.nickname);
   }
 
   @Post('password')

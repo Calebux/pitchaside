@@ -18,7 +18,7 @@ import { coveredByDues, squadEntry } from '../payments/game-dues';
 import { Rsvp, RsvpStatus } from './entities/rsvp.entity';
 import { BillingService } from '../billing/billing.service';
 
-type Person = { id: string; firstName: string; lastName: string };
+type Person = { id: string; firstName: string; lastName: string; nickname?: string | null };
 
 @Injectable()
 export class RsvpService {
@@ -54,7 +54,7 @@ export class RsvpService {
       this.rsvpRepo.find({ where: { sessionId: session.id }, relations: ['player'], order: { statusAt: 'ASC' } }),
       this.membershipsRepo.find({ where: { groupId: session.groupId }, relations: ['player'] }),
     ]);
-    const person = (p: Person) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName });
+    const person = (p: Person) => ({ id: p.id, firstName: p.firstName, lastName: p.lastName, nickname: p.nickname ?? null });
     const answered = new Set(rsvps.map((r) => r.playerId));
     return {
       capacity: session.group.targetPlayers,

@@ -94,6 +94,7 @@ export default function PlayerProfilePage() {
         <PlayerAccountSettings
           firstName={profile.player.firstName}
           lastName={profile.player.lastName}
+          nickname={profile.player.nickname}
           email={profile.player.email}
           onSaved={refresh}
         />

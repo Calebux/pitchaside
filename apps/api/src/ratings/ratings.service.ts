@@ -14,6 +14,8 @@ import { Vote, VoteCategory } from './entities/vote.entity';
 import { SessionGame } from './entities/session-game.entity';
 import { GamePaid, paidForGames } from '../payments/game-dues';
 import { localDate } from '../common/time.util';
+import { pitchName, sheetName } from '../players/player-name';
+import { Payment } from '../payments/entities/payment.entity';
 import { DEFAULT_START, LEVEL_START, PROVISIONAL_UNDER, cardRating, replaySkill, type Skill, type SkillGame } from './skill';
 
 /** Sides on match day. Colours live in the UI (Orange, Yellow, Blue, White, Green, Red). */
@@ -42,7 +44,7 @@ const VOTE_DOWN_MAX = 6;
 /** League points: what makes the table move. */
 export const POINTS = { potmVote: 3, attrVote: 1, potmWin: 5 };
 
-type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName'>;
+type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName' | 'nickname'>;
 
 export interface PlayerRatings {
   games: number;
@@ -124,7 +126,7 @@ export class RatingsService {
   private squad(session: Session): SquadMember[] {
     return (session.payments ?? [])
       .filter((p) => p.player)
-      .map((p) => ({ id: p.player.id, firstName: p.player.firstName, lastName: p.player.lastName }));
+      .map((p) => ({ id: p.player.id, firstName: p.player.firstName, lastName: p.player.lastName, nickname: p.player.nickname ?? null }));
   }
 
   private async loadSessionByToken(token: string) {
@@ -291,7 +293,7 @@ export class RatingsService {
       this.gamesRepo.find({ where: { sessionId: session.id }, order: { createdAt: 'ASC' } }),
       this.groupsRepo.findOne({ where: { id: session.groupId }, relations: ['organization'] }),
     ]);
-    const name = (p: SquadMember) => `${p.firstName} ${p.lastName}`;
+    const name = (p: SquadMember) => sheetName(p);
     const awards = results.categories
       .map((c) => {
         const top = c.standings[0];
@@ -319,7 +321,8 @@ export class RatingsService {
         tod && todRow
           ? {
               team: tod,
-              players: (session.payments ?? []).filter((p) => p.team === tod && p.player).map((p) => name(p.player)),
+              captain: this.captainsOf(session)[tod as TeamKey] ?? null,
+              players: (session.payments ?? []).filter((p) => p.team === tod && p.player).map((p) => pitchName(p.player)),
               w: todRow.w,
               d: todRow.d,
               l: todRow.l,
@@ -366,13 +369,16 @@ export class RatingsService {
     const table = this.standings(session.teamCount, games);
     return {
       teamCount: session.teamCount,
+      captains: this.captainsOf(session),
       squad: (session.payments ?? [])
         .filter((p) => p.player)
         .map((p) => ({
           id: p.player.id,
           firstName: p.player.firstName,
           lastName: p.player.lastName,
+          nickname: p.player.nickname ?? null,
           team: this.teamOf(session, p.team),
+          captain: this.isCaptain(session, p),
           ovr: ovr.get(p.player.id) ?? cardRating(skills.get(p.player.id)?.rating ?? DEFAULT_START),
           skill: Math.round(skills.get(p.player.id)?.rating ?? DEFAULT_START),
           // Organisers always see who's paid for this game (or the period it falls in).
@@ -387,7 +393,7 @@ export class RatingsService {
   async setLineup(
     sessionId: string,
     organizationId: string,
-    input: { teamCount?: number; teams?: Record<string, string | null> },
+    input: { teamCount?: number; teams?: Record<string, string | null>; captains?: Record<string, string | null> },
   ) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.kind === SessionKind.DUES) throw new BadRequestException('Dues periods don’t have a lineup');
@@ -397,7 +403,10 @@ export class RatingsService {
       await this.sessionsRepo.update(session.id, { teamCount: count });
       // Anyone on a side that no longer exists goes back to "not picked".
       const dropped = (session.payments ?? []).filter((p) => p.team && TEAM_KEYS.indexOf(p.team as TeamKey) >= count);
-      for (const p of dropped) p.team = null;
+      for (const p of dropped) {
+        p.team = null;
+        p.captain = false;
+      }
       if (dropped.length) await this.sessionsRepo.manager.save(dropped);
       await this.gamesRepo
         .createQueryBuilder()
@@ -411,15 +420,55 @@ export class RatingsService {
       const changed = (session.payments ?? []).filter((p) => p.playerId in input.teams!);
       for (const p of changed) {
         const t = input.teams[p.playerId];
-        p.team = t && valid.has(t) ? t : null;
+        const next = t && valid.has(t) ? t : null;
+        // A captain moved off their side stops captaining it.
+        if (next !== p.team) p.captain = false;
+        p.team = next;
       }
       await this.sessionsRepo.manager.save(changed);
+    }
+    if (input.captains) {
+      const valid = new Set<string>(TEAM_KEYS.slice(0, count));
+      const payments = session.payments ?? [];
+      const changed = new Set<Payment>();
+      for (const [team, playerId] of Object.entries(input.captains)) {
+        if (!valid.has(team)) throw new BadRequestException("That team isn't in this game");
+        const pick = playerId ? payments.find((p) => p.playerId === playerId) : null;
+        if (playerId && !pick) throw new BadRequestException("That player isn't in this game");
+        // One captain per side: whoever had the armband hands it over.
+        for (const p of payments) {
+          if (p.captain && p.team === team && p !== pick) {
+            p.captain = false;
+            changed.add(p);
+          }
+        }
+        if (pick) {
+          // Naming a captain puts them on the side they lead.
+          pick.team = team;
+          pick.captain = true;
+          changed.add(pick);
+        }
+      }
+      if (changed.size) await this.sessionsRepo.manager.save([...changed]);
     }
     return this.getLineup(sessionId, organizationId);
   }
 
   private teamOf(session: Session, team: string | null) {
     return team && TEAM_KEYS.indexOf(team as TeamKey) < session.teamCount ? team : null;
+  }
+
+  private isCaptain(session: Session, p: Payment) {
+    return p.captain && !!this.teamOf(session, p.team);
+  }
+
+  /** Side → its captain's name ("Baba"), for sides that have one. The side goes by it: "Team Baba". */
+  private captainsOf(session: Session): Partial<Record<TeamKey, string>> {
+    const out: Partial<Record<TeamKey, string>> = {};
+    for (const p of session.payments ?? []) {
+      if (p.player && this.isCaptain(session, p)) out[p.team as TeamKey] = pitchName(p.player);
+    }
+    return out;
   }
 
   private async paidFor(session: Session) {
@@ -443,15 +492,18 @@ export class RatingsService {
     return {
       teamCount: session.teamCount,
       bibsOpen: this.bibsOpen(session),
+      bibsClosed: this.bibsClosed(session),
       myTeam: this.teamOf(session, mine.team),
+      captains: this.captainsOf(session),
       myPaid: paid.get(mine.playerId) ?? 'unpaid',
       showPaid,
       squad: (session.payments ?? [])
         .filter((p) => p.player)
         .map((p) => ({
-          name: `${p.player.firstName} ${p.player.lastName}`.trim(),
+          name: sheetName(p.player),
           me: p.playerId === mine.playerId,
           team: this.teamOf(session, p.team),
+          captain: this.isCaptain(session, p),
           // Everyone sees their own; others only when the group shares who's paid.
           paid: showPaid || p.playerId === mine.playerId ? (paid.get(p.playerId) ?? 'unpaid') : null,
         }))
@@ -459,37 +511,66 @@ export class RatingsService {
     };
   }
 
-  /** From kick-off day until the game is marked finished or called off. */
+  /**
+   * From kick-off day until voting closes a week later — still open once the game is marked
+   * finished, so players can fix it after — unless it was called off. Closing it with the vote
+   * stops anyone moving themselves onto the winning side long after the results are in.
+   */
   private bibsOpen(session: Session) {
-    return session.status === SessionStatus.UPCOMING && localDate(0) >= String(session.date).slice(0, 10);
+    return (
+      session.status !== SessionStatus.CANCELLED &&
+      localDate(0) >= String(session.date).slice(0, 10) &&
+      !this.bibsClosed(session)
+    );
   }
 
-  /** A player picks the bib they've been handed on the day (null to clear it). */
+  /** Past the voting window: teams are locked for good. */
+  private bibsClosed(session: Session) {
+    return Date.now() >= this.window(session).closesAt.getTime();
+  }
+
+  /** A player picks the side they're on for the day — by bib or by captain (null to clear it). */
   async pickTeam(sessionId: string, playerIds: string[], team: string | null) {
     const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['payments'] });
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
-    if (!this.bibsOpen(session)) throw new BadRequestException('Bibs open on match day');
-    if (team !== null && !TEAM_KEYS.slice(0, session.teamCount).includes(team as TeamKey)) {
-      throw new BadRequestException("That bib isn't in this game");
+    if (!this.bibsOpen(session)) {
+      throw new BadRequestException(this.bibsClosed(session) ? 'Teams are locked a week after the game' : 'Picking teams opens on match day');
     }
+    if (team !== null && !TEAM_KEYS.slice(0, session.teamCount).includes(team as TeamKey)) {
+      throw new BadRequestException("That team isn't in this game");
+    }
+    if (team !== mine.team) mine.captain = false;
     mine.team = team;
     await this.sessionsRepo.manager.save(mine);
     return this.playerLineup(sessionId, playerIds);
   }
 
-  /** Snake draft by skill rating across N sides so each gets a fair share of the best players. */
+  /**
+   * Splits the squad across N sides so each gets a fair share of the best players. Captains stay
+   * on the side they lead; everyone else goes, best first, to the side with the fewest players
+   * (then the lowest total rating) — a snake draft when there are no captains.
+   */
   async balanceTeams(sessionId: string, organizationId: string, teamCount?: number) {
     if (teamCount) await this.setLineup(sessionId, organizationId, { teamCount });
     const lineup = await this.getLineup(sessionId, organizationId);
-    const n = lineup.teamCount;
-    const sorted = [...lineup.squad].sort((a, b) => b.skill - a.skill || a.firstName.localeCompare(b.firstName));
+    const sides = TEAM_KEYS.slice(0, lineup.teamCount).map((key) => ({ key: key as string, size: 0, total: 0 }));
     const teams: Record<string, string> = {};
-    sorted.forEach((p, i) => {
-      const round = Math.floor(i / n);
-      const pos = i % n;
-      teams[p.id] = TEAM_KEYS[round % 2 === 0 ? pos : n - 1 - pos];
-    });
+    for (const p of lineup.squad) {
+      const side = p.captain && sides.find((x) => x.key === p.team);
+      if (!side) continue;
+      side.size++;
+      side.total += p.skill;
+    }
+    const rest = lineup.squad
+      .filter((p) => !p.captain)
+      .sort((a, b) => b.skill - a.skill || a.firstName.localeCompare(b.firstName));
+    for (const p of rest) {
+      const side = sides.reduce((best, x) => (x.size < best.size || (x.size === best.size && x.total < best.total) ? x : best));
+      teams[p.id] = side.key;
+      side.size++;
+      side.total += p.skill;
+    }
     return this.setLineup(sessionId, organizationId, { teams });
   }
 
@@ -686,10 +767,12 @@ export class RatingsService {
           groupName: s.group?.name,
           teamCount: s.teamCount,
           myTeam,
+          captains: this.captainsOf(s),
+          teamOpen: this.bibsOpen(s),
           teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
           record,
           games: dayGames.length,
-          potm: potmPlayer ? { name: `${potmPlayer.firstName} ${potmPlayer.lastName}`, votes: potmVotes, isMe: potmId === playerId } : null,
+          potm: potmPlayer ? { name: sheetName(potmPlayer), votes: potmVotes, isMe: potmId === playerId } : null,
           vote: w.open
             ? { token: await this.ensureVotingToken(s.id), voted: sv.some((v) => v.voterId === playerId) }
             : null,
