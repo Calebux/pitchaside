@@ -34,9 +34,13 @@ export function teamName(team: TeamKey, captains?: Partial<Record<TeamKey, strin
 /** On a team sheet: their nickname, else their first name. */
 const pitchName = (m: { firstName: string; nickname?: string | null }) => m.nickname || m.firstName;
 
+/** Sits on the captain's avatar, so their name keeps its room on a narrow chip. */
 function CaptainBadge() {
   return (
-    <span className="w-4 h-4 rounded-full bg-ink text-volt-300 text-[9px] font-extrabold leading-4 text-center shrink-0" title="Captain">
+    <span
+      className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-ink text-volt-300 text-[8px] font-extrabold leading-[14px] text-center ring-2 ring-white"
+      title="Captain"
+    >
       C
     </span>
   );
@@ -151,9 +155,11 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
         disabled={busy === m.id}
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
       >
-        <Avatar name={`${m.firstName} ${m.lastName}`} className="w-7 h-7 text-[10px]" />
+        <span className="relative shrink-0">
+          <Avatar name={`${m.firstName} ${m.lastName}`} className="w-7 h-7 text-[10px]" />
+          {m.captain && <CaptainBadge />}
+        </span>
         <span className="flex-1 min-w-0 text-sm font-semibold text-ink truncate">{pitchName(m)}</span>
-        {m.captain && <CaptainBadge />}
         {m.paid === 'paid' && <span className="text-[10px] font-extrabold text-pitch-600" title="Paid for this game">✓</span>}
         {m.paid === 'unpaid' && (
           <span className="w-2 h-2 rounded-full bg-kit-500 shrink-0" title="Hasn't paid for this game">
@@ -241,13 +247,17 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
             const captain = members.find((m) => m.captain);
             return (
               <div key={t} className={`rounded-2xl p-2.5 ${TEAMS[t].soft}`}>
-                <div className="flex items-center justify-between gap-1 px-1 mb-1.5">
-                  <span className="flex items-center gap-1.5 min-w-0 text-xs font-extrabold text-ink">
+                {/* Name on its own line: "Team Oluwaseun" needs the room on a phone. */}
+                <div className="px-1 mb-1.5">
+                  <p className="flex items-center gap-1.5 min-w-0 text-xs font-extrabold text-ink">
                     <Swatch team={t} />
-                    <span className="truncate">{teamName(t, lineup.captains)}</span> · {members.length}
+                    <span className="truncate">{teamName(t, lineup.captains)}</span>
                     {lineup.teamOfTheDay === t && <span title="Team of the Day">🏆</span>}
-                  </span>
-                  {avg(t) != null && <span className="shrink-0 text-[10px] font-bold text-gray-500">avg {avg(t)}</span>}
+                  </p>
+                  <p className="mt-0.5 text-[10px] font-bold text-gray-500">
+                    {members.length} {members.length === 1 ? 'player' : 'players'}
+                    {avg(t) != null && ` · avg ${avg(t)}`}
+                  </p>
                 </div>
                 <label className="block px-1 mb-2">
                   <span className="sr-only">Captain of {TEAMS[t].name}</span>
