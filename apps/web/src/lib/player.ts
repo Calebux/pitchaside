@@ -242,6 +242,8 @@ export interface RecentMatchDay {
   teamCount: number;
   myTeam: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
   captains?: Partial<Record<TeamKey, string>>;
+  /** Whether the player can still pick or change their team (until voting closes). */
+  teamOpen?: boolean;
   teamOfTheDay: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
   record: { w: number; d: number; l: number };
   games: number;
@@ -330,6 +332,8 @@ export type GamePaid = 'paid' | 'unpaid' | 'waived';
 export interface GameLineup {
   teamCount: number;
   bibsOpen: boolean;
+  /** A week after the game, when voting closes: teams are locked. */
+  bibsClosed: boolean;
   myTeam: TeamKey | null;
   /** Side → its captain's name; a side with a captain goes by "Team <name>". */
   captains: Partial<Record<TeamKey, string>>;

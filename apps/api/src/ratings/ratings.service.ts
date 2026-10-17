@@ -492,6 +492,7 @@ export class RatingsService {
     return {
       teamCount: session.teamCount,
       bibsOpen: this.bibsOpen(session),
+      bibsClosed: this.bibsClosed(session),
       myTeam: this.teamOf(session, mine.team),
       captains: this.captainsOf(session),
       myPaid: paid.get(mine.playerId) ?? 'unpaid',
@@ -510,9 +511,22 @@ export class RatingsService {
     };
   }
 
-  /** From kick-off day on — still open once the game is marked finished, so players can fix it after — unless it was called off. */
+  /**
+   * From kick-off day until voting closes a week later — still open once the game is marked
+   * finished, so players can fix it after — unless it was called off. Closing it with the vote
+   * stops anyone moving themselves onto the winning side long after the results are in.
+   */
   private bibsOpen(session: Session) {
-    return session.status !== SessionStatus.CANCELLED && localDate(0) >= String(session.date).slice(0, 10);
+    return (
+      session.status !== SessionStatus.CANCELLED &&
+      localDate(0) >= String(session.date).slice(0, 10) &&
+      !this.bibsClosed(session)
+    );
+  }
+
+  /** Past the voting window: teams are locked for good. */
+  private bibsClosed(session: Session) {
+    return Date.now() >= this.window(session).closesAt.getTime();
   }
 
   /** A player picks the side they're on for the day — by bib or by captain (null to clear it). */
@@ -520,7 +534,9 @@ export class RatingsService {
     const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['payments'] });
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
-    if (!this.bibsOpen(session)) throw new BadRequestException('Picking teams opens on match day');
+    if (!this.bibsOpen(session)) {
+      throw new BadRequestException(this.bibsClosed(session) ? 'Teams are locked a week after the game' : 'Picking teams opens on match day');
+    }
     if (team !== null && !TEAM_KEYS.slice(0, session.teamCount).includes(team as TeamKey)) {
       throw new BadRequestException("That team isn't in this game");
     }
@@ -752,6 +768,7 @@ export class RatingsService {
           teamCount: s.teamCount,
           myTeam,
           captains: this.captainsOf(s),
+          teamOpen: this.bibsOpen(s),
           teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
           record,
           games: dayGames.length,

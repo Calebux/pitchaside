@@ -320,9 +320,11 @@ export function MatchDayCard({ day }: { day: RecentMatchDay }) {
         </Link>
       )}
 
-      <Link href={`/me/games/${day.sessionId}`} className="mt-3 block text-center text-xs font-bold text-pitch-600 hover:text-ink">
-        {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
-      </Link>
+      {day.teamOpen && (
+        <Link href={`/me/games/${day.sessionId}`} className="mt-3 block text-center text-xs font-bold text-pitch-600 hover:text-ink">
+          {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
+        </Link>
+      )}
     </div>
   );
 }
