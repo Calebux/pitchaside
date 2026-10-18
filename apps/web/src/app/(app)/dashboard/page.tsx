@@ -32,6 +32,8 @@ import {
 import { InviteSheet } from '@/components/home/invite-sheet';
 import { QuickActions, InviteIcon, CalendarPlusIcon, ICON_PATHS, icon, type QuickAction } from '@/components/home/quick-actions';
 import { MoreActionsSheet, type MoreAction } from '@/components/home/more-actions-sheet';
+import { UpdatesBell, type Update } from '@/components/home/updates-bell';
+import { transferName } from '@/components/home/transfers-sheet';
 
 const onboardingSteps = [
   {
@@ -314,6 +316,40 @@ export default function Dashboard() {
     .sort((a, b) => gameDay(a.date).getTime() - gameDay(b.date).getTime())
     .slice(0, 4);
 
+  // The bell: everything that needs them, then what's happened lately (money in, new players).
+  const toneIcon: Record<NeedsItem['tone'], string> = {
+    kit: 'bg-kit-500 text-white',
+    sun: 'bg-sun-400 text-ink',
+    volt: 'bg-volt-300 text-ink',
+    sky: 'bg-sky-300 text-ink',
+  };
+  const bellNeeds: Update[] = needs
+    .filter((n) => n.key !== 'new')
+    .map((n) => ({ key: n.key, href: n.href, title: n.title, detail: n.detail, icon: n.icon, iconCls: toneIcon[n.tone] }));
+  const bellLatest: Update[] = [
+    ...(money.transfers ?? [])
+      .filter((t) => t.status !== 'ignored' && t.status !== 'unmatched')
+      .slice(0, 6)
+      .map((t) => ({
+        key: `t-${t.id}`,
+        href: `/groups/${group?.id}?tab=transfers`,
+        title: `${formatCurrency(t.amount)} from ${transferName(t)}`,
+        detail: new Date(t.receivedAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
+        icon: <span className="font-display text-base font-extrabold">₦</span>,
+        iconCls: 'bg-volt-300 text-ink',
+        at: new Date(t.receivedAt).getTime(),
+      })),
+    ...newMembers.map((m) => ({
+      key: `m-${m.id}`,
+      href: `/groups/${group?.id}?tab=members`,
+      title: `${m.player.firstName} ${m.player.lastName} joined`,
+      detail: group?.name,
+      icon: <span className="text-sm font-extrabold">{m.player.firstName.charAt(0)}</span>,
+      iconCls: 'bg-sky-300 text-ink',
+      at: new Date(m.joinedAt).getTime(),
+    })),
+  ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
+
   // The weekly jobs: bring people in, add someone by hand, take cash at the pitch. The rest is in More.
   const cashHref = liveGame ? `/sessions/${liveGame.id}?tab=payments` : '/sessions';
   const gid = group?.id;
@@ -374,6 +410,7 @@ export default function Dashboard() {
             {greeting}, {user?.firstName || 'there'}
           </h1>
         </div>
+        <UpdatesBell needs={bellNeeds} latest={bellLatest} />
       </div>
       {showMore && <MoreActionsSheet sections={moreSections} onClose={() => setShowMore(false)} />}
       {showInvite && group && money.billing && (
@@ -431,8 +468,9 @@ export default function Dashboard() {
 
       <QuickActions actions={quick} onMore={() => setShowMore(true)} />
 
-      {/* Only what the card above doesn't already show */}
-      <NeedsYou items={needs.filter((n) => !['unmatched', 'owing'].includes(n.key))} />
+      {/* The top two; the rest are in the bell */}
+      {/* Only what the card above doesn't already show; the bell keeps the full list */}
+      <NeedsYou items={needs.filter((n) => !['new', 'unmatched', 'owing'].includes(n.key)).slice(0, 2)} />
 
       {comingUp.length > 0 && (
         <section className="mt-6" aria-labelledby="coming-up">
