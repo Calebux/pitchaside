@@ -142,6 +142,25 @@ describe('SessionsService', () => {
       expect(sessionsRepo.create).toHaveBeenCalledTimes(4);
       expect(sessionsRepo.save).toHaveBeenCalledTimes(4);
     });
+
+    it('returns the first game of a series, not the last', async () => {
+      groupsRepo.findOne.mockResolvedValue(mockGroup);
+      membershipsRepo.find.mockResolvedValue([]);
+      sessionsRepo.save.mockImplementation((entity) => Promise.resolve({ ...entity, id: `session-${entity.date}` }));
+      const findOne = jest.spyOn(service, 'findOne').mockResolvedValue(mockSession as any);
+
+      await service.create(
+        {
+          groupId: 'group-1',
+          date: '2026-01-15',
+          recurrenceType: RecurrenceType.WEEKLY,
+          recurrenceCount: 4,
+        },
+        'org-1',
+      );
+
+      expect(findOne).toHaveBeenCalledWith('session-2026-01-15', 'org-1');
+    });
   });
 
   describe('sendReminders', () => {
