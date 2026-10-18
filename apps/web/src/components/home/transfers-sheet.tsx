@@ -123,7 +123,7 @@ export function TransfersSheet({
                         : t.status === 'ignored'
                           ? 'Marked as not for the group'
                           : p
-                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · held as credit')
+                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · kept for next game')
                             : '—'}
                     </dd>
                     {t.status === 'unmatched' && (

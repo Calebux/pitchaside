@@ -296,7 +296,7 @@ export default function GroupDetailPage() {
       // Their credit is dropped with them, so say how much before it goes.
       message:
         credit > 0
-          ? `${playerName} has ${formatCurrency(credit)} credit in this group that hasn't paid a due yet. Removing them drops it from the books, so refund them first if it's owed back. Remove anyway?`
+          ? `${playerName} has ${formatCurrency(credit)} paid in that's being kept for their next game. Removing them drops it from the group's books, so send it back to them first if they're owed it. Remove anyway?`
           : `${playerName} comes off this group's list.`,
       confirmLabel: credit > 0 ? 'Remove anyway' : 'Remove',
       variant: 'danger',
@@ -432,6 +432,7 @@ export default function GroupDetailPage() {
           player={opened.player}
           joinedAt={opened.joinedAt}
           credit={Number(opened.credit ?? 0)}
+          paymentCode={opened.paymentRef}
           due={opened.due}
           onClose={() => setOpenMember(null)}
           onSaved={(p) =>
@@ -664,7 +665,12 @@ export default function GroupDetailPage() {
               mockMode={billing?.providerMode === 'mock'}
               onRefresh={refreshPayments}
               focusId={focusTransfer}
-              credits={Object.fromEntries((group.memberships ?? []).map((m) => [m.player.id, Number(m.credit ?? 0)]))}
+              members={(group.memberships ?? []).map((m) => ({
+                playerId: m.player.id,
+                name: `${m.player.firstName} ${m.player.lastName}`,
+                nickname: m.player.nickname,
+                credit: Number(m.credit ?? 0),
+              }))}
             />
             </>
           ) : (
@@ -843,7 +849,7 @@ export default function GroupDetailPage() {
                       isNew(m.joinedAt) && 'New this week',
                       m.player.nickname && `“${m.player.nickname}”`,
                       m.role !== 'player' && sentence(m.role),
-                      credit > 0 && `${formatCurrency(credit)} credit`,
+                      credit > 0 && `${formatCurrency(credit)} kept for next game`,
                     ].filter(Boolean) as string[];
                     return (
                       <li key={m.id}>

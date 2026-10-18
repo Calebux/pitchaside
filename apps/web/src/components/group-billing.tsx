@@ -10,9 +10,12 @@ import { EmptyState } from '@/components/empty-state';
 import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { senderFrom, transferName } from '@/components/home/transfers-sheet';
+import { MatchPlayerSheet, describeGive, type MatchMember } from '@/components/group/match-sheet';
 import {
   acceptTransferClaim,
-  assignTransfer,
+  giveTransfer,
+  getGroupOwed,
+  type OwedItem,
   formatCurrency,
   getGroupTransfers,
   getWebhookStatus,
@@ -536,8 +539,8 @@ function TransferDetails({ t }: { t: BankTransfer }) {
       )}
       {who && !t.payment && t.status !== 'unmatched' && (
         <p>
-          From <span className="font-bold text-ink">{who}</span> · less than a due, so it&apos;s held as their credit and pays
-          their next due once it&apos;s enough
+          From <span className="font-bold text-ink">{who}</span> · not enough for a whole game yet, so it&apos;s kept and
+          pays their next game once they&apos;ve paid the rest
         </p>
       )}
     </>
@@ -638,7 +641,7 @@ export function TransfersPanel({
   mockMode,
   onRefresh,
   focusId,
-  credits = {},
+  members = [],
 }: {
   groupId: string;
   fee: number;
@@ -648,8 +651,8 @@ export function TransfersPanel({
   onRefresh: () => Promise<void>;
   /** A transfer to open and scroll to, e.g. one tapped in the transfer record. */
   focusId?: string | null;
-  /** Each member's unused credit by player id, so the match preview can say where the money ends up. */
-  credits?: Record<string, number>;
+  /** The squad, so any member can be picked for a transfer and the preview can say where the money goes. */
+  members?: MatchMember[];
 }) {
   const toast = useToast();
   const [workingId, setWorkingId] = useState<string | null>(null);
@@ -678,32 +681,24 @@ export function TransfersPanel({
     if (focused.status !== 'unmatched') setFilter('all');
     setOpenId(focused.id);
     // Arrived from the home's "Match to a player": open the picker straight away.
-    if (focused.status === 'unmatched' && pendingOptionsRef.current > 0) setMatching(focused);
+    if (focused.status === 'unmatched' && membersRef.current > 0) setMatching(focused);
     // After the list has rendered with the row in it.
     requestAnimationFrame(() =>
       document.getElementById(`transfer-${focused.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
     );
   }, [focused, sessions.length]);
 
-  const pendingOptions: PendingOption[] = sessions
-    .filter((s) => s.status !== 'cancelled')
-    .flatMap((s) =>
-      (s.payments ?? [])
-        .filter((p) => p.status === 'pending')
-        .map((p) => ({
-          id: p.id,
-          playerId: p.playerId,
-          name: p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player',
-          nickname: p.player?.nickname ?? null,
-          what: s.label ?? new Date(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
-          date: s.date,
-          amount: Number(p.amount),
-        })),
-    );
+  // What everyone owes, from the server (every game, not only the ones this page has loaded).
+  const [owed, setOwed] = useState<OwedItem[]>([]);
+  const loadOwed = () => getGroupOwed(groupId).then(setOwed).catch(() => {});
+  useEffect(() => {
+    loadOwed();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
   const [matching, setMatching] = useState<BankTransfer | null>(null);
   const [showAllClaims, setShowAllClaims] = useState<Set<string>>(new Set());
-  const pendingOptionsRef = useRef(0);
-  pendingOptionsRef.current = pendingOptions.length;
+  const membersRef = useRef(0);
+  membersRef.current = members.length;
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
 
   async function run(id: string, fn: () => Promise<unknown>, ok: string) {
@@ -711,6 +706,7 @@ export function TransfersPanel({
     try {
       await fn();
       await onRefresh();
+      loadOwed();
       toast.success(ok);
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
@@ -789,14 +785,14 @@ export function TransfersPanel({
       {matching && (
         <MatchPlayerSheet
           transfer={matching}
-          options={pendingOptions}
-          credits={credits}
+          members={members}
+          owed={owed}
           busy={workingId === matching.id}
           onClose={() => setMatching(null)}
-          onMatch={async (option) => {
+          onGive={async (member, done) => {
             const t = matching;
             setMatching(null);
-            await run(t.id, () => assignTransfer(t.id, option.id), `Matched to ${option.name}`);
+            await run(t.id, () => giveTransfer(t.id, member.playerId), done);
           }}
         />
       )}
@@ -891,8 +887,10 @@ export function TransfersPanel({
                       const shown = allShown ? ranked : ranked.slice(0, 2);
                       return (
                         <div className="pt-1">
-                          <p className="mb-1.5 text-xs font-semibold text-gray-600">
-                            {ranked.length === 1 ? 'Said they’ve paid around then' : `${ranked.length} said they’ve paid around then`}
+                          <p className="text-[13px] font-bold text-ink">Possible payers</p>
+                          <p className="mb-1.5 text-xs text-gray-600">
+                            {ranked.length === 1 ? 'This player' : `These ${ranked.length} players`} tapped “I’ve paid” for about {formatCurrency(Number(t.amount))} around
+                            this time. If one of them sent it, tap Match.
                           </p>
                           <ul className="rounded-2xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
                             {shown.map(({ c, named }, i) => {
@@ -909,7 +907,11 @@ export function TransfersPanel({
                                   </span>
                                   <button
                                     disabled={workingId === t.id}
-                                    onClick={() => run(t.id, () => acceptTransferClaim(t.id, c.id), `Matched to ${name}`)}
+                                    onClick={() => {
+                                      const m = members.find((x) => x.playerId === c.player.id);
+                                      const done = m ? describeGive(Number(t.amount), m, owed).toast : `${formatCurrency(Number(t.amount))} given to ${name}.`;
+                                      run(t.id, () => acceptTransferClaim(t.id, c.id), done);
+                                    }}
                                     className={`shrink-0 h-9 px-3.5 rounded-xl text-xs font-bold disabled:opacity-40 transition-colors ${
                                       i === 0 && named ? 'bg-ink text-volt-300 hover:bg-pitch-900' : 'bg-white border border-gray-200 text-ink hover:border-ink'
                                     }`}
@@ -941,11 +943,11 @@ export function TransfersPanel({
                     {t.status === 'unmatched' && (
                       <div className="pt-1 flex gap-2">
                         <button
-                          disabled={workingId === t.id || pendingOptions.length === 0}
+                          disabled={workingId === t.id || members.length === 0}
                           onClick={() => setMatching(t)}
                           className="flex-1 px-4 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-40 transition-colors"
                         >
-                          {pendingOptions.length === 0 ? 'Nobody owes right now' : 'Match to a player'}
+                          {members.length === 0 ? 'No one in the squad yet' : 'Match to a player'}
                         </button>
                         <button
                           disabled={workingId === t.id}
@@ -1062,17 +1064,6 @@ export function TransfersPanel({
   );
 }
 
-interface PendingOption {
-  /** The payment (a player's due for one game or period) the transfer would pay. */
-  id: string;
-  playerId: string;
-  name: string;
-  nickname: string | null;
-  what: string;
-  date: string;
-  amount: number;
-}
-
 const words = (s?: string | null) => (s ?? '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
 
 /**
@@ -1090,189 +1081,4 @@ function rankClaims(t: BankTransfer) {
       return { c, hits, named: mine.length > 0 && hits === mine.length };
     })
     .sort((a, b) => b.hits - a.hits || new Date(b.c.createdAt).getTime() - new Date(a.c.createdAt).getTime());
-}
-
-function likelyReasons(t: BankTransfer, o: PendingOption) {
-  const said = new Set([...words(senderFrom(t)), ...words(t.narration)]);
-  const reasons: string[] = [];
-  if ([...words(o.name), ...words(o.nickname)].some((w) => said.has(w))) reasons.push('Name matches');
-  if (Number(t.amount) === o.amount) reasons.push('Same amount');
-  return reasons;
-}
-
-/**
- * What matching does, worked out the same way as assignTransfer + applyCredit on the server: the
- * whole transfer goes to the chosen player. If it covers the picked due, that's paid and the rest
- * joins their credit; their credit then pays their other dues, oldest first, while it covers a whole
- * one. A preview only (it sees the games this page has loaded); the server does the real thing.
- */
-function matchOutcome(t: BankTransfer, o: PendingOption, options: PendingOption[], credit: number) {
-  const amount = Number(t.amount);
-  const theirs = options.filter((x) => x.playerId === o.playerId).sort((a, b) => a.date.localeCompare(b.date));
-  const paid: PendingOption[] = [];
-  let pool = credit;
-  if (amount + 0.001 >= o.amount) {
-    paid.push(o);
-    pool += amount - o.amount;
-  } else {
-    pool += amount;
-  }
-  for (const x of theirs) {
-    if (paid.includes(x)) continue;
-    if (pool + 0.001 < x.amount) break;
-    pool -= x.amount;
-    paid.push(x);
-  }
-  return { paid, credit: Math.max(0, Math.round(pool * 100) / 100) };
-}
-
-/** Picking whose due an unknown transfer pays: likely payers first, then everyone who owes, with search. */
-function MatchPlayerSheet({
-  transfer,
-  options,
-  credits,
-  busy,
-  onClose,
-  onMatch,
-}: {
-  transfer: BankTransfer;
-  options: PendingOption[];
-  credits: Record<string, number>;
-  busy: boolean;
-  onClose: () => void;
-  onMatch: (o: PendingOption) => void;
-}) {
-  const titleId = useId();
-  const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState<string | null>(null);
-  const q = query.trim().toLowerCase();
-  const ranked = options
-    .filter((o) => !q || `${o.name} ${o.nickname ?? ''}`.toLowerCase().includes(q))
-    .map((o) => ({ o, reasons: likelyReasons(transfer, o) }))
-    .sort(
-      (a, b) =>
-        b.reasons.length - a.reasons.length ||
-        (b.reasons.includes('Name matches') ? 1 : 0) - (a.reasons.includes('Name matches') ? 1 : 0) ||
-        a.o.date.localeCompare(b.o.date) ||
-        a.o.name.localeCompare(b.o.name),
-    );
-  const likely = ranked.filter((r) => r.reasons.length);
-  const rest = ranked.filter((r) => !r.reasons.length);
-  const choice = options.find((o) => o.id === picked) ?? null;
-  const outcome = choice ? matchOutcome(transfer, choice, options, credits[choice.playerId] ?? 0) : null;
-  const first = choice?.name.split(' ')[0];
-  const from = transfer.senderName ? transferName(transfer) : 'an unknown sender';
-
-  const list = (title: string, rows: typeof ranked, showWhat = true) =>
-    rows.length > 0 && (
-      <section key={title} className="mt-4">
-        <h3 className="mb-1 text-[13px] font-bold text-gray-600">{title}</h3>
-        <ul className="-mx-2" role="radiogroup" aria-label={title}>
-          {rows.map(({ o, reasons }) => {
-            const on = picked === o.id;
-            return (
-              <li key={o.id}>
-                <button
-                  role="radio"
-                  aria-checked={on}
-                  onClick={() => setPicked(o.id)}
-                  className={`press w-full flex items-center gap-3 min-h-14 px-2 py-2 rounded-xl text-left transition-colors ${
-                    on ? 'bg-volt-300/50' : 'hover:bg-chalk'
-                  }`}
-                >
-                  <span className={`w-9 h-9 shrink-0 rounded-full ${kitFor(o.name).bg} ${kitFor(o.name).fg} text-sm font-extrabold font-display flex items-center justify-center`} aria-hidden>
-                    {o.name.charAt(0)}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-bold text-ink truncate">
-                      {o.name}
-                      {o.nickname ? <span className="font-semibold text-gray-500"> “{o.nickname}”</span> : null}
-                    </span>
-                    {(showWhat || reasons.length > 0) && (
-                      <span className="block text-[13px] text-gray-600 truncate">
-                        {showWhat && `Owes ${formatCurrency(o.amount)} for ${o.what}`}
-                        {reasons.length > 0 && (
-                          <span className="font-bold text-pitch-600">
-                            {showWhat ? ', ' : ''}
-                            {reasons.join(', ').toLowerCase().replace(/^./, (c) => (showWhat ? c : c.toUpperCase()))}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </span>
-                  <span
-                    className={`w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center ${on ? 'border-ink bg-ink' : 'border-gray-300'}`}
-                    aria-hidden
-                  >
-                    {on && <span className="w-2 h-2 rounded-full bg-volt-300" />}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-    );
-
-  return (
-    <Sheet
-      titleId={titleId}
-      onClose={onClose}
-      align="left"
-      footer={
-        <div>
-          {choice && outcome && (
-            <div className="mb-3 rounded-2xl bg-chalk px-3.5 py-2.5 text-[13px] text-ink" aria-live="polite">
-              <p className="font-bold">All {formatCurrency(Number(transfer.amount))} goes to {choice.name}</p>
-              <p className="text-gray-700 mt-0.5">
-                {outcome.paid.length
-                  ? `Pays ${outcome.paid.map((x) => x.what).join(' and ')}.`
-                  : 'Not enough for a whole due yet.'}
-                {outcome.credit > 0 ? ` ${formatCurrency(outcome.credit)} stays as ${first}'s credit.` : ''}
-              </p>
-              {Number(transfer.amount) >= choice.amount * 2 && (
-                <p className="mt-1 text-[12px] text-amber-800">Paying for a friend too? The app can&apos;t split one transfer yet, so it all counts for {first}.</p>
-              )}
-            </div>
-          )}
-          <button
-            disabled={!choice || busy}
-            onClick={() => choice && onMatch(choice)}
-            className="w-full h-12 rounded-2xl bg-ink text-volt-300 text-[15px] font-extrabold hover:bg-pitch-900 disabled:opacity-40 transition-colors"
-          >
-            {choice ? `Match to ${choice.name}` : 'Pick who sent it'}
-          </button>
-        </div>
-      }
-    >
-      <SheetTitle
-        id={titleId}
-        title={`Who sent ${formatCurrency(Number(transfer.amount))}?`}
-        sub={`From ${from}${transfer.narration ? ` · “${transfer.narration}”` : ''}. The whole amount goes to the player you pick.`}
-        onClose={onClose}
-      />
-      {options.length > 6 && (
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search players"
-          aria-label="Search players"
-          className="mt-4 w-full h-11 px-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-        />
-      )}
-      {list('Most likely', likely)}
-      {/* Everyone else, under the game they owe for, so the date and amount are said once */}
-      {[...new Set(rest.map((r) => r.o.what))].map((what) => {
-        const rows = rest.filter((r) => r.o.what === what);
-        const amounts = [...new Set(rows.map((r) => r.o.amount))];
-        return list(
-          `${what}${amounts.length === 1 ? `, owes ${formatCurrency(amounts[0])}` : ''}`,
-          rows,
-          amounts.length > 1,
-        );
-      })}
-      {ranked.length === 0 && <p className="mt-6 text-sm text-gray-600 text-center">No one by that name owes right now.</p>}
-    </Sheet>
-  );
 }

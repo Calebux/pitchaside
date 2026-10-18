@@ -20,6 +20,7 @@ export function MemberSheet({
   player,
   joinedAt,
   credit,
+  paymentCode,
   due,
   onSaved,
   onRemove,
@@ -28,6 +29,8 @@ export function MemberSheet({
   player: IPlayer;
   joinedAt: string;
   credit: number;
+  /** Their code for transfer descriptions; null until they've opened their payment details. */
+  paymentCode?: string | null;
   due: MemberDue;
   onSaved: (p: Pick<IPlayer, 'id' | 'firstName' | 'lastName' | 'nickname'>) => void;
   onRemove: () => void;
@@ -56,6 +59,12 @@ export function MemberSheet({
     }
   }
 
+  const copyCode = (code: string) =>
+    navigator.clipboard.writeText(code).then(
+      () => toast.success('Payment code copied'),
+      () => toast.error('Could not copy. Press and hold the code to copy it instead.'),
+    );
+
   const input =
     'w-full h-11 px-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
   const facts = [
@@ -65,7 +74,11 @@ export function MemberSheet({
       v: due.state === 'paid' ? 'Paid' : due.state === 'waived' ? 'Waived' : due.state === 'owes' ? `${formatCurrency(due.amount)} to pay` : 'Not in',
       tone: due.state === 'owes' ? 'text-amber-700' : due.state === 'paid' ? 'text-pitch-600' : 'text-gray-600',
     },
-    credit > 0 && { k: 'Credit', v: formatCurrency(credit), note: 'Pays their next due by itself once it covers a whole one' },
+    credit > 0 && {
+      k: 'Kept for next game',
+      v: formatCurrency(credit),
+      note: 'Money they’ve sent that hasn’t gone on a game yet. It pays their next game by itself.',
+    },
   ].filter(Boolean) as { k: string; v: string; tone?: string; note?: string }[];
 
   return (
@@ -90,6 +103,24 @@ export function MemberSheet({
           </div>
         ))}
       </dl>
+
+      {paymentCode && (
+        <div className="mt-3 flex items-center gap-3 rounded-2xl border border-gray-200 px-3.5 py-2.5">
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] text-gray-600">Payment code</p>
+            <p className="font-mono text-[15px] font-bold text-ink tracking-wide select-all">{paymentCode}</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+              If {player.firstName} puts this in the transfer description, the money goes to them without you matching it.
+            </p>
+          </div>
+          <button
+            onClick={() => copyCode(paymentCode)}
+            className="press shrink-0 h-9 px-3 rounded-full border border-gray-200 text-[13px] font-bold text-ink hover:border-ink"
+          >
+            Copy
+          </button>
+        </div>
+      )}
 
       <h3 className="mt-5 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-600">Name on the app</h3>
       <div className="mt-2 grid grid-cols-2 gap-2">

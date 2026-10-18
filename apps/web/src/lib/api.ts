@@ -52,6 +52,8 @@ export interface IGroupWithMembers extends IGroup {
     joinedAt: string;
     /** Paid toward their next due but not enough to cover it yet (decimal string). */
     credit?: string;
+    /** The code this player puts in their transfer description so it's matched to them automatically. */
+    paymentRef?: string | null;
   }[];
 }
 
@@ -455,6 +457,27 @@ export function recordManualTransfer(
 
 export function assignTransfer(transferId: string, paymentId: string): Promise<BankTransfer> {
   return http.post(`/transfers/${transferId}/assign`, { paymentId });
+}
+
+/** Give an unmatched transfer to any member: it pays their oldest unpaid games, the rest is kept for their next game. */
+export function giveTransfer(transferId: string, playerId: string): Promise<BankTransfer> {
+  return http.post(`/transfers/${transferId}/give`, { playerId });
+}
+
+/** One thing a member still owes: a game (or dues period) and how much. */
+export interface OwedItem {
+  paymentId: string;
+  playerId: string;
+  amount: number;
+  sessionId: string;
+  date: string;
+  label: string | null;
+  kind: string;
+}
+
+/** Everything still owed in a group, oldest first. */
+export function getGroupOwed(groupId: string): Promise<OwedItem[]> {
+  return http.get(`/groups/${groupId}/owed`);
 }
 
 /** Give an unmatched transfer to the player whose "I've paid" it matches. */
