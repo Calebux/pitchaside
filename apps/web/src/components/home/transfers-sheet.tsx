@@ -119,7 +119,7 @@ export function TransfersSheet({
                     <dt className="text-gray-600">Paid for</dt>
                     <dd className="font-semibold text-ink">
                       {t.status === 'unmatched'
-                        ? 'Not matched to a player yet'
+                        ? 'No player yet'
                         : t.status === 'ignored'
                           ? 'Marked as not for the group'
                           : p
