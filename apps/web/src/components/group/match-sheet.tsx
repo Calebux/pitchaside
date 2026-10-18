@@ -5,28 +5,24 @@ import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
-import { senderFrom } from '@/components/home/transfers-sheet';
+import { nameFit, senderFrom } from '@/lib/name-match';
 import { accountHint } from '@/components/group/how-paid-sheet';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
 import { describeGive, owedLabel, type MatchMember } from '@/lib/give-outcome';
 
-export { describeGive, owedLabel, type MatchMember };
-
-const words = (s?: string | null) => (s ?? '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
 const firstName = (m: MatchMember) => m.name.split(' ')[0];
 
-/** Why a member might have sent this: the bank's name is theirs, or they tapped "I've paid" for it. */
+/** Why a member might have sent this: the bank's name is theirs (or nearly), or they tapped "I've paid" for it. */
 function likeliness(t: BankTransfer, m: MatchMember) {
-  const said = new Set([...words(senderFrom(t)), ...words(t.narration)]);
-  const mine = words(m.name);
-  const hits = mine.filter((w) => said.has(w)).length;
-  const named = mine.length > 0 && hits === mine.length;
+  const { fit, hits } = nameFit(m.name, `${senderFrom(t) ?? ''} ${t.narration ?? ''}`);
   const claimed = (t.claims ?? []).some((c) => c.player.id === m.playerId);
-  const reason = named && claimed ? 'Name matches, said they’ve paid' : named ? 'Name matches' : claimed ? 'Said they’ve paid' : null;
-  return { score: (named ? 20 : 0) + (claimed ? 10 : 0) + hits, reason, named, claimed };
+  const name = fit === 'exact' ? 'Name matches' : fit === 'similar' ? 'Name looks similar' : null;
+  const both = fit === 'exact' ? 'Name matches' : 'Similar name';
+  const reason = name && claimed ? `${both}, said they’ve paid` : name ?? (claimed ? 'Said they’ve paid' : null);
+  return { score: (fit === 'exact' ? 20 : fit === 'similar' ? 12 : 0) + (claimed ? 10 : 0) + hits, reason };
 }
 
-export function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
+function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
   const kit = kitFor(name);
   return (
     <span className={`${className} shrink-0 rounded-full ${kit.bg} ${kit.fg} font-extrabold font-display flex items-center justify-center`} aria-hidden>

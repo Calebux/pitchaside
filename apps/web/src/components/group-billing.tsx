@@ -9,8 +9,10 @@ import { Sheet } from '@/components/sheet';
 import { EmptyState } from '@/components/empty-state';
 import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { senderFrom, transferName } from '@/components/home/transfers-sheet';
-import { MatchPlayerSheet, type MatchMember } from '@/components/group/match-sheet';
+import { transferName } from '@/components/home/transfers-sheet';
+import { senderFrom } from '@/lib/name-match';
+import { MatchPlayerSheet } from '@/components/group/match-sheet';
+import type { MatchMember } from '@/lib/give-outcome';
 import { accountHint, from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
 import { btnPrimary } from '@/components/buttons';
 import {
@@ -675,6 +677,15 @@ export function TransfersPanel({
   const [showRecord, setShowRecord] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [showSetAside, setShowSetAside] = useState(false);
+  // From the home's "4 with no name": bring that list into view once it's there.
+  const shownUnnamed = useRef(false);
+  const unnamedCount = transfers.filter((t) => t.status === 'unmatched').length;
+  useEffect(() => {
+    if (shownUnnamed.current || !unnamedCount) return;
+    if (new URLSearchParams(window.location.search).get('show') !== 'unnamed') return;
+    shownUnnamed.current = true;
+    requestAnimationFrame(() => document.getElementById('unnamed-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [unnamedCount]);
   const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
 
   useEffect(() => {
@@ -820,7 +831,7 @@ export function TransfersPanel({
       {/* Money no one could put a name to: the only thing here that needs the organiser */}
       {unnamed.length > 0 && (
         <section aria-labelledby="unnamed-title" className="pt-3">
-          <h2 id="unnamed-title" className="text-base font-bold text-ink">
+          <h2 id="unnamed-title" className="scroll-mt-32 text-base font-bold text-ink">
             Who sent {unnamed.length === 1 ? 'this' : 'these'}?
           </h2>
           <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">

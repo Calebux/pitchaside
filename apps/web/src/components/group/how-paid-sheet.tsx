@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
-import { senderFrom } from '@/components/home/transfers-sheet';
+import { senderFrom } from '@/lib/name-match';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
 import { describeUse, type MatchMember } from '@/lib/give-outcome';
 
