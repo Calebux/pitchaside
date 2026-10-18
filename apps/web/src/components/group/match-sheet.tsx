@@ -7,60 +7,12 @@ import { btnPrimary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
 import { senderFrom } from '@/components/home/transfers-sheet';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
+import { describeGive, owedLabel, type MatchMember } from '@/lib/give-outcome';
 
-/** A squad member as the picker needs them. `credit` is money they've paid in that hasn't gone on a game yet. */
-export interface MatchMember {
-  playerId: string;
-  name: string;
-  nickname?: string | null;
-  credit: number;
-}
+export { describeGive, owedLabel, type MatchMember };
 
 const words = (s?: string | null) => (s ?? '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
 const firstName = (m: MatchMember) => m.name.split(' ')[0];
-
-/** "Sat 17 Oct" for a game, "October 2026 dues" for a dues period. */
-export function owedLabel(o: OwedItem) {
-  if (o.kind === 'dues' && o.label) return `${o.label} dues`;
-  const [y, m, d] = String(o.date).slice(0, 10).split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
-}
-
-/**
- * Where money given to a player ends up, worked out the same way the server does it: it's added to
- * anything they'd already paid in, pays their oldest unpaid games while it covers a whole one, and
- * the rest is kept for their next game. Returned as receipt rows and as plain sentences.
- */
-export function describeGive(amount: number, member: MatchMember, owed: OwedItem[]) {
-  const first = firstName(member);
-  const theirs = owed.filter((o) => o.playerId === member.playerId);
-  let pool = member.credit + amount;
-  const paid: OwedItem[] = [];
-  for (const o of theirs) {
-    if (pool + 0.001 < o.amount) break;
-    pool -= o.amount;
-    paid.push(o);
-  }
-  const kept = Math.round(pool * 100) / 100;
-  const stillOwed = theirs.filter((o) => !paid.includes(o));
-  const owedLeft = stillOwed.reduce((s, o) => s + o.amount, 0);
-  const rows = [
-    ...paid.map((o) => ({ label: o.kind === 'dues' ? owedLabel(o) : `${owedLabel(o)} game`, amount: o.amount, kept: false })),
-    ...(kept > 0 ? [{ label: 'Kept for next game', amount: kept, kept: true }] : []),
-  ];
-  const owesLine = stillOwed.length
-    ? `${first} still owes ${formatCurrency(owedLeft)} for ${stillOwed.length === 1 ? owedLabel(stillOwed[0]) : `${stillOwed.length} games`}.`
-    : null;
-  const brief = paid.length
-    ? `Pays ${paid.map(owedLabel).join(' and ')}${kept > 0 ? `, keeps ${formatCurrency(kept)} for next game` : ''}`
-    : theirs.length
-      ? `Not enough for ${owedLabel(theirs[0])} yet, so it’s kept`
-      : `${first} owes nothing, so it’s kept for next game`;
-  const toast = paid.length
-    ? `${formatCurrency(amount)} given to ${member.name}. Paid ${paid.map(owedLabel).join(' and ')}${kept > 0 ? `; ${formatCurrency(kept)} kept for their next game` : ''}.`
-    : `${formatCurrency(amount)} given to ${member.name}. Kept for their next game.`;
-  return { paid, kept, rows, owesLine, brief, toast, owesAny: theirs.length > 0 };
-}
 
 /** Why a member might have sent this: the bank's name is theirs, or they tapped "I've paid" for it. */
 function likeliness(t: BankTransfer, m: MatchMember) {
@@ -69,7 +21,7 @@ function likeliness(t: BankTransfer, m: MatchMember) {
   const hits = mine.filter((w) => said.has(w)).length;
   const named = mine.length > 0 && hits === mine.length;
   const claimed = (t.claims ?? []).some((c) => c.player.id === m.playerId);
-  const reason = named && claimed ? 'Name matches, said they’ve paid' : named ? 'Name on the transfer matches' : claimed ? 'Said they’ve paid' : null;
+  const reason = named && claimed ? 'Name matches, said they’ve paid' : named ? 'Name matches' : claimed ? 'Said they’ve paid' : null;
   return { score: (named ? 20 : 0) + (claimed ? 10 : 0) + hits, reason, named, claimed };
 }
 
@@ -98,10 +50,6 @@ export function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: 
 function GiveReceipt({ amount, member, owed }: { amount: number; member: MatchMember; owed: OwedItem[] }) {
   const out = describeGive(amount, member, owed);
   const first = firstName(member);
-  const notes = [
-    !out.paid.length &&
-      (out.owesAny ? `Not enough for a whole game yet. It pays the next one once ${first} sends the rest.` : `${first} owes nothing right now. It pays the next game by itself.`),
-  ].filter(Boolean);
   return (
     <div className="rounded-3xl bg-ink px-4 pt-3.5 pb-3.5" aria-live="polite">
       <p className="text-[13px] text-white/60 truncate">
@@ -109,7 +57,7 @@ function GiveReceipt({ amount, member, owed }: { amount: number; member: MatchMe
       </p>
       {member.credit > 0 && (
         <p className="mt-1 text-[13px] text-white/60">
-          With {formatCurrency(member.credit)} {first} already had, that’s {formatCurrency(member.credit + amount)}:
+          Plus {formatCurrency(member.credit)} {first} already had
         </p>
       )}
       <dl className="mt-2.5 space-y-1.5">
@@ -120,12 +68,7 @@ function GiveReceipt({ amount, member, owed }: { amount: number; member: MatchMe
           </div>
         ))}
       </dl>
-      {(notes.length > 0 || out.owesLine) && (
-        <p className="mt-3 pt-2.5 border-t border-white/10 text-[13px] leading-snug text-white/60">
-          {notes.join(' ')}
-          {out.owesLine && <span className="block text-sun-400 font-semibold">{out.owesLine}</span>}
-        </p>
-      )}
+      {out.owesLine && <p className="mt-3 pt-2.5 border-t border-white/10 text-[13px] font-semibold leading-snug text-sun-400">{out.owesLine}</p>}
     </div>
   );
 }
@@ -166,7 +109,7 @@ export function MatchPlayerSheet({
   const owing = rows.filter((r) => !r.reason && r.theirs.length);
   const rest = rows.filter((r) => !r.reason && !r.theirs.length);
   const choice = members.find((m) => m.playerId === picked) ?? null;
-  const sender = senderFrom(transfer);
+  const sender = senderFrom(transfer)?.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase());
   const when = new Date(transfer.receivedAt);
   const day = when.toDateString() === new Date().toDateString() ? 'today' : when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const at = `${day} at ${when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
@@ -227,7 +170,7 @@ export function MatchPlayerSheet({
             onClick={() => choice && onGive(choice, describeGive(amount, choice, owed).toast)}
             className={`${btnPrimary} w-full disabled:opacity-40`}
           >
-            {choice ? `Give ${formatCurrency(amount)} to ${firstName(choice)}` : 'Choose who sent it'}
+            {choice ? `Give ${formatCurrency(amount)} to ${firstName(choice)}` : 'Pick a player'}
           </button>
         </div>
       }

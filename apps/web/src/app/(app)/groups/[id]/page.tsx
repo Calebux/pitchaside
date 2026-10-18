@@ -665,6 +665,7 @@ export default function GroupDetailPage() {
               mockMode={billing?.providerMode === 'mock'}
               onRefresh={refreshPayments}
               focusId={focusTransfer}
+              onAddPlayers={() => openTab('members')}
               members={(group.memberships ?? []).map((m) => ({
                 playerId: m.player.id,
                 name: `${m.player.firstName} ${m.player.lastName}`,

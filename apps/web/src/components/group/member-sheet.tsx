@@ -77,7 +77,7 @@ export function MemberSheet({
     credit > 0 && {
       k: 'Kept for next game',
       v: formatCurrency(credit),
-      note: 'Money they’ve sent that hasn’t gone on a game yet. It pays their next game by itself.',
+      note: 'Not used yet. Goes towards their next game.',
     },
   ].filter(Boolean) as { k: string; v: string; tone?: string; note?: string }[];
 
@@ -106,7 +106,7 @@ export function MemberSheet({
           <div className="flex items-center justify-between gap-3 pl-3.5 pr-1.5 py-1.5">
             <dt className="min-w-0 py-1 text-[13px] text-gray-600">
               Payment code
-              <span className="block text-[11px] leading-snug text-gray-500">In the transfer description, it matches {player.firstName}’s money by itself</span>
+              <span className="block text-[11px] leading-snug text-gray-500">If {player.firstName} adds it to a transfer, it matches automatically</span>
             </dt>
             <dd>
               <button

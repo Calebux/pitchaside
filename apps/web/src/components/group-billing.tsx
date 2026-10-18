@@ -539,8 +539,7 @@ function TransferDetails({ t }: { t: BankTransfer }) {
       )}
       {who && !t.payment && t.status !== 'unmatched' && (
         <p>
-          From <span className="font-bold text-ink">{who}</span> · not enough for a whole game yet, so it&apos;s kept and
-          pays their next game once they&apos;ve paid the rest
+          From <span className="font-bold text-ink">{who}</span>. Kept for their next game
         </p>
       )}
     </>
@@ -641,6 +640,7 @@ export function TransfersPanel({
   mockMode,
   onRefresh,
   focusId,
+  onAddPlayers,
   members = [],
 }: {
   groupId: string;
@@ -653,6 +653,8 @@ export function TransfersPanel({
   focusId?: string | null;
   /** The squad, so any member can be picked for a transfer and the preview can say where the money goes. */
   members?: MatchMember[];
+  /** Where to send the organiser when there's no one to match a transfer to. */
+  onAddPlayers?: () => void;
 }) {
   const toast = useToast();
   const [workingId, setWorkingId] = useState<string | null>(null);
@@ -887,6 +889,7 @@ export function TransfersPanel({
                         onGive={(m, done) => run(t.id, () => giveTransfer(t.id, m.playerId), done)}
                         onChoose={() => setMatching(t)}
                         onIgnore={() => setIgnoring(t)}
+                        onAddPlayers={onAddPlayers}
                       />
                     )}
                   </div>
@@ -1008,6 +1011,7 @@ function MatchPrompt({
   onGive,
   onChoose,
   onIgnore,
+  onAddPlayers,
 }: {
   t: BankTransfer;
   members: MatchMember[];
@@ -1016,13 +1020,16 @@ function MatchPrompt({
   onGive: (m: MatchMember, toast: string) => void;
   onChoose: () => void;
   onIgnore: () => void;
+  onAddPlayers?: () => void;
 }) {
   const guess = bestGuess(t, members);
   const amount = Number(t.amount);
   const said = [...new Map((t.claims ?? []).map((c) => [c.player.id, `${c.player.firstName} ${c.player.lastName}`])).values()];
   const firstNames = said.map((n) => n.split(' ')[0]);
   const who =
-    firstNames.length <= 2 ? firstNames.join(' and ') : `${firstNames.slice(0, 2).join(', ')} and ${firstNames.length - 2} more`;
+    firstNames.length <= 3
+      ? firstNames.join(', ').replace(/, ([^,]*)$/, ' and $1')
+      : `${firstNames.slice(0, 2).join(', ')} and ${firstNames.length - 2} others`;
   return (
     <div className="pt-1">
       {guess ? (
@@ -1057,9 +1064,15 @@ function MatchPrompt({
               </p>
             </div>
           )}
-          <button disabled={busy || members.length === 0} onClick={onChoose} className={`${btnPrimary} w-full`}>
-            {members.length === 0 ? 'No one in the squad yet' : 'Choose who sent it'}
-          </button>
+          {members.length === 0 ? (
+            <button onClick={onAddPlayers} className={`${btnPrimary} w-full`}>
+              Add players first
+            </button>
+          ) : (
+            <button disabled={busy} onClick={onChoose} className={`${btnPrimary} w-full`}>
+              Choose who sent it
+            </button>
+          )}
         </>
       )}
       <div className="mt-1 flex items-center justify-between">
