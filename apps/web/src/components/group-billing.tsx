@@ -11,7 +11,7 @@ import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { senderFrom, transferName } from '@/components/home/transfers-sheet';
 import { MatchPlayerSheet, type MatchMember } from '@/components/group/match-sheet';
-import { from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
+import { accountHint, from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
 import { btnPrimary } from '@/components/buttons';
 import {
   giveTransfer,
@@ -832,7 +832,10 @@ export function TransfersPanel({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-[15px] font-bold text-ink truncate">{unnamedFrom(t)}</p>
-                    <p className="text-[13px] text-gray-500 truncate">{whenIn(t.receivedAt)}</p>
+                    <p className="text-[13px] text-gray-500 truncate">
+                      {whenIn(t.receivedAt)}
+                      {accountHint(t)}
+                    </p>
                   </div>
                   <p className="shrink-0 font-display text-[15px] font-extrabold tabular-nums text-ink">+{formatCurrency(Number(t.amount))}</p>
                 </div>

@@ -6,6 +6,7 @@ import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
 import { senderFrom } from '@/components/home/transfers-sheet';
+import { accountHint } from '@/components/group/how-paid-sheet';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
 import { describeGive, owedLabel, type MatchMember } from '@/lib/give-outcome';
 
@@ -146,10 +147,12 @@ export function MatchPlayerSheet({
         {sender ? (
           <>
             From <span className="font-bold text-ink">{sender}</span>, {at}
+            {accountHint(transfer)}
           </>
         ) : (
           <>
             {transfer.narration ? `“${transfer.narration}”` : 'The bank didn’t say who sent it'}, {at}
+            {accountHint(transfer)}
           </>
         )}
       </p>

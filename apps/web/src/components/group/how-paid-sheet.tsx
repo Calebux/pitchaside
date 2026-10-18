@@ -16,6 +16,11 @@ export function when(iso: string) {
   return `${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}, ${time}`;
 }
 
+/** ", account ending 4444" when the bank said which account it came from: a clue to who sent it. */
+export function accountHint(t: BankTransfer) {
+  return t.senderAccount ? `, account ending ${t.senderAccount.slice(-4)}` : '';
+}
+
 /** What the bank told us about who sent it, in normal case. */
 export function from(t: BankTransfer) {
   const name = senderFrom(t);
@@ -109,6 +114,7 @@ export function HowPaidSheet({
                   <span className="block text-[15px] font-bold text-ink truncate">{from(t)}</span>
                   <span className="block text-[13px] text-gray-500 truncate">
                     {when(t.receivedAt)}
+                    {accountHint(t)}
                     {short && <span className="text-amber-700 font-semibold">, not enough</span>}
                   </span>
                 </span>

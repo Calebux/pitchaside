@@ -383,6 +383,8 @@ export interface BankTransfer {
   id: string;
   amount: number;
   senderName?: string;
+  /** The account it came from (last 10 digits), when the bank says. */
+  senderAccount?: string | null;
   narration?: string;
   status: 'matched' | 'assigned' | 'unmatched' | 'ignored';
   receivedAt: string;
