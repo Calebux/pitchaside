@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
 import { Payment } from '../../payments/entities/payment.entity';
@@ -45,6 +46,11 @@ export class BankTransfer {
 
   @Column({ name: 'sender_name', nullable: true })
   senderName: string;
+
+  /** The account it came from (last 10 digits), when the bank says. Once an account has paid for one player, it's theirs. */
+  @Index('IDX_bank_transfers_sender_account')
+  @Column({ name: 'sender_account', type: 'varchar', nullable: true })
+  senderAccount: string | null;
 
   @Column({ nullable: true })
   narration: string;

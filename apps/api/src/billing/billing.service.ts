@@ -23,7 +23,8 @@ import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
-import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, couldPair, transferForClaim } from './claims';
+import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
+import { normaliseAccount, payerNameFrom, whoSent } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { HttpPulseClient } from './pulse/http-pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
@@ -66,10 +67,8 @@ const PLATFORM_FEE = 350;
 /** Transfers an organiser records by hand get this id prefix; they never count as withdrawable. */
 const MANUAL_PREFIX = 'manual_';
 
-
 // Unambiguous characters for human-typed references (no 0/O, 1/I/L).
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const REF_PATTERN = /\bPA[- ]?([A-HJ-NP-Z2-9]{5})\b/i;
 
 /**
  * The name we ask Pulse to put on a group's account (Pulse adds its prefix, e.g. "CAL/…").
@@ -665,6 +664,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         accountNumber: incoming.accountNumber,
         amount: incoming.amount,
         senderName: incoming.senderName,
+        senderAccount: normaliseAccount(incoming.senderAccount),
         narration: incoming.narration,
         receivedAt: incoming.receivedAt,
         raw: incoming.raw as object,
@@ -675,12 +675,13 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Transfer ${incoming.providerTransactionId} to unknown account ${incoming.accountNumber}`);
       return { received: true, status: transfer.status };
     }
+    const sender = payerNameFrom(incoming.senderName, incoming.narration);
     const notifyUnmatched = () =>
       this.notifications.later(() =>
         this.notifications.notifyOrganisers(group.organizationId, {
           kind: 'transfer_unmatched',
-          title: `${naira(incoming.amount)} needs matching`,
-          body: `From ${incoming.senderName ?? 'unknown sender'} into ${group.name}. Tap to assign it.`,
+          title: `${naira(incoming.amount)} came in with no name`,
+          body: `Into ${group.name}${sender ? `, from ${sender}` : ''}. Tap to choose who sent it.`,
           url: `/groups/${group.id}?tab=transfers`,
         }),
       );
@@ -699,6 +700,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
       }
       await this.transfersRepo.save(transfer);
+      await this.closeClaimFor(transfer, playerId);
     } else {
       await this.pairWithClaim(transfer);
     }
@@ -750,6 +752,16 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * A transfer was matched to a player by their reference, their name or the organiser's pick:
+   * their own "I've paid" for it is answered, so it stops showing as a suggestion elsewhere.
+   */
+  private async closeClaimFor(transfer: BankTransfer, playerId: string) {
+    const pending = await this.claimsRepo.find({ where: { groupId: transfer.groupId, playerId, status: ClaimStatus.PENDING } });
+    const claim = claimSettledBy(transfer, playerId, pending);
+    if (claim) await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
+  }
+
+  /**
    * A player tapped "Yes, I've paid". Pairs it with their transfer if that's already in and
    * unambiguous; otherwise it waits for the transfer, and the organiser sees it as a suggestion.
    */
@@ -772,6 +784,48 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       return { status: 'matched' };
     }
     return { status: 'waiting' };
+  }
+
+  /**
+   * The organiser gives an unmatched transfer to a member, whether or not they owe anything.
+   * Same rule as everywhere else: it pays their oldest unpaid games while it covers a whole one,
+   * and the rest is kept for their next game (credit).
+   */
+  async giveTransfer(transferId: string, playerId: string, organizationId: string) {
+    const transfer = await this.findTransfer(transferId, organizationId);
+    if (transfer.status !== TransferStatus.UNMATCHED) {
+      throw new BadRequestException('Someone else already sorted this payment.');
+    }
+    const member = await this.membershipsRepo.findOne({ where: { groupId: transfer.groupId, playerId } });
+    if (!member) throw new NotFoundException("That player isn't in this group");
+    if (!(await this.settleTransfer(transfer, playerId, TransferStatus.ASSIGNED))) {
+      throw new BadRequestException('Someone else already sorted this payment.');
+    }
+    await this.closeClaimFor(transfer, playerId);
+    return transfer;
+  }
+
+  /** What every member still owes in a group, oldest game first (cancelled games and ₦0 entries left out). */
+  async listOwed(groupId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    const owed = await this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoinAndSelect('payment.session', 'session')
+      .where('session.groupId = :groupId', { groupId })
+      .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
+      .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
+      .andWhere('payment.amount > 0')
+      .orderBy('session.date', 'ASC')
+      .getMany();
+    return owed.map((p) => ({
+      paymentId: p.id,
+      playerId: p.playerId,
+      amount: Number(p.amount),
+      sessionId: p.sessionId,
+      date: p.session.date,
+      label: p.session.label ?? null,
+      kind: p.session.kind,
+    }));
   }
 
   /** The organiser picks which player's "I've paid" an unmatched transfer belongs to. */
@@ -799,29 +853,30 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
   /** Reference in the narration wins; otherwise a unique full-name match on the sender. */
   private async identifyPayer(groupId: string, t: IncomingTransfer): Promise<string | null> {
-    const memberships = await this.membershipsRepo.find({
-      where: { groupId },
-      relations: ['player'],
-    });
-
-    const refMatch = t.narration?.toUpperCase().match(REF_PATTERN);
-    if (refMatch) {
-      const ref = `PA${refMatch[1].toUpperCase()}`;
-      const m = memberships.find((x) => x.paymentRef === ref);
-      if (m) return m.playerId;
-    }
-
-    if (t.senderName) {
-      const words = new Set(normaliseName(t.senderName));
-      const candidates = memberships.filter((m) => {
-        const first = normaliseName(m.player.firstName);
-        const last = normaliseName(m.player.lastName);
-        return [...first, ...last].every((w) => words.has(w));
-      });
-      if (candidates.length === 1) return candidates[0].playerId;
-    }
-    return null;
+    const memberships = await this.membershipsRepo.find({ where: { groupId }, relations: ['player'] });
+    return whoSent(
+      memberships.map((m) => ({ playerId: m.playerId, paymentRef: m.paymentRef, firstName: m.player.firstName, lastName: m.player.lastName })),
+      t.senderName,
+      t.narration,
+      await this.accountOwner(groupId, normaliseAccount(t.senderAccount)),
+    );
   }
+
+  /** The one player an account has paid for in this group before, if it has only ever paid for one. */
+  private async accountOwner(groupId: string, account: string | null): Promise<string | null> {
+    if (!account) return null;
+    const rows: { playerId: string }[] = await this.transfersRepo
+      .createQueryBuilder('t')
+      .select('DISTINCT t.playerId', 'playerId')
+      .where('t.groupId = :groupId', { groupId })
+      .andWhere('t.senderAccount = :account', { account })
+      .andWhere('t.playerId IS NOT NULL')
+      .andWhere('t.status IN (:...placed)', { placed: [TransferStatus.MATCHED, TransferStatus.ASSIGNED] })
+      .getRawMany();
+    return rows.length === 1 ? rows[0].playerId : null;
+  }
+
+
 
   /**
    * Adds `amount` to the member's credit, then pays their oldest pending dues in this group
@@ -985,7 +1040,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   async assignTransfer(transferId: string, paymentId: string, organizationId: string) {
     const transfer = await this.findTransfer(transferId, organizationId);
     if (transfer.status !== TransferStatus.UNMATCHED) {
-      throw new BadRequestException('This transfer has already been handled');
+      throw new BadRequestException('Someone else already sorted this payment.');
     }
     const payment = await this.paymentsRepo
       .createQueryBuilder('payment')
@@ -1011,7 +1066,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       const { settled } = await this.applyCredit(transfer.groupId, payment.playerId, amount);
       transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
     }
-    return this.transfersRepo.save(transfer);
+    const saved = await this.transfersRepo.save(transfer);
+    await this.closeClaimFor(saved, payment.playerId);
+    return saved;
   }
 
   async ignoreTransfer(transferId: string, organizationId: string) {
@@ -1044,6 +1101,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         accountNumber: incoming.accountNumber,
         amount: incoming.amount,
         senderName: incoming.senderName,
+        senderAccount: normaliseAccount(incoming.senderAccount),
         narration: incoming.narration,
         receivedAt: incoming.receivedAt,
         raw: incoming.raw as object,
@@ -1063,6 +1121,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
       }
       await this.transfersRepo.save(transfer);
+      await this.closeClaimFor(transfer, playerId);
     }
     return transfer;
   }
@@ -1071,7 +1130,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   async simulateTransfer(
     groupId: string,
     organizationId: string,
-    input: { amount: number; senderName?: string; narration?: string },
+    input: { amount: number; senderName?: string; senderAccount?: string; narration?: string },
   ) {
     const client = this.pulse;
     if (!(client instanceof MockPulseClient)) {
@@ -1086,6 +1145,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         accountNumber: group.accountNumber,
         amount: input.amount,
         senderName: input.senderName,
+        senderAccount: input.senderAccount,
         narration: input.narration,
         receivedAt: new Date().toISOString(),
       },
@@ -1414,15 +1474,6 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (!transfer) throw new NotFoundException('Transfer not found');
     return transfer;
   }
-}
-
-function normaliseName(name: string): string[] {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .split(/[^a-z]+/)
-    .filter((w) => w.length > 1);
 }
 
 /** The billing period containing `now`. Weeks start on Monday. */

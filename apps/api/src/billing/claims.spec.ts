@@ -1,4 +1,4 @@
-import { CLAIM_WINDOW_MS, claimForTransfer, couldPair, transferForClaim } from './claims';
+import { CLAIM_WINDOW_MS, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
 
 const t0 = new Date('2026-10-09T09:00:00Z');
 const at = (minutes: number) => new Date(t0.getTime() + minutes * 60_000);
@@ -60,5 +60,27 @@ describe('claimForTransfer (money lands after the player said "I\'ve paid")', ()
 
   it('leaves it when no claim fits', () => {
     expect(claimForTransfer(transfer('t1', 5000), [claim('c1', 'tobi', 3000)], [])).toBeNull();
+  });
+});
+
+describe('claimSettledBy (a transfer was matched to the player another way)', () => {
+  it("closes that player's claim that fits the transfer", () => {
+    const mark = claim('c1', 'mark', 1500, 10);
+    expect(claimSettledBy(transfer('t1', 1525), 'mark', [mark, claim('c2', 'ada', 1500, 10)])?.id).toBe('c1');
+  });
+
+  it("leaves other players' claims alone", () => {
+    expect(claimSettledBy(transfer('t1', 1525), 'mark', [claim('c2', 'ada', 1500)])).toBeNull();
+  });
+
+  it('closes only one claim per transfer, the earliest', () => {
+    const first = claim('c1', 'mark', 1500, 5);
+    const second = claim('c2', 'mark', 1500, 30);
+    expect(claimSettledBy(transfer('t1', 1500), 'mark', [second, first])?.id).toBe('c1');
+  });
+
+  it("doesn't close a claim for a different amount or a day away", () => {
+    expect(claimSettledBy(transfer('t1', 3000), 'mark', [claim('c1', 'mark', 1500)])).toBeNull();
+    expect(claimSettledBy(transfer('t1', 1500, CLAIM_WINDOW_MS / 60_000 + 5), 'mark', [claim('c1', 'mark', 1500)])).toBeNull();
   });
 });

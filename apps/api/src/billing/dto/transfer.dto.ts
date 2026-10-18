@@ -5,6 +5,11 @@ export class AssignTransferDto {
   paymentId: string;
 }
 
+export class GiveTransferDto {
+  @IsUUID()
+  playerId: string;
+}
+
 export class SimulateTransferDto {
   @IsNumber()
   @Min(1)
@@ -18,6 +23,11 @@ export class SimulateTransferDto {
   @IsOptional()
   @IsString()
   narration?: string;
+
+  /** Test mode only: the account the simulated transfer comes from. */
+  @IsOptional()
+  @IsString()
+  senderAccount?: string;
 }
 
 export class NameEnquiryDto {
