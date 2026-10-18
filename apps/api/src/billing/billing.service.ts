@@ -24,7 +24,7 @@ import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
 import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
-import { whoSent } from './payer-name';
+import { payerNameFrom, whoSent } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { HttpPulseClient } from './pulse/http-pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
@@ -674,12 +674,13 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Transfer ${incoming.providerTransactionId} to unknown account ${incoming.accountNumber}`);
       return { received: true, status: transfer.status };
     }
+    const sender = payerNameFrom(incoming.senderName, incoming.narration);
     const notifyUnmatched = () =>
       this.notifications.later(() =>
         this.notifications.notifyOrganisers(group.organizationId, {
           kind: 'transfer_unmatched',
-          title: `${naira(incoming.amount)} needs matching`,
-          body: `From ${incoming.senderName ?? 'unknown sender'} into ${group.name}. Tap to assign it.`,
+          title: `${naira(incoming.amount)} came in with no name`,
+          body: `Into ${group.name}${sender ? `, from ${sender}` : ''}. Tap to choose who sent it.`,
           url: `/groups/${group.id}?tab=transfers`,
         }),
       );
@@ -1022,7 +1023,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   async assignTransfer(transferId: string, paymentId: string, organizationId: string) {
     const transfer = await this.findTransfer(transferId, organizationId);
     if (transfer.status !== TransferStatus.UNMATCHED) {
-      throw new BadRequestException('This transfer has already been handled');
+      throw new BadRequestException('Someone already matched or ignored this transfer.');
     }
     const payment = await this.paymentsRepo
       .createQueryBuilder('payment')
