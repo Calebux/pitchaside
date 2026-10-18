@@ -33,11 +33,13 @@ export class PlacePastTransfers1792800000000 implements MigrationInterface {
        WHERE status = 'unmatched' AND group_id IS NOT NULL ORDER BY received_at`,
     );
     // Who each account has paid for so far, per group; grows as this migration places transfers.
+    // Learned only from transfers placed automatically (by code or name), never from past picks by
+    // hand: going back over old money, one mis-tap shouldn't decide where an account's payments go.
     const paidFor = new Map<string, Set<string>>();
     const accountKey = (groupId: string, account: string) => `${groupId}:${account}`;
     const known: { group_id: string; sender_account: string; player_id: string }[] = await q.query(
       `SELECT DISTINCT group_id, sender_account, player_id FROM bank_transfers
-       WHERE sender_account IS NOT NULL AND player_id IS NOT NULL AND status IN ('matched', 'assigned')`,
+       WHERE sender_account IS NOT NULL AND player_id IS NOT NULL AND status = 'matched'`,
     );
     for (const k of known) {
       const key = accountKey(k.group_id, k.sender_account);

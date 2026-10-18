@@ -1,7 +1,8 @@
 import { BillingService } from './billing.service';
 import { MockPulseClient } from './pulse/mock-pulse.client';
-import { TransferStatus } from './entities/bank-transfer.entity';
-import { PaymentStatus } from '../payments/entities/payment.entity';
+import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
+import { PaymentClaim } from './entities/payment-claim.entity';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 
 /**
  * BillingService over an in-memory member and their pending dues, oldest first.
@@ -12,17 +13,34 @@ function setup(dues: number[], credit = 0) {
   const payments: any[] = dues.map((amount, i) => ({ id: `pay${i}`, sessionId: `s${i}`, playerId: 'p1', amount: String(amount), status: PaymentStatus.PENDING }));
   const pending = () => payments.filter((p) => p.status === PaymentStatus.PENDING);
   const qb: any = { innerJoin: () => qb, where: () => qb, andWhere: () => qb, orderBy: () => qb, getMany: async () => pending(), getOne: async () => payments[0] };
-  const tx = { findOne: async () => membership, getRepository: () => ({ createQueryBuilder: () => qb }), save: async (x: unknown) => x };
-  const membershipsRepo = {
-    manager: { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) },
-    findOne: async ({ where }: any) => (where.playerId === 'p1' ? membership : null),
+  const claims: any[] = [];
+  // What the database holds for each transfer, so conditional updates behave like Postgres's.
+  const transferRows: Record<string, { status: TransferStatus }> = {};
+  const tx = {
+    findOne: async () => membership,
+    find: async (entity: unknown, { where }: any) =>
+      entity === PaymentClaim ? claims.filter((c) => c.status === 'pending' && c.playerId === where.playerId) : [],
+    update: async (entity: unknown, where: any, patch: any) => {
+      const row =
+        entity === BankTransfer
+          ? (transferRows[where.id] ??= { status: TransferStatus.UNMATCHED })
+          : entity === Payment
+            ? payments.find((p) => p.id === where.id)
+            : claims.find((c) => c.id === where.id);
+      if (!row || row.status !== where.status) return { affected: 0 };
+      Object.assign(row, patch);
+      return { affected: 1 };
+    },
+    getRepository: () => ({ createQueryBuilder: () => qb }),
+    save: async (x: unknown) => x,
   };
+  const manager = { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) };
+  const membershipsRepo = { manager, findOne: async ({ where }: any) => (where.playerId === 'p1' ? membership : null) };
   const paymentsRepo = { createQueryBuilder: () => qb, save: async (x: unknown) => x };
-  const transfersRepo = { save: async (x: unknown) => x, findOne: async () => null, update: async () => ({ affected: 1 }) };
+  const transfersRepo = { manager, save: async (x: unknown) => x, findOne: async () => null };
   const paymentsService = { recalculateSessionTotal: jest.fn(), sendReceipts: jest.fn() };
   const notifications = { later: jest.fn() };
-  const claims: any[] = [];
-  const claimsRepo = { find: async () => claims.filter((c) => c.status === 'pending'), update: jest.fn(async (id: string, patch: any) => Object.assign(claims.find((c) => c.id === id), patch)), claims };
+  const claimsRepo = { claims };
 
   const service = new BillingService(
     {} as any, membershipsRepo as any, {} as any, paymentsRepo as any, {} as any, transfersRepo as any, {} as any,
@@ -80,7 +98,35 @@ describe('partial payments', () => {
 
     await service.assignTransfer('t1', 'pay0', 'org1');
 
-    expect(claimsRepo.update).toHaveBeenCalledWith('c1', { status: 'matched', transferId: 't1' });
+    expect(claimsRepo.claims[0]).toMatchObject({ status: 'matched', transferId: 't1' });
+  });
+
+  it('pays the due the organiser picked, and the rest through their credit', async () => {
+    const { service, membership, payments } = setup([1500, 1500]);
+    jest.spyOn(service as any, 'findTransfer').mockResolvedValue({ id: 't1', groupId: 'g1', amount: '1525.00', status: TransferStatus.UNMATCHED });
+
+    await service.assignTransfer('t1', 'pay0', 'org1');
+
+    expect(payments.map((p) => p.status)).toEqual([PaymentStatus.PAID, PaymentStatus.PENDING]);
+    expect(membership.credit).toBe('25.00');
+  });
+
+  it('credits a transfer once when two organisers act on it at the same moment', async () => {
+    const { service, membership } = setup([]);
+    // Each request loads its own copy, still unmatched.
+    jest.spyOn(service as any, 'findTransfer').mockImplementation(async () => ({ id: 't1', groupId: 'g1', amount: '1500.00', status: TransferStatus.UNMATCHED }));
+
+    const results = await Promise.allSettled([service.giveTransfer('t1', 'p1', 'org1'), service.giveTransfer('t1', 'p1', 'org1')]);
+
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(membership.credit).toBe('1500.00');
+  });
+
+  it("won't set aside a transfer someone has already given to a player", async () => {
+    const { service } = setup([]);
+    jest.spyOn(service as any, 'findTransfer').mockImplementation(async () => ({ id: 't1', groupId: 'g1', amount: '1500.00', status: TransferStatus.UNMATCHED }));
+    (service as any).transfersRepo.update = async () => ({ affected: 0 });
+    await expect(service.ignoreTransfer('t1', 'org1')).rejects.toThrow('Someone else already sorted this payment.');
   });
 
   it('gives a transfer to a member who owes nothing: it is all kept for their next game', async () => {
