@@ -24,7 +24,7 @@ import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
 import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
-import { payerNameFrom, whoSent } from './payer-name';
+import { normaliseAccount, payerNameFrom, whoSent } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { HttpPulseClient } from './pulse/http-pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
@@ -664,6 +664,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         accountNumber: incoming.accountNumber,
         amount: incoming.amount,
         senderName: incoming.senderName,
+        senderAccount: normaliseAccount(incoming.senderAccount),
         narration: incoming.narration,
         receivedAt: incoming.receivedAt,
         raw: incoming.raw as object,
@@ -857,8 +858,24 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       memberships.map((m) => ({ playerId: m.playerId, paymentRef: m.paymentRef, firstName: m.player.firstName, lastName: m.player.lastName })),
       t.senderName,
       t.narration,
+      await this.accountOwner(groupId, normaliseAccount(t.senderAccount)),
     );
   }
+
+  /** The one player an account has paid for in this group before, if it has only ever paid for one. */
+  private async accountOwner(groupId: string, account: string | null): Promise<string | null> {
+    if (!account) return null;
+    const rows: { playerId: string }[] = await this.transfersRepo
+      .createQueryBuilder('t')
+      .select('DISTINCT t.playerId', 'playerId')
+      .where('t.groupId = :groupId', { groupId })
+      .andWhere('t.senderAccount = :account', { account })
+      .andWhere('t.playerId IS NOT NULL')
+      .andWhere('t.status IN (:...placed)', { placed: [TransferStatus.MATCHED, TransferStatus.ASSIGNED] })
+      .getRawMany();
+    return rows.length === 1 ? rows[0].playerId : null;
+  }
+
 
 
   /**
@@ -1084,6 +1101,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         accountNumber: incoming.accountNumber,
         amount: incoming.amount,
         senderName: incoming.senderName,
+        senderAccount: normaliseAccount(incoming.senderAccount),
         narration: incoming.narration,
         receivedAt: incoming.receivedAt,
         raw: incoming.raw as object,
@@ -1112,7 +1130,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   async simulateTransfer(
     groupId: string,
     organizationId: string,
-    input: { amount: number; senderName?: string; narration?: string },
+    input: { amount: number; senderName?: string; senderAccount?: string; narration?: string },
   ) {
     const client = this.pulse;
     if (!(client instanceof MockPulseClient)) {
@@ -1127,6 +1145,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         accountNumber: group.accountNumber,
         amount: input.amount,
         senderName: input.senderName,
+        senderAccount: input.senderAccount,
         narration: input.narration,
         receivedAt: new Date().toISOString(),
       },

@@ -5,8 +5,9 @@ import { claimSettledBy } from '../billing/claims';
 /**
  * Applies the newer matching rules to money that came in before them, once, on deploy:
  *
- * 1. Unmatched transfers whose sender we can now name for certain (the player's code, or a
- *    "Transfer from NAME" narration that fits exactly one member) go to that player the same way a
+ * 1. Unmatched transfers whose sender we can now name for certain (the player's code, an account
+ *    that has only ever paid for one player, or a "Transfer from NAME" narration that fits exactly
+ *    one member) go to that player the same way a
  *    live one does: they pay the player's oldest unpaid games while the money covers a whole one,
  *    and the rest is kept for their next game. Game totals are recounted.
  * 2. "I've paid" taps that were already answered by a matched transfer are closed, so they stop
@@ -16,14 +17,32 @@ import { claimSettledBy } from '../billing/claims';
  * that still can't be named are left for the organiser. Not reversible (down is a no-op): undoing
  * it would mean un-paying games people have since seen as paid.
  */
-export class PlacePastTransfers1792700000000 implements MigrationInterface {
-  name = 'PlacePastTransfers1792700000000';
+export class PlacePastTransfers1792800000000 implements MigrationInterface {
+  name = 'PlacePastTransfers1792800000000';
 
   public async up(q: QueryRunner): Promise<void> {
-    const unmatched: { id: string; group_id: string; amount: string; sender_name: string | null; narration: string | null }[] = await q.query(
-      `SELECT id, group_id, amount, sender_name, narration FROM bank_transfers
+    const unmatched: {
+      id: string;
+      group_id: string;
+      amount: string;
+      sender_name: string | null;
+      sender_account: string | null;
+      narration: string | null;
+    }[] = await q.query(
+      `SELECT id, group_id, amount, sender_name, sender_account, narration FROM bank_transfers
        WHERE status = 'unmatched' AND group_id IS NOT NULL ORDER BY received_at`,
     );
+    // Who each account has paid for so far, per group; grows as this migration places transfers.
+    const paidFor = new Map<string, Set<string>>();
+    const accountKey = (groupId: string, account: string) => `${groupId}:${account}`;
+    const known: { group_id: string; sender_account: string; player_id: string }[] = await q.query(
+      `SELECT DISTINCT group_id, sender_account, player_id FROM bank_transfers
+       WHERE sender_account IS NOT NULL AND player_id IS NOT NULL AND status IN ('matched', 'assigned')`,
+    );
+    for (const k of known) {
+      const key = accountKey(k.group_id, k.sender_account);
+      paidFor.set(key, (paidFor.get(key) ?? new Set()).add(k.player_id));
+    }
     const squads = new Map<string, MemberLike[]>();
     const touchedSessions = new Set<string>();
     let placed = 0;
@@ -41,7 +60,9 @@ export class PlacePastTransfers1792700000000 implements MigrationInterface {
           rows.map((r) => ({ playerId: r.player_id, paymentRef: r.payment_ref, firstName: r.firstName, lastName: r.lastName })),
         );
       }
-      const playerId = whoSent(squads.get(t.group_id)!, t.sender_name, t.narration);
+      const payers = t.sender_account ? paidFor.get(accountKey(t.group_id, t.sender_account)) : undefined;
+      const accountOwner = payers?.size === 1 ? [...payers][0] : null;
+      const playerId = whoSent(squads.get(t.group_id)!, t.sender_name, t.narration, accountOwner);
       if (!playerId) continue;
 
       const [, claimed] = await q.query(
@@ -50,6 +71,10 @@ export class PlacePastTransfers1792700000000 implements MigrationInterface {
       );
       if (!claimed) continue;
       placed++;
+      if (t.sender_account) {
+        const key = accountKey(t.group_id, t.sender_account);
+        paidFor.set(key, (paidFor.get(key) ?? new Set()).add(playerId));
+      }
 
       // Same as BillingService.applyCredit: credit + this transfer pays the oldest whole dues.
       const [membership] = await q.query(

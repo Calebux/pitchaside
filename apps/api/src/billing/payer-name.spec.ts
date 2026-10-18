@@ -1,4 +1,4 @@
-import { payerNameFrom, whoSent } from './payer-name';
+import { normaliseAccount, payerNameFrom, whoSent } from './payer-name';
 
 describe('payerNameFrom', () => {
   it('uses the sender field when the bank fills it', () => {
@@ -38,5 +38,31 @@ describe('whoSent', () => {
   it('leaves it to a person when the name fits no one or more than one', () => {
     expect(whoSent(squad, '', 'Transfer from MUM')).toBeNull();
     expect(whoSent(squad, 'Bisi Lawal Ade', null)).toBeNull();
+  });
+});
+
+describe('accounts', () => {
+  const squad = [
+    { playerId: 'ada', paymentRef: 'PA7K3FQ', firstName: 'Ada', lastName: 'Obi' },
+    { playerId: 'bisi', paymentRef: 'PAJD7CY', firstName: 'Bisi', lastName: 'Lawal' },
+  ];
+
+  it('compares accounts by their last 10 digits', () => {
+    expect(normaliseAccount('0123456789')).toBe('0123456789');
+    expect(normaliseAccount('234-0123456789')).toBe('0123456789');
+    expect(normaliseAccount('12345')).toBeNull();
+    expect(normaliseAccount(undefined)).toBeNull();
+  });
+
+  it("recognises an account that has only paid for one player, even with no name", () => {
+    expect(whoSent(squad, '', 'POS/WEB TRF', 'bisi')).toBe('bisi');
+  });
+
+  it('still lets the payment code win over the account', () => {
+    expect(whoSent(squad, '', 'PA7K3FQ', 'bisi')).toBe('ada');
+  });
+
+  it("ignores an account owner who has since left the group", () => {
+    expect(whoSent(squad, '', 'POS/WEB TRF', 'gone')).toBeNull();
   });
 });

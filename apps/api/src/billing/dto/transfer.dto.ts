@@ -23,6 +23,11 @@ export class SimulateTransferDto {
   @IsOptional()
   @IsString()
   narration?: string;
+
+  /** Test mode only: the account the simulated transfer comes from. */
+  @IsOptional()
+  @IsString()
+  senderAccount?: string;
 }
 
 export class NameEnquiryDto {
