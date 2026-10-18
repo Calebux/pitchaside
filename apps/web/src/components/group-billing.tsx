@@ -10,9 +10,9 @@ import { EmptyState } from '@/components/empty-state';
 import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { senderFrom, transferName } from '@/components/home/transfers-sheet';
-import { MatchPlayerSheet, describeGive, type MatchMember } from '@/components/group/match-sheet';
+import { MatchPlayerSheet, MemberAvatar, bestGuess, describeGive, type MatchMember } from '@/components/group/match-sheet';
+import { btnPrimary } from '@/components/buttons';
 import {
-  acceptTransferClaim,
   giveTransfer,
   getGroupOwed,
   type OwedItem,
@@ -696,7 +696,6 @@ export function TransfersPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
   const [matching, setMatching] = useState<BankTransfer | null>(null);
-  const [showAllClaims, setShowAllClaims] = useState<Set<string>>(new Set());
   const membersRef = useRef(0);
   membersRef.current = members.length;
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
@@ -879,84 +878,16 @@ export function TransfersPanel({
                 {(open || t.status === 'unmatched') && (
                   <div className="px-4 pb-4 -mt-1 space-y-1.5 text-xs text-gray-600">
                     {open && <TransferDetails t={t} />}
-                    {t.status === 'unmatched' && t.claims && t.claims.length > 0 && (() => {
-                      // Everyone whose "I've paid" fits this amount and time. Whoever the bank's
-                      // name points to goes first; the rest wait behind "Show N more".
-                      const ranked = rankClaims(t);
-                      const allShown = showAllClaims.has(t.id);
-                      const shown = allShown ? ranked : ranked.slice(0, 2);
-                      return (
-                        <div className="pt-1">
-                          <p className="text-[13px] font-bold text-ink">Possible payers</p>
-                          <p className="mb-1.5 text-xs text-gray-600">
-                            {ranked.length === 1 ? 'This player' : `These ${ranked.length} players`} tapped “I’ve paid” for about {formatCurrency(Number(t.amount))} around
-                            this time. If one of them sent it, tap Match.
-                          </p>
-                          <ul className="rounded-2xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-                            {shown.map(({ c, named }, i) => {
-                              const name = `${c.player.firstName} ${c.player.lastName}`;
-                              return (
-                                <li key={c.id} className="flex items-center gap-3 px-3 py-2.5 min-h-14">
-                                  <span className="flex-1 min-w-0">
-                                    <span className="block text-[13px] font-bold text-ink truncate">{name}</span>
-                                    <span className="block text-[11px] text-gray-500 tabular-nums truncate">
-                                      {named ? <span className="font-bold text-pitch-600">Name matches, </span> : null}
-                                      {formatCurrency(c.amount)},{' '}
-                                      {new Date(c.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                  </span>
-                                  <button
-                                    disabled={workingId === t.id}
-                                    onClick={() => {
-                                      const m = members.find((x) => x.playerId === c.player.id);
-                                      const done = m ? describeGive(Number(t.amount), m, owed).toast : `${formatCurrency(Number(t.amount))} given to ${name}.`;
-                                      run(t.id, () => acceptTransferClaim(t.id, c.id), done);
-                                    }}
-                                    className={`shrink-0 h-9 px-3.5 rounded-xl text-xs font-bold disabled:opacity-40 transition-colors ${
-                                      i === 0 && named ? 'bg-ink text-volt-300 hover:bg-pitch-900' : 'bg-white border border-gray-200 text-ink hover:border-ink'
-                                    }`}
-                                  >
-                                    Match
-                                  </button>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                          {ranked.length > 2 && (
-                            <button
-                              onClick={() =>
-                                setShowAllClaims((prev) => {
-                                  const next = new Set(prev);
-                                  if (next.has(t.id)) next.delete(t.id);
-                                  else next.add(t.id);
-                                  return next;
-                                })
-                              }
-                              className="mt-1 h-9 px-1 text-xs font-bold text-pitch-700"
-                            >
-                              {allShown ? 'Show fewer' : `Show ${ranked.length - 2} more`}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })()}
                     {t.status === 'unmatched' && (
-                      <div className="pt-1 flex gap-2">
-                        <button
-                          disabled={workingId === t.id || members.length === 0}
-                          onClick={() => setMatching(t)}
-                          className="flex-1 px-4 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-40 transition-colors"
-                        >
-                          {members.length === 0 ? 'No one in the squad yet' : 'Match to a player'}
-                        </button>
-                        <button
-                          disabled={workingId === t.id}
-                          onClick={() => setIgnoring(t)}
-                          className="px-4 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-40 transition-colors"
-                        >
-                          Ignore
-                        </button>
-                      </div>
+                      <MatchPrompt
+                        t={t}
+                        members={members}
+                        owed={owed}
+                        busy={workingId === t.id}
+                        onGive={(m, done) => run(t.id, () => giveTransfer(t.id, m.playerId), done)}
+                        onChoose={() => setMatching(t)}
+                        onIgnore={() => setIgnoring(t)}
+                      />
                     )}
                   </div>
                 )}
@@ -1064,21 +995,85 @@ export function TransfersPanel({
   );
 }
 
-const words = (s?: string | null) => (s ?? '').toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2);
-
 /**
- * Why a due looks like the one this transfer was for: the sender's name or the narration mentions
- * the player, and/or the amount is exactly what they owe. Only a hint for ordering the list; the
- * organiser still picks.
+ * What to do with a transfer nobody's been matched to, as one question. When the bank's name or a
+ * single "I've paid" points to one player, ask "Is this from them?" and say where the money would
+ * go; otherwise say who said they'd paid and hand over to the picker. Ignore stays a quiet link.
  */
-/** "I've paid" suggestions for a transfer, the player the bank's name points to first, then the latest. */
-function rankClaims(t: BankTransfer) {
-  const said = new Set([...words(senderFrom(t)), ...words(t.narration)]);
-  return (t.claims ?? [])
-    .map((c) => {
-      const mine = [...words(c.player.firstName), ...words(c.player.lastName)];
-      const hits = mine.filter((w) => said.has(w)).length;
-      return { c, hits, named: mine.length > 0 && hits === mine.length };
-    })
-    .sort((a, b) => b.hits - a.hits || new Date(b.c.createdAt).getTime() - new Date(a.c.createdAt).getTime());
+function MatchPrompt({
+  t,
+  members,
+  owed,
+  busy,
+  onGive,
+  onChoose,
+  onIgnore,
+}: {
+  t: BankTransfer;
+  members: MatchMember[];
+  owed: OwedItem[];
+  busy: boolean;
+  onGive: (m: MatchMember, toast: string) => void;
+  onChoose: () => void;
+  onIgnore: () => void;
+}) {
+  const guess = bestGuess(t, members);
+  const amount = Number(t.amount);
+  const said = [...new Map((t.claims ?? []).map((c) => [c.player.id, `${c.player.firstName} ${c.player.lastName}`])).values()];
+  const firstNames = said.map((n) => n.split(' ')[0]);
+  const who =
+    firstNames.length <= 2 ? firstNames.join(' and ') : `${firstNames.slice(0, 2).join(', ')} and ${firstNames.length - 2} more`;
+  return (
+    <div className="pt-1">
+      {guess ? (
+        <div className="rounded-2xl bg-chalk p-3">
+          <div className="flex items-start gap-3">
+            <MemberAvatar name={guess.m.name} className="w-9 h-9 text-sm" />
+            <div className="min-w-0 pt-0.5">
+              <p className="text-[15px] font-bold text-ink leading-snug">Is this from {guess.m.name}?</p>
+              <p className="mt-0.5 text-[13px] leading-snug font-semibold text-pitch-600">{guess.reason}</p>
+              <p className="text-[13px] leading-snug text-gray-600">{describeGive(amount, guess.m, owed).brief}.</p>
+            </div>
+          </div>
+          <button
+            disabled={busy}
+            onClick={() => onGive(guess.m, describeGive(amount, guess.m, owed).toast)}
+            className={`${btnPrimary} mt-3 w-full`}
+          >
+            Give to {guess.m.name.split(' ')[0]}
+          </button>
+        </div>
+      ) : (
+        <>
+          {said.length > 0 && (
+            <div className="mb-3 flex items-center gap-2.5">
+              <span className="flex -space-x-2 shrink-0" aria-hidden>
+                {said.slice(0, 3).map((n) => (
+                  <MemberAvatar key={n} name={n} className="w-7 h-7 text-[11px] ring-2 ring-white" />
+                ))}
+              </span>
+              <p className="text-[13px] leading-snug text-gray-600">
+                <span className="font-semibold text-ink">{who}</span> said they’ve paid about {formatCurrency(amount)} around then.
+              </p>
+            </div>
+          )}
+          <button disabled={busy || members.length === 0} onClick={onChoose} className={`${btnPrimary} w-full`}>
+            {members.length === 0 ? 'No one in the squad yet' : 'Choose who sent it'}
+          </button>
+        </>
+      )}
+      <div className="mt-1 flex items-center justify-between">
+        {guess ? (
+          <button disabled={busy} onClick={onChoose} className="h-10 px-1 text-[13px] font-bold text-ink hover:text-pitch-700 disabled:opacity-40">
+            Someone else
+          </button>
+        ) : (
+          <span />
+        )}
+        <button disabled={busy} onClick={onIgnore} className="h-10 px-1 text-[13px] text-gray-500 hover:text-ink disabled:opacity-40">
+          Not a player’s? <span className="font-bold text-gray-700">Ignore</span>
+        </button>
+      </div>
+    </div>
+  );
 }
