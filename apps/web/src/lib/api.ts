@@ -482,11 +482,6 @@ export function getGroupOwed(groupId: string): Promise<OwedItem[]> {
   return http.get(`/groups/${groupId}/owed`);
 }
 
-/** Give an unmatched transfer to the player whose "I've paid" it matches. */
-export function acceptTransferClaim(transferId: string, claimId: string): Promise<{ status: string }> {
-  return http.post(`/transfers/${transferId}/claims/${claimId}/accept`);
-}
-
 export function ignoreTransfer(transferId: string): Promise<BankTransfer> {
   return http.post(`/transfers/${transferId}/ignore`);
 }

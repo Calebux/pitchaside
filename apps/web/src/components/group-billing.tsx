@@ -9,8 +9,10 @@ import { Sheet } from '@/components/sheet';
 import { EmptyState } from '@/components/empty-state';
 import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { senderFrom, transferName } from '@/components/home/transfers-sheet';
-import { MatchPlayerSheet, type MatchMember } from '@/components/group/match-sheet';
+import { transferName } from '@/components/home/transfers-sheet';
+import { senderFrom } from '@/lib/name-match';
+import { MatchPlayerSheet } from '@/components/group/match-sheet';
+import type { MatchMember } from '@/lib/give-outcome';
 import { accountHint, from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
 import { btnPrimary } from '@/components/buttons';
 import {

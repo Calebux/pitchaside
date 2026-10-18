@@ -5,13 +5,10 @@ import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
-import { senderFrom } from '@/components/home/transfers-sheet';
+import { nameFit, senderFrom } from '@/lib/name-match';
 import { accountHint } from '@/components/group/how-paid-sheet';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
 import { describeGive, owedLabel, type MatchMember } from '@/lib/give-outcome';
-import { nameFit } from '@/lib/name-match';
-
-export { describeGive, owedLabel, type MatchMember };
 
 const firstName = (m: MatchMember) => m.name.split(' ')[0];
 
@@ -25,7 +22,7 @@ function likeliness(t: BankTransfer, m: MatchMember) {
   return { score: (fit === 'exact' ? 20 : fit === 'similar' ? 12 : 0) + (claimed ? 10 : 0) + hits, reason };
 }
 
-export function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
+function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
   const kit = kitFor(name);
   return (
     <span className={`${className} shrink-0 rounded-full ${kit.bg} ${kit.fg} font-extrabold font-display flex items-center justify-center`} aria-hidden>

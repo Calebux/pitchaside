@@ -11,7 +11,7 @@ const plain = (s?: string | null) =>
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .split(/[^a-z]+/)
-    .filter((w) => w.length > 2);
+    .filter((w) => w.length > 1);
 
 /** The word's consonants, with letters that sound alike folded together: "rodrick" and "rodrigue" both give "rdrk". */
 function skeleton(w: string) {
@@ -41,7 +41,7 @@ function distance(a: string, b: string) {
 function close(a: string, b: string) {
   if (a === b) return true;
   // A short form: the start of it ("Ade" for "Adewale") or, from four letters, the end ("Seun" for "Oluwaseun").
-  if (a.startsWith(b) || b.startsWith(a)) return true;
+  if (Math.min(a.length, b.length) >= 3 && (a.startsWith(b) || b.startsWith(a))) return true;
   if (Math.min(a.length, b.length) >= 4 && (a.endsWith(b) || b.endsWith(a))) return true;
   if (distance(a, b) <= (Math.max(a.length, b.length) >= 7 ? 2 : 1)) return true;
   return Math.min(a.length, b.length) >= 4 && skeleton(a) === skeleton(b);
@@ -59,4 +59,15 @@ export function nameFit(memberName: string, said: string): { fit: 'exact' | 'sim
   if (hits === mine.length) return { fit: 'exact', hits };
   const nearly = mine.every((w) => theirs.some((t) => close(w, t)));
   return { fit: nearly ? 'similar' : null, hits };
+}
+
+/**
+ * The sender's name as the bank gave it: the sender field, or, when some banks leave that
+ * empty, the name in a "Transfer from NAME" narration (the server matches on the same).
+ */
+export function senderFrom(t: { senderName?: string | null; narration?: string | null }) {
+  if (t.senderName?.trim()) return t.senderName;
+  const m = t.narration?.match(/\b(?:transfer|trf|trsf|tfr)\s+from\s+([a-z][a-z .']*?)(?=\s+(?:to|for|ref|via)\b|\s*[/|:,\-–]|\s*\d|$)/i);
+  const name = m?.[1].trim();
+  return name && name.split(/\s+/).length >= 2 ? name : null;
 }
