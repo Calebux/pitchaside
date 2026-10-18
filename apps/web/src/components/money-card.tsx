@@ -308,6 +308,8 @@ export function MoneyCard({
   onOpenAccount,
   onGameEnded,
   vote,
+  showGame = true,
+  showTicker = true,
 }: {
   group: IGroupWithMembers;
   money: ReturnType<typeof useGroupMoney>;
@@ -321,6 +323,10 @@ export function MoneyCard({
   onGameEnded?: (gameId: string) => void;
   /** The featured game's vote, if it has one. */
   vote?: SessionVoting | null;
+  /** False shows the account card alone (the group page lists every game in its own tab). */
+  showGame?: boolean;
+  /** False drops the latest-payments preview (the group's Money tab lists every transfer right below). */
+  showTicker?: boolean;
 }) {
   const toast = useToast();
   const now = useNow();
@@ -439,7 +445,7 @@ export function MoneyCard({
               Set one up so players can pay by transfer and see their payments matched automatically.
             </p>
             <Link
-              href={`/groups/${group.id}`}
+              href={`/groups/${group.id}?tab=money`}
               className="press mt-3 inline-flex items-center justify-center h-11 px-4 rounded-xl bg-volt-400 text-sm font-bold text-ink hover:bg-volt-300 transition-colors"
             >
               Set up account
@@ -583,7 +589,7 @@ export function MoneyCard({
         )}
 
         {/* The ticker: what's come in lately, newest on top */}
-        {ticker.length > 0 && (
+        {showTicker && ticker.length > 0 && (
           <div className="mt-4 flex items-center justify-between">
             <p className="text-xs font-bold text-white/70">Money in</p>
             <button
@@ -595,7 +601,7 @@ export function MoneyCard({
             </button>
           </div>
         )}
-        {ticker.length > 0 && (
+        {showTicker && ticker.length > 0 && (
           <ul className="mt-1 rounded-2xl bg-white/[0.06] divide-y divide-white/[0.07] overflow-hidden" aria-label="Latest transfers">
             {ticker.map((t, i) => {
               const landed = fresh.has(t.id);
@@ -647,7 +653,7 @@ export function MoneyCard({
             })}
           </ul>
         )}
-        {transfers && transfers.length === 0 && hasAccount && (
+        {showTicker && transfers && transfers.length === 0 && hasAccount && (
           <p className="mt-4 rounded-2xl bg-white/[0.06] px-3.5 py-3 text-[13px] text-white/60">
             No transfers yet. Share the account details and they&apos;ll show up here as they land.
           </p>
@@ -661,6 +667,7 @@ export function MoneyCard({
       </div>
     </section>
 
+    {showGame && (
     <section aria-label="This week's game" className={`mt-3 ${cardCls}`}>
       <div className="absolute inset-0 turf-stripes-soft" />
       <div className="relative p-5">
@@ -707,6 +714,7 @@ export function MoneyCard({
         onCancel={() => setConfirmEnd(false)}
       />
     </section>
+    )}
     </>
   );
 }
@@ -1176,7 +1184,7 @@ export function AccountDetailsSheet({
       )}
 
       <Link
-        href={`/groups/${group.id}`}
+        href={`/groups/${group.id}?tab=money`}
         className="h-11 w-full flex items-center justify-between text-sm font-bold text-ink border-t border-gray-100"
       >
         Manage account and link
