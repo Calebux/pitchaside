@@ -9,7 +9,7 @@ import { Sheet } from '@/components/sheet';
 import { EmptyState } from '@/components/empty-state';
 import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { transferName } from '@/components/home/transfers-sheet';
+import { senderFrom, transferName } from '@/components/home/transfers-sheet';
 import {
   acceptTransferClaim,
   assignTransfer,
@@ -494,7 +494,7 @@ function TransferRow({
         <span className="block text-[15px] font-bold text-ink truncate">{transferName(t)}</span>
         <span className="block text-[13px] text-gray-600 mt-0.5 truncate">
           {new Date(t.receivedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-          {t.status === 'unmatched' && t.narration ? `, “${t.narration}”` : ''}
+          {t.status === 'unmatched' && t.narration && !(!t.senderName?.trim() && senderFrom(t)) ? `, “${t.narration}”` : ''}
         </span>
       </span>
       <span className="text-right shrink-0">
@@ -701,6 +701,7 @@ export function TransfersPanel({
         })),
     );
   const [matching, setMatching] = useState<BankTransfer | null>(null);
+  const [showAllClaims, setShowAllClaims] = useState<Set<string>>(new Set());
   const pendingOptionsRef = useRef(0);
   pendingOptionsRef.current = pendingOptions.length;
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
@@ -882,37 +883,61 @@ export function TransfersPanel({
                 {(open || t.status === 'unmatched') && (
                   <div className="px-4 pb-4 -mt-1 space-y-1.5 text-xs text-gray-600">
                     {open && <TransferDetails t={t} />}
-                    {t.status === 'unmatched' && t.claims && t.claims.length > 0 && (
-                      <div className="pt-1 space-y-1.5">
-                        <p className="font-bold text-ink">Said they&apos;ve paid</p>
-                        {t.claims.map((c) => {
-                          const name = `${c.player.firstName} ${c.player.lastName}`;
-                          return (
-                            <div key={c.id} className="flex items-center justify-between gap-2 rounded-xl bg-volt-100 px-3 py-2">
-                              <span className="min-w-0">
-                                <span className="block font-bold text-ink truncate">{name}</span>
-                                <span className="block text-[11px] text-gray-600">
-                                  {formatCurrency(c.amount)} ·{' '}
-                                  {new Date(c.createdAt).toLocaleString('en-GB', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </span>
-                              <button
-                                disabled={workingId === t.id}
-                                onClick={() => run(t.id, () => acceptTransferClaim(t.id, c.id), `Matched to ${name}`)}
-                                className="px-3 py-2 text-xs font-bold text-volt-300 bg-ink rounded-lg hover:bg-pitch-900 disabled:opacity-40 transition-colors shrink-0"
-                              >
-                                Match
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {t.status === 'unmatched' && t.claims && t.claims.length > 0 && (() => {
+                      // Everyone whose "I've paid" fits this amount and time. Whoever the bank's
+                      // name points to goes first; the rest wait behind "Show N more".
+                      const ranked = rankClaims(t);
+                      const allShown = showAllClaims.has(t.id);
+                      const shown = allShown ? ranked : ranked.slice(0, 2);
+                      return (
+                        <div className="pt-1">
+                          <p className="mb-1.5 text-xs font-semibold text-gray-600">
+                            {ranked.length === 1 ? 'Said they’ve paid around then' : `${ranked.length} said they’ve paid around then`}
+                          </p>
+                          <ul className="rounded-2xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+                            {shown.map(({ c, named }, i) => {
+                              const name = `${c.player.firstName} ${c.player.lastName}`;
+                              return (
+                                <li key={c.id} className="flex items-center gap-3 px-3 py-2.5 min-h-14">
+                                  <span className="flex-1 min-w-0">
+                                    <span className="block text-[13px] font-bold text-ink truncate">{name}</span>
+                                    <span className="block text-[11px] text-gray-500 tabular-nums truncate">
+                                      {named ? <span className="font-bold text-pitch-600">Name matches, </span> : null}
+                                      {formatCurrency(c.amount)},{' '}
+                                      {new Date(c.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </span>
+                                  <button
+                                    disabled={workingId === t.id}
+                                    onClick={() => run(t.id, () => acceptTransferClaim(t.id, c.id), `Matched to ${name}`)}
+                                    className={`shrink-0 h-9 px-3.5 rounded-xl text-xs font-bold disabled:opacity-40 transition-colors ${
+                                      i === 0 && named ? 'bg-ink text-volt-300 hover:bg-pitch-900' : 'bg-white border border-gray-200 text-ink hover:border-ink'
+                                    }`}
+                                  >
+                                    Match
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                          {ranked.length > 2 && (
+                            <button
+                              onClick={() =>
+                                setShowAllClaims((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(t.id)) next.delete(t.id);
+                                  else next.add(t.id);
+                                  return next;
+                                })
+                              }
+                              className="mt-1 h-9 px-1 text-xs font-bold text-pitch-700"
+                            >
+                              {allShown ? 'Show fewer' : `Show ${ranked.length - 2} more`}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {t.status === 'unmatched' && (
                       <div className="pt-1 flex gap-2">
                         <button
@@ -1055,8 +1080,20 @@ const words = (s?: string | null) => (s ?? '').toLowerCase().split(/[^a-z]+/).fi
  * the player, and/or the amount is exactly what they owe. Only a hint for ordering the list; the
  * organiser still picks.
  */
+/** "I've paid" suggestions for a transfer, the player the bank's name points to first, then the latest. */
+function rankClaims(t: BankTransfer) {
+  const said = new Set([...words(senderFrom(t)), ...words(t.narration)]);
+  return (t.claims ?? [])
+    .map((c) => {
+      const mine = [...words(c.player.firstName), ...words(c.player.lastName)];
+      const hits = mine.filter((w) => said.has(w)).length;
+      return { c, hits, named: mine.length > 0 && hits === mine.length };
+    })
+    .sort((a, b) => b.hits - a.hits || new Date(b.c.createdAt).getTime() - new Date(a.c.createdAt).getTime());
+}
+
 function likelyReasons(t: BankTransfer, o: PendingOption) {
-  const said = new Set([...words(t.senderName), ...words(t.narration)]);
+  const said = new Set([...words(senderFrom(t)), ...words(t.narration)]);
   const reasons: string[] = [];
   if ([...words(o.name), ...words(o.nickname)].some((w) => said.has(w))) reasons.push('Name matches');
   if (Number(t.amount) === o.amount) reasons.push('Same amount');

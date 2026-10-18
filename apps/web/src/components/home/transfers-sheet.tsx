@@ -7,11 +7,22 @@ import { Sheet } from '@/components/sheet';
 import { stagger } from '@/components/motion';
 import { SheetTitle } from '@/components/home/sheet-title';
 
+/**
+ * The sender's name as the bank gave it: the sender field, or, when some banks leave that
+ * empty, the name in a "Transfer from NAME" narration (the server matches on the same).
+ */
+export function senderFrom(t: Pick<BankTransfer, 'senderName' | 'narration'>) {
+  if (t.senderName?.trim()) return t.senderName;
+  const m = t.narration?.match(/\b(?:transfer|trf|trsf|tfr)\s+from\s+([a-z][a-z .']*?)(?=\s+(?:to|for|ref|via)\b|\s*[/|:,\-–]|\s*\d|$)/i);
+  const name = m?.[1].trim();
+  return name && name.split(/\s+/).length >= 2 ? name : null;
+}
+
 /** Who a transfer came from, as a short name: the matched player, else the bank's sender name. */
 export function transferName(t: BankTransfer) {
   const p = t.player ?? t.payment?.player;
   if (p) return `${p.firstName} ${p.lastName ? `${p.lastName.charAt(0)}.` : ''}`.trim();
-  const words = (t.senderName ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 2);
+  const words = (senderFrom(t) ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 2);
   return words.length ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : 'Unknown sender';
 }
 
