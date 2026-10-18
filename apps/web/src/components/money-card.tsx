@@ -344,6 +344,9 @@ export function MoneyCard({
   const unknown = recent.filter((t) => t.status === 'unmatched');
   const ticker = [...unknown.slice(0, 1), ...recent.filter((t) => t.status !== 'unmatched')].slice(0, 2);
   const [sheet, setSheet] = useState<{ id: string | null } | null>(null);
+  // Payments with no name are sorted out on the group's Money tab: the list of them, or one in the picker.
+  const unnamedHref = `/groups/${group.id}?tab=money&show=unnamed`;
+  const chooseHref = (id: string) => `/groups/${group.id}?tab=money&transfer=${id}`;
   const account = billing?.account ?? null;
   const [accountOpen, toggleAccount] = useRemembered('pitchaside_home_account_open', true);
   const [gameOpen, toggleGame] = useRemembered('pitchaside_home_game_open', true);
@@ -462,7 +465,7 @@ export function MoneyCard({
             caption={todayIn > 0 && !hidden ? `Account balance · ${formatCurrency(todayIn)} received today` : 'Account balance'}
             action={
               unknown.length > 0
-                ? { label: `${unknown.length} payment${unknown.length === 1 ? '' : 's'} need${unknown.length === 1 ? 's' : ''} matching`, onClick: () => setSheet({ id: unknown[0].id }) }
+                ? { label: `${unknown.length} payment${unknown.length === 1 ? '' : 's'} with no name`, href: unnamedHref }
                 : null
             }
           />
@@ -590,15 +593,26 @@ export function MoneyCard({
 
         {/* The ticker: what's come in lately, newest on top */}
         {showTicker && ticker.length > 0 && (
-          <div className="mt-4 flex items-center justify-between">
+          <div className="mt-4 flex items-center justify-between gap-3">
             <p className="text-xs font-bold text-white/70">Money in</p>
-            <button
-              onClick={() => setSheet({ id: null })}
-              className="press -my-2 h-11 px-1 inline-flex items-center gap-1 text-xs font-bold text-volt-300 hover:text-volt-200"
-            >
-              See all{unknown.length > 1 ? ` · ${unknown.length} with no name` : ''}
-              <Chevron />
-            </button>
+            <div className="flex items-center gap-3">
+              {unknown.length > 1 && (
+                <Link
+                  href={unnamedHref}
+                  className="press -my-2 h-11 px-1 inline-flex items-center gap-1.5 text-xs font-bold text-sun-400 hover:opacity-80"
+                >
+                  <LiveDot className="bg-sun-400" />
+                  {unknown.length} with no name
+                </Link>
+              )}
+              <button
+                onClick={() => setSheet({ id: null })}
+                className="press -my-2 h-11 px-1 inline-flex items-center gap-1 text-xs font-bold text-volt-300 hover:text-volt-200"
+              >
+                See all
+                <Chevron />
+              </button>
+            </div>
           </div>
         )}
         {showTicker && ticker.length > 0 && (
@@ -640,14 +654,26 @@ export function MoneyCard({
               const cls = `flex items-center gap-3 px-3 py-2 min-h-[52px] ${landed ? 'animate-land' : 'animate-rise'}`;
               return (
                 <li key={t.id} className={landed ? 'animate-glow' : undefined}>
-                  <button
-                    onClick={() => setSheet({ id: t.id })}
-                    aria-label={`${name}, ${hidden ? 'amount hidden' : formatCurrency(t.amount)}${unmatched ? ', who paid this? Match it' : ''}. Details`}
-                    className={`${cls} w-full text-left press hover:bg-white/5`}
-                    style={landed ? undefined : stagger(i, 70, 120)}
-                  >
-                    {row}
-                  </button>
+                  {unmatched ? (
+                    // No name: straight to choosing who sent it.
+                    <Link
+                      href={chooseHref(t.id)}
+                      aria-label={`${hidden ? 'Payment' : formatCurrency(t.amount)} with no name. Choose who sent it`}
+                      className={`${cls} w-full text-left press hover:bg-white/5`}
+                      style={landed ? undefined : stagger(i, 70, 120)}
+                    >
+                      {row}
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={() => setSheet({ id: t.id })}
+                      aria-label={`${name}, ${hidden ? 'amount hidden' : formatCurrency(t.amount)}. Details`}
+                      className={`${cls} w-full text-left press hover:bg-white/5`}
+                      style={landed ? undefined : stagger(i, 70, 120)}
+                    >
+                      {row}
+                    </button>
+                  )}
                 </li>
               );
             })}
