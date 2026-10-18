@@ -154,7 +154,7 @@ export default function SettingsPage() {
 
       <div className="mb-4">
         <PushToggle save={subscribeOrganiserPush} />
-        <p className="text-[11px] text-gray-500 mt-1.5 px-1">Get a ping on this device when money lands, a game fills up or a transfer needs matching.</p>
+        <p className="text-[11px] text-gray-500 mt-1.5 px-1">Get a ping on this device when money lands, a game fills up or a payment comes in with no name.</p>
       </div>
 
       {/* Profile Section */}

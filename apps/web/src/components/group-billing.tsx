@@ -10,7 +10,8 @@ import { EmptyState } from '@/components/empty-state';
 import { BallIcon, kitFor } from '@/components/illustrations';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { senderFrom, transferName } from '@/components/home/transfers-sheet';
-import { MatchPlayerSheet, MemberAvatar, bestGuess, describeGive, type MatchMember } from '@/components/group/match-sheet';
+import { MatchPlayerSheet, type MatchMember } from '@/components/group/match-sheet';
+import { from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
 import { btnPrimary } from '@/components/buttons';
 import {
   giveTransfer,
@@ -403,11 +404,20 @@ export function GroupAccountCard({
 }
 
 const transferStatus: Record<BankTransfer['status'], { label: string; text: string; avatar: string }> = {
-  matched: { label: 'Matched', text: 'text-pitch-600', avatar: 'bg-volt-300 text-ink' },
-  assigned: { label: 'Matched', text: 'text-pitch-600', avatar: 'bg-volt-300 text-ink' },
-  unmatched: { label: 'To match', text: 'text-amber-700', avatar: 'bg-sun-400/30 text-amber-800' },
-  ignored: { label: 'Ignored', text: 'text-gray-400', avatar: 'bg-gray-100 text-gray-400' },
+  matched: { label: 'Paid', text: 'text-pitch-600', avatar: 'bg-volt-300 text-ink' },
+  assigned: { label: 'Paid', text: 'text-pitch-600', avatar: 'bg-volt-300 text-ink' },
+  unmatched: { label: 'No name', text: 'text-amber-700', avatar: 'bg-sun-400/30 text-amber-800' },
+  ignored: { label: 'Set aside', text: 'text-gray-400', avatar: 'bg-gray-100 text-gray-400' },
 };
+
+/** What a player's payment went on: "Sat 17 Oct", "October 2026 dues", or kept for their next game. */
+function paidFor(t: BankTransfer) {
+  const s = t.payment?.session;
+  if (!s) return 'Kept for next game';
+  if (s.kind === 'dues' && s.label) return `${s.label} dues`;
+  const [y, m, d] = String(s.date).slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+}
 
 function initials(name?: string | null) {
   const words = (name ?? '').trim().split(/\s+/).filter(Boolean);
@@ -612,7 +622,7 @@ function TransferRecordSheet({
           <TransferDayList days={groupByDay(transfers)}>
             {(t) =>
               t.status === 'unmatched' ? (
-                <TransferRow t={t} onClick={() => onMatch(t.id)} statusLabel="Needs matching →" />
+                <TransferRow t={t} onClick={() => onMatch(t.id)} statusLabel="No name yet →" />
               ) : (
                 <>
                   <TransferRow t={t} onClick={() => setOpenId(openId === t.id ? null : t.id)} expanded={openId === t.id} />
@@ -631,7 +641,7 @@ function TransferRecordSheet({
   );
 }
 
-/** Money received into the group account, with manual matching for the leftovers. */
+/** Money received into the group account: who paid, and the few payments no one could put a name to. */
 export function TransfersPanel({
   groupId,
   fee,
@@ -664,8 +674,7 @@ export function TransfersPanel({
   const [recording, setRecording] = useState(false);
   const [showRecord, setShowRecord] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
-  // Unset = matching first: show what needs matching while there is any.
-  const [filter, setFilter] = useState<'all' | 'unmatched' | 'matched' | 'ignored' | null>(null);
+  const [showSetAside, setShowSetAside] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState<WebhookStatus | null>(null);
 
   useEffect(() => {
@@ -680,7 +689,6 @@ export function TransfersPanel({
     // Wait for the games too, so the picker has everyone who owes.
     if (focused.status === 'unmatched' && sessions.length === 0) return;
     handledFocus.current = focused.id;
-    if (focused.status !== 'unmatched') setFilter('all');
     setOpenId(focused.id);
     // Arrived from the home's "Match to a player": open the picker straight away.
     if (focused.status === 'unmatched' && membersRef.current > 0) setMatching(focused);
@@ -728,7 +736,7 @@ export function TransfersPanel({
         narration: sim.narration || undefined,
       });
       await onRefresh();
-      toast.success(res.status === 'matched' ? 'Transfer matched to a member' : 'Transfer received — needs matching');
+      toast.success(res.status === 'matched' ? 'Payment in and placed' : 'Payment in, but we couldn’t tell who sent it');
       setSim((s) => ({ ...s, senderName: '', narration: '' }));
     } catch (err: any) {
       toast.error(err.message || 'Simulation failed');
@@ -760,28 +768,10 @@ export function TransfersPanel({
   const input =
     'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
-  const counted = transfers.filter((t) => t.status !== 'ignored');
-  const received = counted.reduce((sum, t) => sum + Number(t.amount), 0);
-  const unmatchedCount = transfers.filter((t) => t.status === 'unmatched').length;
-  const activeFilter = filter ?? (unmatchedCount > 0 ? 'unmatched' : 'all');
-  const matchedCount = transfers.filter((t) => t.status === 'matched' || t.status === 'assigned').length;
-  const ignoredCount = transfers.filter((t) => t.status === 'ignored').length;
-  const shownTransfers =
-    activeFilter === 'unmatched'
-      ? transfers.filter((t) => t.status === 'unmatched')
-      : activeFilter === 'matched'
-        ? transfers.filter((t) => t.status === 'matched' || t.status === 'assigned')
-        : activeFilter === 'ignored'
-          ? transfers.filter((t) => t.status === 'ignored')
-          : transfers;
-  const days = groupByDay(shownTransfers);
-  // Each view of the list; Ignored only once something has been ignored.
-  const views = [
-    { key: 'all' as const, label: 'All', n: transfers.length },
-    { key: 'unmatched' as const, label: 'To match', n: unmatchedCount },
-    { key: 'matched' as const, label: 'Matched', n: matchedCount },
-    ...(ignoredCount ? [{ key: 'ignored' as const, label: 'Ignored', n: ignoredCount }] : []),
-  ];
+  const unnamed = transfers.filter((t) => t.status === 'unmatched');
+  const placed = transfers.filter((t) => t.status === 'matched' || t.status === 'assigned');
+  const setAside = transfers.filter((t) => t.status === 'ignored');
+  const received = placed.reduce((sum, t) => sum + Number(t.amount), 0);
 
   return (
     <div className="space-y-3">
@@ -801,14 +791,14 @@ export function TransfersPanel({
       )}
       <ConfirmDialog
         open={!!ignoring}
-        title={`Ignore this ${ignoring ? formatCurrency(Number(ignoring.amount)) : ''} transfer?`}
-        message="It won't pay anyone's due and it's left out of the Money in totals. Only do this for money that isn't from a player, like a refund to you. It can't be undone in the app yet."
-        confirmLabel="Ignore transfer"
+        title={`Set this ${ignoring ? formatCurrency(Number(ignoring.amount)) : ''} aside?`}
+        message="It won't count as anyone's payment or in Money in. Use this for money that isn't from a player, like a refund to you. You can't undo this yet."
+        confirmLabel="Set aside"
         variant="danger"
         onConfirm={() => {
           const t = ignoring;
           setIgnoring(null);
-          if (t) run(t.id, () => ignoreTransfer(t.id), 'Transfer ignored');
+          if (t) run(t.id, () => ignoreTransfer(t.id), 'Set aside. It won’t count as a payment.');
         }}
         onCancel={() => setIgnoring(null)}
       />
@@ -827,73 +817,79 @@ export function TransfersPanel({
         </div>
       )}
 
-      {/* The section heading, as on the home: a title, what it adds up to, then the views of the list */}
+      {/* Money no one could put a name to: the only thing here that needs the organiser */}
+      {unnamed.length > 0 && (
+        <section aria-labelledby="unnamed-title" className="pt-3">
+          <h2 id="unnamed-title" className="text-base font-bold text-ink">
+            Who sent {unnamed.length === 1 ? 'this' : 'these'}?
+          </h2>
+          <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">
+            We couldn’t tell who {unnamed.length === 1 ? 'this payment is' : `these ${unnamed.length} payments are`} from.
+          </p>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
+            {unnamed.map((t) => (
+              <div key={t.id} id={`transfer-${t.id}`} className="scroll-mt-24 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-bold text-ink truncate">{unnamedFrom(t)}</p>
+                    <p className="text-[13px] text-gray-500 truncate">{whenIn(t.receivedAt)}</p>
+                  </div>
+                  <p className="shrink-0 font-display text-[15px] font-extrabold tabular-nums text-ink">+{formatCurrency(Number(t.amount))}</p>
+                </div>
+                <div className="mt-2.5 flex items-center gap-2">
+                  {members.length === 0 ? (
+                    <button onClick={onAddPlayers} className={`${btnPrimary} flex-1 min-h-10 text-sm`}>
+                      Add players first
+                    </button>
+                  ) : (
+                    <button disabled={workingId === t.id} onClick={() => setMatching(t)} className={`${btnPrimary} flex-1 min-h-10 text-sm`}>
+                      Choose the player
+                    </button>
+                  )}
+                  <button
+                    disabled={workingId === t.id}
+                    onClick={() => setIgnoring(t)}
+                    className="shrink-0 h-10 px-3 text-[13px] font-bold text-gray-600 hover:text-ink disabled:opacity-40"
+                  >
+                    Not a player’s
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Everyone who's paid, newest first, like a bank app */}
       <section aria-labelledby="money-in-title" className="pt-3">
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="money-in-title" className="text-base font-bold text-ink">
             Money in
           </h2>
           <p className="text-xs font-semibold text-gray-500 tabular-nums">
-            {formatCurrency(received)} in {counted.length} transfer{counted.length === 1 ? '' : 's'}
+            {formatCurrency(received)} from {placed.length} payment{placed.length === 1 ? '' : 's'}
           </p>
         </div>
-        {transfers.length > 0 && (
-          <div
-            role="radiogroup"
-            aria-label="Show transfers"
-            className="mt-2.5 grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${views.length}, minmax(0, 1fr))` }}
-          >
-            {views.map((v) => (
-              <button
-                key={v.key}
-                role="radio"
-                aria-checked={activeFilter === v.key}
-                onClick={() => setFilter(v.key)}
-                className={`h-10 px-2 text-[13px] font-bold rounded-full border whitespace-nowrap tabular-nums transition-colors ${
-                  activeFilter === v.key ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
-                }`}
-              >
-                {v.label} {v.n}
-              </button>
-            ))}
-          </div>
-        )}
       </section>
-
 
       {transfers.length === 0 ? (
         <EmptyState
           icon="receipt"
-          title="No transfers yet"
-          description="When players pay into the group account, their transfers show up here and are matched automatically."
+          title="No payments yet"
+          description="When players pay into the group account, they show up here with what they paid for."
         />
-      ) : days.length === 0 ? (
-        <p className="text-sm text-gray-500 text-center py-6">
-          {activeFilter === 'unmatched' ? 'Every transfer is matched.' : activeFilter === 'ignored' ? 'Nothing has been ignored.' : 'Nothing here yet.'}
-        </p>
+      ) : placed.length === 0 ? (
+        <p className="text-sm text-gray-500 text-center py-4">No one’s payment is in yet.</p>
       ) : (
-        <TransferDayList days={days}>
+        <TransferDayList days={groupByDay(placed)}>
           {(t) => {
             const open = openId === t.id;
             return (
               <>
-                <TransferRow t={t} onClick={() => setOpenId(open ? null : t.id)} expanded={open} />
-                {(open || t.status === 'unmatched') && (
+                <TransferRow t={t} onClick={() => setOpenId(open ? null : t.id)} expanded={open} statusLabel={paidFor(t)} />
+                {open && (
                   <div className="px-4 pb-4 -mt-1 space-y-1.5 text-xs text-gray-600">
-                    {open && <TransferDetails t={t} />}
-                    {t.status === 'unmatched' && (
-                      <MatchPrompt
-                        t={t}
-                        members={members}
-                        owed={owed}
-                        busy={workingId === t.id}
-                        onGive={(m, done) => run(t.id, () => giveTransfer(t.id, m.playerId), done)}
-                        onChoose={() => setMatching(t)}
-                        onIgnore={() => setIgnoring(t)}
-                        onAddPlayers={onAddPlayers}
-                      />
-                    )}
+                    <TransferDetails t={t} />
                   </div>
                 )}
               </>
@@ -902,6 +898,24 @@ export function TransfersPanel({
         </TransferDayList>
       )}
 
+      {setAside.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowSetAside(!showSetAside)}
+            aria-expanded={showSetAside}
+            className="h-10 px-1 text-[13px] font-bold text-gray-600 hover:text-ink"
+          >
+            {showSetAside ? 'Hide' : 'Show'} money set aside ({setAside.length})
+          </button>
+          {showSetAside && (
+            <div className="bg-white rounded-3xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+              {setAside.map((t) => (
+                <TransferRow key={t.id} t={t} onClick={() => {}} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Rare: a transfer the bank didn't send us. A quiet line under the list, not a header action */}
       <div className="pt-1 text-center">
@@ -1000,95 +1014,3 @@ export function TransfersPanel({
   );
 }
 
-/**
- * What to do with a transfer nobody's been matched to, as one question. When the bank's name or a
- * single "I've paid" points to one player, ask "Is this from them?" and say where the money would
- * go; otherwise say who said they'd paid and hand over to the picker. Ignore stays a quiet link.
- */
-function MatchPrompt({
-  t,
-  members,
-  owed,
-  busy,
-  onGive,
-  onChoose,
-  onIgnore,
-  onAddPlayers,
-}: {
-  t: BankTransfer;
-  members: MatchMember[];
-  owed: OwedItem[];
-  busy: boolean;
-  onGive: (m: MatchMember, toast: string) => void;
-  onChoose: () => void;
-  onIgnore: () => void;
-  onAddPlayers?: () => void;
-}) {
-  const guess = bestGuess(t, members);
-  const amount = Number(t.amount);
-  const said = [...new Map((t.claims ?? []).map((c) => [c.player.id, `${c.player.firstName} ${c.player.lastName}`])).values()];
-  const firstNames = said.map((n) => n.split(' ')[0]);
-  const who =
-    firstNames.length <= 3
-      ? firstNames.join(', ').replace(/, ([^,]*)$/, ' and $1')
-      : `${firstNames.slice(0, 2).join(', ')} and ${firstNames.length - 2} others`;
-  return (
-    <div className="pt-1">
-      {guess ? (
-        <div className="rounded-2xl bg-chalk p-3">
-          <div className="flex items-start gap-3">
-            <MemberAvatar name={guess.m.name} className="w-9 h-9 text-sm" />
-            <div className="min-w-0 pt-0.5">
-              <p className="text-[15px] font-bold text-ink leading-snug">Is this from {guess.m.name}?</p>
-              <p className="mt-0.5 text-[13px] leading-snug font-semibold text-pitch-600">{guess.reason}</p>
-              <p className="text-[13px] leading-snug text-gray-600">{describeGive(amount, guess.m, owed).brief}.</p>
-            </div>
-          </div>
-          <button
-            disabled={busy}
-            onClick={() => onGive(guess.m, describeGive(amount, guess.m, owed).toast)}
-            className={`${btnPrimary} mt-3 w-full`}
-          >
-            Give to {guess.m.name.split(' ')[0]}
-          </button>
-        </div>
-      ) : (
-        <>
-          {said.length > 0 && (
-            <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex -space-x-2 shrink-0" aria-hidden>
-                {said.slice(0, 3).map((n) => (
-                  <MemberAvatar key={n} name={n} className="w-7 h-7 text-[11px] ring-2 ring-white" />
-                ))}
-              </span>
-              <p className="text-[13px] leading-snug text-gray-600">
-                <span className="font-semibold text-ink">{who}</span> said they’ve paid about {formatCurrency(amount)} around then.
-              </p>
-            </div>
-          )}
-          {members.length === 0 ? (
-            <button onClick={onAddPlayers} className={`${btnPrimary} w-full`}>
-              Add players first
-            </button>
-          ) : (
-            <button disabled={busy} onClick={onChoose} className={`${btnPrimary} w-full`}>
-              Choose who sent it
-            </button>
-          )}
-        </>
-      )}
-      <div className="mt-1 flex items-center justify-between">
-        {guess ? (
-          <button disabled={busy} onClick={onChoose} className="h-10 px-1 text-[13px] font-bold text-ink hover:text-pitch-700 disabled:opacity-40">
-            Someone else
-          </button>
-        ) : (
-          <span />
-        )}
-        <button disabled={busy} onClick={onIgnore} className="h-10 px-1 text-[13px] text-gray-500 hover:text-ink disabled:opacity-40">
-          Not a player’s? <span className="font-bold text-gray-700">Ignore</span>
-        </button>
-      </div>
-    </div>
-  );
-}

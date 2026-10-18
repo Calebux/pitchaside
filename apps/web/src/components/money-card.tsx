@@ -596,7 +596,7 @@ export function MoneyCard({
               onClick={() => setSheet({ id: null })}
               className="press -my-2 h-11 px-1 inline-flex items-center gap-1 text-xs font-bold text-volt-300 hover:text-volt-200"
             >
-              See all{unknown.length > 1 ? ` · ${unknown.length} to match` : ''}
+              See all{unknown.length > 1 ? ` · ${unknown.length} with no name` : ''}
               <Chevron />
             </button>
           </div>
@@ -622,7 +622,7 @@ export function MoneyCard({
                     {unmatched ? (
                       <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold text-sun-400">
                         <LiveDot className="bg-sun-400" />
-                        Match to player
+                        Who sent this?
                       </span>
                     ) : (
                       <span className="block text-[11px] font-semibold text-white/65 tabular-nums">{ago(t.receivedAt, now)}</span>

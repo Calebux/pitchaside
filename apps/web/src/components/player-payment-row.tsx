@@ -88,7 +88,7 @@ export function PlayerPaymentRow({
           {playerName.charAt(0)}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink leading-snug break-words">{playerName}</p>
+          <p className="text-sm font-semibold text-ink leading-snug truncate">{playerName}</p>
           <p className="text-xs text-gray-500 tabular-nums">
             {formatCurrency(amount)}
             {viaTransfer && status === PaymentStatus.PAID && (

@@ -25,51 +25,12 @@ function likeliness(t: BankTransfer, m: MatchMember) {
   return { score: (named ? 20 : 0) + (claimed ? 10 : 0) + hits, reason, named, claimed };
 }
 
-/**
- * The one member this transfer most likely came from, when there's a clear answer: the only member
- * whose full name is on it, or else the only player who said they'd paid about this much then.
- */
-export function bestGuess(t: BankTransfer, members: MatchMember[]) {
-  const scored = members.map((m) => ({ m, ...likeliness(t, m) }));
-  const named = scored.filter((s) => s.named);
-  if (named.length) return named.length === 1 ? named[0] : null;
-  const claimed = scored.filter((s) => s.claimed);
-  return claimed.length === 1 ? claimed[0] : null;
-}
-
 export function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
   const kit = kitFor(name);
   return (
     <span className={`${className} shrink-0 rounded-full ${kit.bg} ${kit.fg} font-extrabold font-display flex items-center justify-center`} aria-hidden>
       {name.charAt(0)}
     </span>
-  );
-}
-
-/** The receipt: where every naira of the transfer goes, before it's confirmed. */
-function GiveReceipt({ amount, member, owed }: { amount: number; member: MatchMember; owed: OwedItem[] }) {
-  const out = describeGive(amount, member, owed);
-  const first = firstName(member);
-  return (
-    <div className="rounded-3xl bg-ink px-4 pt-3.5 pb-3.5" aria-live="polite">
-      <p className="text-[13px] text-white/60 truncate">
-        {formatCurrency(amount)} to <span className="font-bold text-white">{member.name}</span>
-      </p>
-      {member.credit > 0 && (
-        <p className="mt-1 text-[13px] text-white/60">
-          Plus {formatCurrency(member.credit)} {first} already had
-        </p>
-      )}
-      <dl className="mt-2.5 space-y-1.5">
-        {out.rows.map((r) => (
-          <div key={r.label} className="flex items-baseline justify-between gap-3">
-            <dt className="text-[15px] font-semibold text-white">{r.label}</dt>
-            <dd className={`font-display text-[15px] font-extrabold tabular-nums ${r.kept ? 'text-volt-300' : 'text-white'}`}>{formatCurrency(r.amount)}</dd>
-          </div>
-        ))}
-      </dl>
-      {out.owesLine && <p className="mt-3 pt-2.5 border-t border-white/10 text-[13px] font-semibold leading-snug text-sun-400">{out.owesLine}</p>}
-    </div>
   );
 }
 
@@ -163,8 +124,12 @@ export function MatchPlayerSheet({
       onClose={onClose}
       align="left"
       footer={
-        <div className="space-y-3">
-          {choice && <GiveReceipt amount={amount} member={choice} owed={owed} />}
+        <div className="space-y-2">
+          {choice && (
+            <p className="text-[13px] leading-snug font-semibold text-ink" aria-live="polite">
+              {describeGive(amount, choice, owed).brief}.
+            </p>
+          )}
           <button
             disabled={!choice || busy}
             onClick={() => choice && onGive(choice, describeGive(amount, choice, owed).toast)}

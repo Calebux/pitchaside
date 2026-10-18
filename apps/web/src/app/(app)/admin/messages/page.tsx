@@ -21,7 +21,7 @@ const kindLabels: Record<string, string> = {
   vote_open: 'Vote invite',
   vote_nudge: 'Vote nudge',
   payment_received: 'Money received',
-  transfer_unmatched: 'Transfer to match',
+  transfer_unmatched: 'Payment with no name',
   member_joined: 'New member',
   game_full: 'Game full',
 };

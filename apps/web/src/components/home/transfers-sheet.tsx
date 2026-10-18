@@ -27,10 +27,10 @@ export function transferName(t: BankTransfer) {
 }
 
 const STATUS: Record<BankTransfer['status'], { label: string; cls: string }> = {
-  matched: { label: 'Matched', cls: 'bg-pitch-50 text-pitch-700' },
-  assigned: { label: 'Matched', cls: 'bg-pitch-50 text-pitch-700' },
-  unmatched: { label: 'To match', cls: 'bg-sun-400/20 text-ink' },
-  ignored: { label: 'Ignored', cls: 'bg-gray-100 text-gray-600' },
+  matched: { label: 'Paid', cls: 'bg-pitch-50 text-pitch-700' },
+  assigned: { label: 'Paid', cls: 'bg-pitch-50 text-pitch-700' },
+  unmatched: { label: 'No name', cls: 'bg-sun-400/20 text-ink' },
+  ignored: { label: 'Set aside', cls: 'bg-gray-100 text-gray-600' },
 };
 
 const when = (iso: string) =>
@@ -132,7 +132,7 @@ export function TransfersSheet({
                           href={`${historyHref}&transfer=${t.id}`}
                           className="press flex items-center justify-center h-11 rounded-xl bg-ink text-volt-300 text-sm font-bold"
                         >
-                          Match to a player
+                          Choose the player
                         </Link>
                       </dd>
                     )}

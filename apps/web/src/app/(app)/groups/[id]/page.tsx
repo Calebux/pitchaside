@@ -515,7 +515,7 @@ export default function GroupDetailPage() {
                     {f.value}
                   </span>
                   <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold leading-tight text-white/65 truncate">
-                    {f.money && unmatched > 0 && <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-sun-400 animate-pulse-soft" aria-label={`${unmatched} to match`} />}
+                    {f.money && unmatched > 0 && <span className="w-1.5 h-1.5 shrink-0 rounded-full bg-sun-400 animate-pulse-soft" aria-label={`${unmatched} with no name`} />}
                     {f.label}
                   </span>
                 </button>
@@ -570,7 +570,7 @@ export default function GroupDetailPage() {
               {!!t.badge && (
                 <span
                   className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-kit-500 text-ink text-[10px] font-extrabold flex items-center justify-center"
-                  aria-label={`${t.badge} to match`}
+                  aria-label={`${t.badge} with no name`}
                 >
                   {t.badge}
                 </span>

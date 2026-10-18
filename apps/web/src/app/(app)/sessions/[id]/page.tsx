@@ -9,7 +9,7 @@ import { PlayerPaymentRow } from '@/components/player-payment-row';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmptyState } from '@/components/empty-state';
 import { useToast } from '@/components/toast';
-import { getSession, markPaid, markUnpaid, waivePayment, bulkMarkPaid, deleteSession, updateSessionStatus, exportSessionPaymentsCsv, sendReminders, formatCurrency, type ISessionWithDetails } from '@/lib/api';
+import { getSession, getGroup, getGroupOwed, getGroupTransfers, assignTransfer, type BankTransfer, type OwedItem, markPaid, markUnpaid, waivePayment, bulkMarkPaid, deleteSession, updateSessionStatus, exportSessionPaymentsCsv, sendReminders, formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { PaymentStatus, SessionStatus } from '@pitchaside/shared';
 import { Trophy } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
@@ -17,6 +17,7 @@ import { SessionVotingCard } from '@/components/ratings';
 import { LineupCard } from '@/components/lineup-card';
 import { TeamSheet } from '@/components/team-sheet';
 import { prettyTime } from '@/components/player-ui';
+import { HowPaidSheet } from '@/components/group/how-paid-sheet';
 
 type Tab = 'payments' | 'teams' | 'stars';
 const TABS: Tab[] = ['payments', 'teams', 'stars'];
@@ -55,6 +56,12 @@ export default function SessionDetailPage() {
   const [tab, setTab] = useState<Tab | null>(null);
   const [filter, setFilter] = useState<'owing' | 'paid' | 'all' | null>(null);
   const [search, setSearch] = useState('');
+  // Money in the group account no one could put a name to: one may be a player's payment.
+  const [unnamed, setUnnamed] = useState<BankTransfer[]>([]);
+  // What everyone owes and has kept, so the sheet can say where any extra goes.
+  const [owed, setOwed] = useState<OwedItem[]>([]);
+  const [kept, setKept] = useState<Record<string, number>>({});
+  const [howPaid, setHowPaid] = useState<string | null>(null);
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -65,6 +72,20 @@ export default function SessionDetailPage() {
   useEffect(() => {
     fetchSession().finally(() => setLoading(false));
   }, [fetchSession]);
+
+  const groupId = session?.groupId;
+  const loadUnnamed = useCallback(() => {
+    if (!groupId) return;
+    getGroupTransfers(groupId)
+      .then((ts) => setUnnamed(ts.filter((t) => t.status === 'unmatched')))
+      // Treasurers without access, or offline: Mark paid just marks paid.
+      .catch(() => setUnnamed([]));
+    getGroupOwed(groupId).then(setOwed).catch(() => setOwed([]));
+    getGroup(groupId)
+      .then((g) => setKept(Object.fromEntries((g.memberships ?? []).map((m) => [m.player.id, Number(m.credit ?? 0)]))))
+      .catch(() => setKept({}));
+  }, [groupId]);
+  useEffect(loadUnnamed, [loadUnnamed]);
 
   // Opening tab: ?tab= if given, else Teams on match day, else Payments.
   useEffect(() => {
@@ -87,16 +108,43 @@ export default function SessionDetailPage() {
     window.history.replaceState(null, '', url);
   }
 
-  async function handleMarkPaid(paymentId: string) {
+  const nameOf = (paymentId: string) => {
+    const p = session?.payments?.find((x) => x.id === paymentId)?.player;
+    return p ? `${p.firstName} ${p.lastName}` : 'Player';
+  };
+
+  /** With money waiting for a name, ask whether it was one of those; otherwise just mark paid. */
+  function handleMarkPaid(paymentId: string) {
+    if (unnamed.length) setHowPaid(paymentId);
+    else markPaidOtherWay(paymentId);
+  }
+
+  async function markPaidOtherWay(paymentId: string) {
     setMarkingId(paymentId);
     try {
       await markPaid(paymentId);
+      setHowPaid(null);
       await fetchSession();
-      toast.success('Payment marked as paid');
+      toast.success(`${nameOf(paymentId).split(' ')[0]} marked as paid`);
     } catch {
-      toast.error('Failed to mark payment');
+      toast.error('That didn’t save. Try again.');
     } finally {
       setMarkingId(null);
+    }
+  }
+
+  async function payWithTransfer(paymentId: string, t: BankTransfer, done: string) {
+    setMarkingId(paymentId);
+    try {
+      await assignTransfer(t.id, paymentId);
+      setHowPaid(null);
+      await fetchSession();
+      toast.success(done);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'That didn’t save. Try again.');
+    } finally {
+      setMarkingId(null);
+      loadUnnamed();
     }
   }
 
@@ -226,6 +274,29 @@ export default function SessionDetailPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Sessions" />
+
+      {howPaid && (() => {
+        const p = payments.find((x) => x.id === howPaid);
+        if (!p) return null;
+        const game =
+          session.kind === 'dues' && session.label
+            ? `${session.label} dues`
+            : new Date(session.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+        return (
+          <HowPaidSheet
+            member={{ playerId: p.playerId, name: nameOf(p.id), credit: kept[p.playerId] ?? 0 }}
+            paymentId={p.id}
+            owed={owed}
+            due={Number(p.amount)}
+            game={game}
+            transfers={unnamed}
+            busy={markingId === p.id}
+            onUseTransfer={(t, outcome) => payWithTransfer(p.id, t, outcome)}
+            onOtherWay={() => markPaidOtherWay(p.id)}
+            onClose={() => setHowPaid(null)}
+          />
+        );
+      })()}
 
       <ConfirmDialog
         open={showDeleteConfirm}
