@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { btnPrimary } from '@/components/buttons';
 import { EmptyState } from '@/components/empty-state';
 import { PayeeCard } from '@/components/group-payee';
 import { SendMoneyModal, type RefundableMember } from '@/components/send-money-modal';
@@ -26,6 +27,34 @@ const statusStyles: Record<OutgoingTransfer['status'], string> = {
   failed: 'bg-kit-500/15 text-kit-600',
   cancelled: 'bg-gray-100 text-gray-500',
 };
+
+/** What withdrawing is, before the first thing it asks for (a PIN) makes sense. */
+function WithdrawIntro() {
+  const steps = [
+    ['Set a 4-digit PIN', 'You type it each time money leaves the account, so nobody else can send it.'],
+    ['Pick who gets paid', 'Save the pitch owner once, or send to any Nigerian bank account.'],
+    ['Send', 'The money leaves the group account, and every withdrawal is listed here.'],
+  ];
+  return (
+    <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
+      <h3 className="text-base font-bold text-ink">Withdraw from the group account</h3>
+      <p className="text-xs text-gray-600 mt-1">Pay the pitch, buy bibs or refund a player, straight from what&apos;s been collected.</p>
+      <ol className="mt-4 space-y-3">
+        {steps.map(([title, body], i) => (
+          <li key={title} className="flex gap-3">
+            <span className="w-6 h-6 shrink-0 rounded-full bg-ink text-volt-300 text-xs font-extrabold flex items-center justify-center" aria-hidden>
+              {i + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-ink">{title}</span>
+              <span className="block text-xs text-gray-600">{body}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 function SetPinForm({ onDone }: { onDone: () => void }) {
   const toast = useToast();
@@ -54,7 +83,7 @@ function SetPinForm({ onDone }: { onDone: () => void }) {
     <form onSubmit={handle} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 space-y-4">
       <div>
         <h3 className="text-base font-bold text-ink">Set transfer PIN</h3>
-        <p className="text-xs text-gray-500 mt-1">You need a 4-digit PIN to authorise payouts from group accounts.</p>
+        <p className="text-xs text-gray-500 mt-1">You&apos;ll type it every time you withdraw money from any of your groups.</p>
       </div>
       <input
         type="password"
@@ -126,7 +155,7 @@ export function PayoutsPanel({
     if (!cancelId) return;
     try {
       await cancelPayout(cancelId);
-      toast.success('Payout cancelled');
+      toast.success('Withdrawal cancelled');
       setCancelId(null);
       await load();
     } catch (err: any) {
@@ -135,16 +164,21 @@ export function PayoutsPanel({
   }
 
   if (hasPin === false) {
-    return <SetPinForm onDone={() => setHasPin(true)} />;
+    return (
+      <div className="space-y-3">
+        <WithdrawIntro />
+        <SetPinForm onDone={() => setHasPin(true)} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
       <ConfirmDialog
         open={!!cancelId}
-        title="Cancel payout"
-        message="This will cancel the pending transfer. Are you sure?"
-        confirmLabel="Cancel payout"
+        title="Cancel withdrawal"
+        message="This withdrawal hasn't been sent yet. Cancel it?"
+        confirmLabel="Cancel withdrawal"
         variant="danger"
         onConfirm={handleCancel}
         onCancel={() => setCancelId(null)}
@@ -153,23 +187,19 @@ export function PayoutsPanel({
       {/* Balance card */}
       {balance && (
         <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-gray-500">Available balance</p>
-          <p className="font-display text-3xl font-extrabold text-ink tabular-nums mt-1">
+          <p className="text-xs font-semibold text-gray-500">Available to withdraw</p>
+          <p className="font-display text-[34px] leading-none font-extrabold text-ink tabular-nums mt-1.5">
             {formatCurrency(balance.available)}
           </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-1 mt-3 text-xs text-gray-500">
-            <span>Recorded in: <span className="font-bold text-ink">{formatCurrency(balance.totalIn)}</span></span>
-            <span>Out: <span className="font-bold text-ink">{formatCurrency(balance.totalOut)}</span></span>
-          </div>
+          <p className="mt-2 text-xs text-gray-500 tabular-nums">
+            {formatCurrency(balance.totalIn)} received, {formatCurrency(balance.totalOut)} sent out
+          </p>
           {balance.manualIn > 0 && (
             <p className="mt-2 text-xs text-gray-500">
               {formatCurrency(balance.manualIn)} of that was recorded by hand, so it isn’t included in what you can send.
             </p>
           )}
-          <button
-            onClick={() => setShowForm(true)}
-            className="mt-4 w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors"
-          >
+          <button onClick={() => setShowForm(true)} className={`${btnPrimary} mt-4 w-full`}>
             Send money
           </button>
         </div>
@@ -204,12 +234,13 @@ export function PayoutsPanel({
         />
       )}
 
-      {/* Payout history */}
+      {/* Withdrawal history, headed like the page's other sections */}
+      <h2 className="pt-3 text-base font-bold text-ink">Past withdrawals</h2>
       {payouts.length === 0 ? (
         <EmptyState
           icon="receipt"
-          title="No payouts yet"
-          description="When you send money from this group's account, payouts show up here."
+          title="No withdrawals yet"
+          description="When you send money out of this group's account, it shows up here."
         />
       ) : (
         payouts.map((p) => (
