@@ -793,12 +793,12 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   async giveTransfer(transferId: string, playerId: string, organizationId: string) {
     const transfer = await this.findTransfer(transferId, organizationId);
     if (transfer.status !== TransferStatus.UNMATCHED) {
-      throw new BadRequestException('Someone already matched or ignored this transfer.');
+      throw new BadRequestException('Someone else already sorted this payment.');
     }
     const member = await this.membershipsRepo.findOne({ where: { groupId: transfer.groupId, playerId } });
     if (!member) throw new NotFoundException("That player isn't in this group");
     if (!(await this.settleTransfer(transfer, playerId, TransferStatus.ASSIGNED))) {
-      throw new BadRequestException('Someone already matched or ignored this transfer.');
+      throw new BadRequestException('Someone else already sorted this payment.');
     }
     await this.closeClaimFor(transfer, playerId);
     return transfer;
@@ -1023,7 +1023,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   async assignTransfer(transferId: string, paymentId: string, organizationId: string) {
     const transfer = await this.findTransfer(transferId, organizationId);
     if (transfer.status !== TransferStatus.UNMATCHED) {
-      throw new BadRequestException('Someone already matched or ignored this transfer.');
+      throw new BadRequestException('Someone else already sorted this payment.');
     }
     const payment = await this.paymentsRepo
       .createQueryBuilder('payment')
