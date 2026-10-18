@@ -24,7 +24,7 @@ import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
 import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
-import { payerNameFrom } from './payer-name';
+import { whoSent } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { HttpPulseClient } from './pulse/http-pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
@@ -67,10 +67,8 @@ const PLATFORM_FEE = 350;
 /** Transfers an organiser records by hand get this id prefix; they never count as withdrawable. */
 const MANUAL_PREFIX = 'manual_';
 
-
 // Unambiguous characters for human-typed references (no 0/O, 1/I/L).
 const REF_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const REF_PATTERN = /\bPA[- ]?([A-HJ-NP-Z2-9]{5})\b/i;
 
 /**
  * The name we ask Pulse to put on a group's account (Pulse adds its prefix, e.g. "CAL/…").
@@ -853,31 +851,14 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
   /** Reference in the narration wins; otherwise a unique full-name match on the sender. */
   private async identifyPayer(groupId: string, t: IncomingTransfer): Promise<string | null> {
-    const memberships = await this.membershipsRepo.find({
-      where: { groupId },
-      relations: ['player'],
-    });
-
-    const refMatch = t.narration?.toUpperCase().match(REF_PATTERN);
-    if (refMatch) {
-      const ref = `PA${refMatch[1].toUpperCase()}`;
-      const m = memberships.find((x) => x.paymentRef === ref);
-      if (m) return m.playerId;
-    }
-
-    // Some banks leave the sender field empty and put "Transfer from NAME" in the narration.
-    const name = payerNameFrom(t.senderName, t.narration);
-    if (name) {
-      const words = new Set(normaliseName(name));
-      const candidates = memberships.filter((m) => {
-        const first = normaliseName(m.player.firstName);
-        const last = normaliseName(m.player.lastName);
-        return [...first, ...last].every((w) => words.has(w));
-      });
-      if (candidates.length === 1) return candidates[0].playerId;
-    }
-    return null;
+    const memberships = await this.membershipsRepo.find({ where: { groupId }, relations: ['player'] });
+    return whoSent(
+      memberships.map((m) => ({ playerId: m.playerId, paymentRef: m.paymentRef, firstName: m.player.firstName, lastName: m.player.lastName })),
+      t.senderName,
+      t.narration,
+    );
   }
+
 
   /**
    * Adds `amount` to the member's credit, then pays their oldest pending dues in this group
@@ -1473,15 +1454,6 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (!transfer) throw new NotFoundException('Transfer not found');
     return transfer;
   }
-}
-
-function normaliseName(name: string): string[] {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .split(/[^a-z]+/)
-    .filter((w) => w.length > 1);
 }
 
 /** The billing period containing `now`. Weeks start on Monday. */
