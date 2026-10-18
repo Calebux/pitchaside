@@ -7,19 +7,30 @@ import { Sheet } from '@/components/sheet';
 import { stagger } from '@/components/motion';
 import { SheetTitle } from '@/components/home/sheet-title';
 
+/**
+ * The sender's name as the bank gave it: the sender field, or, when some banks leave that
+ * empty, the name in a "Transfer from NAME" narration (the server matches on the same).
+ */
+export function senderFrom(t: Pick<BankTransfer, 'senderName' | 'narration'>) {
+  if (t.senderName?.trim()) return t.senderName;
+  const m = t.narration?.match(/\b(?:transfer|trf|trsf|tfr)\s+from\s+([a-z][a-z .']*?)(?=\s+(?:to|for|ref|via)\b|\s*[/|:,\-–]|\s*\d|$)/i);
+  const name = m?.[1].trim();
+  return name && name.split(/\s+/).length >= 2 ? name : null;
+}
+
 /** Who a transfer came from, as a short name: the matched player, else the bank's sender name. */
 export function transferName(t: BankTransfer) {
   const p = t.player ?? t.payment?.player;
   if (p) return `${p.firstName} ${p.lastName ? `${p.lastName.charAt(0)}.` : ''}`.trim();
-  const words = (t.senderName ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 2);
+  const words = (senderFrom(t) ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 2);
   return words.length ? words.map((w) => w[0].toUpperCase() + w.slice(1)).join(' ') : 'Unknown sender';
 }
 
 const STATUS: Record<BankTransfer['status'], { label: string; cls: string }> = {
-  matched: { label: 'Matched', cls: 'bg-pitch-50 text-pitch-700' },
-  assigned: { label: 'Matched', cls: 'bg-pitch-50 text-pitch-700' },
-  unmatched: { label: 'To match', cls: 'bg-sun-400/20 text-ink' },
-  ignored: { label: 'Ignored', cls: 'bg-gray-100 text-gray-600' },
+  matched: { label: 'Paid', cls: 'bg-pitch-50 text-pitch-700' },
+  assigned: { label: 'Paid', cls: 'bg-pitch-50 text-pitch-700' },
+  unmatched: { label: 'No name', cls: 'bg-sun-400/20 text-ink' },
+  ignored: { label: 'Set aside', cls: 'bg-gray-100 text-gray-600' },
 };
 
 const when = (iso: string) =>
@@ -108,11 +119,11 @@ export function TransfersSheet({
                     <dt className="text-gray-600">Paid for</dt>
                     <dd className="font-semibold text-ink">
                       {t.status === 'unmatched'
-                        ? 'Not matched to a player yet'
+                        ? 'No player yet'
                         : t.status === 'ignored'
                           ? 'Marked as not for the group'
                           : p
-                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · held as credit')
+                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · kept for next game')
                             : '—'}
                     </dd>
                     {t.status === 'unmatched' && (
@@ -121,7 +132,7 @@ export function TransfersSheet({
                           href={`${historyHref}&transfer=${t.id}`}
                           className="press flex items-center justify-center h-11 rounded-xl bg-ink text-volt-300 text-sm font-bold"
                         >
-                          Match to a player
+                          Choose the player
                         </Link>
                       </dd>
                     )}

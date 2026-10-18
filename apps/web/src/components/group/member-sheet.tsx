@@ -20,6 +20,7 @@ export function MemberSheet({
   player,
   joinedAt,
   credit,
+  paymentCode,
   due,
   onSaved,
   onRemove,
@@ -28,6 +29,8 @@ export function MemberSheet({
   player: IPlayer;
   joinedAt: string;
   credit: number;
+  /** Their code for transfer descriptions; null until they've opened their payment details. */
+  paymentCode?: string | null;
   due: MemberDue;
   onSaved: (p: Pick<IPlayer, 'id' | 'firstName' | 'lastName' | 'nickname'>) => void;
   onRemove: () => void;
@@ -56,6 +59,12 @@ export function MemberSheet({
     }
   }
 
+  const copyCode = (code: string) =>
+    navigator.clipboard.writeText(code).then(
+      () => toast.success('Payment code copied'),
+      () => toast.error('Could not copy. Press and hold the code to copy it instead.'),
+    );
+
   const input =
     'w-full h-11 px-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
   const facts = [
@@ -65,7 +74,11 @@ export function MemberSheet({
       v: due.state === 'paid' ? 'Paid' : due.state === 'waived' ? 'Waived' : due.state === 'owes' ? `${formatCurrency(due.amount)} to pay` : 'Not in',
       tone: due.state === 'owes' ? 'text-amber-700' : due.state === 'paid' ? 'text-pitch-600' : 'text-gray-600',
     },
-    credit > 0 && { k: 'Credit', v: formatCurrency(credit), note: 'Pays their next due by itself once it covers a whole one' },
+    credit > 0 && {
+      k: 'Kept for next game',
+      v: formatCurrency(credit),
+      note: 'Not used yet. Goes towards their next game.',
+    },
   ].filter(Boolean) as { k: string; v: string; tone?: string; note?: string }[];
 
   return (
@@ -89,7 +102,28 @@ export function MemberSheet({
             <dd className={`text-[13px] font-bold tabular-nums ${f.tone ?? 'text-ink'}`}>{f.v}</dd>
           </div>
         ))}
+        {paymentCode && (
+          <div className="flex items-center justify-between gap-3 pl-3.5 pr-1.5 py-1.5">
+            <dt className="min-w-0 py-1 text-[13px] text-gray-600">
+              Payment code
+              <span className="block text-[11px] leading-snug text-gray-500">If {player.firstName} adds it to a transfer, it matches automatically</span>
+            </dt>
+            <dd>
+              <button
+                onClick={() => copyCode(paymentCode)}
+                aria-label={`Copy payment code ${paymentCode}`}
+                className="press shrink-0 flex items-center gap-1.5 h-10 pl-3 pr-2.5 rounded-xl hover:bg-white transition-colors"
+              >
+                <span className="font-display text-[15px] font-extrabold tracking-wide text-ink">{paymentCode}</span>
+                <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-9.376a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25" />
+                </svg>
+              </button>
+            </dd>
+          </div>
+        )}
       </dl>
+
 
       <h3 className="mt-5 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-600">Name on the app</h3>
       <div className="mt-2 grid grid-cols-2 gap-2">
