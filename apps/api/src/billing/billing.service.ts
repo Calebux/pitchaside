@@ -10,7 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, MoreThanOrEqual, Repository } from 'typeorm';
+import { EntityManager, In, MoreThanOrEqual, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Group, PaymentType } from '../groups/entities/group.entity';
 import { GroupMembership, MemberRole } from '../groups/entities/group-membership.entity';
@@ -690,17 +690,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     const playerId = await this.identifyPayer(group.id, incoming);
     if (playerId) {
       // Known sender: it's theirs even if it's less than a due — it goes to their credit.
-      const { settled } = await this.applyCredit(group.id, playerId, incoming.amount);
-      transfer.status = TransferStatus.MATCHED;
-      transfer.playerId = playerId;
-      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
-      // Prepend the player's PA reference so admins always see it in the narration.
-      const ref = await this.getPlayerRef(group.id, playerId);
-      if (ref && !transfer.narration?.includes(ref)) {
-        transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
-      }
-      await this.transfersRepo.save(transfer);
-      await this.closeClaimFor(transfer, playerId);
+      await this.settleTransfer(transfer, playerId, TransferStatus.MATCHED);
     } else {
       await this.pairWithClaim(transfer);
     }
@@ -711,24 +701,51 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   // ── "Yes, I've paid": pairing transfers with players' confirmations ──
 
   /**
-   * Gives an unmatched transfer to a player and credits them. The status flips first, in
-   * one conditional update, so a transfer can't be given away twice by callers racing.
+   * Gives an unmatched transfer to a player, all or nothing, in one transaction: the status flips
+   * (only while it's still unmatched, so callers racing can't give it twice), `pay` is paid first
+   * when the organiser picked that due and the money covers it, the rest goes through their credit
+   * to their oldest dues, the transfer records what it paid, and their "I've paid" for it closes
+   * (`claimId`, or the one that fits). Receipts and session totals follow once it's committed.
    */
-  private async settleTransfer(transfer: BankTransfer, playerId: string, status: TransferStatus): Promise<boolean> {
-    const { affected } = await this.transfersRepo.update(
-      { id: transfer.id, status: TransferStatus.UNMATCHED },
-      { status, playerId },
-    );
-    if (!affected) return false;
-    const { settled } = await this.applyCredit(transfer.groupId, playerId, Number(transfer.amount));
-    transfer.status = status;
-    transfer.playerId = playerId;
-    transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
-    const ref = await this.getPlayerRef(transfer.groupId, playerId);
-    if (ref && !transfer.narration?.includes(ref)) {
-      transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
-    }
-    await this.transfersRepo.save(transfer);
+  private async settleTransfer(
+    transfer: BankTransfer,
+    playerId: string,
+    status: TransferStatus,
+    opts: { claimId?: string; pay?: Payment } = {},
+  ): Promise<boolean> {
+    const paid = await this.transfersRepo.manager.transaction(async (tx) => {
+      const { affected } = await tx.update(BankTransfer, { id: transfer.id, status: TransferStatus.UNMATCHED }, { status, playerId });
+      if (!affected) return null;
+      let amount = Number(transfer.amount);
+      const settled: Payment[] = [];
+      if (opts.pay && amount + 0.001 >= Number(opts.pay.amount)) {
+        const now = new Date();
+        const done = await tx.update(
+          Payment,
+          { id: opts.pay.id, status: PaymentStatus.PENDING },
+          { status: PaymentStatus.PAID, paidAt: now, source: 'transfer', markedBy: 'pulse' },
+        );
+        if (done.affected) {
+          settled.push(Object.assign(opts.pay, { status: PaymentStatus.PAID, paidAt: now, source: 'transfer', markedBy: 'pulse' }));
+          amount -= Number(opts.pay.amount);
+        }
+      }
+      settled.push(...(await this.creditIn(tx, transfer.groupId, playerId, amount)).settled);
+
+      transfer.status = status;
+      transfer.playerId = playerId;
+      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+      // Prepend the player's PA reference so admins always see it in the narration.
+      const ref = (await tx.findOne(GroupMembership, { where: { groupId: transfer.groupId, playerId } }))?.paymentRef;
+      if (ref && !transfer.narration?.includes(ref)) {
+        transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
+      }
+      await tx.save(transfer);
+      await this.closeClaimIn(tx, transfer, playerId, opts.claimId);
+      return settled;
+    });
+    if (!paid) return false;
+    await this.afterPaid(paid);
     return true;
   }
 
@@ -746,20 +763,23 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   private async pairWithClaim(transfer: BankTransfer) {
     const [claims, unmatched] = await this.openAround(transfer.groupId, transfer.receivedAt);
     const claim = claimForTransfer(transfer, claims, unmatched);
-    if (claim && (await this.settleTransfer(transfer, claim.playerId, TransferStatus.MATCHED))) {
-      await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
-    }
+    if (claim) await this.settleTransfer(transfer, claim.playerId, TransferStatus.MATCHED, { claimId: claim.id });
   }
 
   /**
-   * A transfer was matched to a player by their reference, their name or the organiser's pick:
-   * their own "I've paid" for it is answered, so it stops showing as a suggestion elsewhere.
+   * A transfer went to a player (their reference, their name, their account, or the organiser's
+   * pick): their "I've paid" for it is answered, so it stops showing as a suggestion elsewhere.
+   * `claimId` when a particular one was paired; otherwise their earliest that fits.
    */
-  private async closeClaimFor(transfer: BankTransfer, playerId: string) {
-    const pending = await this.claimsRepo.find({ where: { groupId: transfer.groupId, playerId, status: ClaimStatus.PENDING } });
-    const claim = claimSettledBy(transfer, playerId, pending);
-    if (claim) await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
+  private async closeClaimIn(tx: EntityManager, transfer: BankTransfer, playerId: string, claimId?: string) {
+    let id = claimId;
+    if (!id) {
+      const pending = await tx.find(PaymentClaim, { where: { groupId: transfer.groupId, playerId, status: ClaimStatus.PENDING } });
+      id = claimSettledBy(transfer, playerId, pending)?.id;
+    }
+    if (id) await tx.update(PaymentClaim, { id, status: ClaimStatus.PENDING }, { status: ClaimStatus.MATCHED, transferId: transfer.id });
   }
+
 
   /**
    * A player tapped "Yes, I've paid". Pairs it with their transfer if that's already in and
@@ -779,8 +799,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
     const [claims, unmatched] = await this.openAround(groupId, claim.createdAt);
     const transfer = transferForClaim(claim, unmatched, claims);
-    if (transfer && (await this.settleTransfer(transfer, playerId, TransferStatus.MATCHED))) {
-      await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
+    if (transfer && (await this.settleTransfer(transfer, playerId, TransferStatus.MATCHED, { claimId: claim.id }))) {
       return { status: 'matched' };
     }
     return { status: 'waiting' };
@@ -801,7 +820,6 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (!(await this.settleTransfer(transfer, playerId, TransferStatus.ASSIGNED))) {
       throw new BadRequestException('Someone else already sorted this payment.');
     }
-    await this.closeClaimFor(transfer, playerId);
     return transfer;
   }
 
@@ -838,18 +856,13 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       where: { id: claimId, groupId: transfer.groupId, status: ClaimStatus.PENDING },
     });
     if (!claim) throw new NotFoundException('That confirmation has already been used');
-    if (!(await this.settleTransfer(transfer, claim.playerId, TransferStatus.ASSIGNED))) {
-      throw new BadRequestException('This transfer has already been handled');
+    if (!(await this.settleTransfer(transfer, claim.playerId, TransferStatus.ASSIGNED, { claimId: claim.id }))) {
+      throw new BadRequestException('Someone else already sorted this payment.');
     }
-    await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
     return { status: transfer.status };
   }
 
-  /** Look up a player's PA reference for a given group membership. */
-  private async getPlayerRef(groupId: string, playerId: string): Promise<string | null> {
-    const m = await this.membershipsRepo.findOne({ where: { groupId, playerId } });
-    return m?.paymentRef ?? null;
-  }
+
 
   /** Reference in the narration wins; otherwise a unique full-name match on the sender. */
   private async identifyPayer(groupId: string, t: IncomingTransfer): Promise<string | null> {
@@ -887,46 +900,48 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
    * spend the same credit twice.
    */
   async applyCredit(groupId: string, playerId: string, amount = 0): Promise<{ settled: Payment[]; credit: number }> {
-    const result = await this.membershipsRepo.manager.transaction(async (tx) => {
-      const membership = await tx.findOne(GroupMembership, {
-        where: { groupId, playerId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!membership) return { settled: [] as Payment[], credit: 0 };
-
-      let pool = Number(membership.credit) + amount;
-      const pending = await tx
-        .getRepository(Payment)
-        .createQueryBuilder('payment')
-        .innerJoin('payment.session', 'session')
-        .where('session.groupId = :groupId', { groupId })
-        .andWhere('payment.playerId = :playerId', { playerId })
-        .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
-        .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
-        .orderBy('session.date', 'ASC')
-        .getMany();
-
-      const settled: Payment[] = [];
-      for (const p of pending) {
-        if (pool + 0.001 < Number(p.amount)) break;
-        pool -= Number(p.amount);
-        settled.push(p);
-      }
-      const now = new Date();
-      for (const p of settled) {
-        p.status = PaymentStatus.PAID;
-        p.paidAt = now;
-        p.source = 'transfer';
-        p.markedBy = 'pulse';
-      }
-      if (settled.length) await tx.save(settled);
-      membership.credit = pool.toFixed(2);
-      await tx.save(membership);
-      return { settled, credit: Number(membership.credit) };
-    });
-
+    const result = await this.membershipsRepo.manager.transaction((tx) => this.creditIn(tx, groupId, playerId, amount));
     await this.afterPaid(result.settled);
     return result;
+  }
+
+  /** applyCredit's work inside a caller's transaction; the caller runs afterPaid once it commits. */
+  private async creditIn(tx: EntityManager, groupId: string, playerId: string, amount: number): Promise<{ settled: Payment[]; credit: number }> {
+    const membership = await tx.findOne(GroupMembership, {
+      where: { groupId, playerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!membership) return { settled: [] as Payment[], credit: 0 };
+
+    let pool = Number(membership.credit) + amount;
+    const pending = await tx
+      .getRepository(Payment)
+      .createQueryBuilder('payment')
+      .innerJoin('payment.session', 'session')
+      .where('session.groupId = :groupId', { groupId })
+      .andWhere('payment.playerId = :playerId', { playerId })
+      .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
+      .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
+      .orderBy('session.date', 'ASC')
+      .getMany();
+
+    const settled: Payment[] = [];
+    for (const p of pending) {
+      if (pool + 0.001 < Number(p.amount)) break;
+      pool -= Number(p.amount);
+      settled.push(p);
+    }
+    const now = new Date();
+    for (const p of settled) {
+      p.status = PaymentStatus.PAID;
+      p.paidAt = now;
+      p.source = 'transfer';
+      p.markedBy = 'pulse';
+    }
+    if (settled.length) await tx.save(settled);
+    membership.credit = pool.toFixed(2);
+    await tx.save(membership);
+    return { settled, credit: Number(membership.credit) };
   }
 
   /**
@@ -981,19 +996,6 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     for (const m of withCredit) await this.applyCredit(m.groupId, m.playerId);
   }
 
-  private async markPaidFromTransfer(payments: Payment[]) {
-    if (!payments.length) return;
-    const now = new Date();
-    for (const p of payments) {
-      p.status = PaymentStatus.PAID;
-      p.paidAt = now;
-      p.source = 'transfer';
-      p.markedBy = 'pulse';
-    }
-    await this.paymentsRepo.save(payments);
-    await this.afterPaid(payments);
-  }
-
   /** Session totals and receipts for dues just paid from a transfer. */
   private async afterPaid(payments: Payment[]) {
     if (!payments.length) return;
@@ -1005,12 +1007,14 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
   async listTransfers(groupId: string, organizationId: string) {
     await this.findGroup(groupId, organizationId);
-    const transfers = await this.transfersRepo.find({
-      where: { groupId },
-      relations: ['payment', 'payment.player', 'payment.session', 'player'],
-      order: { receivedAt: 'DESC' },
-      take: 200,
-    });
+    const relations = ['payment', 'payment.player', 'payment.session', 'player'];
+    const latest = await this.transfersRepo.find({ where: { groupId }, relations, order: { receivedAt: 'DESC' }, take: 200 });
+    // Every payment still waiting for a name, however old: those are the ones the organiser has to act on.
+    const shown = new Set(latest.map((t) => t.id));
+    const olderWaiting = (
+      await this.transfersRepo.find({ where: { groupId, status: TransferStatus.UNMATCHED }, relations, order: { receivedAt: 'DESC' } })
+    ).filter((t) => !shown.has(t.id));
+    const transfers = [...latest, ...olderWaiting];
     if (!transfers.some((t) => t.status === TransferStatus.UNMATCHED)) return transfers;
 
     // Players who said "I've paid" around the time of an unmatched transfer, for the organiser to pick from.
@@ -1052,29 +1056,22 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (payment.status !== PaymentStatus.PENDING) {
       throw new BadRequestException('That payment is not pending');
     }
-    const amount = Number(transfer.amount);
-    transfer.status = TransferStatus.ASSIGNED;
-    transfer.playerId = payment.playerId;
-    if (amount + 0.001 >= Number(payment.amount)) {
-      // Covers the chosen due; anything over goes to the player's credit.
-      await this.markPaidFromTransfer([payment]);
-      transfer.paymentId = payment.id;
-      const extra = amount - Number(payment.amount);
-      if (extra > 0.001) await this.applyCredit(transfer.groupId, payment.playerId, extra);
-    } else {
-      // Less than the due: it's credit toward it, not a full payment.
-      const { settled } = await this.applyCredit(transfer.groupId, payment.playerId, amount);
-      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
+    // The picked due first when the money covers it; anything over (or a shortfall) goes through their credit.
+    if (!(await this.settleTransfer(transfer, payment.playerId, TransferStatus.ASSIGNED, { pay: payment }))) {
+      throw new BadRequestException('Someone else already sorted this payment.');
     }
-    const saved = await this.transfersRepo.save(transfer);
-    await this.closeClaimFor(saved, payment.playerId);
-    return saved;
+    return transfer;
   }
 
   async ignoreTransfer(transferId: string, organizationId: string) {
     const transfer = await this.findTransfer(transferId, organizationId);
+    const { affected } = await this.transfersRepo.update(
+      { id: transfer.id, status: TransferStatus.UNMATCHED },
+      { status: TransferStatus.IGNORED },
+    );
+    if (!affected) throw new BadRequestException('Someone else already sorted this payment.');
     transfer.status = TransferStatus.IGNORED;
-    return this.transfersRepo.save(transfer);
+    return transfer;
   }
 
   /** Admin manually records an incoming transfer that the webhook missed. */
@@ -1111,18 +1108,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
     await this.ensureCurrentPeriod(group);
     const playerId = await this.identifyPayer(group.id, incoming);
-    if (playerId) {
-      const { settled } = await this.applyCredit(group.id, playerId, incoming.amount);
-      transfer.status = TransferStatus.MATCHED;
-      transfer.playerId = playerId;
-      transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
-      const ref = await this.getPlayerRef(group.id, playerId);
-      if (ref && !transfer.narration?.includes(ref)) {
-        transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
-      }
-      await this.transfersRepo.save(transfer);
-      await this.closeClaimFor(transfer, playerId);
-    }
+    if (playerId) await this.settleTransfer(transfer, playerId, TransferStatus.MATCHED);
     return transfer;
   }
 
