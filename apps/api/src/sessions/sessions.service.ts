@@ -47,7 +47,6 @@ export class SessionsService {
     );
 
     let firstSession: Session | null = null;
-    let lastSession: Session | null = null;
 
     for (const date of dates) {
       const session = this.sessionsRepo.create({
@@ -66,8 +65,6 @@ export class SessionsService {
         await this.paymentsRepo.save(payments);
         await this.billing.applyCredits(dto.groupId, memberships.map((m) => m.playerId));
       }
-
-      lastSession = saved;
     }
 
     if (group.requireRsvp) {
@@ -91,8 +88,8 @@ export class SessionsService {
       );
     }
 
-    // Return the first session (or the only one)
-    return this.findOne(dates.length > 1 ? lastSession!.id : lastSession!.id, organizationId);
+    // Open the first game of a series: it's the one players hear about and pay for first.
+    return this.findOne(firstSession!.id, organizationId);
   }
 
   private generateDates(startDate: string, recurrenceType: RecurrenceType, count: number): string[] {
