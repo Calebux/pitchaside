@@ -314,3 +314,21 @@
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.55), transparent);
   pointer-events: none;
 }
+
+/* A bell giving a little ring: something new is waiting. */
+@keyframes ring {
+  0%, 30%, 100% { transform: rotate(0); }
+  5% { transform: rotate(14deg); }
+  10% { transform: rotate(-12deg); }
+  15% { transform: rotate(8deg); }
+  20% { transform: rotate(-6deg); }
+  25% { transform: rotate(3deg); }
+}
+
+/* A sheet sliding back down off the screen, and its backdrop fading. */
+@keyframes sheet-out {
+  to { transform: translateY(100%); }
+}
+@keyframes fade-out {
+  to { opacity: 0; }
+}
