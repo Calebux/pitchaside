@@ -22,7 +22,6 @@ import {
   AccountDetailsSheet,
   MoneyCard,
   NeedsYou,
-  PlusIcon,
   daysFromToday,
   featuredGame,
   gameDay,
@@ -30,6 +29,9 @@ import {
   useGroupMoney,
   type NeedsItem,
 } from '@/components/money-card';
+import { InviteSheet } from '@/components/home/invite-sheet';
+import { QuickActions, InviteIcon, CalendarPlusIcon, ICON_PATHS, icon, type QuickAction } from '@/components/home/quick-actions';
+import { MoreActionsSheet, type MoreAction } from '@/components/home/more-actions-sheet';
 
 const onboardingSteps = [
   {
@@ -76,7 +78,9 @@ export default function Dashboard() {
   const [failed, setFailed] = useState(false);
   const [showNewGame, setShowNewGame] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [showAllComing, setShowAllComing] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   // Several groups: the one picked in the switcher; until then, the one playing soonest.
   const [picked, setPicked] = useState<string | null>(null);
   const [voting, setVoting] = useState<{ sessionId: string; data: SessionVoting } | null>(null);
@@ -310,6 +314,54 @@ export default function Dashboard() {
     .sort((a, b) => gameDay(a.date).getTime() - gameDay(b.date).getTime())
     .slice(0, 4);
 
+  // The weekly jobs: bring people in, add someone by hand, take cash at the pitch. The rest is in More.
+  const cashHref = liveGame ? `/sessions/${liveGame.id}?tab=payments` : '/sessions';
+  const gid = group?.id;
+  const quick: QuickAction[] = [
+    money.billing?.link ? { key: 'invite', label: 'Invite', icon: <InviteIcon />, onClick: () => setShowInvite(true) } : null,
+    canManage ? { key: 'add', label: 'Add player', icon: icon(ICON_PATHS.addPlayer), onClick: () => router.push('/players/new') } : null,
+    canManage ? { key: 'cash', label: 'Record cash', icon: icon(ICON_PATHS.cash), onClick: () => router.push(cashHref) } : null,
+    gid && canManage && money.billing?.account
+      ? { key: 'withdraw', label: 'Withdraw', icon: icon(ICON_PATHS.withdraw), onClick: () => router.push(`/groups/${gid}?tab=payouts`) }
+      : null,
+  ].filter(Boolean) as QuickAction[];
+  // Everything else, named by where it goes. Nothing here that's already on the home screen.
+  const moreSections = [
+    {
+      title: 'Money',
+      actions: [
+        gid ? { key: 'history', label: 'Transfer history', icon: icon(ICON_PATHS.history), href: `/groups/${gid}?tab=transfers` } : null,
+        liveGame
+          ? {
+              key: 'payments',
+              label: `Payments · ${gameDay(liveGame.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`,
+              icon: icon(ICON_PATHS.cash),
+              href: `/sessions/${liveGame.id}?tab=payments`,
+            }
+          : null,
+      ].filter(Boolean) as MoreAction[],
+    },
+    {
+      title: 'Games',
+      actions: [
+        canManage ? { key: 'new-game', label: 'Schedule a game', icon: <CalendarPlusIcon />, onClick: () => setShowNewGame(true) } : null,
+        { key: 'games', label: 'All games', icon: icon(ICON_PATHS.calendar), href: '/sessions' },
+        canManage ? { key: 'cup', label: 'Create a Cup', icon: icon(ICON_PATHS.trophy), href: '/competitions/new' } : null,
+      ].filter(Boolean) as MoreAction[],
+    },
+    {
+      title: 'Players',
+      actions: [{ key: 'players', label: 'Manage players', icon: icon(ICON_PATHS.players), href: '/players' }],
+    },
+    {
+      title: 'Group',
+      actions: [
+        gid ? { key: 'group', label: 'Group settings', icon: icon(ICON_PATHS.cog), href: `/groups/${gid}` } : null,
+        canManage ? { key: 'new-group', label: 'Create a group', icon: icon(ICON_PATHS.plus), href: '/groups/new' } : null,
+      ].filter(Boolean) as MoreAction[],
+    },
+  ];
+
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       {/* Header */}
@@ -323,6 +375,17 @@ export default function Dashboard() {
           </h1>
         </div>
       </div>
+      {showMore && <MoreActionsSheet sections={moreSections} onClose={() => setShowMore(false)} />}
+      {showInvite && group && money.billing && (
+        <InviteSheet
+          group={group}
+          billing={money.billing}
+          canManage={canManage}
+          onBilling={money.setBilling}
+          onClose={() => setShowInvite(false)}
+        />
+      )}
+
       {showNewGame && (
         <NewSessionSheet
           groups={group ? [group, ...groups.filter((g) => g.id !== group.id)] : groups}
@@ -365,6 +428,8 @@ export default function Dashboard() {
           }
         />
       )}
+
+      <QuickActions actions={quick} onMore={() => setShowMore(true)} />
 
       {/* Only what the card above doesn't already show */}
       <NeedsYou items={needs.filter((n) => !['unmatched', 'owing'].includes(n.key))} />
@@ -422,16 +487,6 @@ export default function Dashboard() {
             })}
           </div>
         </section>
-      )}
-
-      {canManage && (
-        <button
-          onClick={() => setShowNewGame(true)}
-          className="press mt-4 w-full h-12 inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-gray-300 text-sm font-bold text-ink hover:border-ink hover:bg-white transition-colors"
-        >
-          <PlusIcon />
-          Schedule a game
-        </button>
       )}
     </div>
   );
