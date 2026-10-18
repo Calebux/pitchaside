@@ -786,6 +786,48 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return { status: 'waiting' };
   }
 
+  /**
+   * The organiser gives an unmatched transfer to a member, whether or not they owe anything.
+   * Same rule as everywhere else: it pays their oldest unpaid games while it covers a whole one,
+   * and the rest is kept for their next game (credit).
+   */
+  async giveTransfer(transferId: string, playerId: string, organizationId: string) {
+    const transfer = await this.findTransfer(transferId, organizationId);
+    if (transfer.status !== TransferStatus.UNMATCHED) {
+      throw new BadRequestException('This transfer has already been handled');
+    }
+    const member = await this.membershipsRepo.findOne({ where: { groupId: transfer.groupId, playerId } });
+    if (!member) throw new NotFoundException("That player isn't in this group");
+    if (!(await this.settleTransfer(transfer, playerId, TransferStatus.ASSIGNED))) {
+      throw new BadRequestException('This transfer has already been handled');
+    }
+    await this.closeClaimFor(transfer, playerId);
+    return transfer;
+  }
+
+  /** What every member still owes in a group, oldest game first (cancelled games and ₦0 entries left out). */
+  async listOwed(groupId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    const owed = await this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoinAndSelect('payment.session', 'session')
+      .where('session.groupId = :groupId', { groupId })
+      .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
+      .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
+      .andWhere('payment.amount > 0')
+      .orderBy('session.date', 'ASC')
+      .getMany();
+    return owed.map((p) => ({
+      paymentId: p.id,
+      playerId: p.playerId,
+      amount: Number(p.amount),
+      sessionId: p.sessionId,
+      date: p.session.date,
+      label: p.session.label ?? null,
+      kind: p.session.kind,
+    }));
+  }
+
   /** The organiser picks which player's "I've paid" an unmatched transfer belongs to. */
   async acceptClaim(transferId: string, claimId: string, organizationId: string) {
     const transfer = await this.findTransfer(transferId, organizationId);

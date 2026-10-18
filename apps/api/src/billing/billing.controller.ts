@@ -19,6 +19,7 @@ import { Request } from 'express';
 import { BillingService } from './billing.service';
 import {
   AssignTransferDto,
+  GiveTransferDto,
   ChangeTransferPinDto,
   InitiatePayoutDto,
   NameEnquiryDto,
@@ -97,6 +98,23 @@ export class BillingController {
   @Post('transfers/:id/assign')
   assign(@Param('id') id: string, @Body() dto: AssignTransferDto, @CurrentUser() user: User) {
     return this.billing.assignTransfer(id, dto.paymentId, user.organizationId);
+  }
+
+  /**
+   * Give an unmatched transfer to any member of the group: it pays their oldest unpaid games,
+   * and anything left is kept for their next game (their credit). Works when they owe nothing.
+   */
+  @AllowTreasurer()
+  @Post('transfers/:id/give')
+  give(@Param('id') id: string, @Body() dto: GiveTransferDto, @CurrentUser() user: User) {
+    return this.billing.giveTransfer(id, dto.playerId, user.organizationId);
+  }
+
+  /** Everything still owed in a group, oldest game first, so the organiser can see who owes what. */
+  @AllowTreasurer()
+  @Get('groups/:id/owed')
+  owed(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.listOwed(id, user.organizationId);
   }
 
   /** Give an unmatched transfer to the player whose "I've paid" it matches. */

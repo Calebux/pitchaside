@@ -13,9 +13,12 @@ function setup(dues: number[], credit = 0) {
   const pending = () => payments.filter((p) => p.status === PaymentStatus.PENDING);
   const qb: any = { innerJoin: () => qb, where: () => qb, andWhere: () => qb, orderBy: () => qb, getMany: async () => pending(), getOne: async () => payments[0] };
   const tx = { findOne: async () => membership, getRepository: () => ({ createQueryBuilder: () => qb }), save: async (x: unknown) => x };
-  const membershipsRepo = { manager: { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) } };
+  const membershipsRepo = {
+    manager: { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) },
+    findOne: async ({ where }: any) => (where.playerId === 'p1' ? membership : null),
+  };
   const paymentsRepo = { createQueryBuilder: () => qb, save: async (x: unknown) => x };
-  const transfersRepo = { save: async (x: unknown) => x, findOne: async () => null };
+  const transfersRepo = { save: async (x: unknown) => x, findOne: async () => null, update: async () => ({ affected: 1 }) };
   const paymentsService = { recalculateSessionTotal: jest.fn(), sendReceipts: jest.fn() };
   const notifications = { later: jest.fn() };
   const claims: any[] = [];
@@ -78,5 +81,33 @@ describe('partial payments', () => {
     await service.assignTransfer('t1', 'pay0', 'org1');
 
     expect(claimsRepo.update).toHaveBeenCalledWith('c1', { status: 'matched', transferId: 't1' });
+  });
+
+  it('gives a transfer to a member who owes nothing: it is all kept for their next game', async () => {
+    const { service, membership } = setup([]);
+    const transfer: any = { id: 't1', groupId: 'g1', amount: '1525.00', status: TransferStatus.UNMATCHED, receivedAt: new Date() };
+    jest.spyOn(service as any, 'findTransfer').mockResolvedValue(transfer);
+
+    const saved: any = await service.giveTransfer('t1', 'p1', 'org1');
+
+    expect(saved).toMatchObject({ status: TransferStatus.ASSIGNED, playerId: 'p1' });
+    expect(membership.credit).toBe('1525.00');
+  });
+
+  it('gives a transfer to a member who owes: it pays their oldest game and keeps the rest', async () => {
+    const { service, membership, payments } = setup([1500, 1500]);
+    const transfer: any = { id: 't1', groupId: 'g1', amount: '1525.00', status: TransferStatus.UNMATCHED, receivedAt: new Date() };
+    jest.spyOn(service as any, 'findTransfer').mockResolvedValue(transfer);
+
+    await service.giveTransfer('t1', 'p1', 'org1');
+
+    expect(payments.map((p) => p.status)).toEqual([PaymentStatus.PAID, PaymentStatus.PENDING]);
+    expect(membership.credit).toBe('25.00');
+  });
+
+  it("won't give a transfer to someone outside the group", async () => {
+    const { service } = setup([]);
+    jest.spyOn(service as any, 'findTransfer').mockResolvedValue({ id: 't1', groupId: 'g1', amount: '1500.00', status: TransferStatus.UNMATCHED });
+    await expect(service.giveTransfer('t1', 'stranger', 'org1')).rejects.toThrow("That player isn't in this group");
   });
 });

@@ -5,6 +5,11 @@ export class AssignTransferDto {
   paymentId: string;
 }
 
+export class GiveTransferDto {
+  @IsUUID()
+  playerId: string;
+}
+
 export class SimulateTransferDto {
   @IsNumber()
   @Min(1)
