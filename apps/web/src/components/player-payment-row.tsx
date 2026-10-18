@@ -75,7 +75,7 @@ export function PlayerPaymentRow({
             : 'border-transparent bg-white/60'
       }`}
     >
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex-1 flex items-center gap-2.5 min-w-0">
         {onToggle !== undefined && canAct && (
           <input
             type="checkbox"
@@ -88,7 +88,7 @@ export function PlayerPaymentRow({
           {playerName.charAt(0)}
         </div>
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-ink leading-snug truncate">{playerName}</p>
+          <p className="text-sm font-semibold text-ink leading-snug">{playerName}</p>
           <p className="text-xs text-gray-500 tabular-nums">
             {formatCurrency(amount)}
             {viaTransfer && status === PaymentStatus.PAID && (
@@ -97,7 +97,7 @@ export function PlayerPaymentRow({
           </p>
         </div>
       </div>
-      <div className="flex items-center gap-2 shrink-0 ml-3">
+      <div className="flex items-center gap-2 shrink-0 ml-2">
         {loading ? (
           <span className="flex items-center gap-1.5 text-xs font-medium text-pitch-600">
             <BallSpinner className="w-4 h-4" />
