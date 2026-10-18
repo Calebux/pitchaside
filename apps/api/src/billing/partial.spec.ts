@@ -18,13 +18,15 @@ function setup(dues: number[], credit = 0) {
   const transfersRepo = { save: async (x: unknown) => x, findOne: async () => null };
   const paymentsService = { recalculateSessionTotal: jest.fn(), sendReceipts: jest.fn() };
   const notifications = { later: jest.fn() };
+  const claims: any[] = [];
+  const claimsRepo = { find: async () => claims.filter((c) => c.status === 'pending'), update: jest.fn(async (id: string, patch: any) => Object.assign(claims.find((c) => c.id === id), patch)), claims };
 
   const service = new BillingService(
     {} as any, membershipsRepo as any, {} as any, paymentsRepo as any, {} as any, transfersRepo as any, {} as any,
     {} as any, {} as any,
-    new MockPulseClient('secret'), paymentsService as any, notifications as any, {} as any, {} as any, {} as any,
+    new MockPulseClient('secret'), paymentsService as any, notifications as any, {} as any, {} as any, claimsRepo as any,
   );
-  return { service, membership, payments };
+  return { service, membership, payments, claimsRepo };
 }
 
 describe('partial payments', () => {
@@ -65,5 +67,16 @@ describe('partial payments', () => {
     expect(payments[0].status).toBe(PaymentStatus.PENDING);
     expect(membership.credit).toBe('198.00');
     expect(saved).toMatchObject({ status: TransferStatus.ASSIGNED, playerId: 'p1' });
+  });
+
+  it("matching a transfer to a player by hand closes that player's \"I've paid\" for it", async () => {
+    const { service, claimsRepo } = setup([1500]);
+    claimsRepo.claims.push({ id: 'c1', groupId: 'g1', playerId: 'p1', amount: '1500.00', status: 'pending', createdAt: new Date() });
+    const transfer: any = { id: 't1', groupId: 'g1', amount: '1525.00', status: TransferStatus.UNMATCHED, receivedAt: new Date() };
+    jest.spyOn(service as any, 'findTransfer').mockResolvedValue(transfer);
+
+    await service.assignTransfer('t1', 'pay0', 'org1');
+
+    expect(claimsRepo.update).toHaveBeenCalledWith('c1', { status: 'matched', transferId: 't1' });
   });
 });

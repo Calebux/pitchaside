@@ -53,3 +53,13 @@ export function claimForTransfer<C extends ClaimLike>(transfer: TransferLike, pe
   const competing = otherUnmatched.filter((t) => t.id !== transfer.id && couldPair(claim, t));
   return competing.length ? null : claim;
 }
+
+/**
+ * The player's own pending claim that a transfer just matched to them (by reference, name or
+ * the organiser's pick) answers, so it stops showing as a suggestion on other transfers.
+ * Their earliest claim that fits; none if nothing fits.
+ */
+export function claimSettledBy<C extends ClaimLike>(transfer: TransferLike, playerId: string, pendingClaims: C[]): C | null {
+  const fits = pendingClaims.filter((c) => c.playerId === playerId && couldPair(c, transfer));
+  return fits.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0] ?? null;
+}

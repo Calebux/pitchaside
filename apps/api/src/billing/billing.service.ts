@@ -23,7 +23,8 @@ import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
-import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, couldPair, transferForClaim } from './claims';
+import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
+import { payerNameFrom } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { HttpPulseClient } from './pulse/http-pulse.client';
 import { MockPulseClient } from './pulse/mock-pulse.client';
@@ -699,6 +700,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
       }
       await this.transfersRepo.save(transfer);
+      await this.closeClaimFor(transfer, playerId);
     } else {
       await this.pairWithClaim(transfer);
     }
@@ -747,6 +749,16 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (claim && (await this.settleTransfer(transfer, claim.playerId, TransferStatus.MATCHED))) {
       await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
     }
+  }
+
+  /**
+   * A transfer was matched to a player by their reference, their name or the organiser's pick:
+   * their own "I've paid" for it is answered, so it stops showing as a suggestion elsewhere.
+   */
+  private async closeClaimFor(transfer: BankTransfer, playerId: string) {
+    const pending = await this.claimsRepo.find({ where: { groupId: transfer.groupId, playerId, status: ClaimStatus.PENDING } });
+    const claim = claimSettledBy(transfer, playerId, pending);
+    if (claim) await this.claimsRepo.update(claim.id, { status: ClaimStatus.MATCHED, transferId: transfer.id });
   }
 
   /**
@@ -811,8 +823,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       if (m) return m.playerId;
     }
 
-    if (t.senderName) {
-      const words = new Set(normaliseName(t.senderName));
+    // Some banks leave the sender field empty and put "Transfer from NAME" in the narration.
+    const name = payerNameFrom(t.senderName, t.narration);
+    if (name) {
+      const words = new Set(normaliseName(name));
       const candidates = memberships.filter((m) => {
         const first = normaliseName(m.player.firstName);
         const last = normaliseName(m.player.lastName);
@@ -1011,7 +1025,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       const { settled } = await this.applyCredit(transfer.groupId, payment.playerId, amount);
       transfer.paymentId = settled[0]?.id ?? (null as unknown as string);
     }
-    return this.transfersRepo.save(transfer);
+    const saved = await this.transfersRepo.save(transfer);
+    await this.closeClaimFor(saved, payment.playerId);
+    return saved;
   }
 
   async ignoreTransfer(transferId: string, organizationId: string) {
@@ -1063,6 +1079,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         transfer.narration = ref + (transfer.narration ? ` ${transfer.narration}` : '');
       }
       await this.transfersRepo.save(transfer);
+      await this.closeClaimFor(transfer, playerId);
     }
     return transfer;
   }
