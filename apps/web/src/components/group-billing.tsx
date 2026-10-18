@@ -711,6 +711,8 @@ export function TransfersPanel({
       toast.success(ok);
     } catch (err: any) {
       toast.error(err.message || 'Something went wrong');
+      // Someone else may have matched it meanwhile: show the list as it is now.
+      onRefresh().catch(() => {});
     } finally {
       setWorkingId(null);
     }
