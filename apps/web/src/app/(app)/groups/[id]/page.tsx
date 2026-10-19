@@ -8,8 +8,7 @@ import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
 import { JerseyBadge, kitFor } from '@/components/illustrations';
-import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
-import { PayoutsPanel } from '@/components/group-payouts';
+import { GroupMoney } from '@/components/money/group-money';
 import { NewSessionSheet } from '@/components/new-session-sheet';
 import { frequencyLabel } from '@/lib/billing';
 import { openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
@@ -17,7 +16,7 @@ import { GroupSwitch } from '@/components/group-switch';
 import { useCurrentGroup } from '@/lib/current-group';
 import { QuickAddPlayers } from '@/components/group/quick-add-players';
 import { LeagueTableView } from '@/components/ratings';
-import { AccountDetailsSheet, MoneyCard, PlusIcon, daysFromToday, gameDay, gameStatusOf, useGroupMoney } from '@/components/money-card';
+import { AccountDetailsSheet, PlusIcon, daysFromToday, gameDay, gameStatusOf, useGroupMoney } from '@/components/money-card';
 import { InviteSheet } from '@/components/home/invite-sheet';
 import { InviteIcon, ICON_PATHS, icon } from '@/components/home/quick-actions';
 import { SheetTitle } from '@/components/home/sheet-title';
@@ -608,95 +607,22 @@ export default function GroupDetailPage() {
           <div className="h-40 bg-gray-100 rounded-3xl animate-pulse" />
         ))}
 
-      {/* Money: what's come in, and what's gone out */}
+      {/* Money: what's come in, and what's gone out (the same as the Money tab) */}
       {tab === 'money' && (
-        <div>
-          <div role="radiogroup" aria-label="Show" className="mb-4 grid grid-cols-2 p-1 bg-white border border-gray-200 rounded-2xl">
-            {(
-              [
-                { key: 'transfers', label: 'Money in', badge: unmatched },
-                { key: 'payouts', label: 'Withdrawals', badge: 0 },
-              ] as const
-            ).map((v) => (
-              <button
-                key={v.key}
-                role="radio"
-                aria-checked={moneyView === v.key}
-                onClick={() => openTab('money', v.key)}
-                className={`press min-h-10 rounded-xl text-[13px] font-bold inline-flex items-center justify-center gap-1.5 transition-colors ${
-                  moneyView === v.key ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'
-                }`}
-              >
-                {v.label}
-                {v.badge > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-sun-400 text-ink text-[10px] font-extrabold inline-flex items-center justify-center">
-                    {v.badge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-          {moneyView === 'transfers' ? (
-            <>
-            {/* The account: the home's card when there is one, the set-up card when there isn't yet */}
-            {billing && !billing.account ? (
-              <GroupAccountCard
-                groupId={id}
-                groupName={group.name}
-                fee={Number(group.feePerPlayer)}
-                billing={billing}
-                balance={money.balance?.available ?? null}
-                onChange={money.setBilling}
-                onMatchTransfer={(transferId) => setFocusTransfer(transferId)}
-                showLink={false}
-              />
-            ) : (
-              <div className="mb-3">
-                <MoneyCard
-                  group={group}
-                  money={money}
-                  gameFallback={null}
-                  canManage={canManage}
-                  showGame={false}
-                  showTicker={false}
-                  onScheduleGame={() => setShowCreateSession(true)}
-                  onOpenAccount={() => setShowAccount(true)}
-                />
-              </div>
-            )}
-            <TransfersPanel
-              groupId={id}
-              fee={Number(group.feePerPlayer)}
-              transfers={money.transfers ?? []}
-              sessions={sessions}
-              mockMode={billing?.providerMode === 'mock'}
-              onRefresh={refreshPayments}
-              focusId={focusTransfer}
-              onAddPlayers={() => openTab('members')}
-              members={(group.memberships ?? []).map((m) => ({
-                playerId: m.player.id,
-                name: `${m.player.firstName} ${m.player.lastName}`,
-                nickname: m.player.nickname,
-                credit: Number(m.credit ?? 0),
-              }))}
-            />
-            </>
-          ) : (
-            <PayoutsPanel
-              groupId={id}
-              groupName={group.name}
-              unsorted={(money.transfers ?? []).filter((t) => t.status === 'unmatched').reduce((sum, t) => sum + Number(t.amount), 0)}
-              refundable={(group.memberships ?? [])
-                .filter((m) => Number(m.credit ?? 0) > 0)
-                .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}`, credit: Number(m.credit) }))}
-              onRefresh={async () => {
-                await refreshPayments();
-                // A refund changes the member's credit.
-                setGroup(await getGroup(id));
-              }}
-            />
-          )}
-        </div>
+        <GroupMoney
+          group={group}
+          money={money}
+          sessions={sessions}
+          canManage={canManage}
+          view={moneyView}
+          onView={(v) => openTab('money', v)}
+          focusTransfer={focusTransfer}
+          onFocusTransfer={setFocusTransfer}
+          onRefresh={refreshPayments}
+          onGroupChanged={async () => setGroup(await getGroup(id))}
+          onAddPlayers={() => openTab('members')}
+          onOpenAccount={() => setShowAccount(true)}
+        />
       )}
 
       {/* Members Tab */}

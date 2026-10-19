@@ -37,6 +37,7 @@ import { transferName } from '@/components/home/transfers-sheet';
 import { closeTime } from '@/components/ratings';
 import { GroupSwitch } from '@/components/group-switch';
 import { useCurrentGroup } from '@/lib/current-group';
+import { moneyHref } from '@/lib/money-href';
 
 const onboardingSteps = [
   {
@@ -242,7 +243,7 @@ export default function Dashboard() {
     const n = money.billing.unmatchedTransfers;
     needs.push({
       key: 'unmatched',
-      href: `/groups/${group.id}?tab=transfers`,
+      href: moneyHref(group.id),
       title: `${n} payment${n === 1 ? '' : 's'} with no name yet`,
       detail: 'Pick who paid so their due clears',
       tone: 'kit',
@@ -335,7 +336,7 @@ export default function Dashboard() {
       .slice(0, 6)
       .map((t) => ({
         key: `t-${t.id}`,
-        href: `/groups/${group?.id}?tab=transfers&transfer=${t.id}`,
+        href: group ? moneyHref(group.id, { transfer: t.id }) : '/money',
         title: `${formatCurrency(t.amount)} from ${transferName(t)}`,
         detail: new Date(t.receivedAt).toLocaleString('en-GB', { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
         icon: <span className="font-display text-base font-extrabold">₦</span>,
@@ -361,7 +362,7 @@ export default function Dashboard() {
     canManage ? { key: 'add', label: 'Add player', icon: icon(ICON_PATHS.addPlayer), onClick: () => router.push('/players/new') } : null,
     canManage ? { key: 'cash', label: 'Record cash', icon: icon(ICON_PATHS.cash), onClick: () => router.push(cashHref) } : null,
     gid && canManage && money.billing?.account
-      ? { key: 'withdraw', label: 'Withdraw', icon: icon(ICON_PATHS.withdraw), onClick: () => router.push(`/groups/${gid}?tab=payouts`) }
+      ? { key: 'withdraw', label: 'Withdraw', icon: icon(ICON_PATHS.withdraw), onClick: () => router.push(moneyHref(gid, { view: 'payouts' })) }
       : null,
   ].filter(Boolean) as QuickAction[];
   // Everything else, named by where it goes. Nothing here that's already on the home screen.
@@ -369,7 +370,7 @@ export default function Dashboard() {
     {
       title: 'Money',
       actions: [
-        gid ? { key: 'history', label: 'Transfer history', icon: icon(ICON_PATHS.history), href: `/groups/${gid}?tab=transfers` } : null,
+        gid ? { key: 'history', label: 'Transfer history', icon: icon(ICON_PATHS.history), href: moneyHref(gid) } : null,
         liveGame
           ? {
               key: 'payments',

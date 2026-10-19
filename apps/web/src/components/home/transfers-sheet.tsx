@@ -7,6 +7,7 @@ import { senderFrom } from '@/lib/name-match';
 import { Sheet } from '@/components/sheet';
 import { stagger } from '@/components/motion';
 import { SheetTitle } from '@/components/home/sheet-title';
+import { moneyHref } from '@/lib/money-href';
 
 /** Who a transfer came from, as a short name: the matched player, else the bank's sender name. */
 export function transferName(t: BankTransfer) {
@@ -48,7 +49,7 @@ export function TransfersSheet({
   const titleId = useId();
   const [open, setOpen] = useState<string | null>(openId ?? null);
   const list = [...transfers].sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()).slice(0, 20);
-  const historyHref = `/groups/${groupId}?tab=transfers`;
+  const historyHref = moneyHref(groupId);
 
   return (
     <Sheet titleId={titleId} onClose={onClose} align="left">
