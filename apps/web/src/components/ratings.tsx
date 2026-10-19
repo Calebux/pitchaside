@@ -208,7 +208,7 @@ export function SessionVotingCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-ink/60">Post-match vote</p>
-            <h2 className="text-xl font-extrabold text-ink leading-tight mt-0.5">Who were the stars?</h2>
+            <h2 className="text-xl font-extrabold text-ink leading-tight mt-0.5">Who was Player of the Match?</h2>
             {context && (
               <Link href={context.href} className="text-xs font-bold text-ink/70 underline decoration-ink/30 underline-offset-2 hover:text-ink">
                 {context.label}
@@ -266,7 +266,7 @@ export function SessionVotingCard({
             <VoteResultsList results={voting} compact />
             <ShareCardButton
               token={voting.token}
-              caption={`⚽ ${groupName} — match day. Who were the stars?`}
+              caption={`⚽ ${groupName} — match day. Who was Player of the Match?`}
               className="mt-3 w-full py-3 text-sm font-bold text-ink bg-white rounded-xl border-2 border-ink hover:bg-volt-300 transition-colors"
             >
               Share the match card

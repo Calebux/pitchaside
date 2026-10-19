@@ -778,7 +778,10 @@ export interface Ballot {
   notYet: boolean;
   closesAt: string | null;
   categories: { key: VoteCategory; title: string }[];
-  squad: SquadMember[];
+  /** Who played, each with their side (null when teams weren't set). */
+  squad: (SquadMember & { team: TeamKey | null })[];
+  teamCount: number;
+  captains: Partial<Record<TeamKey, string>>;
   ballots: number;
   squadSize: number;
 }

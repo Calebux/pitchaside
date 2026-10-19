@@ -3,6 +3,7 @@ import { RatingsService } from './ratings.service';
 import { SessionKind, SessionStatus } from '../sessions/entities/session.entity';
 import { VoteCategory } from './entities/vote.entity';
 import { localDate } from '../common/time.util';
+import { DEFAULT_START, cardRating } from './skill';
 
 const HOUR = 3_600_000;
 
@@ -18,6 +19,7 @@ function game(over: Record<string, unknown> = {}) {
     status: SessionStatus.COMPLETED,
     teamCount: 2,
     voteOpensAt: new Date(Date.now() - HOUR),
+    voteClosedAt: null as Date | null,
     votingToken: 'tok',
     group: { id: 'grp', name: 'Saturday Ballers', contributionsVisibility: 'names' },
     payments: [pay('ada', { team: 'A' }), pay('bisi', { team: 'B' }), pay('lanre', { attendance: 'no_show' })],
@@ -155,5 +157,48 @@ describe('the table', () => {
   it("leaves out players who didn't come", async () => {
     const { rows } = await setup(game(), { games: day }).service.getGroupTable('grp', 'org');
     expect(rows.some((r) => r.player.id === 'lanre')).toBe(false);
+  });
+});
+
+describe('the one-question ballot', () => {
+  it('asks only for Player of the Match, with each player\'s team', async () => {
+    const b = await setup(game({ payments: [pay('ada', { team: 'A', captain: true }), pay('bisi', { team: 'B' }), pay('lanre', { attendance: 'no_show' })] })).service.getBallot('tok');
+    expect(b.categories.map((c) => c.key)).toEqual([VoteCategory.POTM]);
+    expect(b.squad.map((p) => [p.id, p.team])).toEqual([
+      ['ada', 'A'],
+      ['bisi', 'B'],
+    ]);
+    expect(b.captains).toEqual({ A: 'ada' });
+  });
+
+  it('closes once everyone who came has voted, and shows the result', async () => {
+    const ballots = [
+      { voterId: 'ada', nomineeId: 'bisi', category: VoteCategory.POTM },
+      { voterId: 'bisi', nomineeId: 'ada', category: VoteCategory.POTM },
+    ];
+    const session = game();
+    const res = await setup(session, { votes: ballots }).service.submitVotes('tok', ['ada'], { potm: 'bisi' });
+    expect(session.voteClosedAt).toBeInstanceOf(Date);
+    expect(res.hidden).toBe(false);
+  });
+
+  it('stays open while someone who came still has to vote', async () => {
+    const session = game();
+    const res = await setup(session, { votes: [{ voterId: 'ada', nomineeId: 'bisi', category: VoteCategory.POTM }] }).service.submitVotes('tok', ['ada'], { potm: 'bisi' });
+    expect(session.voteClosedAt ?? null).toBeNull();
+    expect(res.hidden).toBe(true);
+  });
+
+  it("doesn't pull card attributes down when the ballot only asked Player of the Match", async () => {
+    const votes = [
+      { voterId: 'ada', nomineeId: 'bisi', category: VoteCategory.POTM },
+      { voterId: 'bisi', nomineeId: 'ada', category: VoteCategory.POTM },
+    ];
+    const { rows } = await setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) }), { votes }).service.getGroupTable('grp', 'org');
+    for (const r of rows) {
+      const a = Object.values(r.attributes);
+      expect(new Set(a).size).toBe(1);
+      expect(a[0]).toBe(cardRating(DEFAULT_START));
+    }
   });
 });

@@ -253,7 +253,7 @@ export class SessionsService {
           {
             kind: 'vote_open',
             title: `Who was Player of the Match? 🏆`,
-            body: `${session.group.name} — cast your votes in 30 seconds.`,
+            body: `${session.group.name}: one pick, 10 seconds.`,
             url: `/v/${token}`,
           },
         );

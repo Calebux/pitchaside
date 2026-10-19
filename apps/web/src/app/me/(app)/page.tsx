@@ -59,7 +59,7 @@ export default function PlayerHomePage() {
               >
                 <span className="w-9 h-9 rounded-xl bg-ink text-sun-400 flex items-center justify-center font-extrabold shrink-0">★</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-extrabold text-ink">Who were the stars?</span>
+                  <span className="block text-sm font-extrabold text-ink">Vote for Player of the Match</span>
                   <span className="block text-xs text-ink/60 truncate">
                     {v.groupName} · {niceDate(v.date, { weekday: 'short', day: 'numeric', month: 'short' })}
                   </span>

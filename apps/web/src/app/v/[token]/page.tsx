@@ -6,8 +6,9 @@ import { useParams } from 'next/navigation';
 import { KeepHyphens, Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
-import { Avatar, VoteResultsList, categoryMeta, closeTime } from '@/components/ratings';
+import { Avatar, VoteResultsList, closeTime } from '@/components/ratings';
 import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
+import { TEAMS } from '@/components/lineup-card';
 import { PasswordSignIn } from '@/components/password-sign-in';
 import { ShareCardButton } from '@/components/share-card';
 import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
@@ -101,7 +102,19 @@ export default function VotePage() {
     day: 'numeric',
     month: 'short',
   });
-  const teammates = ballot.squad.filter((p) => p.id !== voter?.playerId);
+  // Everyone who played but you, grouped by side: your team first, then the others by bib.
+  const others = ballot.squad.filter((p) => p.id !== voter?.playerId);
+  const myTeam = ballot.squad.find((p) => p.id === voter?.playerId)?.team ?? null;
+  const keys = [...new Set(others.map((p) => p.team))].sort((x, y) =>
+    x === myTeam ? -1 : y === myTeam ? 1 : x === null ? 1 : y === null ? -1 : x.localeCompare(y),
+  );
+  const sides = keys.map((key) => ({
+    key,
+    mine: !!key && key === myTeam,
+    label: key ? `${TEAMS[key].name}${ballot.captains[key] ? ` · Team ${ballot.captains[key]}` : ''}` : keys.length > 1 ? 'No team' : 'Who played',
+    players: others.filter((p) => p.team === key),
+  }));
+  const picked = others.find((p) => p.id === picks.potm);
   const input =
     'w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
@@ -168,61 +181,70 @@ export default function VotePage() {
               </div>
             ) : (
               <PasswordSignIn
-                title="Who were the stars?"
-                subtitle="Six quick picks — they build everyone's player rating and the league table. Sign in to vote."
+                title="Vote for Player of the Match"
+                subtitle="One pick: who was Player of the Match? It counts towards the table and their player card. Sign in to vote."
                 cta="Sign in & vote"
                 onSignedIn={onSignedIn}
               />
             )}
           </div>
         ) : stage === 'ballot' ? (
-          <div className="mt-6 space-y-5">
-            <p className="text-sm text-gray-600">
-              Hey <span className="font-bold text-ink">{voter?.firstName}</span> — tap one teammate for each award.
+          <div className="mt-6">
+            <h2 className="font-display text-2xl font-extrabold text-ink">Player of the Match</h2>
+            <p className="text-sm text-gray-600 mt-0.5">
+              Hey <span className="font-bold text-ink">{voter?.firstName}</span>, who was best on the pitch? One pick.
             </p>
-            {ballot.categories.map((c) => {
-              const meta = categoryMeta[c.key];
-              return (
-                <section key={c.key} className="bg-white rounded-3xl border border-gray-100 shadow-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${meta.tone}`}>
-                      {meta.short}
-                    </span>
-                    <h2 className="text-base font-bold text-ink">{c.title}</h2>
-                    {c.key === 'potm' && <span className="text-[10px] text-gray-500 ml-auto">required</span>}
-                  </div>
-                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {teammates.map((p) => {
-                      const selected = picks[c.key] === p.id;
+            <div className="mt-4 space-y-3.5" role="radiogroup" aria-label="Player of the Match">
+              {sides.map((side) => (
+                <section key={side.key ?? 'all'} aria-label={side.label}>
+                  <h3 className="flex items-center gap-2 mb-1.5 text-[13px] font-bold text-gray-700">
+                    {side.key && <span className={`w-3 h-3 rounded-sm shrink-0 ${TEAMS[side.key].swatch}`} aria-hidden />}
+                    {side.label}
+                    {side.mine && <span className="text-[11px] font-semibold text-gray-500">· your team</span>}
+                  </h3>
+                  <ul className="grid grid-cols-2 gap-2">
+                    {side.players.map((p) => {
+                      const selected = picks.potm === p.id;
                       const name = `${p.firstName} ${p.lastName}`;
                       return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => setPicks({ ...picks, [c.key]: selected ? undefined : p.id })}
-                          className={`flex flex-col items-center gap-1.5 rounded-2xl border-2 px-1 py-2.5 transition-all ${
-                            selected ? 'border-ink bg-volt-300 -translate-y-0.5 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
-                          }`}
-                          aria-pressed={selected}
-                        >
-                          <Avatar name={name} className="w-10 h-10 text-xs" />
-                          <span className="text-xs font-bold text-ink truncate max-w-full">{p.nickname || p.firstName}</span>
-                        </button>
+                        <li key={p.id} className="min-w-0">
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={selected}
+                            aria-label={p.nickname ? `${name}, “${p.nickname}”` : name}
+                            onClick={() => setPicks({ ...picks, potm: p.id })}
+                            className={`press w-full flex items-center gap-2 h-12 pl-1.5 pr-2.5 rounded-2xl border-2 text-left transition-colors ${
+                              selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
+                            }`}
+                          >
+                            <Avatar name={name} className="w-8 h-8 text-[10px]" />
+                            <span className="flex-1 min-w-0 truncate text-[14px] font-bold text-ink">
+                              {p.nickname || p.firstName} {p.lastName.charAt(0)}.
+                            </span>
+                            {selected && (
+                              <svg className="w-4 h-4 shrink-0 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor" aria-hidden>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                              </svg>
+                            )}
+                          </button>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ul>
                 </section>
-              );
-            })}
-            {error && <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
-            <div className="fixed bottom-0 inset-x-0 p-4 bg-gradient-to-t from-white via-white to-transparent">
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-gray-500">You can&apos;t pick yourself. The winner shows when the vote closes.</p>
+            {error && <div className="mt-3 bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
+            <div className="fixed bottom-0 inset-x-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-white via-white to-transparent">
               <button
                 onClick={handleSubmit}
                 disabled={busy || !picks.potm}
-                className="w-full max-w-md mx-auto flex items-center justify-center gap-2 py-4 bg-ink text-volt-300 text-sm font-bold rounded-2xl shadow-lift hover:bg-pitch-900 transition-colors disabled:opacity-50"
+                className="w-full max-w-md mx-auto flex items-center justify-center gap-2 h-14 bg-ink text-volt-300 text-[15px] font-bold rounded-2xl shadow-lift hover:bg-pitch-900 transition-colors disabled:opacity-50"
               >
                 {busy && <BallSpinner />}
-                Submit {Object.values(picks).filter(Boolean).length}/{ballot.categories.length} votes
+                {picked ? `Vote for ${picked.nickname || picked.firstName}` : 'Pick a player'}
               </button>
             </div>
           </div>
@@ -231,7 +253,7 @@ export default function VotePage() {
             <div className="mt-6">
               <div className="text-center">
                 <Trophy className="w-40 h-32 mx-auto" />
-                <h2 className="text-2xl font-extrabold text-ink mt-1">Votes in — cheers, {voter?.firstName}!</h2>
+                <h2 className="text-2xl font-extrabold text-ink mt-1">Vote in. Cheers, {voter?.firstName}!</h2>
                 <p className="text-sm text-gray-500 mt-1">
                   {results.ballots} of {results.squadSize} have voted.{' '}
                   {results.hidden
@@ -246,7 +268,7 @@ export default function VotePage() {
               </div>
               <ShareCardButton
                 token={token}
-                caption={`⚽ ${ballot.groupName} — match day. Who were the stars? Have your say:`}
+                caption={`⚽ ${ballot.groupName} — match day. Who was Player of the Match?`}
                 className="mt-5 w-full py-3.5 text-sm font-bold text-white bg-[#25D366] rounded-2xl hover:brightness-95 transition"
               >
                 Share the match card
@@ -264,7 +286,7 @@ export default function VotePage() {
                 disabled={!ballot.open}
                 className="mt-2 w-full py-3 text-sm font-semibold text-gray-500 hover:text-ink disabled:hidden"
               >
-                Change my votes
+                Change my vote
               </button>
             </div>
           )

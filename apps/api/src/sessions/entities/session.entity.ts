@@ -74,6 +74,10 @@ export class Session {
   @Column({ name: 'vote_opens_at', type: 'timestamptz', nullable: true })
   voteOpensAt: Date | null;
 
+  /** When the vote closed early because everyone who came had voted; null runs the full 48 hours. */
+  @Column({ name: 'vote_closed_at', type: 'timestamptz', nullable: true })
+  voteClosedAt: Date | null;
+
   /** Public code for the post-match vote link (/v/:token); created on first use. */
   @Column({ name: 'voting_token', nullable: true, unique: true })
   votingToken: string;
