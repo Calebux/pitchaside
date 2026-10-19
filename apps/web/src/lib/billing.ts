@@ -8,10 +8,6 @@ export const frequencyOptions: { value: PaymentType; label: string; short: strin
   { value: PaymentType.ANNUALLY, label: 'Annually', short: 'per year', hint: 'One season fee' },
 ];
 
-export function frequencyLabel(type: PaymentType | string) {
-  return frequencyOptions.find((o) => o.value === type)?.label ?? String(type).replace('_', ' ');
-}
-
 export function frequencyShort(type: PaymentType | string) {
   return frequencyOptions.find((o) => o.value === type)?.short ?? '';
 }
