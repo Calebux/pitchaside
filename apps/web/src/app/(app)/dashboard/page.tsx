@@ -17,10 +17,9 @@ import { SessionStatus, UserRole } from '@pitchaside/shared';
 import { Celebration } from '@/components/illustrations';
 import { ErrorView } from '@/components/error-view';
 import { NewSessionSheet } from '@/components/new-session-sheet';
-import { prettyTime } from '@/components/player-ui';
 import {
-  AccountDetailsSheet,
-  MoneyCard,
+  AccountStrip,
+  GameCard,
   NeedsYou,
   daysFromToday,
   featuredGame,
@@ -29,9 +28,6 @@ import {
   useGroupMoney,
   type NeedsItem,
 } from '@/components/money-card';
-import { InviteSheet } from '@/components/home/invite-sheet';
-import { QuickActions, InviteIcon, CalendarPlusIcon, ICON_PATHS, icon, type QuickAction } from '@/components/home/quick-actions';
-import { MoreActionsSheet, type MoreAction } from '@/components/home/more-actions-sheet';
 import { UpdatesBell, type Update } from '@/components/home/updates-bell';
 import { transferName } from '@/components/home/transfers-sheet';
 import { closeTime } from '@/components/ratings';
@@ -83,10 +79,6 @@ export default function Dashboard() {
   // Groups didn't load: say so, rather than greeting an organiser as if they had none.
   const [failed, setFailed] = useState(false);
   const [showNewGame, setShowNewGame] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
-  const [showInvite, setShowInvite] = useState(false);
-  const [showAllComing, setShowAllComing] = useState(false);
-  const [showMore, setShowMore] = useState(false);
   // Several groups: the one picked in the switch (remembered across the app); until then, the one playing soonest.
   const { groupId: picked, setGroupId: setPicked } = useCurrentGroup();
   const [voting, setVoting] = useState<{ sessionId: string; data: SessionVoting } | null>(null);
@@ -128,6 +120,11 @@ export default function Dashboard() {
   const game = group ? (featuredGame(sessions, group.id) ?? null) : null;
   const money = useGroupMoney(group?.id ?? null, game?.id ?? null);
   const liveGame = money.game ?? game;
+  // The group's next game after the one on the card (the card stays on the last game while it's settled and voted on).
+  const nextGame =
+    sessions
+      .filter((s) => s.groupId === groupId && s.id !== game?.id && s.status === SessionStatus.UPCOMING && s.kind !== 'dues' && daysFromToday(s.date) >= 0)
+      .sort((a, b) => gameDay(a.date).getTime() - gameDay(b.date).getTime())[0] ?? null;
 
   // The vote worth chasing: the latest game played in the last week.
   const voteGame = useMemo(() => {
@@ -155,9 +152,9 @@ export default function Dashboard() {
         <div className="animate-pulse space-y-4">
           <div className="h-4 bg-gray-200 rounded w-40" />
           <div className="h-8 bg-gray-200 rounded w-56" />
-          <div className="h-[420px] bg-gray-200 rounded-[28px]" />
-          <div className="h-16 bg-gray-200 rounded-3xl" />
-          <div className="h-16 bg-gray-200 rounded-3xl" />
+          <div className="h-10 bg-gray-100 rounded-full w-48" />
+          <div className="h-[150px] bg-gray-200 rounded-[28px]" />
+          <div className="h-[300px] bg-gray-200 rounded-[28px]" />
         </div>
       </div>
     );
@@ -291,11 +288,12 @@ export default function Dashboard() {
   const newMembers = (group?.memberships ?? []).filter(
     (m) => Date.now() - new Date(m.joinedAt).getTime() < 7 * 86_400_000,
   );
+  const squadHref = group ? `/squad?group=${group.id}` : '/squad';
   if (group && newMembers.length > 0) {
     const names = newMembers.map((m) => m.player.firstName);
     needs.push({
       key: 'new',
-      href: `/groups/${group.id}?tab=members`,
+      href: squadHref,
       title: `${newMembers.length} joined this week`,
       detail: names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : ''),
       tone: 'sky',
@@ -306,19 +304,6 @@ export default function Dashboard() {
       ),
     });
   }
-
-  // Coming up: this group's games after the one in the card. Dues periods aren't games.
-  const comingUp = sessions
-    .filter(
-      (s) =>
-        s.groupId === groupId &&
-        s.id !== game?.id &&
-        s.status === SessionStatus.UPCOMING &&
-        s.kind !== 'dues' &&
-        daysFromToday(s.date) >= 0,
-    )
-    .sort((a, b) => gameDay(a.date).getTime() - gameDay(b.date).getTime())
-    .slice(0, 4);
 
   // The bell: everything that needs them, then what's happened lately (money in, new players).
   const toneIcon: Record<NeedsItem['tone'], string> = {
@@ -345,7 +330,7 @@ export default function Dashboard() {
       })),
     ...newMembers.map((m) => ({
       key: `m-${m.id}`,
-      href: `/groups/${group?.id}?tab=members`,
+      href: squadHref,
       title: `${m.player.firstName} ${m.player.lastName} joined`,
       detail: group?.name,
       icon: <span className="text-sm font-extrabold">{m.player.firstName.charAt(0)}</span>,
@@ -353,54 +338,6 @@ export default function Dashboard() {
       at: new Date(m.joinedAt).getTime(),
     })),
   ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
-
-  // The weekly jobs: bring people in, add someone by hand, take cash at the pitch. The rest is in More.
-  const cashHref = liveGame ? `/sessions/${liveGame.id}?tab=payments` : '/sessions';
-  const gid = group?.id;
-  const quick: QuickAction[] = [
-    money.billing?.link ? { key: 'invite', label: 'Invite', icon: <InviteIcon />, onClick: () => setShowInvite(true) } : null,
-    canManage ? { key: 'add', label: 'Add player', icon: icon(ICON_PATHS.addPlayer), onClick: () => router.push('/players/new') } : null,
-    canManage ? { key: 'cash', label: 'Record cash', icon: icon(ICON_PATHS.cash), onClick: () => router.push(cashHref) } : null,
-    gid && canManage && money.billing?.account
-      ? { key: 'withdraw', label: 'Withdraw', icon: icon(ICON_PATHS.withdraw), onClick: () => router.push(moneyHref(gid, { view: 'payouts' })) }
-      : null,
-  ].filter(Boolean) as QuickAction[];
-  // Everything else, named by where it goes. Nothing here that's already on the home screen.
-  const moreSections = [
-    {
-      title: 'Money',
-      actions: [
-        gid ? { key: 'history', label: 'Transfer history', icon: icon(ICON_PATHS.history), href: moneyHref(gid) } : null,
-        liveGame
-          ? {
-              key: 'payments',
-              label: `Payments · ${gameDay(liveGame.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`,
-              icon: icon(ICON_PATHS.cash),
-              href: `/sessions/${liveGame.id}?tab=payments`,
-            }
-          : null,
-      ].filter(Boolean) as MoreAction[],
-    },
-    {
-      title: 'Games',
-      actions: [
-        canManage ? { key: 'new-game', label: 'Schedule a game', icon: <CalendarPlusIcon />, onClick: () => setShowNewGame(true) } : null,
-        { key: 'games', label: 'All games', icon: icon(ICON_PATHS.calendar), href: '/sessions' },
-        canManage ? { key: 'cup', label: 'Create a Cup', icon: icon(ICON_PATHS.trophy), href: '/competitions/new' } : null,
-      ].filter(Boolean) as MoreAction[],
-    },
-    {
-      title: 'Players',
-      actions: [{ key: 'players', label: 'Manage players', icon: icon(ICON_PATHS.players), href: '/players' }],
-    },
-    {
-      title: 'Group',
-      actions: [
-        gid ? { key: 'group', label: 'Group settings', icon: icon(ICON_PATHS.cog), href: `/groups/${gid}?edit=1` } : null,
-        canManage ? { key: 'new-group', label: 'Create a group', icon: icon(ICON_PATHS.plus), href: '/groups/new' } : null,
-      ].filter(Boolean) as MoreAction[],
-    },
-  ];
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -416,27 +353,12 @@ export default function Dashboard() {
         </div>
         <UpdatesBell needs={bellNeeds} latest={bellLatest} />
       </div>
-      {showMore && <MoreActionsSheet sections={moreSections} onClose={() => setShowMore(false)} />}
-      {showInvite && group && money.billing && (
-        <InviteSheet
-          group={group}
-          billing={money.billing}
-          canManage={canManage}
-          onBilling={money.setBilling}
-          onClose={() => setShowInvite(false)}
-        />
-      )}
-
       {showNewGame && (
         <NewSessionSheet
           groups={group ? [group, ...groups.filter((g) => g.id !== group.id)] : groups}
           onClose={() => setShowNewGame(false)}
         />
       )}
-      {showAccount && group && money.billing && (
-        <AccountDetailsSheet group={group} billing={money.billing} onClose={() => setShowAccount(false)} />
-      )}
-
       {/* Whose money and game this is: the group switch, shared with the rest of the app */}
       {groups.length > 0 && (
         <div className="mb-3">
@@ -444,81 +366,27 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Today: the money in one strip, then this week's game (it changes through the week) */}
       {group && (
-        <MoneyCard
-          group={group}
-          money={money}
-          gameFallback={game}
-          canManage={canManage}
-          onScheduleGame={() => setShowNewGame(true)}
-          onOpenAccount={() => setShowAccount(true)}
-          vote={voting && voting.sessionId === liveGame?.id ? voting.data : null}
-          onGameEnded={(id) =>
-            setSessions((all) => all.map((s) => (s.id === id ? { ...s, status: SessionStatus.COMPLETED } : s)))
-          }
-        />
+        <>
+          <AccountStrip group={group} money={money} canManage={canManage} />
+          <GameCard
+            className="mt-3"
+            group={group}
+            money={money}
+            gameFallback={game}
+            canManage={canManage}
+            onScheduleGame={() => setShowNewGame(true)}
+            vote={voting && voting.sessionId === liveGame?.id ? voting.data : null}
+            next={nextGame}
+            onGameEnded={(id) => setSessions((all) => all.map((s) => (s.id === id ? { ...s, status: SessionStatus.COMPLETED } : s)))}
+          />
+        </>
       )}
 
-      <QuickActions actions={quick} onMore={() => setShowMore(true)} />
+      {/* Only what the two cards above don't already show; the bell keeps the full list */}
+      <NeedsYou items={needs.filter((n) => !['unmatched', 'owing'].includes(n.key)).slice(0, 2)} />
 
-      {/* The top two; the rest are in the bell */}
-      {/* Only what the card above doesn't already show; the bell keeps the full list */}
-      <NeedsYou items={needs.filter((n) => !['new', 'unmatched', 'owing'].includes(n.key)).slice(0, 2)} />
-
-      {comingUp.length > 0 && (
-        <section className="mt-6" aria-labelledby="coming-up">
-          <div className="flex items-center justify-between mb-2">
-            <h2 id="coming-up" className="text-base font-bold text-ink">
-              Coming up
-            </h2>
-            {comingUp.length > 1 && (
-              <button
-                onClick={() => setShowAllComing((v) => !v)}
-                aria-expanded={showAllComing}
-                className="h-11 -my-2 px-1 text-sm font-bold text-pitch-700"
-              >
-                {showAllComing ? 'Show less' : `See all ${comingUp.length}`}
-              </button>
-            )}
-          </div>
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
-            {(showAllComing ? comingUp : comingUp.slice(0, 1)).map((session, i) => {
-              const progress = session.targetAmount > 0
-                ? Math.round((session.collectedAmount / session.targetAmount) * 100)
-                : 0;
-              const d = gameDay(session.date);
-              const kickoff = session.kickoffTime || group?.kickoffTime;
-              return (
-                <Link
-                  key={session.id}
-                  href={`/sessions/${session.id}`}
-                  style={{ animationDelay: `${i * 40}ms` }}
-                  className="animate-rise flex items-center gap-3 px-3 py-2.5 hover:bg-chalk transition-colors"
-                >
-                  <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 border border-gray-200 text-center">
-                    <div className="bg-kit-500 text-ink text-[9px] font-extrabold uppercase tracking-wider py-px">
-                      {d.toLocaleDateString('en-GB', { month: 'short' })}
-                    </div>
-                    <div className="font-display text-base font-extrabold text-ink leading-6">{d.getDate()}</div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-ink truncate">
-                      {d.toLocaleDateString('en-GB', { weekday: 'long' })}
-                      {kickoff ? ` · ${prettyTime(kickoff)}` : ''}
-                    </p>
-                    <p className="text-xs text-gray-600 tabular-nums">
-                      {formatCurrency(session.collectedAmount)} of {formatCurrency(session.targetAmount)} · {progress}%
-                    </p>
-                  </div>
-                  <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                  </svg>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

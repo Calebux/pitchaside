@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
-import { PaymentStatus } from '@pitchaside/shared';
+import { PaymentStatus, PaymentType } from '@pitchaside/shared';
 import {
   formatCurrency,
   getGroupBalance,
@@ -33,6 +33,7 @@ import { coveredByDues } from '@/lib/game-player';
 import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
 import { moneyHref } from '@/lib/money-href';
+import { Ticket } from '@/components/ticket';
 
 // ── Dates ──
 
@@ -339,10 +340,7 @@ export function MoneyCard({
   const toast = useToast();
   const now = useNow();
   const [hidden, toggleHidden] = useHiddenBalance();
-  const [reminding, setReminding] = useState(false);
-  const [confirmEnd, setConfirmEnd] = useState(false);
-  const { balance, billing, transfers, rsvp, updatedAt, balanceFailed, fresh } = money;
-  const game = money.game ?? gameFallback;
+  const { balance, billing, transfers, updatedAt, balanceFailed, fresh } = money;
 
   // Two rows at most: an unknown payment first (it needs them), then the newest. The rest are a tap away.
   const recent = (transfers ?? [])
@@ -356,7 +354,6 @@ export function MoneyCard({
   const chooseHref = (id: string) => moneyHref(group.id, { transfer: id });
   const account = billing?.account ?? null;
   const [accountOpen, toggleAccount] = useRemembered('pitchaside_home_account_open', true);
-  const [gameOpen, toggleGame] = useRemembered('pitchaside_home_game_open', true);
   const accountId = useId();
   const [refreshing, setRefreshing] = useState(false);
   // Money in today (by this phone's clock) and how many transfers there are. The list holds the
@@ -384,25 +381,6 @@ export function MoneyCard({
       () => toast.error('Could not copy. Press and hold the number to copy it instead.'),
     );
   const hasAccount = billing ? !!billing.account : !!group.accountNumber;
-
-  async function remind() {
-    if (!game) return;
-    setReminding(true);
-    try {
-      const result = await sendReminders(game.id);
-      toast.success(
-        result.missed
-          ? `Reminder pushed to ${result.sent} — ${result.missed} don't have notifications on yet`
-          : `Reminder pushed to ${result.sent} player${result.sent === 1 ? '' : 's'}`,
-      );
-    } catch {
-      toast.error('Reminders didn’t send. Check your connection and try again.');
-    } finally {
-      setReminding(false);
-    }
-  }
-
-
 
   const cardCls = 'relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift';
   return (
@@ -687,7 +665,217 @@ export function MoneyCard({
     </section>
 
     {showGame && (
-    <section aria-label="This week's game" className={`mt-3 ${cardCls}`}>
+      <GameCard
+        className="mt-3"
+        group={group}
+        money={money}
+        gameFallback={gameFallback}
+        canManage={canManage}
+        onScheduleGame={onScheduleGame}
+        onGameEnded={onGameEnded}
+        vote={vote}
+      />
+    )}
+    </>
+  );
+}
+
+/**
+ * Home's account strip: the balance, what came in today, payments still needing a name, and
+ * Withdraw. Everything else about the money (the account number, every transfer) is on Money.
+ */
+export function AccountStrip({
+  group,
+  money,
+  canManage,
+}: {
+  group: IGroupWithMembers;
+  money: ReturnType<typeof useGroupMoney>;
+  canManage: boolean;
+}) {
+  const [hidden, toggleHidden] = useHiddenBalance();
+  const { balance, billing, transfers, balanceFailed } = money;
+  const hasAccount = billing ? !!billing.account : !!group.accountNumber;
+  const received = (transfers ?? []).filter((t) => t.status !== 'ignored');
+  const today = localToday();
+  const todayIn = received.filter((t) => localDay(t.receivedAt) === today).reduce((sum, t) => sum + Number(t.amount), 0);
+  const unnamed = billing?.unmatchedTransfers ?? received.filter((t) => t.status === 'unmatched').length;
+
+  return (
+    <section aria-label={`${group.name} account`} className="relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
+      <div className="absolute inset-0 turf-stripes-soft" />
+      <div className="relative px-5 pt-4 pb-4">
+        {!hasAccount ? (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-white">No bank account yet</p>
+              <p className="mt-0.5 text-[13px] leading-snug text-white/70">Set one up so players can pay by transfer.</p>
+            </div>
+            <Link
+              href={moneyHref(group.id)}
+              className="press shrink-0 inline-flex items-center justify-center h-11 px-4 rounded-xl bg-volt-400 text-sm font-bold text-ink hover:bg-volt-300 transition-colors"
+            >
+              Set up
+            </Link>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-1">
+              <Link href={moneyHref(group.id)} className="text-xs font-semibold text-white/70 hover:text-white">
+                Account balance
+              </Link>
+              <button
+                onClick={toggleHidden}
+                aria-pressed={hidden}
+                aria-label="Hide balance"
+                className="w-11 h-11 -my-3 -ml-1 flex items-center justify-center rounded-full text-white/70 hover:text-white transition-colors"
+              >
+                <EyeIcon off={hidden} />
+              </button>
+            </div>
+            {balance == null && balanceFailed ? (
+              <div className="mt-1 flex items-center gap-3">
+                <p className="text-sm font-semibold text-white/80">Couldn&apos;t load the balance.</p>
+                <button onClick={() => money.reload()} className="shrink-0 h-11 px-3.5 rounded-full bg-white/10 text-[13px] font-bold text-white hover:bg-white/15">
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <Link href={moneyHref(group.id)} className="block mt-0.5 font-display text-[36px] leading-none font-extrabold text-volt-300 tabular-nums" aria-hidden tabIndex={-1}>
+                {balance == null ? (
+                  <span className="inline-block h-9 w-40 rounded-xl bg-white/10 animate-pulse align-middle" />
+                ) : hidden ? (
+                  <span className="tracking-[0.08em]">₦••••••</span>
+                ) : (
+                  <CountUpNaira value={Number(balance.available)} />
+                )}
+              </Link>
+            )}
+            <p className="sr-only" aria-live="polite" aria-atomic="true">
+              {balance == null ? (balanceFailed ? '' : 'Loading balance') : hidden ? 'Balance hidden' : `${formatCurrency(Number(balance.available))} in the account`}
+            </p>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <p className={`flex items-center gap-1.5 text-[13px] font-semibold tabular-nums ${todayIn > 0 ? 'text-volt-300' : 'text-white/70'}`}>
+                {todayIn > 0 && <LiveDot />}
+                {transfers == null ? '\u00a0' : hidden ? 'Today ₦•••' : todayIn > 0 ? `+${formatCurrency(todayIn)} today` : 'Nothing in today'}
+              </p>
+              {canManage && (
+                <Link
+                  href={moneyHref(group.id, { view: 'payouts' })}
+                  className="press shrink-0 inline-flex items-center h-11 px-4 -my-1 rounded-xl border border-white/15 text-[13px] font-bold text-white hover:bg-white/10 transition-colors"
+                >
+                  Withdraw
+                </Link>
+              )}
+            </div>
+          </>
+        )}
+        {unnamed > 0 && (
+          <Link
+            href={moneyHref(group.id, { unnamed: true })}
+            className="press mt-3 w-full flex items-center gap-2 min-h-11 px-3 rounded-xl bg-sun-400/15 text-[13px] font-bold text-sun-400 hover:bg-sun-400/25 transition-colors"
+          >
+            <LiveDot className="bg-sun-400" />
+            <span className="flex-1 min-w-0 truncate">
+              {unnamed} payment{unnamed === 1 ? '' : 's'} with no name yet
+            </span>
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </Link>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * This week's game, on Home: it changes with the week (before, match day, after) and always has
+ * the one thing to do next. With no game, it offers to schedule one.
+ */
+export function GameCard({
+  group,
+  money,
+  gameFallback,
+  canManage,
+  onScheduleGame,
+  onGameEnded,
+  vote,
+  next,
+  className = '',
+}: {
+  group: IGroupWithMembers;
+  money: ReturnType<typeof useGroupMoney>;
+  /** The game as the list endpoint returned it, shown until the live copy arrives. */
+  gameFallback: ISessionWithDetails | null;
+  canManage: boolean;
+  onScheduleGame: () => void;
+  /** Called once a game is ended from the card, so the page can update its copy. */
+  onGameEnded?: (gameId: string) => void;
+  /** The game's vote, if it has one. */
+  vote?: SessionVoting | null;
+  /** The group's next game, when the card is still on the last one (settling up or voting). */
+  next?: ISessionWithDetails | null;
+  className?: string;
+}) {
+  const toast = useToast();
+  const [reminding, setReminding] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const [gameOpen, toggleGame] = useRemembered('pitchaside_home_game_open', true);
+  const { rsvp } = money;
+  const game = money.game ?? gameFallback;
+
+  async function remind() {
+    if (!game) return;
+    setReminding(true);
+    try {
+      const result = await sendReminders(game.id);
+      toast.success(
+        result.missed
+          ? `Reminder pushed to ${result.sent} — ${result.missed} don't have notifications on yet`
+          : `Reminder pushed to ${result.sent} player${result.sent === 1 ? '' : 's'}`,
+      );
+    } catch {
+      toast.error('Reminders didn’t send. Check your connection and try again.');
+    } finally {
+      setReminding(false);
+    }
+  }
+
+  const kickoffOf = (g: ISessionWithDetails) => g.kickoffTime || group.kickoffTime;
+  const showNext = !!(next && game && next.id !== game.id);
+  // The stub: the next game while this one is still being settled or voted on; otherwise where
+  // it's played and what a place costs, as on a ticket.
+  const venue = [group.location, group.paymentType === PaymentType.PER_SESSION ? `${formatCurrency(Number(group.feePerPlayer))} a player` : null]
+    .filter(Boolean)
+    .join(' · ');
+  const stub = !game ? null : showNext ? (
+    <Link
+      href={`/sessions/${next!.id}`}
+      aria-label={`Next game, ${gameDay(next!.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}: ${formatCurrency(Number(next!.collectedAmount))} paid so far`}
+      className="press flex items-center gap-3 h-[52px] px-5 hover:bg-white/[0.04] transition-colors"
+    >
+      <span className="flex-1 min-w-0 truncate text-[13px] font-semibold text-white/85">
+        <span className="text-white/65">Next · </span>
+        {gameDay(next!.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}
+        {kickoffOf(next!) && ` · ${prettyTime(kickoffOf(next!)!)}`}
+      </span>
+      <span className="shrink-0 text-xs font-semibold tabular-nums text-white/65">{formatCurrency(Number(next!.collectedAmount))} paid</span>
+      <svg className="w-3.5 h-3.5 shrink-0 text-white/45" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+      </svg>
+    </Link>
+  ) : venue ? (
+    <p className="flex items-center h-[52px] px-5 text-[13px] font-semibold text-white/75 truncate">{venue}</p>
+  ) : null;
+
+  return (
+    <Ticket
+      aria-label="This week's game"
+      className={className}
+      bodyClassName="rounded-[28px] text-white bg-[linear-gradient(160deg,#134927_0%,#10301d_42%,#0f1a14_100%)]"
+      stub={stub}
+    >
       <div className="absolute inset-0 turf-stripes-soft" />
       <div className="relative p-5">
         {game ? (
@@ -734,9 +922,7 @@ export function MoneyCard({
           }}
         />
       )}
-    </section>
-    )}
-    </>
+    </Ticket>
   );
 }
 
