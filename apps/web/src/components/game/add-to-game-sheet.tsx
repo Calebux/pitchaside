@@ -42,20 +42,23 @@ export function AddToGameSheet({
   return (
     <Sheet titleId={titleId} onClose={onClose} align="left">
       <SheetTitle id={titleId} title="Add players to this game" sub="For players who told you they’re in. They’ll owe for it like anyone else." onClose={onClose} />
+      {/* Stays at the top of the sheet while the list scrolls under it */}
       {members.length > 8 && (
+        <div className="sticky top-0 z-10 -mx-6 px-6 pt-5 pb-2 mt-1 bg-white">
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Find a player"
           aria-label="Find a player"
-          className="mt-4 w-full h-11 px-3.5 bg-chalk rounded-xl text-[15px] placeholder:text-gray-500 focus:outline-none focus:bg-white focus:ring-4 focus:ring-volt-300/70"
+          className="w-full h-11 px-3.5 bg-chalk rounded-xl text-[15px] placeholder:text-gray-500 focus:outline-none focus:bg-white focus:ring-4 focus:ring-volt-300/70"
         />
+        </div>
       )}
       {shown.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-500">{members.length ? `No one called “${query.trim()}”.` : 'Everyone in the group is on this game.'}</p>
       ) : (
-        <ul className="mt-4 rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+        <ul className="mt-2 rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden">
           {shown.map((m, i) => {
             const kit = kitFor(m.name);
             const isIn = added.has(m.playerId);

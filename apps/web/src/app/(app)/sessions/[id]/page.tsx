@@ -48,7 +48,6 @@ import { GameMenu } from '@/components/game/game-actions';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
 import { coveredByDues as coversByDues, gamePhase, gameTally, leftToPay } from '@/lib/game-player';
-import { btnSecondary } from '@/components/buttons';
 import { AddToGameSheet } from '@/components/game/add-to-game-sheet';
 import { MovePaymentSheet } from '@/components/game/move-payment-sheet';
 import { gameInviteMessage, openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
@@ -296,7 +295,9 @@ export default function GamePage() {
   const onSides = lineup?.squad.filter((m) => m.team).length ?? 0;
   const games = lineup?.games.length ?? 0;
   const stepInfo: Record<Step, StepInfo> = {
-    players: before
+    players: cancelled
+      ? { status: 'Called off' }
+      : before
       ? { status: `${tally.playing} in` }
       : tally.toPay && !coveredByDues
         ? { status: `${tally.toPay} to pay`, attention: true }
@@ -423,7 +424,7 @@ export default function GamePage() {
         />
       )}
 
-      <GameHero session={session} coveredByDues={coveredByDues} phase={phase} reminding={reminding} onRemind={remind} />
+      <GameHero session={session} coveredByDues={coveredByDues} phase={phase} reminding={reminding} onRemind={remind} onShare={isGame && billing ? shareGame : undefined} />
 
       {/* Match day in four steps; the bar stays at the top while scrolling */}
       {isGame && step && <GameSteps current={step} info={stepInfo} onPick={chooseStep} />}
@@ -448,9 +449,11 @@ export default function GamePage() {
         (payments.length === 0 ? (
           <EmptyState
             icon="receipt"
-            title={played ? 'No one played' : 'No one’s in yet'}
+            title={cancelled ? 'This game was called off' : played ? 'No one played' : 'No one’s in yet'}
             description={
-              session.group?.requireRsvp
+              cancelled
+                ? 'No one owes for it. To play it after all, choose Options › Bring the game back.'
+                : session.group?.requireRsvp
                 ? 'Share the game on WhatsApp so players can say they’re in, or add the ones who told you.'
                 : 'Everyone in the group is added when the game is made. Add players to the group first.'
             }
@@ -467,24 +470,6 @@ export default function GamePage() {
                 </Link>
               </p>
             )}
-            {before && (notOnGame.length > 0 || (isGame && billing)) && (
-              <div className="mb-3 grid grid-cols-2 gap-2">
-                {notOnGame.length > 0 && (
-                  <button onClick={() => setAdding(true)} className={`${btnSecondary} !min-h-11 !px-3 !text-[14px]`}>
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                    </svg>
-                    Add players
-                  </button>
-                )}
-                {isGame && billing && (
-                  <button onClick={shareGame} className={`${btnSecondary} !min-h-11 !px-3 !text-[14px] ${notOnGame.length ? '' : 'col-span-2'}`}>
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.03c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.16 0 .39-.06.61.47.24.56.79 1.92.86 2.06.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.89 1.04.93 1.92 1.22 2.19 1.36.27.14.43.11.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34Z"/></svg>
-                    Share game
-                  </button>
-                )}
-              </div>
-            )}
             <PlayerList
               payments={payments}
               coveredByDues={coveredByDues}
@@ -492,6 +477,7 @@ export default function GamePage() {
               canSendDetails={!!billing?.account}
               canMove={(p) => p.status === PaymentStatus.PAID && p.source === 'transfer' && otherDues(p).length > 0}
               busyId={busyId}
+              onAdd={before && notOnGame.length > 0 ? () => setAdding(true) : undefined}
               onAction={onPlayerAction}
               onBulkPaid={async (ids) => {
                 try {
