@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/toast';
+import { useAuth } from '@/lib/auth';
+import { UserRole } from '@pitchaside/shared';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { btnPrimary } from '@/components/buttons';
 import { EmptyState } from '@/components/empty-state';
@@ -120,21 +122,28 @@ export function PayoutsPanel({
   groupId,
   groupName,
   refundable = [],
+  unsorted = 0,
   onRefresh,
 }: {
   groupId: string;
   groupName: string;
   /** Members holding credit, who can be refunded. */
   refundable?: RefundableMember[];
+  /** Money in with no name yet: part of the balance, but nobody's payment so far. */
+  unsorted?: number;
   onRefresh: () => Promise<void>;
 }) {
   const toast = useToast();
+  const { user } = useAuth();
+  // Treasurers record payments; sending money out is the organiser's.
+  const canSend = user?.role !== UserRole.TREASURER;
   const [balance, setBalance] = useState<GroupBalance | null>(null);
   const [payouts, setPayouts] = useState<OutgoingTransfer[]>([]);
   const [banks, setBanks] = useState<NigerianBank[]>([]);
   const [hasPin, setHasPin] = useState<boolean | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const paidAhead = refundable.reduce((sum, m) => sum + m.credit, 0);
 
   async function load() {
     const [b, p] = await Promise.all([
@@ -163,7 +172,7 @@ export function PayoutsPanel({
     }
   }
 
-  if (hasPin === false) {
+  if (hasPin === false && canSend) {
     return (
       <div className="space-y-3">
         <WithdrawIntro />
@@ -194,19 +203,33 @@ export function PayoutsPanel({
           <p className="mt-2 text-xs text-gray-500 tabular-nums">
             {formatCurrency(balance.totalIn)} received, {formatCurrency(balance.totalOut)} sent out
           </p>
+          {/* What's in the balance that isn't the group's to spend yet, so nobody pays the pitch with it by mistake. */}
+          {(paidAhead > 0 || unsorted > 0) && (
+            <div className="mt-3 rounded-2xl bg-sun-400/15 px-3.5 py-2.5 text-[13px] leading-snug text-amber-900">
+              <p className="font-bold">This includes money that isn’t the group’s to spend yet:</p>
+              <ul className="mt-1 space-y-0.5 tabular-nums">
+                {paidAhead > 0 && <li>{formatCurrency(paidAhead)} players have paid ahead for their next games</li>}
+                {unsorted > 0 && <li>{formatCurrency(unsorted)} with no name yet</li>}
+              </ul>
+            </div>
+          )}
           {balance.manualIn > 0 && (
             <p className="mt-2 text-xs text-gray-500">
               {formatCurrency(balance.manualIn)} of that was recorded by hand, so it isn’t included in what you can send.
             </p>
           )}
-          <button onClick={() => setShowForm(true)} className={`${btnPrimary} mt-4 w-full`}>
-            Send money
-          </button>
+          {canSend ? (
+            <button onClick={() => setShowForm(true)} className={`${btnPrimary} mt-4 w-full`}>
+              Send money
+            </button>
+          ) : (
+            <p className="mt-4 text-[13px] text-gray-600">Only the group’s organiser can send money out. You can see every withdrawal here.</p>
+          )}
         </div>
       )}
 
       {/* Pitch owner / facility manager: saved once, paid in one tap */}
-      {balance && banks.length > 0 && (
+      {balance && canSend && banks.length > 0 && (
         <PayeeCard
           groupId={groupId}
           groupName={groupName}

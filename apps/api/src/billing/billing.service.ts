@@ -1080,6 +1080,21 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return transfer;
   }
 
+  /**
+   * Undoes "Set aside": the payment goes back to the ones with no name yet. Setting aside never
+   * touched anyone's payments or credit, so nothing else changes.
+   */
+  async restoreTransfer(transferId: string, organizationId: string) {
+    const transfer = await this.findTransfer(transferId, organizationId);
+    const { affected } = await this.transfersRepo.update(
+      { id: transfer.id, status: TransferStatus.IGNORED },
+      { status: TransferStatus.UNMATCHED },
+    );
+    if (!affected) throw new BadRequestException('This payment isn’t set aside any more.');
+    transfer.status = TransferStatus.UNMATCHED;
+    return transfer;
+  }
+
   /** Admin manually records an incoming transfer that the webhook missed. */
   async recordManualTransfer(
     groupId: string,

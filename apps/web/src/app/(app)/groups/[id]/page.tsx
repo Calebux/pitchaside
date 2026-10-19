@@ -659,6 +659,7 @@ export default function GroupDetailPage() {
             <PayoutsPanel
               groupId={id}
               groupName={group.name}
+              unsorted={(money.transfers ?? []).filter((t) => t.status === 'unmatched').reduce((sum, t) => sum + Number(t.amount), 0)}
               refundable={(group.memberships ?? [])
                 .filter((m) => Number(m.credit ?? 0) > 0)
                 .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}`, credit: Number(m.credit) }))}
