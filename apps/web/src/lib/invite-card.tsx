@@ -13,7 +13,7 @@ import { fit, loadFonts } from '@/lib/og';
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 export interface InviteCardData {
-  /** e.g. "Lekki Ballers invites you" */
+  /** e.g. "Matthew invites you" (the organiser; the club name if there is no first name) */
   eyebrow: string;
   /** Group or club name, the headline. */
   title: string;
@@ -36,12 +36,12 @@ const naira = (n: number) => `₦${Math.round(n).toLocaleString('en-NG')}`;
 const firstLetter = (name: string) => name.trim().charAt(0).toUpperCase() || 'P';
 
 export async function groupInvite(code: string): Promise<InviteCardData | null> {
-  const g = await getJson<{ groupName: string; organizationName?: string; schedule?: string; feePerPlayer: number; memberCount: number }>(
+  const g = await getJson<{ groupName: string; organizationName?: string; organiserName?: string | null; schedule?: string; feePerPlayer: number; memberCount: number }>(
     `/public/groups/${encodeURIComponent(code)}`,
   );
   if (!g) return null;
   return {
-    eyebrow: g.organizationName ? `${g.organizationName} invites you` : 'You’ve been called up',
+    eyebrow: g.organiserName || g.organizationName ? `${g.organiserName || g.organizationName} invites you` : 'You’ve been called up',
     title: g.groupName,
     chips: [g.schedule, g.feePerPlayer > 0 ? `${naira(g.feePerPlayer)} per game` : null, g.memberCount > 0 ? `${g.memberCount} players` : null].filter(
       (c): c is string => !!c,

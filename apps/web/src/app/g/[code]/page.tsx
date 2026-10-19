@@ -9,7 +9,7 @@ import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { PayIntoCard } from '@/components/account-card';
 import { PasswordSignIn } from '@/components/password-sign-in';
 import { PlayerSignupForm, type SignupData } from '@/components/player-signup-form';
-import { formatCurrency, getPublicGroup, type PublicGroup } from '@/lib/api';
+import { formatCurrency, getPublicGroup, invitedBy, type PublicGroup } from '@/lib/api';
 import { frequencyShort } from '@/lib/billing';
 import { getPlayerHome, joinAsPlayer, signupFromLink, type JoinResult } from '@/lib/player';
 
@@ -159,7 +159,7 @@ export default function GroupLinkPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-pitch-950 via-pitch-950/40 to-transparent" />
           <div className="absolute left-4 right-4 bottom-3">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">
-              {group.organizationName ? `${group.organizationName} invites you` : 'You’ve been called up'}
+              {invitedBy(group) ? `${invitedBy(group)} invites you` : 'You’ve been called up'}
             </p>
             <h1 className="font-display text-[26px] font-extrabold text-white leading-tight"><KeepHyphens text={group.groupName} /></h1>
           </div>

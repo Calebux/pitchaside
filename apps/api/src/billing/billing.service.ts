@@ -416,9 +416,15 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     if (!group) throw new NotFoundException('This group link is not valid. Ask your organiser for the latest link.');
     if (!group.accountNumber) await this.setupGroup(group);
+    // The person who invites: the account's first admin ("Matthew invites you"), not the club's name.
+    const owner = await this.groupsRepo.manager.findOne(User, {
+      where: { organizationId: group.organizationId, role: UserRole.ORG_ADMIN },
+      order: { createdAt: 'ASC' },
+    });
     return {
       groupName: group.name,
       organizationName: group.organization?.name,
+      organiserName: owner?.firstName?.trim() || null,
       description: group.description,
       schedule: group.schedule,
       feePerPlayer: Number(group.feePerPlayer),
