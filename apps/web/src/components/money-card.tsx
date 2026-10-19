@@ -141,6 +141,8 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   // The balance call failed and there's nothing true to show yet.
   const [balanceFailed, setBalanceFailed] = useState(false);
+  // The payments list failed and there's nothing true to show yet.
+  const [transfersFailed, setTransfersFailed] = useState(false);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const seen = useRef<Set<string> | null>(null);
   // Which group/game the screen is on now; answers for an earlier one are dropped.
@@ -160,6 +162,7 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
     if (current.current !== key) return;
     if (b.status === 'fulfilled') setBalance(b.value);
     setBalanceFailed(b.status === 'rejected');
+    setTransfersFailed(t.status === 'rejected');
     if (bill.status === 'fulfilled') setBilling(bill.value);
     if (g.status === 'fulfilled') setGame(g.value);
     if (r.status === 'fulfilled') setRsvp(r.value);
@@ -186,6 +189,7 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
     setRsvp(null);
     setUpdatedAt(null);
     setBalanceFailed(false);
+    setTransfersFailed(false);
     setFresh(new Set());
   }, [groupId, gameId]);
 
@@ -203,7 +207,7 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
     };
   }, [groupId, load]);
 
-  return { balance, billing, transfers, game, rsvp, updatedAt, balanceFailed, fresh, reload: load, setBilling };
+  return { balance, billing, transfers, game, rsvp, updatedAt, balanceFailed, transfersFailed, fresh, reload: load, setBilling };
 }
 
 // ── Pieces ──
