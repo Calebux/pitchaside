@@ -53,7 +53,7 @@ export default function SessionVotePage() {
           Match payments
         </Link>
         <Link
-          href={`/groups/${session.groupId}?tab=table`}
+          href={`/squad?group=${session.groupId}&view=table`}
           className="py-3 text-sm font-bold text-center text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 transition-colors"
         >
           Group table

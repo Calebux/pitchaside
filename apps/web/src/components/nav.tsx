@@ -10,6 +10,7 @@ import { useToast } from '@/components/toast';
 import { playerTokenFromOrganiser } from '@/lib/api';
 import { BallIcon } from '@/components/illustrations';
 
+// The bottom bar: today, the games, the people, the money, the cups. Everything else is in More.
 const tabs = [
   {
     label: 'Home',
@@ -25,8 +26,18 @@ const tabs = [
     ),
   },
   {
-    label: 'Groups',
-    href: '/groups',
+    label: 'Games',
+    href: '/sessions',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={active ? 2.2 : 1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+        {active && <path d="M3 11.25V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v3.75Z" fill="currentColor" stroke="none" />}
+      </svg>
+    ),
+  },
+  {
+    label: 'Squad',
+    href: '/squad',
     icon: (active: boolean) => (
       <svg className="w-5 h-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={active ? 0 : 1.5} stroke="currentColor">
         {active ? (
@@ -38,25 +49,12 @@ const tabs = [
     ),
   },
   {
-    label: 'Players',
-    href: '/players',
-    icon: (active: boolean) => (
-      <svg className="w-5 h-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={active ? 0 : 1.5} stroke="currentColor">
-        {active ? (
-          <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
-        ) : (
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-        )}
-      </svg>
-    ),
-  },
-  {
-    label: 'Games',
-    href: '/sessions',
+    label: 'Money',
+    href: '/money',
     icon: (active: boolean) => (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={active ? 2.2 : 1.5} stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-        {active && <path d="M3 11.25V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v3.75Z" fill="currentColor" stroke="none" />}
+        {active && <rect x="2.25" y="6" width="19.5" height="12" rx="1.5" fill="currentColor" fillOpacity={0.25} stroke="none" />}
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
       </svg>
     ),
   },
@@ -73,6 +71,32 @@ const tabs = [
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 14.25v-2.5m0 0A3.75 3.75 0 0 0 15.75 8V3.75h-7.5V8A3.75 3.75 0 0 0 12 11.75Z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25H18a2.25 2.25 0 0 1 0 4.5h-.75m-9-4.5H6a2.25 2.25 0 0 0 0 4.5h.75" />
           </>
+        )}
+      </svg>
+    ),
+  },
+];
+
+// The club as a whole (every group, every player): in More on phones, under the menu on desktop.
+const clubTabs = [
+  {
+    label: 'Groups',
+    href: '/groups',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" viewBox="0 0 48 48" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 3} strokeLinejoin="round">
+        <path d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z" />
+      </svg>
+    ),
+  },
+  {
+    label: 'All players',
+    href: '/players',
+    icon: (active: boolean) => (
+      <svg className="w-5 h-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" strokeWidth={active ? 0 : 1.5} stroke="currentColor">
+        {active ? (
+          <path fillRule="evenodd" d="M7.5 6a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0ZM3.751 20.105a8.25 8.25 0 0 1 16.498 0 .75.75 0 0 1-.437.695A18.683 18.683 0 0 1 12 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 0 1-.437-.695Z" clipRule="evenodd" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
         )}
       </svg>
     ),
@@ -132,11 +156,11 @@ export function Nav() {
     }
   }, [mobileMenuOpen]);
 
-  const allTabs = isAdmin ? [...tabs, adminTab] : tabs;
+  const allTabs = [...tabs, ...clubTabs, ...(isAdmin ? [adminTab] : [])];
 
   const settingsActive = pathname.startsWith('/settings');
   // On phones the bar keeps four tabs plus More; Admin lives in More (the sidebar has room for it).
-  const moreActive = settingsActive || pathname.startsWith('/admin');
+  const moreActive = settingsActive || pathname.startsWith('/admin') || clubTabs.some((t) => pathname.startsWith(t.href));
 
   return (
     <>
@@ -196,16 +220,19 @@ export function Nav() {
                     <span aria-hidden>⚽</span>
                     Switch to Playing
                   </button>
-                  {isAdmin && (
+                  {[...clubTabs, ...(isAdmin ? [adminTab] : [])].map((t) => (
                     <Link
-                      href={adminTab.href}
+                      key={t.href}
+                      href={t.href}
                       onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 transition-colors [&_svg]:w-4 [&_svg]:h-4 [&_svg]:text-gray-500"
+                      className={`flex items-center gap-2.5 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors [&_svg]:w-4 [&_svg]:h-4 ${
+                        pathname.startsWith(t.href) ? 'bg-chalk text-ink [&_svg]:text-ink' : 'text-gray-700 hover:bg-gray-50 [&_svg]:text-gray-500'
+                      }`}
                     >
-                      {adminTab.icon(false)}
-                      {adminTab.label}
+                      {t.icon(false)}
+                      {t.label}
                     </Link>
-                  )}
+                  ))}
                   <Link
                     href="/settings"
                     onClick={() => setMobileMenuOpen(false)}

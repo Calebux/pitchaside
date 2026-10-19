@@ -434,7 +434,7 @@ export default function GamePage() {
             {coveredByDues && (
               <p className="mb-3 text-[13px] leading-snug text-gray-600">
                 This group pays {session.group?.paymentType} dues, so the game costs nothing extra.{' '}
-                <Link href={`/groups/${session.groupId}?tab=games`} className="font-bold text-pitch-700 hover:text-ink">
+                <Link href={`/sessions?group=${session.groupId}`} className="font-bold text-pitch-700 hover:text-ink">
                   Collect dues on the group
                 </Link>
               </p>

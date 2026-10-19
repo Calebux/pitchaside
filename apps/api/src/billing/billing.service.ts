@@ -510,7 +510,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           kind: 'member_joined',
           title: `${player.firstName} ${player.lastName} joined ${group.name}`,
           body: 'Joined with the group link.',
-          url: `/groups/${group.id}`,
+          url: `/squad?group=${group.id}`,
         }),
       );
     }
@@ -688,7 +688,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           kind: 'transfer_unmatched',
           title: `${naira(incoming.amount)} came in with no name`,
           body: `Into ${group.name}${sender ? `, from ${sender}` : ''}. Tap to choose who sent it.`,
-          url: `/groups/${group.id}?tab=transfers`,
+          url: `/money?group=${group.id}&show=unnamed`,
         }),
       );
 
