@@ -12,6 +12,7 @@ export enum AuditAction {
   PAYMENT_NO_SHOW = 'payment_no_show',
   PAYMENT_CAME = 'payment_came',
   PAYMENT_BULK_MARKED_PAID = 'payment_bulk_marked_paid',
+  PAYMENT_MOVED = 'payment_moved',
   SESSION_CREATED = 'session_created',
   SESSION_STATUS_CHANGED = 'session_status_changed',
   GROUP_CREATED = 'group_created',

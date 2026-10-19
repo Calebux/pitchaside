@@ -231,6 +231,11 @@ export function markUnpaid(paymentId: string): Promise<IPayment> {
   return http.patch<IPayment>(`/payments/${paymentId}/mark-unpaid`);
 }
 
+/** A payment that came by transfer pays another of the same player's unpaid games instead. */
+export function movePayment(paymentId: string, toPaymentId: string): Promise<{ from: string; to: string; kept: number }> {
+  return http.patch(`/payments/${paymentId}/move`, { toPaymentId });
+}
+
 export function waivePayment(paymentId: string): Promise<IPayment> {
   return http.patch<IPayment>(`/payments/${paymentId}/waive`);
 }

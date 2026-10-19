@@ -73,6 +73,21 @@ export class PaymentsController {
     return result;
   }
 
+  /** Moves a payment that came by transfer onto another of the same player's unpaid games. */
+  @Patch(':id/move')
+  async move(@Param('id') id: string, @Body() body: { toPaymentId: string }, @CurrentUser() user: User) {
+    const result = await this.paymentsService.moveToGame(id, body?.toPaymentId, user.organizationId);
+    await this.auditService.log({
+      action: AuditAction.PAYMENT_MOVED,
+      entityType: 'payment',
+      entityId: id,
+      userId: user.id,
+      organizationId: user.organizationId,
+      metadata: { to: result.to, kept: result.kept },
+    });
+    return result;
+  }
+
   @Patch(':id/waive')
   async waive(@Param('id') id: string, @CurrentUser() user: User) {
     const result = await this.paymentsService.waive(

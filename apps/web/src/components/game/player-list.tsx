@@ -12,7 +12,7 @@ import { leftToPay, playerState, type PlayerStateKey } from '@/lib/game-player';
 
 
 type Filter = 'to_pay' | 'paid' | 'no_show' | 'all';
-type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid' | 'out' | 'details';
+type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid' | 'out' | 'details' | 'move';
 
 const name = (p: IPayment) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
 const tone: Record<PlayerStateKey, string> = {
@@ -89,6 +89,7 @@ export function PlayerList({
   coveredByDues,
   before,
   canSendDetails = false,
+  canMove,
   busyId,
   onAction,
   onBulkPaid,
@@ -99,6 +100,8 @@ export function PlayerList({
   before: boolean;
   /** The group has an account, so players can be sent its details on WhatsApp. */
   canSendDetails?: boolean;
+  /** Paid by transfer, and they have another unpaid game it could pay instead. */
+  canMove?: (p: IPayment) => boolean;
   busyId: string | null;
   onAction: (p: IPayment, action: Action) => void;
   onBulkPaid: (ids: string[]) => Promise<void>;
@@ -295,6 +298,10 @@ export function PlayerList({
             <ul className="mt-4 -mx-2">
               {[
                 ...actionsFor(menuFor, s.key, before),
+                // Placed on this game automatically, but meant for another of theirs.
+                ...(canMove?.(menuFor)
+                  ? [{ action: 'move' as const, title: 'Move to another game', detail: 'It paid this game, but they meant one of their other unpaid games.' }]
+                  : []),
                 // Reaches players the app can't: no notifications, or added by hand and never signed in.
                 ...(canSendDetails && s.key === 'to_pay'
                   ? [{ action: 'details' as const, title: 'Send payment details', detail: 'On WhatsApp: the account, the amount and their payment code.' }]
