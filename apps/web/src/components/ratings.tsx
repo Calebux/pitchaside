@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { ShareCardButton } from '@/components/share-card';
+import { isVotingOpen } from '@/lib/game-status';
 import {
   getSessions,
   getSessionVoting,
@@ -184,6 +185,7 @@ export function SessionVotingCard({
       () => toast.error('Could not copy'),
     );
   const turnout = voting.squadSize ? Math.round((voting.ballots / voting.squadSize) * 100) : 0;
+  const closes = voting.closesAt ? closeTime(voting.closesAt) : null;
 
   return (
     <section className="mb-6 rounded-[28px] bg-sun-400 border-2 border-ink shadow-sticker p-5 relative overflow-hidden">
@@ -206,8 +208,7 @@ export function SessionVotingCard({
 
         {voting.notYet ? (
           <p className="text-sm text-ink/70 mt-2">
-            Voting opens on match day. Share the link after the final whistle — players rate each other and it feeds their card
-            ratings and the group table.
+            The vote opens when you end the game, for 48 hours. Only players who came vote, and the winners show when it closes.
           </p>
         ) : (
           <>
@@ -215,9 +216,7 @@ export function SessionVotingCard({
               <div className="bg-ink h-2 rounded-full transition-all" style={{ width: `${turnout}%` }} />
             </div>
             <p className="text-xs text-ink/70 mt-2">
-              {voting.open
-                ? `Open until ${new Date(voting.closesAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
-                : 'Voting closed'}
+              {voting.open ? `Open until ${closes} · winners show when it closes` : 'Voting closed'}
             </p>
           </>
         )}
@@ -248,7 +247,7 @@ export function SessionVotingCard({
           </button>
         </div>
 
-        {voting.ballots > 0 && (
+        {voting.ballots > 0 && !voting.hidden && (
           <div className="mt-4">
             <VoteResultsList results={voting} compact />
             <ShareCardButton
@@ -265,12 +264,12 @@ export function SessionVotingCard({
   );
 }
 
-/** True while a game is inside its match-day + 7 days voting window. */
-export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' | 'status'>) {
-  if (session.kind === 'dues' || session.status === 'cancelled') return false;
-  const day = new Date(`${session.date.slice(0, 10)}T00:00:00`).getTime();
-  const today = new Date().setHours(0, 0, 0, 0);
-  return day <= today && day >= today - 7 * 86400000;
+/** "Tue 21 Oct, 8pm": when a vote closes. */
+export function closeTime(at: string) {
+  const d = new Date(at);
+  const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(':00', '').replace(' ', '');
+  return `${day}, ${time}`;
 }
 
 /** Slim prompt linking to the latest open vote — sits on the Players page. */

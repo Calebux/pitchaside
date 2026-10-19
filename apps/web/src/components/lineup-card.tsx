@@ -95,8 +95,8 @@ function TeamPicker({
  * Match day: split the squad into 2–6 coloured sides — each can have a captain it's named after —
  * record each short game, crown the Team of the Day.
  */
-/** `matchDay`: the game is today or has been played, so scores can be recorded. */
-export function LineupCard({ sessionId, matchDay = false }: { sessionId: string; matchDay?: boolean }) {
+/** Scores open on match day and lock the teams; the server says when (`scoresOpen`, `locked`). */
+export function LineupCard({ sessionId }: { sessionId: string }) {
   const toast = useToast();
   const [lineup, setLineup] = useState<Lineup | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -115,6 +115,8 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
 
   if (!lineup || lineup.squad.length === 0) return null;
   const teams = KEYS.slice(0, lineup.teamCount);
+  // Once a score is in, the teams are what it was played by.
+  const locked = lineup.locked;
 
   async function run(key: string, fn: () => Promise<Lineup>, ok?: string) {
     setBusy(key);
@@ -148,7 +150,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
     <div className="rounded-xl bg-white border border-gray-100">
       <button
         onClick={() => setPicking(picking === m.id ? null : m.id)}
-        disabled={busy === m.id}
+        disabled={busy === m.id || locked}
         className="w-full flex items-center gap-2 px-2.5 py-2 text-left"
       >
         <Avatar name={`${m.firstName} ${m.lastName}`} className="w-7 h-7 text-[10px]" />
@@ -166,7 +168,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
           m.ovr != null && <span className="text-[10px] font-extrabold text-gray-500 tabular-nums">{m.ovr}</span>
         )}
       </button>
-      {picking === m.id && (
+      {picking === m.id && !locked && (
         <div className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2.5">
           {teams.map((t) => (
             <button
@@ -204,6 +206,9 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Match day</p>
             <p className="font-display text-lg font-extrabold text-white leading-tight">Teams on the day</p>
           </div>
+          {locked ? (
+            <span className="shrink-0 text-sm font-extrabold text-white/80 tabular-nums">{lineup.teamCount} teams</span>
+          ) : (
           <div className="flex items-center gap-1 bg-white/10 rounded-xl p-1" role="radiogroup" aria-label="Number of teams">
             {[2, 3, 4, 5, 6].map((n) => (
               <button
@@ -219,7 +224,16 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
               </button>
             ))}
           </div>
+          )}
         </div>
+        {locked ? (
+          <p className="mt-3 flex items-start gap-2 text-xs text-white/75">
+            <svg className="w-4 h-4 shrink-0 text-volt-300" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+            </svg>
+            Teams are locked: scores are in, and each score counts for the players on these teams. Delete the scores to change the teams.
+          </p>
+        ) : (
         <div className="flex items-center justify-between gap-2 mt-3">
           <p className="text-xs text-white/60">Pick a captain for each team, then tap a player to move them. Every game counts towards their <span className="whitespace-nowrap">W-D-L</span>.</p>
           <button
@@ -230,6 +244,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
             {busy === 'balance' ? <BallSpinner className="w-3.5 h-3.5" /> : '✦'} Balance by rating
           </button>
         </div>
+        )}
       </div>
 
       {/* Sides */}
@@ -249,6 +264,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
                   </span>
                   {avg(t) != null && <span className="shrink-0 text-[10px] font-bold text-gray-500">avg {avg(t)}</span>}
                 </div>
+                {!locked && (
                 <label className="block px-1 mb-2">
                   <span className="sr-only">Captain of {TEAMS[t].name}</span>
                   <select
@@ -268,6 +284,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
                       ))}
                   </select>
                 </label>
+                )}
                 <div className="space-y-1.5">
                   {members.map((m) => (
                     <Chip key={m.id} m={m} />
@@ -298,12 +315,14 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
       {/* Games */}
       <div className="border-t border-gray-100 p-4">
         <h3 className="text-base font-extrabold text-ink mb-3">Games</h3>
-        {matchDay && lineup.games.length === 0 && lineup.squad.some((m) => m.team) && (
+        {lineup.scoresOpen && lineup.games.length === 0 && lineup.squad.some((m) => m.team) && (
           <p className="mb-3 rounded-xl bg-volt-200 px-3 py-2.5 text-xs font-semibold text-ink">
-            ⚽ Add each game’s score below. Results keep “Balance by rating” fair and build everyone’s rating.
+            ⚽ Add each game’s score below. The first score locks the teams, so pick them first.
           </p>
         )}
+        {!lineup.scoresOpen && <p className="mb-1 text-sm text-gray-600">Scores open on match day.</p>}
 
+        {lineup.scoresOpen && (
         <div className="rounded-2xl bg-ink turf-stripes p-4">
           <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
             <div className="flex flex-col items-center gap-2">
@@ -337,6 +356,7 @@ export function LineupCard({ sessionId, matchDay = false }: { sessionId: string;
             Add game
           </button>
         </div>
+        )}
 
         {lineup.games.length > 0 && (
           <ol className="mt-3 space-y-1.5">

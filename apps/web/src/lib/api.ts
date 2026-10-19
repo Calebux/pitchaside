@@ -663,6 +663,10 @@ export interface TeamStanding {
 
 export interface Lineup {
   teamCount: number;
+  /** Scores are in, so the teams are fixed until they're deleted. */
+  locked: boolean;
+  /** Scores can be added: it's match day or later, and the game wasn't called off. */
+  scoresOpen: boolean;
   /** Side → its captain's name; a side with a captain goes by "Team <name>". */
   captains: Partial<Record<TeamKey, string>>;
   /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
@@ -744,6 +748,8 @@ export interface SquadMember {
 export interface VoteResults {
   ballots: number;
   squadSize: number;
+  /** The vote is still open: only the turnout is shown, the winners come at the close. */
+  hidden?: boolean;
   categories: {
     key: VoteCategory;
     title: string;
@@ -755,8 +761,9 @@ export interface SessionVoting extends VoteResults {
   token: string;
   link: string;
   open: boolean;
+  /** The game hasn't been ended yet: the vote opens at full time. */
   notYet: boolean;
-  closesAt: string;
+  closesAt: string | null;
 }
 
 export interface Ballot {
@@ -764,7 +771,7 @@ export interface Ballot {
   date: string;
   open: boolean;
   notYet: boolean;
-  closesAt: string;
+  closesAt: string | null;
   categories: { key: VoteCategory; title: string }[];
   squad: SquadMember[];
   ballots: number;

@@ -81,7 +81,7 @@ export function featuredGame(sessions: ISessionWithDetails[], groupId: string) {
   return recent ?? next;
 }
 
-/** Votes stay open for a week after the game (VOTING_WINDOW_DAYS on the server). */
+/** A game nobody has ended stays on the card for a week, so the organiser is reminded to end it. */
 const VOTE_DAYS = 7;
 
 function ago(iso: string, now: number) {

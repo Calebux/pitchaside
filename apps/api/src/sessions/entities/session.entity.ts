@@ -67,6 +67,13 @@ export class Session {
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })
   reminderSentAt: Date | null;
 
+  /**
+   * When the vote opened: the moment the organiser ended the game. It stays open for 48 hours.
+   * Null for games not ended yet, and for games ended before votes were tied to full time.
+   */
+  @Column({ name: 'vote_opens_at', type: 'timestamptz', nullable: true })
+  voteOpensAt: Date | null;
+
   /** Public code for the post-match vote link (/v/:token); created on first use. */
   @Column({ name: 'voting_token', nullable: true, unique: true })
   votingToken: string;

@@ -76,7 +76,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
         </div>
       ) : (
         <p className="text-xs text-gray-500">
-          {lineup.bibsClosed ? 'Teams are locked — it’s been a week since this game.' : 'Picking your team opens on match day.'}
+          {lineup.bibsClosed ? 'Teams are set: the scores are in.' : 'Picking your team opens on match day.'}
         </p>
       )}
 

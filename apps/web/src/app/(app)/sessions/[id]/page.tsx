@@ -334,7 +334,7 @@ export default function GamePage() {
           {session.status === SessionStatus.UPCOMING && <TeamSheet sessionId={id} onChange={fetchSession} />}
           {!cancelled && (
             <div id="lineup" className="scroll-mt-20">
-              <LineupCard sessionId={id} matchDay={String(session.date).slice(0, 10) <= localToday()} />
+              <LineupCard sessionId={id} />
             </div>
           )}
         </>

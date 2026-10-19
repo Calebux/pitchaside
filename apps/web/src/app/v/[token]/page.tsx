@@ -6,13 +6,14 @@ import { useParams } from 'next/navigation';
 import { KeepHyphens, Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
-import { Avatar, VoteResultsList, categoryMeta } from '@/components/ratings';
+import { Avatar, VoteResultsList, categoryMeta, closeTime } from '@/components/ratings';
 import { getBallot, type Ballot, type VoteCategory, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
 import { ShareCardButton } from '@/components/share-card';
 import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
-type Stage = 'signin' | 'ballot' | 'done';
+/** `notPlayer`: signed in, but not among the players who played this game. */
+type Stage = 'signin' | 'notPlayer' | 'ballot' | 'done';
 
 export default function VotePage() {
   const { token } = useParams<{ token: string }>();
@@ -34,9 +35,14 @@ export default function VotePage() {
       setPicks(v.picks);
       setStage('ballot');
     } catch (err: any) {
-      // Signed out, or signed in as someone who didn't play: back to the sign-in step.
-      setError(err instanceof PlayerAuthError ? null : err.message);
-      setStage('signin');
+      // Signed out: sign in. Signed in but didn't play: say so, rather than asking them to sign in again.
+      if (err instanceof PlayerAuthError) {
+        setError(null);
+        setStage('signin');
+      } else {
+        setError(err.message);
+        setStage('notPlayer');
+      }
     } finally {
       setBusy(false);
     }
@@ -133,13 +139,25 @@ export default function VotePage() {
         {!ballot.open && stage !== 'done' ? (
           <div className="mt-6 text-center bg-chalk rounded-3xl p-6 border border-gray-200">
             <p className="font-display text-xl font-extrabold text-ink">
-              {ballot.notYet ? 'Voting opens on match day' : 'Voting has closed'}
+              {ballot.notYet ? 'The vote opens at full time' : 'Voting has closed'}
             </p>
             <p className="text-sm text-gray-500 mt-1">
               {ballot.notYet
-                ? 'Come back after the final whistle.'
-                : `Closed on ${new Date(ballot.closesAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.`}
+                ? 'It opens when your organiser ends the game, for 48 hours.'
+                : ballot.closesAt
+                  ? `Closed ${closeTime(ballot.closesAt)}.`
+                  : 'The results are in.'}
             </p>
+          </div>
+        ) : stage === 'notPlayer' ? (
+          <div className="mt-6 text-center bg-chalk rounded-3xl p-6 border border-gray-200">
+            <p className="font-display text-xl font-extrabold text-ink">This vote is for the players who played</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {error ?? 'Only players who came to this game vote.'} You’ll vote after your next game.
+            </p>
+            <Link href="/me" className="mt-4 inline-flex items-center justify-center px-5 py-3 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors">
+              Back to my PitchAside
+            </Link>
           </div>
         ) : stage === 'signin' ? (
           <div className="mt-6 space-y-3">
@@ -215,9 +233,14 @@ export default function VotePage() {
                 <Trophy className="w-40 h-32 mx-auto" />
                 <h2 className="text-2xl font-extrabold text-ink mt-1">Votes in — cheers, {voter?.firstName}!</h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  {results.ballots} of {results.squadSize} have voted. Here&apos;s how it stands.
+                  {results.ballots} of {results.squadSize} have voted.{' '}
+                  {results.hidden
+                    ? `The winners show when the vote closes${ballot.closesAt ? `, ${closeTime(ballot.closesAt)}` : ''}.`
+                    : 'Here’s how it ended.'}
                 </p>
               </div>
+              {!results.hidden && (
+                <>
               <div className="mt-5">
                 <VoteResultsList results={results} />
               </div>
@@ -228,6 +251,8 @@ export default function VotePage() {
               >
                 Share the match card
               </ShareCardButton>
+                </>
+              )}
               <Link
                 href="/me"
                 className="mt-2 w-full flex items-center justify-center py-3.5 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors"

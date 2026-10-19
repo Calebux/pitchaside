@@ -172,8 +172,9 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
-      if (now < noon) continue;
-      const squad = (game.payments ?? []).map((p) => p.playerId);
+      // Only while the vote is open, and only to the players who came.
+      if (now < noon || !this.ratings.isVoteOpen(game)) continue;
+      const squad = (game.payments ?? []).filter((p) => p.attendance !== 'no_show').map((p) => p.playerId);
       if (squad.length < 2) continue;
       const voted = new Set(
         (await this.votesRepo.find({ where: { sessionId: game.id } })).map((v) => v.voterId),

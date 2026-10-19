@@ -332,7 +332,7 @@ export type GamePaid = 'paid' | 'unpaid' | 'waived';
 export interface GameLineup {
   teamCount: number;
   bibsOpen: boolean;
-  /** A week after the game, when voting closes: teams are locked. */
+  /** Scores are in (or the vote has closed): teams are set. */
   bibsClosed: boolean;
   myTeam: TeamKey | null;
   /** Side → its captain's name; a side with a captain goes by "Team <name>". */

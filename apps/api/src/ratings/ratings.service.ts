@@ -22,8 +22,10 @@ import { DEFAULT_START, LEVEL_START, PROVISIONAL_UNDER, cardRating, replaySkill,
 export const TEAM_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 type TeamKey = (typeof TEAM_KEYS)[number];
 
-/** Votes stay open for a week after kick-off. */
-const VOTING_WINDOW_DAYS = 7;
+/** The vote opens at full time (when the organiser ends the game) and stays open this long. */
+const VOTE_HOURS = 48;
+/** Games ended before the vote was tied to full time keep their old window: match day plus a week. */
+const LEGACY_WINDOW_DAYS = 7;
 
 export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK' }[] = [
   { key: VoteCategory.POTM, title: 'Player of the Match' },
@@ -109,17 +111,43 @@ export class RatingsService {
 
   // ── Voting window & squad ──
 
+  /**
+   * When players can vote: from the moment the organiser ends the game, for 48 hours. Nobody
+   * votes on a game that hasn't been played, and a game reopened by mistake stops taking votes
+   * until it's ended again (keeping its first full-time, so reopening never stretches the vote).
+   */
   private window(session: Session) {
-    const kickoff = new Date(`${session.date}T00:00:00`);
-    const closesAt = new Date(kickoff.getTime() + (VOTING_WINDOW_DAYS + 1) * 86_400_000);
-    const now = Date.now();
     const eligible = session.kind !== SessionKind.DUES && session.status !== SessionStatus.CANCELLED;
+    const ended = session.status === SessionStatus.COMPLETED;
+    let opensAt: Date | null = null;
+    let closesAt: Date | null = null;
+    if (session.voteOpensAt) {
+      opensAt = new Date(session.voteOpensAt);
+      closesAt = new Date(opensAt.getTime() + VOTE_HOURS * 3_600_000);
+    } else if (ended) {
+      opensAt = new Date(`${session.date}T00:00:00`);
+      closesAt = new Date(opensAt.getTime() + (LEGACY_WINDOW_DAYS + 1) * 86_400_000);
+    }
+    const now = Date.now();
+    const open = eligible && ended && !!opensAt && !!closesAt && now >= opensAt.getTime() && now < closesAt.getTime();
     return {
-      opensAt: kickoff,
+      opensAt,
       closesAt,
-      open: eligible && now >= kickoff.getTime() && now < closesAt.getTime(),
-      notYet: eligible && now < kickoff.getTime(),
+      open,
+      notYet: eligible && !ended,
+      /** The vote has finished: results can be shown. */
+      closed: eligible && ended && !!closesAt && now >= closesAt.getTime(),
     };
+  }
+
+  /** For the reminders: whether this game is taking votes right now. */
+  isVoteOpen(session: Session) {
+    return this.window(session).open;
+  }
+
+  /** Once a score is in, the teams are the ones that score was played by: nobody moves until the scores are deleted. */
+  private async scoresIn(sessionId: string) {
+    return (await this.gamesRepo.count({ where: { sessionId } })) > 0;
   }
 
   /** Everyone with a payment row for the game is in the squad, except anyone who didn't come. */
@@ -151,7 +179,12 @@ export class RatingsService {
     return session;
   }
 
+  /**
+   * The vote's standings. While the vote is open only the turnout is shared, so nobody votes
+   * with the crowd and the WhatsApp group doesn't argue mid-vote; the winners show at the close.
+   */
   private async results(session: Session) {
+    const hidden = this.window(session).open;
     const votes = await this.votesRepo.find({ where: { sessionId: session.id } });
     const squad = this.squad(session);
     const byId = new Map(squad.map((p) => [p.id, p]));
@@ -166,9 +199,9 @@ export class RatingsService {
         .map(([playerId, count]) => ({ player: byId.get(playerId) ?? null, playerId, count }))
         .filter((s) => s.player)
         .sort((a, b) => b.count - a.count);
-      return { key: c.key, title: c.title, standings };
+      return { key: c.key, title: c.title, standings: hidden ? [] : standings };
     });
-    return { ballots, squadSize: squad.length, categories };
+    return { ballots, squadSize: squad.length, hidden, categories };
   }
 
   // ── Admin ──
@@ -202,7 +235,7 @@ export class RatingsService {
       .innerJoin('session.payments', 'mine', 'mine.playerId = :playerId', { playerId })
       .leftJoinAndSelect('session.group', 'g')
       .getMany();
-    const open = sessions.filter((s) => this.window(s).open);
+    const open = sessions.filter((s) => this.window(s).open && this.cameTo(s, playerId));
     const result = [];
     for (const s of open) {
       const token = await this.ensureVotingToken(s.id);
@@ -231,10 +264,15 @@ export class RatingsService {
     };
   }
 
-  /** The person's player record on this game's team sheet (they may play for several clubs). */
+  /** On the game's list and not marked as didn't come. */
+  private cameTo(session: Session, playerId: string) {
+    return (session.payments ?? []).some((p) => p.playerId === playerId && p.attendance !== 'no_show');
+  }
+
+  /** The person's player record among those who played (they may play for several clubs). */
   private voterIn(session: Session, playerIds: string[]) {
-    const voter = (session.payments ?? []).find((p) => playerIds.includes(p.playerId))?.player;
-    if (!voter) throw new ForbiddenException("You're not on the team sheet for this game");
+    const voter = (session.payments ?? []).find((p) => playerIds.includes(p.playerId) && p.attendance !== 'no_show')?.player;
+    if (!voter) throw new ForbiddenException('Only players who played in this game can vote');
     return voter;
   }
 
@@ -253,7 +291,7 @@ export class RatingsService {
   async submitVotes(token: string, playerIds: string[], picks: Record<string, string>) {
     const session = await this.loadSessionByToken(token);
     const w = this.window(session);
-    if (!w.open) throw new BadRequestException(w.notYet ? 'Voting opens on match day' : 'Voting has closed for this game');
+    if (!w.open) throw new BadRequestException(w.notYet ? 'Voting opens when the game ends' : 'Voting has closed for this game');
 
     const voter = this.voterIn(session, playerIds);
     const squadIds = new Set(this.squad(session).map((p) => p.id));
@@ -294,6 +332,7 @@ export class RatingsService {
       this.groupsRepo.findOne({ where: { id: session.groupId }, relations: ['organization'] }),
     ]);
     const name = (p: SquadMember) => sheetName(p);
+    // Empty while the vote is open: the winners show at the close.
     const awards = results.categories
       .map((c) => {
         const top = c.standings[0];
@@ -369,6 +408,10 @@ export class RatingsService {
     const table = this.standings(session.teamCount, games);
     return {
       teamCount: session.teamCount,
+      /** Scores are in, so the teams can't change until they're deleted. */
+      locked: games.length > 0,
+      /** Scores can be added from match day, unless the game was called off. */
+      scoresOpen: session.status !== SessionStatus.CANCELLED && localDate(0) >= String(session.date).slice(0, 10),
       captains: this.captainsOf(session),
       squad: (session.payments ?? [])
         .filter((p) => p.player && p.attendance !== 'no_show')
@@ -397,6 +440,9 @@ export class RatingsService {
   ) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.kind === SessionKind.DUES) throw new BadRequestException('Dues periods don’t have a lineup');
+    if (await this.scoresIn(session.id)) {
+      throw new BadRequestException('Teams are locked because scores are in. Delete the scores to change the teams.');
+    }
     let count = session.teamCount;
     if (input.teamCount !== undefined) {
       count = Math.max(2, Math.min(TEAM_KEYS.length, Math.round(input.teamCount)));
@@ -408,12 +454,7 @@ export class RatingsService {
         p.captain = false;
       }
       if (dropped.length) await this.sessionsRepo.manager.save(dropped);
-      await this.gamesRepo
-        .createQueryBuilder()
-        .delete()
-        .where('session_id = :sid', { sid: session.id })
-        .andWhere('(team_a IN (:...gone) OR team_b IN (:...gone))', { gone: TEAM_KEYS.slice(count) })
-        .execute();
+      // No scores to drop: the teams are locked once any are in.
     }
     if (input.teams) {
       const valid = new Set<string>(TEAM_KEYS.slice(0, count));
@@ -487,12 +528,12 @@ export class RatingsService {
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
 
-    const paid = await this.paidFor(session);
+    const [paid, locked] = await Promise.all([this.paidFor(session), this.scoresIn(session.id)]);
     const showPaid = session.group.contributionsVisibility === 'names';
     return {
       teamCount: session.teamCount,
-      bibsOpen: this.bibsOpen(session),
-      bibsClosed: this.bibsClosed(session),
+      bibsOpen: this.bibsOpen(session, locked),
+      bibsClosed: locked || this.bibsClosed(session),
       myTeam: this.teamOf(session, mine.team),
       captains: this.captainsOf(session),
       myPaid: paid.get(mine.playerId) ?? 'unpaid',
@@ -512,21 +553,22 @@ export class RatingsService {
   }
 
   /**
-   * From kick-off day until voting closes a week later — still open once the game is marked
-   * finished, so players can fix it after — unless it was called off. Closing it with the vote
-   * stops anyone moving themselves onto the winning side long after the results are in.
+   * Players pick their own side from match day until the first score goes in, unless the game
+   * was called off. After that the teams are what the scores were played by, so nobody can move
+   * onto the winning side and rewrite the day's results.
    */
-  private bibsOpen(session: Session) {
+  private bibsOpen(session: Session, scoresIn: boolean) {
     return (
       session.status !== SessionStatus.CANCELLED &&
       localDate(0) >= String(session.date).slice(0, 10) &&
+      !scoresIn &&
       !this.bibsClosed(session)
     );
   }
 
-  /** Past the voting window: teams are locked for good. */
+  /** Past the vote: teams are locked for good. */
   private bibsClosed(session: Session) {
-    return Date.now() >= this.window(session).closesAt.getTime();
+    return this.window(session).closed;
   }
 
   /** A player picks the side they're on for the day — by bib or by captain (null to clear it). */
@@ -534,8 +576,11 @@ export class RatingsService {
     const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['payments'] });
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
-    if (!this.bibsOpen(session)) {
-      throw new BadRequestException(this.bibsClosed(session) ? 'Teams are locked a week after the game' : 'Picking teams opens on match day');
+    const locked = await this.scoresIn(session.id);
+    if (!this.bibsOpen(session, locked)) {
+      throw new BadRequestException(
+        locked || this.bibsClosed(session) ? 'Teams are set: the scores are in' : 'Picking teams opens on match day',
+      );
     }
     if (team !== null && !TEAM_KEYS.slice(0, session.teamCount).includes(team as TeamKey)) {
       throw new BadRequestException("That team isn't in this game");
@@ -580,6 +625,8 @@ export class RatingsService {
     input: { teamA: string; teamB: string; scoreA: number; scoreB: number },
   ) {
     const session = await this.loadSession(sessionId, organizationId);
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    if (localDate(0) < String(session.date).slice(0, 10)) throw new BadRequestException('Scores open on match day');
     const valid = new Set<string>(TEAM_KEYS.slice(0, session.teamCount));
     if (!valid.has(input.teamA) || !valid.has(input.teamB) || input.teamA === input.teamB) {
       throw new BadRequestException('Pick two different teams');
@@ -658,7 +705,8 @@ export class RatingsService {
     for (const v of votes) votesBySession.set(v.sessionId, [...(votesBySession.get(v.sessionId) ?? []), v]);
 
     for (const session of sessions) {
-      const sv = votesBySession.get(session.id) ?? [];
+      // Votes count towards cards and the table once the vote closes, like the results.
+      const sv = this.window(session).open ? [] : (votesBySession.get(session.id) ?? []);
       const voters = new Set(sv.map((v) => v.voterId));
 
       // Player of the match = most POTM votes (ties share it).
@@ -756,11 +804,12 @@ export class RatingsService {
           else record.l++;
         }
         const potmCounts = new Map<string, number>();
-        const sv = votes.filter((v) => v.sessionId === s.id);
+        const w = this.window(s);
+        // The winner is only known once the vote closes.
+        const sv = w.open ? [] : votes.filter((v) => v.sessionId === s.id);
         for (const v of sv) if (v.category === VoteCategory.POTM) potmCounts.set(v.nomineeId, (potmCounts.get(v.nomineeId) ?? 0) + 1);
         const [potmId, potmVotes] = [...potmCounts.entries()].sort((a, b) => b[1] - a[1])[0] ?? [null, 0];
         const potmPlayer = potmId ? s.payments?.find((p) => p.playerId === potmId)?.player : null;
-        const w = this.window(s);
         return {
           sessionId: s.id,
           date: s.date,
@@ -768,14 +817,15 @@ export class RatingsService {
           teamCount: s.teamCount,
           myTeam,
           captains: this.captainsOf(s),
-          teamOpen: this.bibsOpen(s),
+          teamOpen: this.bibsOpen(s, dayGames.length > 0),
           teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
           record,
           games: dayGames.length,
           potm: potmPlayer ? { name: sheetName(potmPlayer), votes: potmVotes, isMe: potmId === playerId } : null,
-          vote: w.open
-            ? { token: await this.ensureVotingToken(s.id), voted: sv.some((v) => v.voterId === playerId) }
-            : null,
+          vote:
+            w.open && this.cameTo(s, playerId)
+              ? { token: await this.ensureVotingToken(s.id), voted: votes.some((v) => v.sessionId === s.id && v.voterId === playerId) }
+              : null,
           /** For the match-day share card, once the game has kicked off. */
           shareToken: w.notYet ? null : await this.ensureVotingToken(s.id),
         };
