@@ -15,7 +15,7 @@ type Member = Lineup['squad'][number];
 /** In the sheet and for screen readers: their nickname, else their full name. */
 const shownName = (m: Member) => m.nickname || `${m.firstName} ${m.lastName}`;
 /** On the narrow team columns: nickname, else first name and initial ("Chidi N."). */
-const shortName = (m: Member) => m.nickname || `${m.firstName} ${m.lastName.charAt(0)}.`;
+export const shortName = (m: Pick<Member, 'nickname' | 'firstName' | 'lastName'>) => m.nickname || `${m.firstName} ${m.lastName.charAt(0)}.`;
 
 export function Swatch({ team, className = 'w-3 h-3 rounded-sm' }: { team: TeamKey; className?: string }) {
   return <span className={`${className} ${TEAMS[team].swatch} inline-block shrink-0`} aria-hidden />;
