@@ -6,7 +6,7 @@ import { Ticket } from '@/components/ticket';
 import { Ball, Player, kitFor, skins } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
-import { TEAMS, teamName } from '@/components/lineup-card';
+import { TEAMS, teamName } from '@/lib/teams';
 import { MatchDayBibs } from '@/components/match-day-bibs';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';

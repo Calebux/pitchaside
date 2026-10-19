@@ -24,16 +24,21 @@ import {
   exportSessionPaymentsCsv,
   sendReminders,
   setRsvpForPlayer,
+  getLineup,
+  getRsvpBoard,
   type BankTransfer,
+  type Lineup,
+  type RsvpBoard,
   type GroupBilling,
   type IGroupWithMembers,
   type OwedItem,
   type ISessionWithDetails,
 } from '@/lib/api';
 import { SessionStatus, type IPayment } from '@pitchaside/shared';
-import { SessionVotingCard } from '@/components/ratings';
-import { LineupCard } from '@/components/lineup-card';
-import { TeamSheet } from '@/components/team-sheet';
+import { GameSteps, STEPS, type Step, type StepInfo } from '@/components/game/game-steps';
+import { TeamsStep } from '@/components/game/teams-step';
+import { ScoresStep } from '@/components/game/scores-step';
+import { FullTimeStep } from '@/components/game/full-time-step';
 import { HowPaidSheet } from '@/components/group/how-paid-sheet';
 import { daysFromToday, gameDay } from '@/components/money-card';
 import { GameHero } from '@/components/game/game-hero';
@@ -41,18 +46,10 @@ import { GameMenu } from '@/components/game/game-actions';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
 import { coveredByDues as coversByDues, gamePhase, gameTally } from '@/lib/game-player';
-import { btnPrimary, btnSecondary } from '@/components/buttons';
+import { btnSecondary } from '@/components/buttons';
 import { AddToGameSheet } from '@/components/game/add-to-game-sheet';
 import { gameInviteMessage, openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
 import { prettyTime } from '@/components/player-ui';
-
-type Tab = 'players' | 'teams' | 'stars';
-const TABS: Tab[] = ['players', 'teams', 'stars'];
-const TAB_ICONS: Record<Tab, string> = {
-  players: 'M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z',
-  teams: 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z',
-  stars: 'M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z',
-};
 
 /** Today as YYYY-MM-DD in the browser's time zone. */
 function localToday() {
@@ -75,8 +72,10 @@ export default function GamePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reminding, setReminding] = useState(false);
   const [ending, setEnding] = useState(false);
-  // Long squads (30+) made this page endless: players, teams and stars each get a tab.
-  const [tab, setTab] = useState<Tab | null>(null);
+  // Match day in four steps, one on screen at a time: players, teams, scores, full time.
+  const [step, setStep] = useState<Step | null>(null);
+  const [lineup, setLineup] = useState<Lineup | null | undefined>(undefined);
+  const [board, setBoard] = useState<RsvpBoard | null>(null);
   // Money in the group account no one could put a name to: one may be a player's payment.
   const [unnamed, setUnnamed] = useState<BankTransfer[]>([]);
   // What everyone owes and has kept, so the sheet can say where any extra goes.
@@ -116,24 +115,48 @@ export default function GamePage() {
   }, [groupId]);
   useEffect(loadUnnamed, [loadUnnamed]);
 
-  // Opening tab: ?tab= if given, else Teams on match day, else Players. (?tab=payments is the old name.)
+  // Teams and scores follow who's in the game, so they reload with it.
+  const isGameKind = session ? session.kind !== 'dues' : false;
   useEffect(() => {
-    if (!session || tab) return;
+    if (!session || !isGameKind) return;
+    getLineup(id).then(setLineup).catch(() => setLineup(null));
+    if (session.group?.requireRsvp) getRsvpBoard(id).then(setBoard).catch(() => setBoard(null));
+  }, [id, session, isGameKind]);
+
+  // Opening step: ?tab= if given, else the one the game is at. Before match day it's who's in;
+  // on match day, teams until they're picked, then scores; once played, who still has to pay
+  // (or the vote, when everyone has). Old links (?tab=stars, ?tab=payments) still land right.
+  useEffect(() => {
+    if (!session || step) return;
+    if (session.kind !== 'dues' && lineup === undefined) return;
     const asked = new URLSearchParams(window.location.search).get('tab');
-    const wanted = asked === 'payments' ? 'players' : asked;
-    setTab(
-      TABS.includes(wanted as Tab)
-        ? (wanted as Tab)
-        : session.status === SessionStatus.UPCOMING && String(session.date).slice(0, 10) === localToday()
-          ? 'teams'
-          : 'players',
+    const wanted = asked === 'payments' ? 'players' : asked === 'stars' ? 'full' : asked;
+    const ph = gamePhase(session, daysFromToday(session.date), session.group?.kickoffTime);
+    const owing = gameTally(session.payments ?? [], coversByDues(session), ph === 'before' || ph === 'today').toPay > 0;
+    const teamsPicked = !!lineup?.squad.length && lineup.squad.every((m) => m.team);
+    setStep(
+      STEPS.includes(wanted as Step)
+        ? (wanted as Step)
+        : ph === 'today'
+          ? teamsPicked ? 'scores' : 'teams'
+          : ph === 'after'
+            ? lineup?.games.length || teamsPicked ? 'scores' : 'full'
+            : ph === 'ended'
+              ? owing ? 'players' : 'full'
+              : 'players',
     );
     // From the home's "End game": straight into who came.
     if (new URLSearchParams(window.location.search).get('end') === '1' && session.status === SessionStatus.UPCOMING) setEnding(true);
-  }, [session, tab]);
+  }, [session, step, lineup]);
 
-  function chooseTab(t: Tab) {
-    setTab(t);
+  function chooseStep(t: Step) {
+    setStep(t);
+    // Scrolled down into a long step: start the next one at its top, just under the step bar.
+    const anchor = document.getElementById('game-steps-anchor');
+    if (anchor) {
+      const top = anchor.getBoundingClientRect().top + window.scrollY - parseFloat(getComputedStyle(document.body).paddingTop || '0');
+      if (window.scrollY > top) window.scrollTo({ top, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
     const url = new URL(window.location.href);
     url.searchParams.set('tab', t);
     window.history.replaceState(null, '', url);
@@ -259,6 +282,26 @@ export default function GamePage() {
     .filter((m) => !onGame.has(m.player.id))
     .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}` }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const onSides = lineup?.squad.filter((m) => m.team).length ?? 0;
+  const games = lineup?.games.length ?? 0;
+  const stepInfo: Record<Step, StepInfo> = {
+    players: before
+      ? { status: `${tally.playing} in` }
+      : tally.toPay && !coveredByDues
+        ? { status: `${tally.toPay} to pay`, attention: true }
+        : { status: coveredByDues ? `${tally.playing} played` : 'All paid', done: !!payments.length },
+    teams: !lineup?.squad.length
+      ? { status: 'No one yet' }
+      : lineup.locked
+        ? { status: 'Locked', done: true }
+        : onSides === 0
+          ? { status: 'Not picked', attention: phase === 'today' }
+          : onSides < lineup.squad.length
+            ? { status: `${lineup.squad.length - onSides} to place`, attention: true }
+            : { status: `${lineup.teamCount} teams`, done: true },
+    scores: !lineup?.scoresOpen ? { status: 'Match day' } : games ? { status: `${games} game${games === 1 ? '' : 's'}`, done: phase === 'ended' } : { status: 'None yet' },
+    full: phase === 'ended' ? { status: 'Ended', done: true } : cancelled ? { status: 'Called off' } : { status: phase === 'after' ? 'End game' : 'Not yet', attention: phase === 'after' },
+  };
   const shareGame = () => {
     if (!billing) return;
     const kickoff = session.kickoffTime || session.group?.kickoffTime;
@@ -350,73 +393,26 @@ export default function GamePage() {
 
       <GameHero session={session} coveredByDues={coveredByDues} phase={phase} reminding={reminding} onRemind={remind} />
 
-      {/* The one thing to do next, when there is one */}
-      {isGame && phase === 'after' && (
-        <button onClick={() => setEnding(true)} className={`${btnPrimary} w-full mt-4 animate-rise`}>
-          End game · say who came
-        </button>
-      )}
-      {isGame && phase === 'today' && tab !== 'teams' && (
-        <button onClick={() => chooseTab('teams')} className={`${btnPrimary} w-full mt-4 animate-rise`}>
-          Pick today’s teams
-        </button>
-      )}
-      {/* Before kick-off the job is getting players in: share it where they talk */}
-      {isGame && before && billing && (
-        <button onClick={shareGame} className={`${btnSecondary} w-full mt-3 animate-rise`}>
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.03c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.16 0 .39-.06.61.47.24.56.79 1.92.86 2.06.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.89 1.04.93 1.92 1.22 2.19 1.36.27.14.43.11.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34Z"/></svg>
-          Share on WhatsApp
-        </button>
+      {/* Match day in four steps; the bar stays at the top while scrolling */}
+      {isGame && step && <GameSteps current={step} info={stepInfo} onPick={chooseStep} />}
+
+      {isGame && step === 'teams' && (lineup ? (
+        <TeamsStep sessionId={id} lineup={lineup} onLineup={setLineup} onError={(m) => toast.error(m)} onDone={() => chooseStep('scores')} />
+      ) : (
+        <LineupFailed onRetry={() => getLineup(id).then(setLineup).catch(() => toast.error('Still not loading. Check your connection.'))} />
+      ))}
+
+      {isGame && step === 'scores' && (lineup ? (
+        <ScoresStep sessionId={id} lineup={lineup} dateLabel={gameLabel(session)} onLineup={setLineup} onError={(m) => toast.error(m)} onPickTeams={() => chooseStep('teams')} />
+      ) : (
+        <LineupFailed onRetry={() => getLineup(id).then(setLineup).catch(() => toast.error('Still not loading. Check your connection.'))} />
+      ))}
+
+      {isGame && step === 'full' && (
+        <FullTimeStep sessionId={id} groupName={session.group?.name ?? 'Game'} phase={phase} lineup={lineup ?? null} onEnd={() => setEnding(true)} />
       )}
 
-      {/* Tabs: players / teams / stars */}
-      {isGame && (
-        <div className="sticky top-safe z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mt-4 mb-3 bg-chalk/95 backdrop-blur">
-          <div className="grid grid-cols-3 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="This game">
-            {([
-              ['players', 'Players', TAB_ICONS.players, played && tally.toPay ? tally.toPay : null],
-              ['teams', 'Teams', TAB_ICONS.teams, null],
-              ['stars', 'Stars', TAB_ICONS.stars, null],
-            ] as [Tab, string, string, number | null][]).map(([t, label, icon, badge]) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={tab === t}
-                onClick={() => chooseTab(t)}
-                className={`press flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-bold transition-colors ${
-                  tab === t ? 'bg-ink text-volt-300' : 'text-ink hover:bg-chalk'
-                }`}
-              >
-                <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-                </svg>
-                {label}
-                {badge !== null && (
-                  <span className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-extrabold leading-5 tabular-nums ${tab === t ? 'bg-sun-400 text-ink' : 'bg-sun-400/30 text-amber-800'}`}>
-                    {badge}
-                    <span className="sr-only"> to pay</span>
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {isGame && tab === 'teams' && (
-        <>
-          {session.status === SessionStatus.UPCOMING && <TeamSheet sessionId={id} onChange={fetchSession} />}
-          {!cancelled && (
-            <div id="lineup" className="scroll-mt-20">
-              <LineupCard sessionId={id} />
-            </div>
-          )}
-        </>
-      )}
-
-      {isGame && tab === 'stars' && !cancelled && <SessionVotingCard sessionId={id} groupName={session.group?.name ?? 'Game'} />}
-
-      {(!isGame || tab === 'players') &&
+      {(!isGame || step === 'players') &&
         (payments.length === 0 ? (
           <EmptyState
             icon="receipt"
@@ -439,16 +435,23 @@ export default function GamePage() {
                 </Link>
               </p>
             )}
-            {before && notOnGame.length > 0 && (
-              <button
-                onClick={() => setAdding(true)}
-                className="press mb-3 w-full flex items-center justify-center gap-1.5 h-11 rounded-2xl border-2 border-dashed border-gray-300 text-[14px] font-bold text-ink hover:border-ink"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-                Add players who told you they’re in
-              </button>
+            {before && (notOnGame.length > 0 || (isGame && billing)) && (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                {notOnGame.length > 0 && (
+                  <button onClick={() => setAdding(true)} className={`${btnSecondary} !min-h-11 !px-3 !text-[14px]`}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                    Add players
+                  </button>
+                )}
+                {isGame && billing && (
+                  <button onClick={shareGame} className={`${btnSecondary} !min-h-11 !px-3 !text-[14px] ${notOnGame.length ? '' : 'col-span-2'}`}>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.03c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.16 0 .39-.06.61.47.24.56.79 1.92.86 2.06.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.89 1.04.93 1.92 1.22 2.19 1.36.27.14.43.11.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34Z"/></svg>
+                    Share game
+                  </button>
+                )}
+              </div>
             )}
             <PlayerList
               payments={payments}
@@ -467,8 +470,25 @@ export default function GamePage() {
                 }
               }}
             />
+            {before && board && board.waitlist.length > 0 && (
+              <p className="mt-3 rounded-2xl bg-white border border-gray-100 px-4 py-3 text-[13px] leading-snug text-gray-600">
+                <b className="text-ink">Waitlist · {board.waitlist.length}:</b>{' '}
+                {board.waitlist.map((p) => p.nickname || `${p.firstName} ${p.lastName}`).join(', ')}. The first in line gets the next place that frees up.
+              </p>
+            )}
           </>
         ))}
+    </div>
+  );
+}
+
+function LineupFailed({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="py-10 text-center" role="alert">
+      <p className="text-sm text-gray-600">The teams didn’t load.</p>
+      <button onClick={onRetry} className="mt-2 h-11 px-3 text-sm font-bold text-pitch-700">
+        Try again
+      </button>
     </div>
   );
 }

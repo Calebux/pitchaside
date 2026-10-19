@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { TEAMS, teamName } from '@/components/lineup-card';
+import { TEAMS, teamName } from '@/lib/teams';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
 import type { TeamKey } from '@/lib/api';
