@@ -43,7 +43,7 @@ export function describeGive(amount: number, member: MatchMember, owed: OwedItem
   const stillOwes = theirs.filter((o) => !paid.includes(o)).reduce((s, o) => s + o.amount, 0) - kept;
   const owesWhat = theirs.length - paid.length > 1 ? 'in total' : `for ${next ? owedLabel(next) : ''}`;
   const owesLine = next ? `${first} still owes ${formatCurrency(stillOwes)} ${owesWhat}.` : null;
-  // The same outcome, short: "Pays Sat 17 Oct, ₦25 kept for next game".
+  // The same outcome, short: "Pays Sat 17 Oct, ₦500 kept for next game".
   const parts = (pays: string, toward: string, nothing: string) => [
     paid.length ? `${pays} ${listOf(paid)}` : next ? `${toward} ${owedLabel(next)}` : nothing,
     // "Goes towards Sat 17 Oct" already names the game: don't say it twice.
