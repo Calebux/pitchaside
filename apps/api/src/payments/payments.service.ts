@@ -1,13 +1,15 @@
-import { usePartPaid } from './part-paid';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
-import { Session } from '../sessions/entities/session.entity';
+import { Session, SessionStatus } from '../sessions/entities/session.entity';
+import { BankTransfer } from '../billing/entities/bank-transfer.entity';
+import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, shortDate } from '../common/format.util';
-import { refundToCredit } from './credit';
+import { paidByTransfer, refundToCredit } from './credit';
+import { usePartPaid } from './part-paid';
 
 @Injectable()
 export class PaymentsService {
@@ -186,6 +188,62 @@ export class PaymentsService {
     const saved = await this.paymentsRepo.save(payment);
     await this.recalculateSessionTotal(payment.sessionId);
     return saved;
+  }
+
+  /**
+   * Money that came by transfer pays the player's oldest unpaid game first, but they may have
+   * meant another (paid for this Saturday, still owe last week). Moves it: `toId`, another of
+   * their unpaid games in the same group, becomes paid by that transfer, and this one goes back
+   * to unpaid. If the other game costs less, the difference is kept for their next game; if it
+   * costs more, it can't move (they'd have to pay the rest first).
+   */
+  async moveToGame(id: string, toId: string, organizationId: string) {
+    const from = await this.ownedPayment(id, organizationId);
+    if (!paidByTransfer(from)) throw new BadRequestException('Only a payment that came by transfer can be moved to another game');
+    const to = await this.ownedPayment(toId, organizationId);
+    if (to.id === from.id || to.playerId !== from.playerId || to.session.groupId !== from.session.groupId) {
+      throw new BadRequestException("That game isn't one of this player's in this group");
+    }
+    if (to.status !== PaymentStatus.PENDING || to.session.status === SessionStatus.CANCELLED) {
+      throw new BadRequestException('That game is already paid or was called off');
+    }
+    const extra = Number(from.amount) - Number(to.amount);
+    if (extra < 0) {
+      throw new BadRequestException(`This payment is ${naira(from.amount)}, less than the ${naira(to.amount)} that game costs`);
+    }
+
+    await this.paymentsRepo.manager.transaction(async (tx) => {
+      // Both only if nothing changed under us: still paid by transfer, still unpaid.
+      const moved = await tx.update(Payment, { id: from.id, status: PaymentStatus.PAID }, {
+        status: PaymentStatus.PENDING,
+        paidAt: null as unknown as Date,
+        source: null as unknown as string,
+        markedBy: null as unknown as string,
+      });
+      const paid = await tx.update(Payment, { id: to.id, status: PaymentStatus.PENDING }, {
+        status: PaymentStatus.PAID,
+        paidAt: from.paidAt ?? new Date(),
+        source: 'transfer',
+        markedBy: from.markedBy,
+      });
+      if (!moved.affected || !paid.affected) throw new BadRequestException('Someone else just changed one of these payments. Try again.');
+      // The transfer now pays the other game.
+      await tx.update(BankTransfer, { paymentId: from.id }, { paymentId: to.id });
+      if (extra > 0) {
+        const membership = await tx.findOne(GroupMembership, {
+          where: { groupId: from.session.groupId, playerId: from.playerId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (membership) {
+          membership.credit = (Number(membership.credit) + extra).toFixed(2);
+          await tx.save(membership);
+        }
+      }
+    });
+
+    await this.recalculateSessionTotal(from.sessionId);
+    await this.recalculateSessionTotal(to.sessionId);
+    return { from: from.id, to: to.id, kept: extra };
   }
 
   private async ownedPayment(id: string, organizationId: string) {

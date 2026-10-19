@@ -1,4 +1,3 @@
-import { partPaidAmounts } from '../payments/part-paid';
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -12,6 +11,7 @@ import { RatingsService } from '../ratings/ratings.service';
 import { naira } from '../common/format.util';
 import { localDate, prettyTime, zonedInstant } from '../common/time.util';
 import { ReminderLog } from './entities/reminder-log.entity';
+import { partPaidAmounts } from '../payments/part-paid';
 
 const EVERY_MS = 10 * 60 * 1000;
 const DUES_REMINDER_DAYS = [3, 7];

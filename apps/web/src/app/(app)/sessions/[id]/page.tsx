@@ -18,6 +18,7 @@ import {
   markNoShow,
   markCame,
   waivePayment,
+  movePayment,
   bulkMarkPaid,
   deleteSession,
   updateSessionStatus,
@@ -34,7 +35,8 @@ import {
   type OwedItem,
   type ISessionWithDetails,
 } from '@/lib/api';
-import { SessionStatus, type IPayment } from '@pitchaside/shared';
+import { PaymentStatus, SessionStatus, type IPayment } from '@pitchaside/shared';
+import { owedLabel } from '@/lib/give-outcome';
 import { GameSteps, STEPS, type Step, type StepInfo } from '@/components/game/game-steps';
 import { TeamsStep } from '@/components/game/teams-step';
 import { ScoresStep } from '@/components/game/scores-step';
@@ -48,6 +50,7 @@ import { EndGameSheet } from '@/components/game/end-game-sheet';
 import { coveredByDues as coversByDues, gamePhase, gameTally, leftToPay } from '@/lib/game-player';
 import { btnSecondary } from '@/components/buttons';
 import { AddToGameSheet } from '@/components/game/add-to-game-sheet';
+import { MovePaymentSheet } from '@/components/game/move-payment-sheet';
 import { gameInviteMessage, openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
 import { prettyTime } from '@/components/player-ui';
 
@@ -86,6 +89,8 @@ export default function GamePage() {
   const [members, setMembers] = useState<NonNullable<IGroupWithMembers['memberships']>>([]);
   const [billing, setBilling] = useState<GroupBilling | null>(null);
   const [adding, setAdding] = useState(false);
+  // A payment by transfer being moved to another of the player's games.
+  const [movingPay, setMovingPay] = useState<IPayment | null>(null);
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -213,6 +218,10 @@ export default function GamePage() {
       );
       return;
     }
+    if (action === 'move') {
+      setMovingPay(p);
+      return;
+    }
     if (action === 'paid') {
       // With money waiting for a name, ask whether it was one of those; otherwise just mark paid.
       if (unnamed.length) setHowPaid(p.id);
@@ -282,6 +291,8 @@ export default function GamePage() {
     .filter((m) => !onGame.has(m.player.id))
     .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}` }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  // The player's other unpaid games in this group: where a payment by transfer could move to.
+  const otherDues = (p: IPayment) => owed.filter((o) => o.playerId === p.playerId && o.sessionId !== session.id);
   const onSides = lineup?.squad.filter((m) => m.team).length ?? 0;
   const games = lineup?.games.length ?? 0;
   const stepInfo: Record<Step, StepInfo> = {
@@ -360,6 +371,27 @@ export default function GamePage() {
           />
         );
       })()}
+
+      {movingPay && (
+        <MovePaymentSheet
+          name={nameOfPayment(movingPay).split(' ')[0]}
+          amount={Number(movingPay.amount)}
+          fromLabel={gameLabel(session)}
+          games={otherDues(movingPay)}
+          onClose={() => setMovingPay(null)}
+          onMove={async (to) => {
+            try {
+              await movePayment(movingPay.id, to.paymentId);
+              setMovingPay(null);
+              await fetchSession();
+              loadUnnamed();
+              toast.success(`Moved to ${owedLabel(to)}. ${gameLabel(session)} is unpaid again.`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'That didn’t move. Try again.');
+            }
+          }}
+        />
+      )}
 
       {adding && (
         <AddToGameSheet
@@ -458,6 +490,7 @@ export default function GamePage() {
               coveredByDues={coveredByDues}
               before={before}
               canSendDetails={!!billing?.account}
+              canMove={(p) => p.status === PaymentStatus.PAID && p.source === 'transfer' && otherDues(p).length > 0}
               busyId={busyId}
               onAction={onPlayerAction}
               onBulkPaid={async (ids) => {
