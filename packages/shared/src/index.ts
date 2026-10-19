@@ -82,6 +82,8 @@ export interface ISession {
   /** Coloured sides on match day (2–6). */
   teamCount?: number;
   payments?: IPayment[];
+  /** When the vote opened (the game was ended); null until then. */
+  voteOpensAt?: string | null;
 }
 
 export interface IPayment {

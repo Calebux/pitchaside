@@ -34,6 +34,7 @@ import { QuickActions, InviteIcon, CalendarPlusIcon, ICON_PATHS, icon, type Quic
 import { MoreActionsSheet, type MoreAction } from '@/components/home/more-actions-sheet';
 import { UpdatesBell, type Update } from '@/components/home/updates-bell';
 import { transferName } from '@/components/home/transfers-sheet';
+import { closeTime } from '@/components/ratings';
 
 const onboardingSteps = [
   {
@@ -270,7 +271,7 @@ export default function Dashboard() {
   }
   if (voting && voteGame && voting.sessionId === voteGame.id && voting.data.open) {
     const v = voting.data;
-    const closes = new Date(v.closesAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const closes = v.closesAt ? closeTime(v.closesAt) : 'soon';
     needs.push({
       key: 'vote',
       href: `/sessions/${voteGame.id}?tab=stars`,

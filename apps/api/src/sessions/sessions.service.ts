@@ -231,6 +231,8 @@ export class SessionsService {
     const wasCompleted = session.status === SessionStatus.COMPLETED;
     const wasCancelled = session.status === SessionStatus.CANCELLED;
     session.status = status as SessionStatus;
+    // Full time opens the vote (once: reopening and ending again keeps the first time).
+    if (session.status === SessionStatus.COMPLETED && !session.voteOpensAt) session.voteOpensAt = new Date();
     const saved = await this.sessionsRepo.save(session);
 
     // Called off: what members paid for it by transfer goes back to their credit. Back on: its
