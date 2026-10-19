@@ -335,7 +335,7 @@ export default function GroupDetailPage() {
   const dueLabel = nextDue
     ? nextDue.kind === 'dues' && nextDue.label
       ? `${nextDue.label} dues`
-      : gameDay(nextDue.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+      : gameDay(nextDue.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')
     : '';
   const dueOf = (playerId: string): MemberDue => {
     if (!nextDue) return null;
