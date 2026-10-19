@@ -13,8 +13,8 @@ const KEYS = Object.keys(TEAMS) as TeamKey[];
 function PaidTag({ paid }: { paid: GamePaid | null }) {
   if (!paid) return null;
   if (paid === 'paid') return <span className="text-[10px] font-extrabold text-pitch-600">✓ Paid</span>;
-  if (paid === 'waived') return <span className="text-[10px] font-bold text-gray-500">Waived</span>;
-  return <span className="text-[10px] font-extrabold text-kit-600">Not paid</span>;
+  if (paid === 'waived') return <span className="text-[10px] font-bold text-gray-500">Free</span>;
+  return <span className="text-[10px] font-extrabold text-kit-600">To pay</span>;
 }
 
 /**

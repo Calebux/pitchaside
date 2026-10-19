@@ -60,8 +60,8 @@ const onboardingSteps = [
   },
   {
     step: 3,
-    title: 'Schedule a session',
-    description: 'Create a match session and payments are auto-generated for each player.',
+    title: 'Schedule a game',
+    description: 'Players say they’re in from the game link, and pay once they’ve played.',
     href: '/sessions',
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

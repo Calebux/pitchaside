@@ -361,6 +361,8 @@ export default function GroupDetailPage() {
     if (!nextDue) return null;
     const p = nextDue.payments?.find((x) => x.playerId === playerId);
     if (!p) return group.requireRsvp ? { label: dueLabel, state: 'out', amount: 0 } : null;
+    // Didn't come: off the game, owes nothing.
+    if (p.attendance === 'no_show') return { label: dueLabel, state: 'out', amount: 0 };
     const st = gameStatusOf(p);
     return {
       label: dueLabel,
@@ -777,7 +779,7 @@ export default function GroupDetailPage() {
                 </div>
               )}
 
-              {/* Who's paid for the next game: the same filter style as the Sessions page */}
+              {/* Who's paid for the next game: the same filter style as the game page */}
               {nextDue && (
                 <div className="mt-3">
                   <div
@@ -875,7 +877,7 @@ export default function GroupDetailPage() {
                                 </>
                               ) : (
                                 <span className={`block text-xs font-bold ${st === 'paid' ? 'text-pitch-600' : 'text-gray-400'}`}>
-                                  {st === 'paid' ? 'Paid' : st === 'waived' ? 'Waived' : 'Not in'}
+                                  {st === 'paid' ? 'Paid' : st === 'waived' ? 'Free' : 'Not in'}
                                 </span>
                               )}
                             </span>
@@ -907,8 +909,8 @@ export default function GroupDetailPage() {
               title="No games yet"
               description={
                 group.requireRsvp
-                  ? 'Schedule one and players can say they’re in. Each player who’s in gets a due for it.'
-                  : 'Schedule one and everyone in the group gets a due for it.'
+                  ? 'Schedule one and players say they’re in from the game link, then pay once they’ve played.'
+                  : 'Schedule one and everyone in the group is on it, and pays once they’ve played.'
               }
             />
           ) : (
@@ -923,7 +925,7 @@ export default function GroupDetailPage() {
                   <p className="mt-4 text-center text-sm text-gray-600">
                     Older games are on the{' '}
                     <Link href="/sessions" className="font-bold text-pitch-600 hover:underline">
-                      Sessions page
+                      Games page
                     </Link>
                     .
                   </p>

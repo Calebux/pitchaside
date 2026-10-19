@@ -30,9 +30,9 @@ const features = [
     tint: 'bg-sky-300/50',
   },
   {
-    title: 'Session Scheduling',
+    title: 'Game scheduling',
     description:
-      'Create match-day sessions tied to your groups. Track attendance, fees collected, and outstanding balances in real time.',
+      'Schedule match days for your groups. See who came, who’s paid and who still owes, as it happens.',
     art: TacticsBoard,
     tint: 'bg-kit-400/25',
   },
@@ -54,8 +54,8 @@ const steps = [
   {
     minute: "90'",
     phase: 'Full-time',
-    title: 'Track every session',
-    description: 'Create a session, and payments are auto-generated. Mark paid with one tap.',
+    title: 'Track every game',
+    description: 'Schedule a game and everyone’s due is ready. Mark paid with one tap.',
   },
 ];
 
@@ -291,7 +291,7 @@ export default function LandingPage() {
             {[
               { stat: stats.groups, label: 'Groups created', tone: 'bg-white' },
               { stat: stats.players, label: 'Players tracked', tone: 'bg-volt-300' },
-              { stat: stats.sessions, label: 'Sessions logged', tone: 'bg-white' },
+              { stat: stats.sessions, label: 'Games played', tone: 'bg-white' },
               { stat: '98%', label: 'Collection rate', tone: 'bg-kit-400 text-white' },
             ].map((item) => (
               <div key={item.label} className={`rounded-3xl p-5 sm:p-6 border-2 border-ink ${item.tone}`}>

@@ -334,7 +334,7 @@ export default function PlayerDetailPage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 gap-3 mb-6">
-          <StatCard label="Sessions" value={stats.totalSessions} />
+          <StatCard label="Games" value={stats.totalSessions} />
           <StatCard label="Payment Rate" value={`${stats.paymentRate}%`} tone="volt" />
           <StatCard label="Total Paid" value={formatCurrency(stats.totalPaid)} />
           <StatCard label="Outstanding" value={formatCurrency(stats.totalOwed)} tone={Number(stats.totalOwed) > 0 ? 'ink' : 'white'} />
@@ -383,7 +383,7 @@ export default function PlayerDetailPage() {
           <EmptyState
             icon="receipt"
             title="No payments"
-            description="Payment records will appear here once sessions are created."
+            description="Payments show up here once they play in a game."
           />
         ) : (
           <div className="space-y-2">

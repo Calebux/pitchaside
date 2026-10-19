@@ -27,7 +27,8 @@ import { Collapse, CollapseButton, useRemembered } from '@/components/collapse';
 import { Sheet } from '@/components/sheet';
 import { TransfersSheet, transferName } from '@/components/home/transfers-sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { ConfirmSheet } from '@/components/match-day/confirm-sheet';
+import { EndGameSheet } from '@/components/game/end-game-sheet';
+import { coveredByDues } from '@/lib/game-player';
 import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
 
@@ -112,7 +113,8 @@ export function gameStatusOf(p: { status: string; gamePaid?: string }) {
 }
 
 export function gameMoney(game: ISessionWithDetails) {
-  const payments = game.payments ?? [];
+  // Players who said they were in and didn't come aren't part of the game's money.
+  const payments = (game.payments ?? []).filter((p) => p.attendance !== 'no_show');
   const paid = payments.filter((p) => gameStatusOf(p) === PaymentStatus.PAID);
   const owing = payments.filter((p) => gameStatusOf(p) === PaymentStatus.PENDING);
   // Marked paid by hand on the game page; we can't tell whether that was cash, so we don't say cash.
@@ -333,7 +335,6 @@ export function MoneyCard({
   const [hidden, toggleHidden] = useHiddenBalance();
   const [reminding, setReminding] = useState(false);
   const [confirmEnd, setConfirmEnd] = useState(false);
-  const [ending, setEnding] = useState(false);
   const { balance, billing, transfers, rsvp, updatedAt, balanceFailed, fresh } = money;
   const game = money.game ?? gameFallback;
 
@@ -395,21 +396,7 @@ export function MoneyCard({
     }
   }
 
-  async function endGame() {
-    if (!game) return;
-    setConfirmEnd(false);
-    setEnding(true);
-    try {
-      await updateSessionStatus(game.id, 'completed');
-      toast.success('Game ended. Vote links sent.');
-      onGameEnded?.(game.id);
-      money.reload();
-    } catch {
-      toast.error('The game didn’t end. Check your connection and try again.');
-    } finally {
-      setEnding(false);
-    }
-  }
+
 
   const cardCls = 'relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift';
   return (
@@ -704,7 +691,6 @@ export function MoneyCard({
             canManage={canManage}
             reminding={reminding}
             onRemind={remind}
-            ending={ending}
             onEnd={() => setConfirmEnd(true)}
             open={gameOpen}
             onToggle={toggleGame}
@@ -715,8 +701,8 @@ export function MoneyCard({
             <p className="font-display text-xl font-extrabold leading-tight">No game this week</p>
             <p className="text-sm text-white/70 mt-1">
               {group.requireRsvp
-                ? 'Schedule one and players can say they’re in. Each one owes the fee once they do.'
-                : 'Schedule one and everyone in the group gets a due for it.'}
+                ? 'Schedule one and players can say they’re in. They pay once they’ve played.'
+                : 'Schedule one and everyone in the group is on it.'}
             </p>
             {canManage && (
               <button
@@ -730,15 +716,18 @@ export function MoneyCard({
           </div>
         )}
       </div>
-      <ConfirmSheet
-        open={confirmEnd}
-        title="End this game?"
-        message="Every player gets the link to vote for Player of the Match. Anyone who still owes can carry on paying, and you can reopen the game later."
-        confirmLabel="End game"
-        cancelLabel="Not yet"
-        onConfirm={endGame}
-        onCancel={() => setConfirmEnd(false)}
-      />
+      {confirmEnd && game && (
+        <EndGameSheet
+          session={game}
+          coveredByDues={coveredByDues(game, group.paymentType)}
+          onClose={() => setConfirmEnd(false)}
+          onEnded={() => {
+            setConfirmEnd(false);
+            onGameEnded?.(game.id);
+            money.reload();
+          }}
+        />
+      )}
     </section>
     )}
     </>
@@ -757,7 +746,6 @@ function GameSection({
   canManage,
   reminding,
   onRemind,
-  ending,
   onEnd,
   open,
   onToggle,
@@ -768,7 +756,6 @@ function GameSection({
   canManage: boolean;
   reminding: boolean;
   onRemind: () => void;
-  ending: boolean;
   onEnd: () => void;
   open: boolean;
   onToggle: () => void;
@@ -966,7 +953,6 @@ function GameSection({
       {phase === 'after' && game.status !== 'completed' && canManage && (
         <button
           onClick={onEnd}
-          disabled={ending}
           className={
             owing.length
               ? 'press mt-2.5 w-full h-12 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 text-[15px] font-extrabold text-white hover:bg-white/10 disabled:opacity-60 transition-colors'
@@ -974,7 +960,7 @@ function GameSection({
           }
         >
           <TickIcon />
-          {ending ? 'Ending the game…' : 'End game & send vote link'}
+          End game
         </button>
       )}
     </div>

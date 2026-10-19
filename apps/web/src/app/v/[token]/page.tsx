@@ -76,7 +76,7 @@ export default function VotePage() {
           <Logo />
           <OffsideFlag className="w-48 h-40 mx-auto mt-8 mb-2" />
           <h1 className="text-2xl font-extrabold text-ink mb-2">This vote link doesn&apos;t work</h1>
-          <p className="text-sm text-gray-500">Ask your organiser to share it again from the session page.</p>
+          <p className="text-sm text-gray-500">Ask your organiser to share it again from the game page.</p>
         </div>
       </div>
     );

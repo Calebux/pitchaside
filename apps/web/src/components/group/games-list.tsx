@@ -3,35 +3,24 @@
 import Link from 'next/link';
 import { formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { daysFromToday, gameDay, gameMoney } from '@/components/money-card';
+import { gameChip, toneCls } from '@/lib/game-status';
 import { prettyTime } from '@/components/player-ui';
 
-type Tone = 'live' | 'warn' | 'calm' | 'done' | 'off';
-const toneCls: Record<Tone, string> = {
-  live: 'bg-volt-300 text-ink',
-  warn: 'bg-sun-400/25 text-amber-800',
-  calm: 'bg-chalk text-gray-700',
-  done: 'bg-ink text-white',
-  off: 'bg-kit-500/15 text-kit-600',
-};
-
-/**
- * The same short states as the home card: In N days / Tomorrow / Today / Not ended / Voting / Final.
- * Votes stay open for 8 days from the game day (VOTING_WINDOW_DAYS on the server), so an ended
- * game reads "Voting" for that week and "Final" after.
- */
-export function gameChip(s: ISessionWithDetails): { text: string; tone: Tone } {
-  const days = daysFromToday(s.date);
-  if (s.status === 'cancelled') return { text: 'Cancelled', tone: 'off' };
-  if (s.kind === 'dues') return s.status === 'completed' ? { text: 'Closed', tone: 'done' } : { text: 'Collecting', tone: 'live' };
-  if (s.status === 'completed') return days >= -7 ? { text: 'Voting', tone: 'live' } : { text: 'Final', tone: 'done' };
-  if (days < 0) return { text: 'Not ended', tone: 'warn' };
-  if (days === 0) return { text: 'Today', tone: 'live' };
-  return { text: days === 1 ? 'Tomorrow' : `In ${days} days`, tone: 'calm' };
-}
-
-function GameRow({ s, targetPlayers, kickoff }: { s: ISessionWithDetails; targetPlayers: number; kickoff?: string | null }) {
+function GameRow({
+  s,
+  targetPlayers,
+  kickoff,
+  groupName,
+}: {
+  s: ISessionWithDetails;
+  targetPlayers: number;
+  kickoff?: string | null;
+  /** Across groups (the Games tab), which group it's for. */
+  groupName?: string;
+}) {
   const chip = gameChip(s);
   const { payments, paid, owing } = gameMoney(s);
+  const noShows = (s.payments ?? []).filter((p) => p.attendance === 'no_show').length;
   const collected = Number(s.collectedAmount);
   const owed = owing.reduce((sum, p) => sum + Number(p.amount), 0);
   // Money is measured against what the players who are in owe, never the full-squad target: empty
@@ -43,16 +32,16 @@ function GameRow({ s, targetPlayers, kickoff }: { s: ISessionWithDetails; target
   const title =
     s.kind === 'dues' && s.label
       ? `${s.label} dues`
-      : gameDay(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      : gameDay(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
   const line =
     s.kind === 'dues'
       ? `${paid.length} of ${payments.length} paid`
       : !payments.length
         ? played
-          ? 'Nobody was in'
-          : 'Nobody in yet'
+          ? 'No one played'
+          : 'No one’s in yet'
         : played
-          ? `${payments.length} played${owing.length ? `, ${owing.length} still owe` : ', all paid'}`
+          ? `${payments.length} played${owing.length ? `, ${owing.length} to pay` : ', all paid'}${noShows ? `, ${noShows} didn’t come` : ''}`
           : `${payments.length} of ${targetPlayers} in`;
   // Paid through a monthly (weekly…) due: there's nothing to collect on the game itself.
   const money = due > 0 ? `${formatCurrency(collected)} of ${formatCurrency(due)} paid` : payments.length ? 'Covered by dues' : null;
@@ -64,9 +53,10 @@ function GameRow({ s, targetPlayers, kickoff }: { s: ISessionWithDetails; target
         className="block px-4 py-3.5 hover:bg-chalk transition-colors"
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[15px] font-bold text-ink">
+          <p className="min-w-0 text-[15px] font-bold text-ink">
             {title}
             {time && <span className="font-semibold text-gray-600"> · {time}</span>}
+            {groupName && <span className="block text-[13px] font-semibold text-gray-500 truncate">{groupName}</span>}
           </p>
           <span className={`inline-flex items-center gap-1.5 text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${toneCls[chip.tone]}`}>
             {(chip.tone === 'live' || chip.tone === 'warn') && (
@@ -97,15 +87,20 @@ function GameRow({ s, targetPlayers, kickoff }: { s: ISessionWithDetails; target
   );
 }
 
-/** Coming up (soonest first), then past games (newest first), each linking to the game page. */
+/**
+ * Coming up (soonest first), then played (newest first), each linking to the game page. One
+ * group's games, or (with `groupOf`) games across groups, each row naming its group.
+ */
 export function GamesList({
   sessions,
   targetPlayers,
   kickoff,
+  groupOf,
 }: {
   sessions: ISessionWithDetails[];
-  targetPlayers: number;
+  targetPlayers?: number;
   kickoff?: string | null;
+  groupOf?: (s: ISessionWithDetails) => { name: string; targetPlayers: number; kickoffTime?: string | null } | undefined;
 }) {
   const ahead = sessions
     .filter((s) => s.status === 'upcoming' && daysFromToday(s.date) >= 0)
@@ -126,9 +121,18 @@ export function GamesList({
               {g.title} <span className="font-semibold text-gray-400 tabular-nums">{g.list.length}</span>
             </h3>
             <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
-              {g.list.map((s) => (
-                <GameRow key={s.id} s={s} targetPlayers={targetPlayers} kickoff={kickoff} />
-              ))}
+              {g.list.map((s) => {
+                const group = groupOf?.(s);
+                return (
+                  <GameRow
+                    key={s.id}
+                    s={s}
+                    targetPlayers={group?.targetPlayers ?? targetPlayers ?? 0}
+                    kickoff={group?.kickoffTime ?? kickoff}
+                    groupName={group?.name}
+                  />
+                );
+              })}
             </ul>
           </section>
         ))}

@@ -180,7 +180,7 @@ export default function AdminPage() {
           <div className="grid grid-cols-3 gap-3">
             <StatCard label="Groups" value={orgStats.totalGroups} />
             <StatCard label="Players" value={orgStats.totalPlayers} />
-            <StatCard label="Sessions" value={orgStats.totalSessions} />
+            <StatCard label="Games" value={orgStats.totalSessions} />
           </div>
         </div>
       )}

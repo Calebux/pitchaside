@@ -3,33 +3,69 @@
 import { useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sheet } from '@/components/sheet';
-import { BallSpinner } from '@/components/skeleton';
+import { SheetTitle } from '@/components/home/sheet-title';
+import { btnPrimary } from '@/components/buttons';
 import { useToast } from '@/components/toast';
+import { prettyTime } from '@/components/player-ui';
+import { DAYS, Select, Stepper, TIMES, chip, field, label } from '@/components/group/group-edit-sheet';
 import { createSession, type IGroupWithMembers } from '@/lib/api';
 
-const field =
-  'w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
+const REPEATS = [
+  { value: 'none', label: 'Just this one' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'biweekly', label: 'Every 2 weeks' },
+  { value: 'monthly', label: 'Monthly' },
+];
+
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const short = (d: Date) => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+
+/** The next three dates on the group's game day (from today), or the next three days if it has none. */
+function nextGameDays(group?: IGroupWithMembers) {
+  // "Every Saturday", "Saturdays", "Saturday mornings": the first weekday it names.
+  const said = (group?.schedule ?? '').toLowerCase();
+  const want = DAYS.findIndex((d) => said.includes(d.toLowerCase())); // Monday = 0
+  const out: Date[] = [];
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  for (let i = 0; out.length < 3 && i < 21; i++) {
+    const c = new Date(d);
+    c.setDate(d.getDate() + i);
+    if (want < 0 ? i > 0 : (c.getDay() + 6) % 7 === want) out.push(c);
+  }
+  return out;
+}
 
 /**
- * Schedule a game (or a run of them) without opening the group first. With one group
- * there's nothing to pick; with several, the organiser chooses which.
+ * Schedule a game (or a run of them) without opening the group first: tap the group, tap the next
+ * game day, kick-off is the group's usual time. Another date or a repeat is one more tap.
  */
 export function NewSessionSheet({ groups, onClose }: { groups: IGroupWithMembers[]; onClose: () => void }) {
   const titleId = useId();
   const router = useRouter();
   const toast = useToast();
   const [groupId, setGroupId] = useState(groups.length === 1 ? groups[0].id : '');
-  const [date, setDate] = useState('');
+  const group = groups.find((g) => g.id === groupId);
+  const options = nextGameDays(group);
+  const [date, setDate] = useState(() => (groups.length === 1 ? iso(nextGameDays(groups[0])[0]) : ''));
+  const [otherDate, setOtherDate] = useState(false);
   // Starts at the group's usual kick-off; players are told it and reminded 2 hours before.
-  const [time, setTime] = useState(groups.length === 1 ? (groups[0].kickoffTime ?? '') : '');
-  const [recurrenceType, setRecurrenceType] = useState('none');
-  const [recurrenceCount, setRecurrenceCount] = useState(4);
+  const [time, setTime] = useState(groups.length === 1 ? (groups[0].kickoffTime ?? '').slice(0, 5) : '');
+  const [repeat, setRepeat] = useState('none');
+  const [count, setCount] = useState(4);
   const [creating, setCreating] = useState(false);
+  const repeating = repeat !== 'none';
+  const times = time && !TIMES.includes(time) ? [time, ...TIMES] : TIMES;
 
-  const repeating = recurrenceType !== 'none';
+  function pickGroup(id: string) {
+    const g = groups.find((x) => x.id === id);
+    setGroupId(id);
+    setTime((g?.kickoffTime ?? '').slice(0, 5));
+    setDate(iso(nextGameDays(g)[0]));
+    setOtherDate(false);
+  }
 
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
+  async function create() {
     if (!groupId || !date) return;
     setCreating(true);
     try {
@@ -37,111 +73,126 @@ export function NewSessionSheet({ groups, onClose }: { groups: IGroupWithMembers
         groupId,
         date,
         kickoffTime: time || undefined,
-        recurrenceType: repeating ? recurrenceType : undefined,
-        recurrenceCount: repeating ? recurrenceCount : undefined,
+        recurrenceType: repeating ? repeat : undefined,
+        recurrenceCount: repeating ? count : undefined,
       });
-      toast.success(repeating ? `${recurrenceCount} games scheduled` : 'Game scheduled');
+      toast.success(repeating ? `${count} games scheduled` : 'Game scheduled');
       router.push(`/sessions/${session.id}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Couldn't schedule the game");
+      toast.error(err instanceof Error ? err.message : 'The game wasn’t scheduled. Try again.');
       setCreating(false);
     }
   }
 
   return (
-    <Sheet titleId={titleId} onClose={onClose} align="left">
-      <form onSubmit={create} className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 id={titleId} className="text-xl font-extrabold text-ink">
-            New game
-          </h2>
-          <button type="button" onClick={onClose} className="text-xs font-bold text-gray-500 hover:text-ink">
-            Close
-          </button>
-        </div>
-        <p className="text-xs text-gray-500 -mt-1">Everyone in the group gets a due for it.</p>
+    <Sheet
+      titleId={titleId}
+      onClose={onClose}
+      align="left"
+      footer={
+        <button onClick={create} disabled={!groupId || !date || creating} className={`${btnPrimary} w-full disabled:opacity-40`}>
+          {creating ? 'Scheduling…' : repeating ? `Schedule ${count} games` : 'Schedule game'}
+        </button>
+      }
+    >
+      <SheetTitle
+        id={titleId}
+        title="New game"
+        sub={
+          !group
+            ? 'Pick the group, then the day.'
+            : group.requireRsvp
+              ? 'Players say they’re in from the game link, and pay once they’ve played.'
+              : 'Everyone in the group is on it and pays once they’ve played.'
+        }
+        onClose={onClose}
+      />
 
-        {groups.length > 1 ? (
-          <div>
-            <label htmlFor={`${titleId}-group`} className="block text-xs font-bold text-gray-700 mb-1.5">
-              Group
-            </label>
-            <select
-              id={`${titleId}-group`}
-              value={groupId}
-              onChange={(e) => {
-                setGroupId(e.target.value);
-                setTime(groups.find((g) => g.id === e.target.value)?.kickoffTime ?? '');
-              }}
-              className={field}
-            >
-              <option value="">Choose a group</option>
+      <div className="mt-5 space-y-5">
+        {groups.length > 1 && (
+          <fieldset>
+            <legend className={label}>Group</legend>
+            <div className="flex flex-wrap gap-2">
               {groups.map((g) => (
-                <option key={g.id} value={g.id}>
+                <button key={g.id} type="button" aria-pressed={groupId === g.id} onClick={() => pickGroup(g.id)} className={chip(groupId === g.id)}>
                   {g.name}
-                </option>
+                </button>
               ))}
-            </select>
-          </div>
-        ) : (
-          <p className="text-sm font-bold text-ink">{groups[0]?.name}</p>
+            </div>
+          </fieldset>
         )}
 
-        <div className="grid grid-cols-[1fr_auto] gap-3">
-          <div>
-            <label htmlFor={`${titleId}-date`} className="block text-xs font-bold text-gray-700 mb-1.5">
-              Game date
-            </label>
-            <input id={`${titleId}-date`} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
-          </div>
-          <div>
-            <label htmlFor={`${titleId}-time`} className="block text-xs font-bold text-gray-700 mb-1.5">
-              Kick-off
-            </label>
-            <input id={`${titleId}-time`} type="time" value={time} onChange={(e) => setTime(e.target.value)} className={field} />
-          </div>
-        </div>
-        <p className="text-xs text-gray-500 -mt-1">Players get the time when it&apos;s scheduled, and a reminder 2 hours before.</p>
+        {group && (
+          <>
+            <fieldset>
+              <legend className={label}>Day</legend>
+              <div className="flex flex-wrap gap-2">
+                {options.map((d) => (
+                  <button
+                    key={iso(d)}
+                    type="button"
+                    aria-pressed={!otherDate && date === iso(d)}
+                    onClick={() => {
+                      setOtherDate(false);
+                      setDate(iso(d));
+                    }}
+                    className={chip(!otherDate && date === iso(d))}
+                  >
+                    {short(d)}
+                  </button>
+                ))}
+                <button type="button" aria-pressed={otherDate} onClick={() => setOtherDate(true)} className={chip(otherDate)}>
+                  Another day
+                </button>
+              </div>
+              {otherDate && (
+                <input
+                  type="date"
+                  aria-label="Game date"
+                  value={date}
+                  min={iso(new Date())}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={`${field} mt-2`}
+                />
+              )}
+            </fieldset>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor={`${titleId}-repeat`} className="block text-xs font-bold text-gray-700 mb-1.5">
-              Repeat
-            </label>
-            <select id={`${titleId}-repeat`} value={recurrenceType} onChange={(e) => setRecurrenceType(e.target.value)} className={field}>
-              <option value="none">Just this one</option>
-              <option value="weekly">Weekly</option>
-              <option value="biweekly">Every 2 weeks</option>
-              <option value="monthly">Monthly</option>
-            </select>
-          </div>
-          {repeating && (
             <div>
-              <label htmlFor={`${titleId}-count`} className="block text-xs font-bold text-gray-700 mb-1.5">
-                How many
+              <label htmlFor={`${titleId}-time`} className={label}>
+                Kick-off
               </label>
-              <input
-                id={`${titleId}-count`}
-                type="number"
-                min={2}
-                max={52}
-                value={recurrenceCount}
-                onChange={(e) => setRecurrenceCount(Number(e.target.value))}
-                className={field}
-              />
+              <Select id={`${titleId}-time`} value={time} onChange={setTime}>
+                <option value="">Not set</option>
+                {times.map((t) => (
+                  <option key={t} value={t}>
+                    {prettyTime(t)}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1.5 text-xs text-gray-500">Players get the time now, and a reminder 2 hours before.</p>
             </div>
-          )}
-        </div>
 
-        <button
-          type="submit"
-          disabled={!groupId || !date || creating}
-          className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
-        >
-          {creating && <BallSpinner />}
-          {creating ? 'Scheduling…' : repeating ? `Schedule ${recurrenceCount} games` : 'Schedule game'}
-        </button>
-      </form>
+            <fieldset>
+              <legend className={label}>Repeat</legend>
+              <div className="flex flex-wrap gap-2">
+                {REPEATS.map((r) => (
+                  <button key={r.value} type="button" aria-pressed={repeat === r.value} onClick={() => setRepeat(r.value)} className={chip(repeat === r.value)}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              {repeating && (
+                <div className="mt-3">
+                  <span id={`${titleId}-count`} className={label}>
+                    How many games
+                  </span>
+                  <Stepper id={`${titleId}-count-input`} labelledBy={`${titleId}-count`} value={count} onChange={(v) => setCount(Math.min(52, v))} step={1} min={2} less="One fewer game" more="One more game" />
+                </div>
+              )}
+            </fieldset>
+          </>
+        )}
+      </div>
     </Sheet>
   );
 }
