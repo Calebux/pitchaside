@@ -48,7 +48,7 @@ export function GameMenu({
       : []),
     { key: 'download', title: 'Download payments', detail: 'A spreadsheet of who paid, how and when.', onPick: onDownload },
     ...(phase !== 'cancelled' && phase !== 'ended'
-      ? [{ key: 'cancel', title: 'Cancel game', detail: 'Players are told it’s off. Money paid by transfer is kept for their next game.', danger: true, onPick: () => setConfirm('cancel') }]
+      ? [{ key: 'cancel', title: 'Cancel game', detail: 'Players are told it’s off. Money paid by transfer becomes paid ahead for their next game.', danger: true, onPick: () => setConfirm('cancel') }]
       : []),
     { key: 'delete', title: 'Delete game', detail: 'Removes the game and its payments for good.', danger: true, onPick: () => setConfirm('delete') },
   ];

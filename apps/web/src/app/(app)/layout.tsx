@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { EmailVerifiedModal, VerifyEmailModal } from '@/components/verify-email-modal';
 import { BallLoader } from '@/components/skeleton';
 import { InstallCard } from '@/components/pwa';
+import { CurrentGroupProvider } from '@/lib/current-group';
 
 export default function AppLayout({
   children,
@@ -45,7 +46,7 @@ export default function AppLayout({
   if (!user) return null;
 
   return (
-    <>
+    <CurrentGroupProvider>
       {!user.emailVerified && <VerifyEmailModal email={user.email} onCheck={refreshUser} />}
       {celebrate && <EmailVerifiedModal onClose={() => setCelebrate(false)} />}
       <main className="min-h-screen pb-28 pt-[env(safe-area-inset-top)] md:pb-10 md:pl-60 md:pt-4">
@@ -55,6 +56,6 @@ export default function AppLayout({
         <InstallCard />
       </div>
       <Nav />
-    </>
+    </CurrentGroupProvider>
   );
 }

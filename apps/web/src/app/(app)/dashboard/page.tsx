@@ -35,6 +35,8 @@ import { MoreActionsSheet, type MoreAction } from '@/components/home/more-action
 import { UpdatesBell, type Update } from '@/components/home/updates-bell';
 import { transferName } from '@/components/home/transfers-sheet';
 import { closeTime } from '@/components/ratings';
+import { GroupSwitch } from '@/components/group-switch';
+import { useCurrentGroup } from '@/lib/current-group';
 
 const onboardingSteps = [
   {
@@ -84,8 +86,8 @@ export default function Dashboard() {
   const [showInvite, setShowInvite] = useState(false);
   const [showAllComing, setShowAllComing] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  // Several groups: the one picked in the switcher; until then, the one playing soonest.
-  const [picked, setPicked] = useState<string | null>(null);
+  // Several groups: the one picked in the switch (remembered across the app); until then, the one playing soonest.
+  const { groupId: picked, setGroupId: setPicked } = useCurrentGroup();
   const [voting, setVoting] = useState<{ sessionId: string; data: SessionVoting } | null>(null);
   const router = useRouter();
   // Treasurers can look but not change anything.
@@ -434,21 +436,10 @@ export default function Dashboard() {
         <AccountDetailsSheet group={group} billing={money.billing} onClose={() => setShowAccount(false)} />
       )}
 
-      {/* Several groups: pick whose money and game to show */}
-      {groups.length > 1 && (
-        <div className="-mx-4 px-4 mb-3 flex gap-2 overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Show group">
-          {groups.map((g) => (
-            <button
-              key={g.id}
-              aria-pressed={g.id === groupId}
-              onClick={() => setPicked(g.id)}
-              className={`shrink-0 h-11 px-4 rounded-full text-sm font-bold whitespace-nowrap transition-colors ${
-                g.id === groupId ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-ink hover:border-ink'
-              }`}
-            >
-              {g.name}
-            </button>
-          ))}
+      {/* Whose money and game this is: the group switch, shared with the rest of the app */}
+      {groups.length > 0 && (
+        <div className="mb-3">
+          <GroupSwitch groups={groups} currentId={groupId} onPick={setPicked} canCreate={canManage} />
         </div>
       )}
 
