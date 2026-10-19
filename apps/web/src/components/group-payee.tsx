@@ -223,6 +223,7 @@ export function PayeeCard({
       await initiateGroupPayout(groupId, {
         amount: Number(amount),
         toPayee: true,
+        category: 'pitch',
         narration: `PitchAside ${groupName} – ${payee.label.toLowerCase()}`,
         pin,
       });

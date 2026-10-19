@@ -20,7 +20,13 @@ export enum TransferStatus {
   UNMATCHED = 'unmatched',
   /** Admin dismissed it (e.g. not a dues payment). */
   IGNORED = 'ignored',
+  /** Money in that isn't a player's payment (the organiser's own top-up, a sponsor…): in the account, never anyone's dues. */
+  OTHER = 'other',
 }
+
+/** What non-player money in was. */
+export const MONEY_IN_CATEGORIES = ['organiser', 'sponsor', 'refund', 'other'] as const;
+export type MoneyInCategory = (typeof MONEY_IN_CATEGORIES)[number];
 
 /** Every credit PulseMFB reports into a group account, matched or not. */
 @Entity('bank_transfers')
@@ -57,6 +63,14 @@ export class BankTransfer {
 
   @Column({ type: 'enum', enum: TransferStatus, default: TransferStatus.UNMATCHED })
   status: TransferStatus;
+
+  /** For money that isn't a player's (status OTHER): what it was. */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  category: MoneyInCategory | null;
+
+  /** The organiser's own words about it: "My top-up for bibs". */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  note: string | null;
 
   @ManyToOne(() => Payment, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'payment_id' })

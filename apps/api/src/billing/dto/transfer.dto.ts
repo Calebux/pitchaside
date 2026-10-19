@@ -1,4 +1,6 @@
-import { IsBoolean, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, IsUUID, Length, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
+import { MONEY_IN_CATEGORIES, type MoneyInCategory } from '../entities/bank-transfer.entity';
+import { PAYOUT_CATEGORIES, type PayoutCategory } from '../entities/outgoing-transfer.entity';
 
 export class AssignTransferDto {
   @IsUUID()
@@ -68,9 +70,29 @@ export class InitiatePayoutDto {
   @IsString()
   narration?: string;
 
+  /** What it's for; a refund to a player is always 'refund'. */
+  @IsOptional()
+  @IsIn(PAYOUT_CATEGORIES)
+  category?: PayoutCategory;
+
   @IsString()
   @Length(4, 6)
   pin: string;
+}
+
+export class PayoutCategoryDto {
+  @IsIn(PAYOUT_CATEGORIES)
+  category: PayoutCategory;
+}
+
+export class ClassifyTransferDto {
+  @IsIn(MONEY_IN_CATEGORIES)
+  category: MoneyInCategory;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  note?: string;
 }
 
 export class SetTransferPinDto {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth';
 import { UserRole } from '@pitchaside/shared';
@@ -9,6 +9,9 @@ import { btnPrimary } from '@/components/buttons';
 import { EmptyState } from '@/components/empty-state';
 import { PayeeCard } from '@/components/group-payee';
 import { SendMoneyModal, type RefundableMember } from '@/components/send-money-modal';
+import { Sheet } from '@/components/sheet';
+import { SheetTitle } from '@/components/home/sheet-title';
+import { PAYOUT, PAYOUT_PICKS } from '@/lib/money-categories';
 import {
   cancelPayout,
   formatCurrency,
@@ -16,10 +19,12 @@ import {
   getGroupPayouts,
   getNigerianBanks,
   getTransferPinStatus,
+  setPayoutCategory,
   setTransferPin,
   type GroupBalance,
   type NigerianBank,
   type OutgoingTransfer,
+  type PayoutCategory,
 } from '@/lib/api';
 
 const statusStyles: Record<OutgoingTransfer['status'], string> = {
@@ -29,6 +34,64 @@ const statusStyles: Record<OutgoingTransfer['status'], string> = {
   failed: 'bg-kit-500/15 text-kit-600',
   cancelled: 'bg-gray-100 text-gray-500',
 };
+
+/** Plain words for each state, so nothing relies on the colour alone. */
+const statusWords: Record<OutgoingTransfer['status'], string> = {
+  pending: 'Waiting',
+  processing: 'On the way',
+  completed: 'Sent',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+};
+
+type PayoutFilter = 'all' | 'sent' | 'waiting' | 'failed';
+const FILTERS: [PayoutFilter, string, OutgoingTransfer['status'][]][] = [
+  ['all', 'All', []],
+  ['sent', 'Sent', ['completed']],
+  ['waiting', 'Waiting', ['pending', 'processing']],
+  ['failed', 'Didn’t go', ['failed', 'cancelled']],
+];
+
+/** Picking what a withdrawal was for, after it's gone. */
+function CategorySheet({
+  payout,
+  busy,
+  onPick,
+  onClose,
+}: {
+  payout: OutgoingTransfer;
+  busy: boolean;
+  onPick: (c: PayoutCategory) => void;
+  onClose: () => void;
+}) {
+  const titleId = useId();
+  return (
+    <Sheet titleId={titleId} onClose={onClose} align="left">
+      <SheetTitle
+        id={titleId}
+        title="What was it for?"
+        sub={`${formatCurrency(Number(payout.amount))} to ${payout.beneficiaryName || payout.beneficiaryAccount}`}
+        onClose={onClose}
+      />
+      <div role="radiogroup" aria-label="What was it for?" className="mt-4 grid grid-cols-2 gap-2">
+        {PAYOUT_PICKS.map((k) => (
+          <button
+            key={k}
+            role="radio"
+            aria-checked={payout.category === k}
+            disabled={busy}
+            onClick={() => onPick(k)}
+            className={`press min-h-12 px-3.5 rounded-2xl text-left text-[15px] font-bold border transition-colors disabled:opacity-50 ${
+              payout.category === k ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-ink hover:border-ink'
+            }`}
+          >
+            {PAYOUT[k]}
+          </button>
+        ))}
+      </div>
+    </Sheet>
+  );
+}
 
 /** What withdrawing is, before the first thing it asks for (a PIN) makes sense. */
 function WithdrawIntro() {
@@ -143,6 +206,10 @@ export function PayoutsPanel({
   const [hasPin, setHasPin] = useState<boolean | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [cancelId, setCancelId] = useState<string | null>(null);
+  const [picking, setPicking] = useState<OutgoingTransfer | null>(null);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<PayoutFilter>('all');
   const paidAhead = refundable.reduce((sum, m) => sum + m.credit, 0);
 
   async function load() {
@@ -171,6 +238,48 @@ export function PayoutsPanel({
       toast.error(err.message || 'Could not cancel');
     }
   }
+
+  async function pickCategory(category: PayoutCategory) {
+    if (!picking) return;
+    setSavingCategory(true);
+    try {
+      await setPayoutCategory(picking.id, category);
+      setPayouts((all) => all.map((p) => (p.id === picking.id ? { ...p, category } : p)));
+      setPicking(null);
+      toast.success(`Marked as ${PAYOUT[category].toLowerCase()}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not save');
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
+  // What the money that actually went out was spent on, biggest first.
+  const spent = Object.entries(
+    payouts
+      .filter((p) => p.status === 'completed')
+      .reduce<Record<string, number>>((by, p) => {
+        const k = p.category ?? 'none';
+        by[k] = (by[k] ?? 0) + Number(p.amount);
+        return by;
+      }, {}),
+  ).sort((a, b) => b[1] - a[1]);
+  const q = search.trim().toLowerCase().replace(/[₦,]/g, '');
+  const statuses = FILTERS.find(([k]) => k === filter)![2];
+  const shown = payouts.filter((p) => {
+    if (statuses.length && !statuses.includes(p.status)) return false;
+    if (!q) return true;
+    const words = [
+      p.beneficiaryName,
+      p.beneficiaryAccount,
+      p.beneficiaryBankName,
+      p.narration,
+      p.category && PAYOUT[p.category],
+      p.refundPlayer && `${p.refundPlayer.firstName} ${p.refundPlayer.lastName}`,
+      String(Number(p.amount)),
+    ];
+    return words.some((w) => w && w.toLowerCase().includes(q));
+  });
 
   if (hasPin === false && canSend) {
     return (
@@ -257,16 +366,73 @@ export function PayoutsPanel({
         />
       )}
 
+      {picking && <CategorySheet payout={picking} busy={savingCategory} onPick={pickCategory} onClose={() => setPicking(null)} />}
+
       {/* Withdrawal history, headed like the page's other sections */}
       <h2 className="pt-3 text-base font-bold text-ink">Past withdrawals</h2>
+      {spent.length > 0 && spent.some(([k]) => k !== 'none') && (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card px-4 py-3">
+          <p className="text-xs font-semibold text-gray-500">Spent on</p>
+          <ul className="mt-1.5 space-y-1 text-[14px] tabular-nums">
+            {spent.map(([k, total]) => (
+              <li key={k} className="flex items-baseline justify-between gap-3">
+                <span className={k === 'none' ? 'text-gray-500' : 'font-semibold text-ink'}>
+                  {k === 'none' ? 'Not said yet' : PAYOUT[k as PayoutCategory]}
+                </span>
+                <span className="font-display font-extrabold text-ink">{formatCurrency(total)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {payouts.length > 4 && (
+        <div className="space-y-2">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search who, what for or amount"
+            aria-label="Search withdrawals"
+            className="w-full min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+          />
+          <div role="radiogroup" aria-label="Show" className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {FILTERS.map(([k, label]) => (
+              <button
+                key={k}
+                role="radio"
+                aria-checked={filter === k}
+                onClick={() => setFilter(k)}
+                className={`press shrink-0 min-h-11 px-3.5 rounded-full text-[13px] font-bold border transition-colors ${
+                  filter === k ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-600 hover:text-ink'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {payouts.length === 0 ? (
         <EmptyState
           icon="receipt"
           title="No withdrawals yet"
           description="When you send money out of this group's account, it shows up here."
         />
+      ) : shown.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-500">{q ? `Nothing matches “${search.trim()}”.` : 'None of these yet.'}</p>
+          <button
+            onClick={() => {
+              setSearch('');
+              setFilter('all');
+            }}
+            className="mt-1 min-h-11 px-3 text-sm font-bold text-pitch-700"
+          >
+            Show everything
+          </button>
+        </div>
       ) : (
-        payouts.map((p) => (
+        shown.map((p) => (
           <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -289,20 +455,41 @@ export function PayoutsPanel({
                 </p>
               </div>
               <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ${statusStyles[p.status]}`}>
-                {p.status}
+                {statusWords[p.status]}
               </span>
             </div>
             {p.errorMessage && (
               <p className="mt-2 text-xs text-kit-600 bg-kit-500/10 rounded-lg px-3 py-1.5">{p.errorMessage}</p>
             )}
-            {p.status === 'pending' && (
-              <button
-                onClick={() => setCancelId(p.id)}
-                className="mt-3 px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
-              >
-                Cancel
-              </button>
-            )}
+            <div className="flex flex-wrap items-center gap-2 empty:hidden">
+              {!p.refundPlayerId &&
+                (canSend ? (
+                  <button
+                    onClick={() => setPicking(p)}
+                    className={`press mt-2.5 inline-flex items-center gap-1 min-h-11 px-3 rounded-full text-[13px] font-bold border transition-colors ${
+                      p.category ? 'bg-chalk border-chalk text-ink' : 'bg-white border-dashed border-gray-300 text-gray-600 hover:text-ink'
+                    }`}
+                    aria-label={p.category ? `For ${PAYOUT[p.category]}. Change` : 'Say what it was for'}
+                  >
+                    {p.category ? PAYOUT[p.category] : '+ What was it for?'}
+                    {p.category && (
+                      <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                      </svg>
+                    )}
+                  </button>
+                ) : (
+                  p.category && <p className="mt-2 text-[13px] font-semibold text-ink">For: {PAYOUT[p.category]}</p>
+                ))}
+              {p.status === 'pending' && (
+                <button
+                  onClick={() => setCancelId(p.id)}
+                  className="mt-2.5 min-h-11 px-4 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
           </div>
         ))
       )}

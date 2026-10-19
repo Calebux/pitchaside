@@ -20,8 +20,8 @@ import { Player } from '../players/entities/player.entity';
 import { ConfigService } from '@nestjs/config';
 import { normaliseWebhookUrl, webhookUrlsFor } from './webhook-url';
 import { PaymentsService } from '../payments/payments.service';
-import { BankTransfer, TransferStatus } from './entities/bank-transfer.entity';
-import { OutgoingTransfer, PayoutStatus } from './entities/outgoing-transfer.entity';
+import { BankTransfer, TransferStatus, type MoneyInCategory } from './entities/bank-transfer.entity';
+import { OutgoingTransfer, PayoutStatus, type PayoutCategory } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
 import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
 import { normaliseAccount, payerNameFrom, whoSent } from './payer-name';
@@ -1090,6 +1090,127 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return transfer;
   }
 
+  // ── Money in that isn't a player's ──
+
+  /**
+   * What marking a transfer as not a player's would undo. Money placed on a player first comes
+   * off what they have kept (paid ahead); if they've already spent it, their latest games paid by
+   * transfer go back to unpaid, newest first, until the amount is covered, and anything over goes
+   * back to what they've kept. `tx` locks the member's row when applying.
+   */
+  private async notPlayerPlan(tx: EntityManager, transfer: BankTransfer, lock = false) {
+    const amount = Number(transfer.amount);
+    const plan = { playerId: transfer.playerId, fromKept: 0, reopen: [] as Payment[], backToKept: 0, membership: null as GroupMembership | null };
+    const placed = transfer.status === TransferStatus.MATCHED || transfer.status === TransferStatus.ASSIGNED;
+    if (!placed || !transfer.playerId || !transfer.groupId) return plan;
+    plan.membership = await tx.findOne(GroupMembership, {
+      where: { groupId: transfer.groupId, playerId: transfer.playerId },
+      ...(lock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
+    });
+    plan.fromKept = Math.min(Number(plan.membership?.credit ?? 0), amount);
+    let rest = amount - plan.fromKept;
+    if (rest > 0.001) {
+      const paid = await tx
+        .getRepository(Payment)
+        .createQueryBuilder('payment')
+        .innerJoinAndSelect('payment.session', 'session')
+        .where('session.groupId = :groupId', { groupId: transfer.groupId })
+        .andWhere('payment.playerId = :playerId', { playerId: transfer.playerId })
+        .andWhere('payment.status = :paid', { paid: PaymentStatus.PAID })
+        .andWhere('payment.source = :transfer', { transfer: 'transfer' })
+        .orderBy('session.date', 'DESC')
+        .getMany();
+      // The game this transfer itself paid goes back first, then the newest.
+      paid.sort((a, b) => Number(b.id === transfer.paymentId) - Number(a.id === transfer.paymentId));
+      for (const p of paid) {
+        if (rest <= 0.001) break;
+        plan.reopen.push(p);
+        rest -= Number(p.amount);
+      }
+      // Reopening a whole game can take back more than this transfer gave: the extra stays theirs.
+      if (rest < -0.001) plan.backToKept = -rest;
+    }
+    return plan;
+  }
+
+  /** What "Not a player payment" would change, said before the organiser confirms. */
+  async notPlayerPreview(transferId: string, organizationId: string) {
+    const transfer = await this.findTransfer(transferId, organizationId);
+    const plan = await this.notPlayerPlan(this.transfersRepo.manager, transfer);
+    return {
+      amount: Number(transfer.amount),
+      playerId: plan.playerId,
+      fromKept: plan.fromKept,
+      backToKept: plan.backToKept,
+      reopen: plan.reopen.map((p) => ({ paymentId: p.id, sessionId: p.sessionId, date: p.session.date, label: p.session.label ?? null, kind: p.session.kind, amount: Number(p.amount) })),
+    };
+  }
+
+  /**
+   * Marks money in as not a player's payment: the organiser's own top-up, a sponsor, a refund or
+   * other, with a note. It stays in the account and the balance, but is never anyone's dues. If
+   * it had been placed on a player, that's undone as notPlayerPlan says, in one transaction.
+   */
+  async classifyTransfer(transferId: string, organizationId: string, input: { category: MoneyInCategory; note?: string }) {
+    const transfer = await this.findTransfer(transferId, organizationId);
+    const note = input.note?.trim() || null;
+    if (transfer.status === TransferStatus.OTHER) {
+      await this.transfersRepo.update(transfer.id, { category: input.category, note });
+      return { ...transfer, category: input.category, note };
+    }
+    const reopened = await this.transfersRepo.manager.transaction(async (tx) => {
+      const plan = await this.notPlayerPlan(tx, transfer, true);
+      const { affected } = await tx.update(BankTransfer, { id: transfer.id, status: transfer.status }, {
+        status: TransferStatus.OTHER,
+        category: input.category,
+        note,
+        playerId: null,
+        paymentId: null as unknown as string,
+      });
+      if (!affected) throw new BadRequestException('Someone else just changed this payment. Try again.');
+      if (plan.membership) {
+        plan.membership.credit = Math.max(0, Number(plan.membership.credit) - plan.fromKept + plan.backToKept).toFixed(2);
+        await tx.save(plan.membership);
+      }
+      for (const p of plan.reopen) {
+        await tx.update(Payment, { id: p.id, status: PaymentStatus.PAID }, {
+          status: PaymentStatus.PENDING,
+          paidAt: null as unknown as Date,
+          source: null as unknown as string,
+          markedBy: null as unknown as string,
+        });
+      }
+      return plan.reopen;
+    });
+    for (const sessionId of new Set(reopened.map((p) => p.sessionId))) await this.paymentsService.recalculateSessionTotal(sessionId);
+    return { ...transfer, status: TransferStatus.OTHER, category: input.category, note, playerId: null };
+  }
+
+  /** Undoes "Not a player payment": it goes back to the payments with no name yet, to match again. */
+  async unclassifyTransfer(transferId: string, organizationId: string) {
+    const transfer = await this.findTransfer(transferId, organizationId);
+    const { affected } = await this.transfersRepo.update(
+      { id: transfer.id, status: TransferStatus.OTHER },
+      { status: TransferStatus.UNMATCHED, category: null, note: null },
+    );
+    if (!affected) throw new BadRequestException('This payment isn’t marked as not a player’s any more.');
+    return { ...transfer, status: TransferStatus.UNMATCHED, category: null, note: null };
+  }
+
+  /** What a withdrawal was for, set or changed afterwards. */
+  async setPayoutCategory(payoutId: string, organizationId: string, category: PayoutCategory) {
+    const payout = await this.payoutsRepo
+      .createQueryBuilder('p')
+      .innerJoin('p.group', 'g')
+      .where('p.id = :payoutId', { payoutId })
+      .andWhere('g.organizationId = :organizationId', { organizationId })
+      .getOne();
+    if (!payout) throw new NotFoundException('Withdrawal not found');
+    if (payout.refundPlayerId && category !== 'refund') throw new BadRequestException('A refund to a player stays a refund');
+    await this.payoutsRepo.update(payout.id, { category });
+    return { ...payout, category };
+  }
+
   /** Admin manually records an incoming transfer that the webhook missed. */
   async recordManualTransfer(
     groupId: string,
@@ -1171,7 +1292,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .select('COALESCE(SUM(t.amount), 0)', 'totalIn')
       .addSelect(`COALESCE(SUM(CASE WHEN LEFT(t.providerTransactionId, ${MANUAL_PREFIX.length}) = :manual THEN t.amount ELSE 0 END), 0)`, 'manualIn')
       .where('t.groupId = :groupId', { groupId })
-      .andWhere('t.status IN (:...statuses)', { statuses: [TransferStatus.MATCHED, TransferStatus.ASSIGNED, TransferStatus.UNMATCHED] })
+      // Money that isn't a player's is still in the account; only money set aside isn't counted.
+      .andWhere('t.status IN (:...statuses)', { statuses: [TransferStatus.MATCHED, TransferStatus.ASSIGNED, TransferStatus.UNMATCHED, TransferStatus.OTHER] })
       .setParameter('manual', MANUAL_PREFIX)
       .getRawOne();
 
@@ -1207,6 +1329,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       beneficiaryBankCode?: string;
       narration?: string;
       refundPlayerId?: string;
+      category?: PayoutCategory;
       pin: string;
     },
   ) {
@@ -1239,6 +1362,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       providerReference: reference,
       initiatedById: userId,
       refundPlayerId: dto.refundPlayerId ?? null,
+      // A refund to a player is always 'refund'; otherwise what the organiser picked.
+      category: dto.refundPlayerId ? 'refund' : (dto.category ?? null),
     });
 
     // Checking the balance and recording the payout happen under a lock on the group row, so

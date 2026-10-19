@@ -10,6 +10,10 @@ import { Group } from '../../groups/entities/group.entity';
 import { User } from '../../users/entities/user.entity';
 import { Player } from '../../players/entities/player.entity';
 
+/** What a withdrawal was for. A refund to a player is 'refund' (set automatically). */
+export const PAYOUT_CATEGORIES = ['pitch', 'footballs', 'bibs', 'water', 'supplies', 'refund', 'other'] as const;
+export type PayoutCategory = (typeof PAYOUT_CATEGORIES)[number];
+
 export enum PayoutStatus {
   PENDING = 'pending',
   PROCESSING = 'processing',
@@ -50,6 +54,10 @@ export class OutgoingTransfer {
 
   @Column({ nullable: true })
   narration: string;
+
+  /** What the money went on: pitch, footballs, bibs… (null for withdrawals made before categories). */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  category: PayoutCategory | null;
 
   @Column({ type: 'enum', enum: PayoutStatus, default: PayoutStatus.PENDING })
   status: PayoutStatus;

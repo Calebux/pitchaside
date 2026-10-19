@@ -5,7 +5,8 @@ import { BankPicker } from '@/components/group-payee';
 import { Sheet } from '@/components/sheet';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
-import { formatCurrency, initiateGroupPayout, nameEnquiry, type NigerianBank } from '@/lib/api';
+import { formatCurrency, initiateGroupPayout, nameEnquiry, type NigerianBank, type PayoutCategory } from '@/lib/api';
+import { PAYOUT, PAYOUT_PICKS } from '@/lib/money-categories';
 
 const input =
   'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
@@ -74,6 +75,7 @@ export function SendMoneyModal({
   const [bankCode, setBankCode] = useState('');
   const [account, setAccount] = useState('');
   const [narration, setNarration] = useState('');
+  const [category, setCategory] = useState<PayoutCategory | null>(null);
   const [pin, setPin] = useState('');
   const [sending, setSending] = useState(false);
   const lookup = useAccountName(groupId, bankCode, account);
@@ -103,6 +105,7 @@ export function SendMoneyModal({
         beneficiaryBankCode: bankCode,
         narration: narration.trim() || undefined,
         refundPlayerId: member?.playerId,
+        category: member ? undefined : (category ?? undefined),
         pin,
       });
       toast.success(`${member ? 'Refunding' : 'Sending'} ${formatCurrency(value)} to ${lookup.name}`);
@@ -148,6 +151,30 @@ export function SendMoneyModal({
                 Comes off what {member.name} has paid ahead. Send it to their own account.
               </p>
             )}
+          </div>
+        )}
+
+        {!member && (
+          <div>
+            <p id={`${titleId}-cat`} className="text-xs font-semibold text-gray-600 mb-1.5">
+              {refundable.length > 0 ? 'Spent on' : 'What’s it for?'} <span className="text-gray-500 font-medium">(helps you see where the money went)</span>
+            </p>
+            <div role="radiogroup" aria-labelledby={`${titleId}-cat`} className="flex flex-wrap gap-2">
+              {PAYOUT_PICKS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={category === k}
+                  onClick={() => setCategory(category === k ? null : k)}
+                  className={`press min-h-11 px-3.5 rounded-full text-[13px] font-bold border transition-colors ${
+                    category === k ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-600 hover:text-ink'
+                  }`}
+                >
+                  {PAYOUT[k]}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

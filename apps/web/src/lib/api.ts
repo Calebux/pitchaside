@@ -411,7 +411,10 @@ export interface BankTransfer {
   /** The account it came from (last 10 digits), when the bank says. */
   senderAccount?: string | null;
   narration?: string;
-  status: 'matched' | 'assigned' | 'unmatched' | 'ignored';
+  status: 'matched' | 'assigned' | 'unmatched' | 'ignored' | 'other';
+  /** Not a player's payment (status 'other'): what it was, and the organiser's note. */
+  category?: MoneyInCategory | null;
+  note?: string | null;
   receivedAt: string;
   payment?: (IPayment & { player?: IPlayer; session?: ISession & { label?: string } }) | null;
   /** Who sent it, when known — also set when it only added to their credit. */
@@ -521,6 +524,36 @@ export function restoreTransfer(transferId: string): Promise<BankTransfer> {
   return http.post(`/transfers/${transferId}/restore`);
 }
 
+export type MoneyInCategory = 'organiser' | 'sponsor' | 'refund' | 'other';
+export type PayoutCategory = 'pitch' | 'footballs' | 'bibs' | 'water' | 'supplies' | 'refund' | 'other';
+
+/** What marking money in as not a player's would undo, if it had been placed on a player. */
+export interface NotPlayerPreview {
+  amount: number;
+  playerId: string | null;
+  fromKept: number;
+  backToKept: number;
+  reopen: { paymentId: string; sessionId: string; date: string; label: string | null; kind: string; amount: number }[];
+}
+
+export function getNotPlayerPreview(transferId: string): Promise<NotPlayerPreview> {
+  return http.get(`/transfers/${transferId}/not-player`);
+}
+
+/** Not a player's payment: stays in the account, never anyone's dues. */
+export function markNotPlayer(transferId: string, data: { category: MoneyInCategory; note?: string }): Promise<BankTransfer> {
+  return http.post(`/transfers/${transferId}/not-player`, data);
+}
+
+/** Undoes markNotPlayer: back with the payments that have no name yet. */
+export function markPlayerMoney(transferId: string): Promise<BankTransfer> {
+  return http.post(`/transfers/${transferId}/player-money`);
+}
+
+export function setPayoutCategory(payoutId: string, category: PayoutCategory): Promise<OutgoingTransfer> {
+  return http.post(`/payouts/${payoutId}/category`, { category });
+}
+
 export function getPublicGroup(code: string): Promise<PublicGroup> {
   return http.get(`/public/groups/${code}`);
 }
@@ -552,6 +585,8 @@ export interface OutgoingTransfer {
   /** The member whose credit this refunds, if it's a refund. */
   refundPlayerId?: string | null;
   refundPlayer?: { firstName: string; lastName: string } | null;
+  /** What it was for (null for withdrawals made before categories). */
+  category?: PayoutCategory | null;
   createdAt: string;
   completedAt?: string;
 }
@@ -576,8 +611,8 @@ export function getGroupPayouts(groupId: string): Promise<OutgoingTransfer[]> {
 export function initiateGroupPayout(
   groupId: string,
   data:
-    | { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; refundPlayerId?: string; pin: string }
-    | { amount: number; toPayee: true; narration?: string; pin: string },
+    | { amount: number; beneficiaryAccount: string; beneficiaryBankCode: string; narration?: string; refundPlayerId?: string; category?: PayoutCategory; pin: string }
+    | { amount: number; toPayee: true; narration?: string; category?: PayoutCategory; pin: string },
 ): Promise<OutgoingTransfer> {
   return http.post(`/groups/${groupId}/payouts`, data);
 }

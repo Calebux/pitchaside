@@ -21,8 +21,10 @@ import {
   AssignTransferDto,
   GiveTransferDto,
   ChangeTransferPinDto,
+  ClassifyTransferDto,
   InitiatePayoutDto,
   NameEnquiryDto,
+  PayoutCategoryDto,
   SavePayeeDto,
   SetTransferPinDto,
   SimulateTransferDto,
@@ -134,6 +136,32 @@ export class BillingController {
   @Post('transfers/:id/restore')
   restore(@Param('id') id: string, @CurrentUser() user: User) {
     return this.billing.restoreTransfer(id, user.organizationId);
+  }
+
+  /** What marking this as not a player's payment would undo, before confirming. */
+  @AllowTreasurer()
+  @Get('transfers/:id/not-player')
+  notPlayerPreview(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.notPlayerPreview(id, user.organizationId);
+  }
+
+  /** Not a player's payment: the organiser's own top-up, a sponsor, a refund or other. */
+  @AllowTreasurer()
+  @Post('transfers/:id/not-player')
+  classify(@Param('id') id: string, @Body() dto: ClassifyTransferDto, @CurrentUser() user: User) {
+    return this.billing.classifyTransfer(id, user.organizationId, dto);
+  }
+
+  @AllowTreasurer()
+  @Post('transfers/:id/player-money')
+  unclassify(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.unclassifyTransfer(id, user.organizationId);
+  }
+
+  @AllowTreasurer()
+  @Post('payouts/:id/category')
+  payoutCategory(@Param('id') id: string, @Body() dto: PayoutCategoryDto, @CurrentUser() user: User) {
+    return this.billing.setPayoutCategory(id, user.organizationId, dto.category);
   }
 
   // ── Payouts (transfer out) ──
