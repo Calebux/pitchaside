@@ -112,7 +112,7 @@ export class RsvpService {
     row.status = status;
     row.statusAt = new Date();
     await this.rsvpRepo.save(row);
-    await this.syncPayment(session, playerId, status);
+    await this.syncPayment(session, playerId, status, opts.force);
 
     if (before === RsvpStatus.IN && status !== RsvpStatus.IN) await this.promoteFromWaitlist(session);
     if (status === RsvpStatus.IN) await this.maybeAnnounceFull(session);
@@ -155,8 +155,12 @@ export class RsvpService {
     );
   }
 
-  private async syncPayment(session: Session, playerId: string, status: RsvpStatus) {
-    if (!session.group.requireRsvp) return;
+  /**
+   * Keeps a player's due in step with their reply. In groups without replies everyone is on every
+   * game, so only the organiser taking someone off (or putting them back) changes the due.
+   */
+  private async syncPayment(session: Session, playerId: string, status: RsvpStatus, byOrganiser = false) {
+    if (!session.group.requireRsvp && !byOrganiser) return;
     const payment = await this.paymentsRepo.findOne({ where: { sessionId: session.id, playerId } });
     if (status === RsvpStatus.IN && !payment) {
       await this.paymentsRepo.save(this.paymentsRepo.create(squadEntry(session.group, session.id, playerId)));
