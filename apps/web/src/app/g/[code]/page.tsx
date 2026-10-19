@@ -12,6 +12,7 @@ import { PlayerSignupForm, type SignupData } from '@/components/player-signup-fo
 import { formatCurrency, getPublicGroup, invitedBy, type PublicGroup } from '@/lib/api';
 import { frequencyShort } from '@/lib/billing';
 import { getPlayerHome, joinAsPlayer, signupFromLink, type JoinResult } from '@/lib/player';
+import { PaymentType } from '@pitchaside/shared';
 
 type Stage = 'signup' | 'signin' | 'joined';
 
@@ -97,49 +98,66 @@ export default function GroupLinkPage() {
   }
 
   if (stage === 'joined' && joined) {
+    // Per game: nothing is owed until they say they're in for a game, so send them to the games.
+    // Dues groups: they owe the period's dues now, so show how to pay.
+    const perGame = joined.paymentType === PaymentType.PER_SESSION;
     return (
       <div className="min-h-screen px-4 py-10">
         <div className="w-full max-w-sm mx-auto">
           <div className="text-center">
             <Logo />
             <Trophy className="w-48 h-40 mx-auto mt-6" />
-            <h1 className="text-3xl font-extrabold text-ink mt-1">
-              {joined.alreadyMember ? `Welcome back, ${joined.firstName}!` : `You're in, ${joined.firstName}!`}
+            <h1 className="text-3xl font-extrabold text-ink mt-1 text-balance">
+              {joined.alreadyMember ? `You’re already in, ${joined.firstName}` : `Welcome, ${joined.firstName}!`}
             </h1>
             <p className="text-sm text-gray-600 mt-2">
-              {joined.alreadyMember ? 'You’re already in' : 'You’ve joined'} <span className="font-bold text-ink">{joined.groupName}</span>.
-              Here&apos;s how to pay.
+              {joined.alreadyMember ? 'You’re a member of' : 'You’ve joined'} <span className="font-bold text-ink">{joined.groupName}</span>.{' '}
+              {perGame ? 'Say “I’m in” for a game, and pay once you’re in.' : 'Here’s how to pay your dues.'}
             </p>
           </div>
 
-          <div className="mt-6">
-            <PayIntoCard
-              account={joined.account}
-              fee={joined.feePerPlayer}
-              paymentType={joined.paymentType}
-              reference={joined.paymentRef}
-              claim={{ groupId: joined.groupId, amount: joined.feePerPlayer }}
-            />
-          </div>
-
-          <ol className="mt-6 space-y-3">
-            {[
-              <>Transfer <span className="font-bold text-ink">{formatCurrency(joined.feePerPlayer)}</span> to the account above.</>,
-              <>Put <span className="font-bold text-ink">{joined.paymentRef}</span> in the narration.</>,
-              <>That&apos;s it — your organiser sees you as paid automatically.</>,
-            ].map((step, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
-                <span className="w-6 h-6 rounded-full bg-ink text-volt-300 text-xs font-extrabold flex items-center justify-center shrink-0">{i + 1}</span>
-                <span className="pt-0.5">{step}</span>
-              </li>
-            ))}
-          </ol>
+          {perGame ? (
+            <div className="mt-6 rounded-3xl bg-white border border-gray-100 shadow-card p-4">
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-gray-500">Your payment code</p>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <span className="font-display text-2xl font-extrabold tracking-wider text-ink">{joined.paymentRef}</span>
+                <CopyButton text={joined.paymentRef} />
+              </div>
+              <p className="mt-2 text-sm text-gray-600">
+                When you pay for a game, put this code in the transfer description. That’s how {joined.groupName} knows it’s you.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="mt-6">
+                <PayIntoCard
+                  account={joined.account}
+                  fee={joined.feePerPlayer}
+                  paymentType={joined.paymentType}
+                  reference={joined.paymentRef}
+                  claim={{ groupId: joined.groupId, amount: joined.feePerPlayer }}
+                />
+              </div>
+              <ol className="mt-6 space-y-3">
+                {[
+                  <>Transfer <span className="font-bold text-ink">{formatCurrency(joined.feePerPlayer)}</span> to the account above.</>,
+                  <>Put your payment code <span className="font-bold text-ink">{joined.paymentRef}</span> in the transfer description.</>,
+                  <>That&apos;s it: your organiser sees you as paid automatically.</>,
+                ].map((step, i) => (
+                  <li key={i} className="flex items-start gap-3 text-sm text-gray-600">
+                    <span className="w-6 h-6 rounded-full bg-ink text-volt-300 text-xs font-extrabold flex items-center justify-center shrink-0">{i + 1}</span>
+                    <span className="pt-0.5">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
 
           <Link
             href="/me"
             className="mt-8 w-full flex items-center justify-center gap-2 py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors"
           >
-            Open my PitchAside →
+            {perGame ? 'See the next game →' : 'Open my PitchAside →'}
           </Link>
           <p className="mt-3 text-xs text-gray-500 text-center">Your games, what you owe, your player card and the table.</p>
         </div>
@@ -232,5 +250,27 @@ export default function GroupLinkPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Copies a code and says so in place. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        navigator.clipboard.writeText(text).then(
+          () => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1800);
+          },
+          () => {},
+        )
+      }
+      className="shrink-0 h-10 px-4 rounded-xl bg-ink text-volt-300 text-sm font-bold hover:bg-pitch-900"
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
   );
 }
