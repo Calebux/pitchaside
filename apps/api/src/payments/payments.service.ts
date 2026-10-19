@@ -172,7 +172,8 @@ export class PaymentsService {
   async markCame(id: string, organizationId: string) {
     const payment = await this.ownedPayment(id, organizationId);
     if (payment.attendance === 'no_show') {
-      payment.status = PaymentStatus.PENDING;
+      // Back to what they'd owe for the game; in dues groups the game itself costs nothing.
+      payment.status = payment.source === 'dues' || Number(payment.amount) === 0 ? PaymentStatus.WAIVED : PaymentStatus.PENDING;
       payment.markedBy = null as any;
     }
     payment.attendance = 'came';
