@@ -786,7 +786,17 @@ export type VoteCategory =
   | 'engine'
   | 'playmaker'
   | 'movement';
-export type Attribute = 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK';
+/** The card's abilities, from teammates' award nominations; GK only once nominated in goal. */
+export type Attribute = 'SHO' | 'PAS' | 'TEC' | 'DEF' | 'IQ' | 'PHY' | 'MOV' | 'GK';
+
+/** What teammates' nominations say about one award: `enough` once 3 different people said so. */
+export interface AwardEvidence {
+  nominations: number;
+  voters: number;
+  games: number;
+  share: number;
+  enough: boolean;
+}
 
 export interface SquadMember {
   id: string;
@@ -856,6 +866,19 @@ export interface PlayerRatings {
   provisional: boolean;
   ovr: number | null;
   attributes: Record<Attribute, number | null>;
+  goals: number;
+  assists: number;
+  /** Times someone put them in their Best VII. */
+  viiPicks: number;
+  /** Times they made the Best VII of the Day. */
+  viiOfDay: number;
+  /** Times they won Best on their team. */
+  bestOnTeam: number;
+  /** Per award: the evidence behind the attributes. */
+  evidence: Partial<Record<VoteCategory, AwardEvidence>>;
+  evidenceGames: number;
+  /** This calendar year's, when asked for one player. */
+  season?: PlayerRatings;
 }
 
 export interface LeagueTable {

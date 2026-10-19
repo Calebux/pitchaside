@@ -4,19 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { InstallCard, PushToggle } from '@/components/pwa';
 import { PlayerCardHero, Section } from '@/components/player-ui';
+import { PlayerStats } from '@/components/player-stats';
 import { usePlayerProfile } from '@/components/player-shell';
 import { PlayerAccountSettings } from '@/components/player-account';
 import { KitLine } from '@/components/illustrations';
 import { logoutPlayer, subscribePlayerPush } from '@/lib/player';
-
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-3 text-center">
-      <p className="font-display text-2xl font-extrabold text-ink tabular-nums leading-none">{value}</p>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-1">{label}</p>
-    </div>
-  );
-}
 
 export default function PlayerProfilePage() {
   const router = useRouter();
@@ -33,13 +25,8 @@ export default function PlayerProfilePage() {
         caption={profile.player.email}
       />
 
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mt-4">
-        <Stat label="Games" value={r.games} />
-        <Stat label="W-D-L" value={`${r.record.w}-${r.record.d}-${r.record.l}`} />
-        <Stat label="Points" value={r.points} />
-        <Stat label="POTM" value={r.potmWins} />
-        <Stat label="Team of day" value={r.teamOfDay} />
-        <Stat label="Votes got" value={Object.values(r.votes).reduce((a, b) => a + b, 0)} />
+      <div className="mt-5">
+        <PlayerStats ratings={r} you />
       </div>
 
       <div className="md:grid md:grid-cols-2 md:gap-8 md:items-start">

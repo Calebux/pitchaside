@@ -23,6 +23,7 @@ import {
 } from '@/lib/api';
 import { StatCard } from '@/components/stat-card';
 import { AttributeRow } from '@/components/ratings';
+import { PlayerStats } from '@/components/player-stats';
 import { Player, Ball, JerseyBadge, kitFor, skins } from '@/components/illustrations';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
 
@@ -206,7 +207,7 @@ export default function PlayerDetailPage() {
                   <AttributeRow ratings={ratings} dark />
                   <p className="text-[10px] text-white/40 mt-1.5">
                     {ratings.games > 0
-                      ? `From results and teammates' votes over ${ratings.games} game${ratings.games === 1 ? '' : 's'}${ratings.record.w + ratings.record.d + ratings.record.l ? ` · W${ratings.record.w} D${ratings.record.d} L${ratings.record.l}` : ''}${ratings.potmWins ? ` · ★ ${ratings.potmWins}× POTM` : ''}`
+                      ? `From results over ${ratings.games} game${ratings.games === 1 ? '' : 's'}, lifted by teammates' awards${ratings.evidenceGames ? ` in ${ratings.evidenceGames}` : ''}`
                       : 'Based on their level until they’ve played; results and votes take over'}
                   </p>
                 </div>
@@ -250,6 +251,12 @@ export default function PlayerDetailPage() {
           <StatCard label="Payment rate" value={`${stats.paymentRate}%`} tone="volt" />
           <StatCard label="Total paid" value={formatCurrency(stats.totalPaid)} />
           <StatCard label="To pay" value={formatCurrency(stats.totalOwed)} tone={Number(stats.totalOwed) > 0 ? 'ink' : 'white'} />
+        </div>
+      )}
+
+      {ratings && (
+        <div className="mb-6">
+          <PlayerStats ratings={ratings} />
         </div>
       )}
 

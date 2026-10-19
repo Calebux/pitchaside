@@ -15,7 +15,7 @@ import { localDate } from '../common/time.util';
 import { sheetName } from '../players/player-name';
 import { Person, PlayerAuthService } from './player-auth.service';
 import type { GoalInput } from '../ratings/ratings.service';
-import { emptyVotes } from '../ratings/ratings.service';
+import { blankRatings } from '../ratings/ratings.service';
 
 /** The player app: everything is scoped to a person (phone), across every club they play for. */
 @Injectable()
@@ -476,17 +476,5 @@ export class PlayerPortalService {
 }
 
 function emptyRatings(): PlayerRatings {
-  return {
-    games: 0,
-    ballotsSeen: 0,
-    votes: emptyVotes(),
-    potmWins: 0,
-    record: { w: 0, d: 0, l: 0 },
-    teamOfDay: 0,
-    points: 0,
-    skill: DEFAULT_START,
-    provisional: true,
-    ovr: null,
-    attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
-  };
+  return blankRatings();
 }
