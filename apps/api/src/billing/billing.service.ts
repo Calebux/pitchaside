@@ -957,18 +957,23 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
    */
   async releaseTransferDues(session: Pick<Session, 'groupId' | 'payments'>, { reopen }: { reopen: boolean }) {
     const payments = session.payments ?? [];
+    // Marked paid by hand on top of a part payment: the transfer part goes back too, and the due
+    // reopens with the others, so bringing the game back asks for it again from what they've sent.
+    const partFromTransfers = new Set(payments.filter((p) => p.status === PaymentStatus.PAID && !paidByTransfer(p) && Number(p.fromCredit ?? 0) > 0).map((p) => p.id));
     const credited = await refundToCredit(this.paymentsRepo.manager, session.groupId, payments);
     if (!credited.length) return;
     if (reopen) {
-      const reopened = payments.filter((p) => paidByTransfer(p) && credited.includes(p.playerId));
+      const reopened = payments.filter((p) => (paidByTransfer(p) || partFromTransfers.has(p.id)) && credited.includes(p.playerId));
       for (const p of reopened) {
         p.status = PaymentStatus.PENDING;
         p.paidAt = null as unknown as Date;
         p.source = null as unknown as string;
         p.markedBy = null as unknown as string;
       }
-      await this.paymentsRepo.save(reopened);
-      await this.paymentsService.recalculateSessionTotal(reopened[0].sessionId);
+      if (reopened.length) {
+        await this.paymentsRepo.save(reopened);
+        await this.paymentsService.recalculateSessionTotal(reopened[0].sessionId);
+      }
     }
     await this.applyCredits(session.groupId, credited);
   }

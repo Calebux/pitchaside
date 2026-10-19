@@ -1,3 +1,4 @@
+import { usePartPaid } from './part-paid';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -68,7 +69,7 @@ export class PaymentsService {
   async markAsPaid(id: string, organizationId: string, markedBy?: string) {
     const payment = await this.paymentsRepo
       .createQueryBuilder('payment')
-      .innerJoin('payment.session', 'session')
+      .innerJoinAndSelect('payment.session', 'session')
       .innerJoin('session.group', 'group')
       .where('payment.id = :id', { id })
       .andWhere('group.organizationId = :organizationId', { organizationId })
@@ -77,11 +78,15 @@ export class PaymentsService {
     // Already paid (perhaps by transfer): keep when and how, and don't send a second receipt.
     if (payment.status === PaymentStatus.PAID) return payment;
 
-    payment.status = PaymentStatus.PAID;
-    payment.paidAt = new Date();
-    payment.source = 'manual';
-    if (markedBy) payment.markedBy = markedBy;
-    const saved = await this.paymentsRepo.save(payment);
+    // Part paid by transfer already: that part comes out of their kept money, the rest was by hand.
+    const saved = await this.paymentsRepo.manager.transaction(async (tx) => {
+      await usePartPaid(tx, payment, payment.session.groupId);
+      payment.status = PaymentStatus.PAID;
+      payment.paidAt = new Date();
+      payment.source = 'manual';
+      if (markedBy) payment.markedBy = markedBy;
+      return tx.save(payment);
+    });
 
     await this.recalculateSessionTotal(payment.sessionId);
     this.notifications.later(() => this.sendReceipts([saved.id], 'manual'));
@@ -100,6 +105,7 @@ export class PaymentsService {
     payment.paidAt = null as any;
     payment.source = null as any;
     payment.markedBy = null as any;
+    payment.fromCredit = '0';
     const saved = await this.paymentsRepo.save(payment);
 
     await this.recalculateSessionTotal(payment.sessionId);
@@ -201,23 +207,30 @@ export class PaymentsService {
     for (const id of paymentIds) {
       const payment = await this.paymentsRepo
         .createQueryBuilder('payment')
-        .innerJoin('payment.session', 'session')
+        .innerJoinAndSelect('payment.session', 'session')
         .innerJoin('session.group', 'group')
         .where('payment.id = :id', { id })
         .andWhere('group.organizationId = :organizationId', { organizationId })
         .getOne();
       if (!payment) throw new NotFoundException(`Payment ${id} not found`);
       if (payment.status === PaymentStatus.PAID) continue;
-
-      payment.status = PaymentStatus.PAID;
-      payment.paidAt = new Date();
-      payment.source = 'manual';
-      if (markedBy) payment.markedBy = markedBy;
       payments.push(payment);
       sessionIds.add(payment.sessionId);
     }
 
-    const saved = await this.paymentsRepo.save(payments);
+    // One at a time, each like Mark paid: a part-paid due uses what they'd already sent.
+    const saved = await this.paymentsRepo.manager.transaction(async (tx) => {
+      const out: Payment[] = [];
+      for (const payment of payments) {
+        await usePartPaid(tx, payment, payment.session.groupId);
+        payment.status = PaymentStatus.PAID;
+        payment.paidAt = new Date();
+        payment.source = 'manual';
+        if (markedBy) payment.markedBy = markedBy;
+        out.push(await tx.save(payment));
+      }
+      return out;
+    });
 
     for (const sessionId of sessionIds) {
       await this.recalculateSessionTotal(sessionId);

@@ -45,7 +45,7 @@ import { GameHero } from '@/components/game/game-hero';
 import { GameMenu } from '@/components/game/game-actions';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
-import { coveredByDues as coversByDues, gamePhase, gameTally } from '@/lib/game-player';
+import { coveredByDues as coversByDues, gamePhase, gameTally, leftToPay } from '@/lib/game-player';
 import { btnSecondary } from '@/components/buttons';
 import { AddToGameSheet } from '@/components/game/add-to-game-sheet';
 import { gameInviteMessage, openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
@@ -206,7 +206,7 @@ export default function GamePage() {
           groupName: session.group?.name ?? 'Your group',
           account: billing.account,
           code: member?.paymentRef,
-          amount: Number(p.amount),
+          amount: leftToPay(p),
           forWhat: gameLabel(session),
         }),
         p.player?.phone ?? member?.player.phone,

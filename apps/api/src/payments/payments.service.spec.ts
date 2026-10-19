@@ -12,6 +12,7 @@ describe('PaymentsService', () => {
   let sessionsRepo: Record<string, jest.Mock>;
 
   const mockPayment = {
+    session: { groupId: 'group-1' },
     id: 'pay-1',
     sessionId: 'session-1',
     playerId: 'player-1',
@@ -38,6 +39,10 @@ describe('PaymentsService', () => {
       save: jest.fn(),
       find: jest.fn(),
       createQueryBuilder: jest.fn().mockReturnValue({ ...mockQueryBuilder }),
+    };
+    // Mark paid runs in a transaction: no membership here, so nothing is part paid.
+    (paymentsRepo as any).manager = {
+      transaction: (fn: (tx: unknown) => unknown) => fn({ findOne: async () => null, save: (x: unknown) => paymentsRepo.save(x) }),
     };
     sessionsRepo = {
       update: jest.fn(),

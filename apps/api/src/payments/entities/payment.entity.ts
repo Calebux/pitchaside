@@ -67,6 +67,13 @@ export class Payment {
   @Column({ type: 'varchar', nullable: true })
   attendance: Attendance | null;
 
+  /**
+   * Marked paid by hand on top of a part payment: how much of it came from the money the player
+   * had already sent by transfer (their kept money). Goes back to them if the payment is undone.
+   */
+  @Column({ name: 'from_credit', type: 'decimal', precision: 10, scale: 2, default: 0 })
+  fromCredit: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -75,4 +82,10 @@ export class Payment {
    * their own due, or their period's dues when those cover the game.
    */
   gamePaid?: 'paid' | 'unpaid' | 'waived';
+
+  /**
+   * Not stored: money the player has already sent towards this due (a part payment), set when
+   * sessions are loaded. Only on their oldest unpaid due in the group, which is where it goes.
+   */
+  paidSoFar?: number;
 }

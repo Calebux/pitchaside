@@ -29,7 +29,7 @@ import { Sheet } from '@/components/sheet';
 import { TransfersSheet, transferName } from '@/components/home/transfers-sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
-import { coveredByDues } from '@/lib/game-player';
+import { coveredByDues, leftToPay } from '@/lib/game-player';
 import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
 import { moneyHref } from '@/lib/money-href';
@@ -846,7 +846,7 @@ function GameSection({
   // players who've confirmed, and spots nobody has taken yet. The target is spots × fee
   // (gameTarget on the server), so the open spots aren't owed by anyone.
   const fee = Number(game.group?.feePerPlayer ?? 0);
-  const owedAmount = owing.reduce((sum, p) => sum + Number(p.amount), 0);
+  const owedAmount = owing.reduce((sum, p) => sum + leftToPay(p), 0);
   const capacity = rsvp?.requireRsvp ? rsvp.capacity : Number(game.group?.targetPlayers ?? 0);
   const taken = rsvp?.requireRsvp ? rsvp.in.length : payments.length;
   const openSpots = Math.max(0, capacity - taken);

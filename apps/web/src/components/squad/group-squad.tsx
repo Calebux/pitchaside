@@ -1,5 +1,6 @@
 'use client';
 
+import { leftToPay } from '@/lib/game-player';
 import { useState } from 'react';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -153,7 +154,8 @@ export function GroupSquad({
     return {
       label: dueLabel,
       state: st === PaymentStatus.PAID ? 'paid' : st === PaymentStatus.WAIVED ? 'waived' : 'owes',
-      amount: Number(p.amount),
+      amount: leftToPay(p),
+      paidSoFar: p.paidSoFar ?? 0,
     };
   };
   const members = (group.memberships ?? []).map((m) => ({ ...m, due: dueOf(m.player.id) }));
@@ -361,12 +363,14 @@ export function GroupSquad({
               {shown.map((m) => {
                 const name = `${m.player.firstName} ${m.player.lastName}`;
                 const kit = kitFor(name);
-                const credit = Number(m.credit ?? 0);
+                // Kept money that's already counted as part of this due isn't also "paid ahead".
+                const credit = Number(m.credit ?? 0) - (m.due?.paidSoFar ?? 0);
                 const st = m.due?.state;
                 const detail = [
                   isNew(m.joinedAt) && 'New this week',
                   m.player.nickname && `“${m.player.nickname}”`,
                   m.role !== 'player' && sentence(m.role),
+                  !!m.due?.paidSoFar && `${formatCurrency(m.due.paidSoFar)} paid so far`,
                   credit > 0 && `${formatCurrency(credit)} paid ahead`,
                 ].filter(Boolean) as string[];
                 return (
@@ -388,7 +392,7 @@ export function GroupSquad({
                           {st === 'owes' ? (
                             <>
                               <span className="block font-display text-[15px] font-extrabold text-amber-700 tabular-nums">{formatCurrency(m.due!.amount)}</span>
-                              <span className="block text-xs text-gray-500">To pay</span>
+                              <span className="block text-xs text-gray-500">{m.due!.paidSoFar ? 'Left to pay' : 'To pay'}</span>
                             </>
                           ) : (
                             <span className={`block text-xs font-bold ${st === 'paid' ? 'text-pitch-600' : 'text-gray-400'}`}>

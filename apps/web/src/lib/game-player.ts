@@ -1,6 +1,11 @@
 import { PaymentStatus, type IPayment } from '@pitchaside/shared';
 import { formatCurrency } from './api';
 
+/** What's still to pay on a due: the fee, less anything they've already sent towards it. */
+export function leftToPay(p: Pick<IPayment, 'amount' | 'paidSoFar'>) {
+  return Math.max(0, Number(p.amount) - (p.paidSoFar ?? 0));
+}
+
 /** Groups whose weekly, monthly (…) dues cover their games: a game costs nothing extra. */
 const PERIODIC = ['weekly', 'monthly', 'quarterly', 'annually'];
 
@@ -44,6 +49,8 @@ function stateNow(p: IPayment, coveredByDues: boolean, before: boolean): PlayerS
     return { key: 'paid', label: p.source === 'transfer' ? 'Paid by transfer' : 'Marked paid', owes: false };
   }
   if (p.status === PaymentStatus.WAIVED) return { key: 'free', label: before ? 'Plays free' : 'Played free', owes: false };
+  // Part paid by transfer: say what's in and what's left.
+  if (p.paidSoFar) return { key: 'to_pay', label: `${formatCurrency(p.paidSoFar)} paid · ${formatCurrency(leftToPay(p))} left`, owes: true };
   // Before the game they've only said they're in: they pay once they've played (or ahead).
   return before
     ? { key: 'to_pay', label: 'Not paid yet', owes: true }
@@ -58,13 +65,14 @@ export function gameTally(payments: IPayment[], coveredByDues: boolean, before =
   const toPay = states.filter(({ s }) => s.owes);
   const noShows = states.filter(({ s }) => s.key === 'no_show');
   const sum = (xs: { p: IPayment }[]) => xs.reduce((n, { p }) => n + Number(p.amount), 0);
+  const left = (xs: { p: IPayment }[]) => xs.reduce((n, { p }) => n + leftToPay(p), 0);
   return {
     states,
     playing: playing.length,
     paid: paid.length,
     paidAmount: sum(paid.filter(({ s }) => s.key === 'paid')),
     toPay: toPay.length,
-    toPayAmount: sum(toPay),
+    toPayAmount: left(toPay),
     noShows: noShows.length,
   };
 }
