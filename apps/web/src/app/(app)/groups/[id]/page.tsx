@@ -12,6 +12,8 @@ import { GroupAccountCard, TransfersPanel } from '@/components/group-billing';
 import { PayoutsPanel } from '@/components/group-payouts';
 import { NewSessionSheet } from '@/components/new-session-sheet';
 import { frequencyLabel } from '@/lib/billing';
+import { openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
+import { QuickAddPlayers } from '@/components/group/quick-add-players';
 import { LeagueTableView } from '@/components/ratings';
 import { AccountDetailsSheet, MoneyCard, PlusIcon, daysFromToday, gameDay, gameStatusOf, useGroupMoney } from '@/components/money-card';
 import { InviteSheet } from '@/components/home/invite-sheet';
@@ -244,7 +246,6 @@ export default function GroupDetailPage() {
       const updated = await getGroup(id);
       setGroup(updated);
       refreshPayments().catch(() => {});
-      setShowAddMember(false);
       setSelectedPlayerId('');
       toast.success('Player added');
     } catch {
@@ -420,6 +421,22 @@ export default function GroupDetailPage() {
             setGroup((g) =>
               g ? { ...g, memberships: g.memberships?.map((m) => (m.player.id === p.id ? { ...m, player: { ...m.player, ...p } } : m)) } : g,
             )
+          }
+          onSendDetails={
+            billing?.account
+              ? () =>
+                  openWhatsApp(
+                    paymentDetailsMessage({
+                      firstName: opened.player.firstName,
+                      groupName: group.name,
+                      account: billing.account!,
+                      code: opened.paymentRef,
+                      amount: opened.due?.state === 'owes' ? opened.due.amount : undefined,
+                      forWhat: opened.due?.state === 'owes' ? opened.due.label : undefined,
+                    }),
+                    opened.player.phone,
+                  )
+              : undefined
           }
           onRemove={() => {
             setOpenMember(null);
@@ -694,37 +711,39 @@ export default function GroupDetailPage() {
           </div>
 
           {showAddMember && (
-            <div className="mt-2 bg-white rounded-3xl border border-gray-100 shadow-card p-4 animate-fade-in-up">
-              {availablePlayers.length === 0 ? (
-                <p className="text-sm text-gray-600">
-                  Everyone you&apos;ve added is already here.{' '}
-                  <Link href="/players/new" className="text-pitch-700 font-bold hover:underline">
-                    Add a new player
-                  </Link>{' '}
-                  or send the invite link.
-                </p>
-              ) : (
-                <div className="flex gap-2">
-                  <select
-                    value={selectedPlayerId}
-                    onChange={(e) => setSelectedPlayerId(e.target.value)}
-                    aria-label="Player to add"
-                    className="flex-1 min-w-0 min-h-11 px-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-                  >
-                    <option value="">Pick one of your players</option>
-                    {availablePlayers.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.firstName} {p.lastName}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={handleAddMember}
-                    disabled={!selectedPlayerId || addingMember}
-                    className="shrink-0 min-h-11 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-40 transition-colors"
-                  >
-                    {addingMember ? 'Adding…' : 'Add'}
-                  </button>
+            <div className="mt-2 bg-white rounded-3xl border border-gray-100 shadow-card p-4 animate-fade-in-up space-y-4">
+              <QuickAddPlayers
+                groupId={id}
+                onAdded={async () => {
+                  setGroup(await getGroup(id));
+                  refreshPayments().catch(() => {});
+                }}
+              />
+              {availablePlayers.length > 0 && (
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-[13px] font-bold text-ink mb-2">Already one of your players</p>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedPlayerId}
+                      onChange={(e) => setSelectedPlayerId(e.target.value)}
+                      aria-label="Player to add"
+                      className="flex-1 min-w-0 min-h-11 px-3 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+                    >
+                      <option value="">Pick from your other groups</option>
+                      {availablePlayers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.firstName} {p.lastName}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleAddMember}
+                      disabled={!selectedPlayerId || addingMember}
+                      className="shrink-0 min-h-11 px-4 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-40 transition-colors"
+                    >
+                      {addingMember ? 'Adding…' : 'Add'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -732,7 +751,13 @@ export default function GroupDetailPage() {
 
           {!group.memberships?.length ? (
             <div className="mt-2">
-              <EmptyState icon="users" title="No one in the squad yet" description="Send the invite link to your group chat, or add players yourself." />
+              <EmptyState
+                icon="users"
+                title="No one in the group yet"
+                description="Send the invite link to your group chat, or add players yourself."
+                actionLabel={showAddMember ? undefined : 'Add players'}
+                onAction={showAddMember ? undefined : () => setShowAddMember(true)}
+              />
               {user && !imAMember && (
                 <div className="mt-3 text-center">
                   <button onClick={handleAddMe} disabled={addingMe} className="h-11 px-3 text-sm font-bold text-pitch-700 disabled:opacity-50">
