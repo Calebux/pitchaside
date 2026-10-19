@@ -914,9 +914,17 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .getMany();
 
     const settled: Payment[] = [];
+    // Money sent earlier is used first. A due paid wholly from it was paid ahead ('credit'), not
+    // by the transfer that just came in ('pulse'): the game page says so, so nobody looks like
+    // they paid for this game when they paid weeks ago.
+    let earlier = Number(membership.credit);
+    const ahead = new Set<Payment>();
     for (const p of pending) {
       if (pool + 0.001 < Number(p.amount)) break;
       pool -= Number(p.amount);
+      const fromEarlier = Math.min(earlier, Number(p.amount));
+      earlier -= fromEarlier;
+      if (fromEarlier + 0.001 >= Number(p.amount)) ahead.add(p);
       settled.push(p);
     }
     const now = new Date();
@@ -924,7 +932,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       p.status = PaymentStatus.PAID;
       p.paidAt = now;
       p.source = 'transfer';
-      p.markedBy = 'pulse';
+      p.markedBy = ahead.has(p) ? 'credit' : 'pulse';
     }
     if (settled.length) await tx.save(settled);
     membership.credit = pool.toFixed(2);

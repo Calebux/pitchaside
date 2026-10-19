@@ -157,3 +157,26 @@ describe('partial payments', () => {
     await expect(service.giveTransfer('t1', 'stranger', 'org1')).rejects.toThrow("That player isn't in this group");
   });
 });
+
+describe('paid ahead or paid by this transfer', () => {
+  it('marks a game paid wholly from money sent earlier as paid ahead', async () => {
+    const { service, payments } = setup([1500], 1500);
+    await service.applyCredit('g1', 'p1', 0);
+    expect(payments[0]).toMatchObject({ status: PaymentStatus.PAID, source: 'transfer', markedBy: 'credit' });
+  });
+
+  it('marks a game the new transfer paid for (even partly) as paid by transfer', async () => {
+    const fresh = setup([1500]);
+    await fresh.service.applyCredit('g1', 'p1', 1500);
+    expect(fresh.payments[0].markedBy).toBe('pulse');
+    const topUp = setup([1500], 1000);
+    await topUp.service.applyCredit('g1', 'p1', 500);
+    expect(topUp.payments[0].markedBy).toBe('pulse');
+  });
+
+  it('labels each game: the first from what they had, the next from the new money', async () => {
+    const { service, payments } = setup([1500, 1500], 1500);
+    await service.applyCredit('g1', 'p1', 1500);
+    expect(payments.map((p) => p.markedBy)).toEqual(['credit', 'pulse']);
+  });
+});
