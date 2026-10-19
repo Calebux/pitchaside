@@ -7,7 +7,7 @@ import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
 import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
-import { DAYS, Select, Stepper, TIMES, chip, dayOf, field, label } from '@/components/group/group-edit-sheet';
+import { DAYS, Select, Stepper, TIMES, chip, field, label } from '@/components/group/group-edit-sheet';
 import { createSession, type IGroupWithMembers } from '@/lib/api';
 
 const REPEATS = [
@@ -22,8 +22,9 @@ const short = (d: Date) => d.toLocaleDateString('en-GB', { weekday: 'short', day
 
 /** The next three dates on the group's game day (from today), or the next three days if it has none. */
 function nextGameDays(group?: IGroupWithMembers) {
-  const day = group ? dayOf(group.schedule ?? '') : '';
-  const want = DAYS.indexOf(day); // Monday = 0
+  // "Every Saturday", "Saturdays", "Saturday mornings": the first weekday it names.
+  const said = (group?.schedule ?? '').toLowerCase();
+  const want = DAYS.findIndex((d) => said.includes(d.toLowerCase())); // Monday = 0
   const out: Date[] = [];
   const d = new Date();
   d.setHours(0, 0, 0, 0);

@@ -32,7 +32,7 @@ function GameRow({
   const title =
     s.kind === 'dues' && s.label
       ? `${s.label} dues`
-      : gameDay(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      : gameDay(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
   const line =
     s.kind === 'dues'
       ? `${paid.length} of ${payments.length} paid`
