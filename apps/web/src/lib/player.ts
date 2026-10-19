@@ -181,6 +181,8 @@ export type PlayerGroup = {
   feePerPlayer: number;
   paymentType: PaymentType;
   paymentRef?: string;
+  /** Sent but not used yet; part of it may already be counted in `owed[].paidSoFar`. */
+  paidAhead?: number;
   account: GroupAccount | null;
 };
 
@@ -214,6 +216,8 @@ export interface PlayerHome {
     capacity: number;
     waitlist: number;
     payment: { status: 'paid' | 'pending' | 'waived'; amount: number } | null;
+    /** Set on a game's own page; the home lists only games still to play. */
+    status?: 'upcoming' | 'completed' | 'cancelled';
     /** Match day: the player can pick the bib they've been handed. */
     bibsOpen?: boolean;
     myTeam?: TeamKey | null;

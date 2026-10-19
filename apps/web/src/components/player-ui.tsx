@@ -8,6 +8,7 @@ import { AttributeRow } from '@/components/ratings';
 import { TEAMS, teamName } from '@/components/lineup-card';
 import { MatchDayBibs } from '@/components/match-day-bibs';
 import { useToast } from '@/components/toast';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ShareCardButton } from '@/components/share-card';
 import { formatCurrency, type PlayerRatings } from '@/lib/api';
 import { setRsvp, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
@@ -16,11 +17,15 @@ export function niceDate(iso: string, opts: Intl.DateTimeFormatOptions = { weekd
   return new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', opts);
 }
 
-export function daysUntil(iso: string) {
+/** Days from today to a game day: 0 today, negative once it's past. */
+export function daysFrom(iso: string) {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00`).getTime();
-  const today = new Date().setHours(0, 0, 0, 0);
-  const n = Math.round((d - today) / 86400000);
-  return n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `In ${n} days`;
+  return Math.round((d - new Date().setHours(0, 0, 0, 0)) / 86400000);
+}
+
+export function daysUntil(iso: string) {
+  const n = daysFrom(iso);
+  return n < 0 ? 'Played' : n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : `In ${n} days`;
 }
 
 export function prettyTime(hhmm?: string | null) {
@@ -158,7 +163,11 @@ export function GameCard({
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState<'in' | 'out' | null>(null);
+  const [confirmOut, setConfirmOut] = useState(false);
   const full = game.confirmed >= game.capacity;
+  // Played (or ended): nothing left to reply to.
+  const played = game.status === 'completed' || daysFrom(game.date) < 0;
+  const paid = game.payment?.status === 'paid';
   const pct = Math.min(100, Math.round((game.confirmed / Math.max(game.capacity, 1)) * 100));
   const time = prettyTime(game.kickoffTime);
 
@@ -167,7 +176,7 @@ export function GameCard({
     try {
       const res = await setRsvp(game.id, status);
       toast.success(
-        res.status === 'in' ? "You're in ⚽" : res.status === 'waitlist' ? "Game's full — you're on the waitlist" : 'Got it — maybe next time',
+        res.status === 'in' ? "You're in ⚽" : res.status === 'waitlist' ? "Game's full: you're on the waitlist" : "You're out",
       );
       await onChange();
     } catch (err: any) {
@@ -178,7 +187,11 @@ export function GameCard({
   }
 
   const statusChip =
-    game.myStatus === 'in'
+    played
+      ? game.myStatus === 'in'
+        ? { text: 'You played', cls: 'bg-gray-100 text-gray-700' }
+        : null
+      : game.myStatus === 'in'
       ? { text: "You're in ✅", cls: 'bg-volt-400 text-ink' }
       : game.myStatus === 'waitlist'
         ? { text: `Waitlist #${game.waitlistPosition ?? '–'}`, cls: 'bg-sun-400 text-ink' }
@@ -202,7 +215,7 @@ export function GameCard({
         )}
       </div>
 
-      {game.requireRsvp && (
+      {game.requireRsvp && !played && (
         <div className="mt-3">
           <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 mb-1">
             <span className="tabular-nums">
@@ -224,15 +237,16 @@ export function GameCard({
 
       {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
 
+      {!played && (
       <div className="grid grid-cols-2 gap-2 mt-4">
         {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (
           <button
-            onClick={() => reply('out')}
+            onClick={() => (paid ? setConfirmOut(true) : reply('out'))}
             disabled={!!busy}
             className="col-span-2 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {busy === 'out' && <BallSpinner />}
-            {game.myStatus === 'waitlist' ? 'Leave the waitlist' : "I can't make it anymore"}
+            {game.myStatus === 'waitlist' ? 'Leave the waitlist' : "I'm out"}
           </button>
         ) : (
           <>
@@ -250,11 +264,25 @@ export function GameCard({
               className="py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {busy === 'out' && <BallSpinner />}
-              Can&apos;t make it
+              I&apos;m out
             </button>
           </>
         )}
       </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmOut}
+        title="Drop out of this game?"
+        message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. It’s kept for your next game with ${game.groupName}.`}
+        confirmLabel="I'm out"
+        cancelLabel="Stay in"
+        onConfirm={() => {
+          setConfirmOut(false);
+          reply('out');
+        }}
+        onCancel={() => setConfirmOut(false)}
+      />
 
       {showDetails && (
         <Link href={`/me/games/${game.id}`} className="mt-3 block text-center text-xs font-bold text-pitch-600 hover:text-ink">
