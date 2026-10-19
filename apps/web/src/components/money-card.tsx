@@ -867,7 +867,7 @@ function GameSection({
             coveredByDues
               ? 'paid their dues'
               : upcoming
-                ? `${formatCurrency(collected)} collected${owedAmount ? ` · ${formatCurrency(owedAmount)} due` : ''}${openSpots ? ` · ${openSpots} spots free` : ''}`
+                ? `${formatCurrency(collected)} collected${owedAmount ? ` · ${formatCurrency(owedAmount)} due` : ''}${openSpots ? ` · ${openSpots} places free` : ''}`
                 : owedAmount
                   ? `collected · ${formatCurrency(owedAmount)} still owed`
                   : 'collected · everyone has paid'
@@ -908,7 +908,7 @@ function GameSection({
             ? `${paid.length} of ${payments.length} paid their dues`
             : played
               ? `${formatCurrency(collected)} paid, ${formatCurrency(owedAmount)} still owed`
-              : `${formatCurrency(collected)} paid, ${formatCurrency(owedAmount)} due, ${formatCurrency(openAmount)} more if the free spots fill`
+              : `${formatCurrency(collected)} paid, ${formatCurrency(owedAmount)} due, ${formatCurrency(openAmount)} more if the free places fill`
         }
       >
         {coveredByDues ? (

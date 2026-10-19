@@ -203,7 +203,7 @@ export default function GroupLinkPage() {
 
           {signedIn ? (
             <div className="bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-3">
-              <h2 className="text-xl font-extrabold text-ink">Join the squad</h2>
+              <h2 className="text-xl font-extrabold text-ink">Join {group.groupName}</h2>
               <p className="text-sm text-gray-500">You&apos;re already signed in to PitchAside.</p>
               <button
                 onClick={joinSignedIn}
@@ -232,7 +232,7 @@ export default function GroupLinkPage() {
             />
           ) : (
             <PlayerSignupForm
-              subtitle="Create your PitchAside account — you'll get your payment reference straight after."
+              subtitle="Create your PitchAside account — you'll get your payment code straight after."
               cta="Join the group"
               onSubmit={signup}
               onEmailChange={setLastEmail}

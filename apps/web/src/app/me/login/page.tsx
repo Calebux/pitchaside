@@ -25,7 +25,7 @@ export default function PlayerLoginPage() {
           <NightStadium className="absolute inset-0 w-full h-full" />
           <div className="absolute inset-0 bg-gradient-to-t from-pitch-950 via-pitch-950/40 to-transparent" />
           <p className="absolute left-4 bottom-3 font-display text-2xl font-extrabold text-white leading-tight">
-            Your games, dues
+            Your games, payments
             <br />& player card
           </p>
         </div>

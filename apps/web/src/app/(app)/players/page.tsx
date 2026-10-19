@@ -176,7 +176,7 @@ export default function PlayersPage() {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Add Player
+            Add player
           </Link>
         </>
         }
@@ -195,7 +195,7 @@ export default function PlayersPage() {
             </svg>
             <div>
               <h2 className="text-base font-bold text-white">Invite players</h2>
-              <p className="text-xs text-white/60">One link for the whole club — players sign up and pick their groups</p>
+              <p className="text-xs text-white/60">One link for all your groups: players sign up and pick theirs</p>
             </div>
           </div>
           {inviteLink && (

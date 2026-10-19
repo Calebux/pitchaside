@@ -428,7 +428,7 @@ export class PlayerPortalService {
    */
   async startGroup(person: Person, input: { clubName: string; password: string }) {
     if (await this.organiser(person)) {
-      throw new BadRequestException('You already run a club — switch to Organising to add more groups.');
+      throw new BadRequestException('You already organise — switch to Organising to add another group.');
     }
     const result = await this.auth.register({
       organizationName: input.clubName.trim(),

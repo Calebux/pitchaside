@@ -98,8 +98,8 @@ export default function NewPlayerPage() {
       <FormShell>
       <FormHero
         tone="sky"
-        eyebrow="New signing"
-        title="Register Player"
+        eyebrow="Players"
+        title="Add a player"
         subtitle="Add their contact details so you can track games and payments."
         art={
           <svg viewBox="0 0 160 150" className="w-full h-auto" aria-hidden>
@@ -203,7 +203,7 @@ export default function NewPlayerPage() {
               })}
             </div>
             <p className="text-[11px] text-gray-500 mt-1">
-              {groupIds.length ? 'They’ll get a payment reference in each group you pick.' : 'Not in any group yet — they won’t get dues until you add them to one.'}
+              {groupIds.length ? 'They’ll get a payment code in each group you pick.' : 'Not in any group yet: they won’t owe anything until you add them to one.'}
             </p>
           </fieldset>
         )}
@@ -213,7 +213,7 @@ export default function NewPlayerPage() {
           disabled={submitting}
           className="w-full py-3 bg-ink text-volt-300 font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {submitting ? 'Registering...' : 'Register Player'}
+          {submitting ? 'Adding…' : 'Add player'}
         </button>
       </form>
       </FormShell>

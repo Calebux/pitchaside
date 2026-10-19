@@ -118,7 +118,7 @@ export default function PublicCompetitionPage() {
                   <p className="font-bold text-ink">{comp.accountNumber}</p>
                   <p className="text-xs text-gray-500">{comp.accountName} &middot; {comp.bankName}</p>
                 </div>
-                <p className="mt-2 text-xs">Include <code className="px-1.5 py-0.5 bg-white rounded font-mono font-bold">{registered.paymentRef}</code> in the transfer narration.</p>
+                <p className="mt-2 text-xs">Include <code className="px-1.5 py-0.5 bg-white rounded font-mono font-bold">{registered.paymentRef}</code> in the transfer description.</p>
               </div>
             )}
           </div>
@@ -185,7 +185,7 @@ export default function PublicCompetitionPage() {
                   <p className="text-sm font-bold text-ink">{comp.accountNumber}</p>
                   <p className="text-xs text-gray-500">{comp.accountName} &middot; {comp.bankName}</p>
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Include your payment reference in the narration for automatic confirmation.</p>
+                <p className="text-xs text-gray-400 mt-2">Put your payment code in the transfer description and it’s confirmed automatically.</p>
               </div>
             )}
           </div>

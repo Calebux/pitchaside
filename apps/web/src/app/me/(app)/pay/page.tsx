@@ -42,7 +42,7 @@ export default function PlayerPayPage() {
 
       <div className={`rounded-3xl px-5 py-4 ${total > 0 ? 'bg-ink text-white' : 'bg-volt-100 border border-volt-300 text-ink'}`}>
         <p className={`text-[11px] font-extrabold uppercase tracking-[0.12em] ${total > 0 ? 'text-white/50' : 'text-ink/50'}`}>
-          {total > 0 ? 'You owe' : 'Balance'}
+          {total > 0 ? 'To pay' : 'Balance'}
         </p>
         <p className="font-display text-3xl font-extrabold tabular-nums">{total > 0 ? formatCurrency(total) : 'All square ✅'}</p>
         {total > 0 && <p className="text-xs text-white/60 mt-1">Put your payment code in the transfer description and it’s marked paid automatically.</p>}

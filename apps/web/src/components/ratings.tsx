@@ -19,7 +19,7 @@ import {
 } from '@/lib/api';
 
 export const categoryMeta: Record<VoteCategory, { short: string; tone: string; chip: string; attr?: string }> = {
-  potm: { short: 'POTM', tone: 'bg-sun-400 text-ink', chip: 'bg-sun-400' },
+  potm: { short: '★', tone: 'bg-sun-400 text-ink', chip: 'bg-sun-400' },
   pace: { short: 'PAC', tone: 'bg-sky-300 text-ink', chip: 'bg-sky-300', attr: 'PAC' },
   shooting: { short: 'SHO', tone: 'bg-kit-500 text-white', chip: 'bg-kit-500', attr: 'SHO' },
   passing: { short: 'PAS', tone: 'bg-volt-400 text-ink', chip: 'bg-volt-400', attr: 'PAS' },
@@ -108,7 +108,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
         <span>Player</span>
         <span className="text-center">P</span>
         <span className="hidden sm:block text-center">W-D-L</span>
-        <span className="text-center">POTM</span>
+        <span className="text-center" title="Player of the Match votes">★<span className="sr-only">Player of the Match votes</span></span>
         <span className="hidden sm:block text-center">OVR</span>
         <span className="text-right text-volt-300">Pts</span>
       </div>
@@ -149,7 +149,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
       })}
       <p className="px-4 py-3 border-t border-gray-100 text-[11px] text-gray-500">
         {table.points.potmVote} pts per Player of the Match vote · {table.points.attrVote} pt per award vote · +{table.points.potmWin} for
-        winning POTM
+        being Player of the Match
       </p>
     </div>
   );

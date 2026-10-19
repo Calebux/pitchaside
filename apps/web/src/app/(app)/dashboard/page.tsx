@@ -223,7 +223,7 @@ export default function Dashboard() {
             href="/groups/new"
             className="inline-flex items-center gap-2 px-7 py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors shadow-lift"
           >
-            Get Started
+            Get started
             <span aria-hidden>→</span>
           </Link>
         </div>
@@ -241,7 +241,7 @@ export default function Dashboard() {
     needs.push({
       key: 'unmatched',
       href: `/groups/${group.id}?tab=transfers`,
-      title: `${n} transfer${n === 1 ? '' : 's'} to link to a player`,
+      title: `${n} payment${n === 1 ? '' : 's'} with no name yet`,
       detail: 'Pick who paid so their due clears',
       tone: 'kit',
       icon: <span className="font-display text-base font-extrabold">₦</span>,

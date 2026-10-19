@@ -99,7 +99,7 @@ export function VerifyEmailModal({ email, onCheck }: { email: string; onCheck: (
       <p className="text-sm text-gray-500 mt-1.5">
         We sent a link to
         <span className="block font-bold text-ink [overflow-wrap:anywhere]">{email}</span>
-        Tap it to confirm it&apos;s you and keep your club&apos;s account safe.
+        Tap it to confirm it&apos;s you and keep your account safe.
       </p>
 
       <p role="status" className="min-h-5 mt-3 text-xs font-semibold">
@@ -137,7 +137,7 @@ export function EmailVerifiedModal({ onClose }: { onClose: () => void }) {
         <h2 id={titleId} className="text-xl font-extrabold text-ink">
           Congratulations!
         </h2>
-        <p className="text-sm text-gray-500 mt-1.5">Your email is verified. Your club&apos;s account is safe and you&apos;re all set.</p>
+        <p className="text-sm text-gray-500 mt-1.5">Your email is verified. Your account is safe and you&apos;re all set.</p>
         <button
           autoFocus
           onClick={onClose}
@@ -176,7 +176,7 @@ export function VerifyEmailRow({ email, verified, onCheck }: { email: string; ve
 
       {!verified && (
         <div className="mt-3">
-          <p className="text-xs text-gray-500">We sent a link to this address. Tap it to confirm it&apos;s you and keep your club&apos;s account safe.</p>
+          <p className="text-xs text-gray-500">We sent a link to this address. Tap it to confirm it&apos;s you and keep your account safe.</p>
           <button
             type="button"
             onClick={resend}

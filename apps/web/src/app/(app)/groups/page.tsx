@@ -50,9 +50,9 @@ export default function GroupsPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <PageHeader
-        eyebrow="Your squads"
+        eyebrow="Organising"
         title="Groups"
-        subtitle={meta.total > 0 ? `${meta.total} group${meta.total === 1 ? '' : 's'} on the books` : undefined}
+        subtitle={meta.total > 0 ? `${meta.total} group${meta.total === 1 ? '' : 's'}` : undefined}
         actions={
         <>
           {meta.total > 0 && (

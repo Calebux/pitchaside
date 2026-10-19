@@ -41,7 +41,7 @@ function describeActivity(log: ActivityLog) {
       title = `${who} marked ${s?.count ?? 'several'} payment${s?.count === 1 ? '' : 's'} paid`;
       break;
     case 'payment_waived':
-      title = `${who} waived ${s?.playerName ? `${s.playerName}’s due` : 'a due'}${amount}`;
+      title = `${who} let ${s?.playerName ?? 'a player'} play free${amount}`;
       break;
     default:
       title = log.action.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());

@@ -134,7 +134,7 @@ export class RsvpService {
     this.notifications.later(() =>
       this.notifications.notifyPlayers([next.playerId], {
         kind: 'rsvp_promoted',
-        title: "A spot opened up — you're in! ⚽",
+        title: "A place opened up — you're in! ⚽",
         body: `${session.group.name} · ${shortDate(session.date)}`,
         url: '/me',
         critical: true,
@@ -185,7 +185,7 @@ export class RsvpService {
       {
         kind: 'rsvp_open',
         title: `Who's in? ${session.group.name}`,
-        body: `${shortDate(session.date)}${ko ? `, kick-off ${prettyTime(ko)}` : ''} · ${session.group.targetPlayers} spots. Tap to confirm.`,
+        body: `${shortDate(session.date)}${ko ? `, kick-off ${prettyTime(ko)}` : ''} · ${session.group.targetPlayers} places. Tap to confirm.`,
         url: '/me',
       },
     );

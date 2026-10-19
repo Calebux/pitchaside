@@ -296,7 +296,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           {
             kind: 'dues_open',
             title: `${group.name}: ${period.label} dues are open`,
-            body: `${naira(fee)} — tap for the account details and your reference.`,
+            body: `${naira(fee)} — tap for the account details and your payment code.`,
             url: '/me',
             message: group.accountNumber
               ? `⚽ ${group.name} — ${period.label} dues: ${naira(fee)}\nPay to ${group.bankName} ${group.accountNumber} (${group.accountName}) with your PitchAside reference in the narration.\n${this.notifications.appUrl('/me')}`
@@ -1280,7 +1280,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         if (!membership) throw new BadRequestException("That player isn't in this group");
         const credit = Number(membership.credit);
         if (dto.amount > credit + 0.001) {
-          throw new BadRequestException(`They only have ${naira(credit)} credit to refund`);
+          throw new BadRequestException(`They only have ${naira(credit)} paid ahead to refund`);
         }
         membership.credit = (credit - dto.amount).toFixed(2);
         await tx.save(membership);

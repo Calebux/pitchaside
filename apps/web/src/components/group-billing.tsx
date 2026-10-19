@@ -371,7 +371,7 @@ export function GroupAccountCard({
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-bold text-ink leading-tight">Group link</h2>
-              <p className="text-xs text-gray-500">Players join, get their payment reference and see where to pay</p>
+              <p className="text-xs text-gray-500">Players join, get their payment code and see where to pay</p>
             </div>
           </div>
           <button
@@ -420,7 +420,7 @@ const transferStatus: Record<BankTransfer['status'], { label: string; text: stri
 /** What a player's payment went on: "Sat 17 Oct", "October 2026 dues", or kept for their next game. */
 function paidFor(t: BankTransfer) {
   const s = t.payment?.session;
-  if (!s) return 'Kept for next game';
+  if (!s) return 'Paid ahead';
   if (s.kind === 'dues' && s.label) return `${s.label} dues`;
   const [y, m, d] = String(s.date).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
@@ -556,7 +556,7 @@ function TransferDetails({ t }: { t: BankTransfer }) {
       )}
       {who && !t.payment && t.status !== 'unmatched' && (
         <p>
-          From <span className="font-bold text-ink">{who}</span>. Kept for their next game
+          From <span className="font-bold text-ink">{who}</span>. Paid ahead for their next game
         </p>
       )}
     </>
@@ -981,7 +981,7 @@ export function TransfersPanel({
           </div>
           <div className="flex gap-2">
             <input
-              placeholder="Narration / reference"
+              placeholder="Description (payment code, if any)"
               value={rec.narration}
               onChange={(e) => setRec({ ...rec, narration: e.target.value })}
               className={input}
@@ -1025,7 +1025,7 @@ export function TransfersPanel({
           </div>
           <div className="flex gap-2">
             <input
-              placeholder="Narration / reference"
+              placeholder="Description (payment code, if any)"
               value={sim.narration}
               onChange={(e) => setSim({ ...sim, narration: e.target.value })}
               className={input}

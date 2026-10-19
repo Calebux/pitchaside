@@ -145,7 +145,7 @@ export function SendMoneyModal({
             </select>
             {member && (
               <p className="text-xs text-gray-500 mt-1">
-                Comes off {member.name}&apos;s credit. Send it to their own account.
+                Comes off what {member.name} has paid ahead. Send it to their own account.
               </p>
             )}
           </div>
@@ -210,7 +210,7 @@ export function SendMoneyModal({
 
         <div>
           <label htmlFor={`${titleId}-note`} className="text-xs font-semibold text-gray-600 mb-1 block">
-            Narration <span className="text-gray-500 font-medium">(optional)</span>
+            Description <span className="text-gray-500 font-medium">(optional)</span>
           </label>
           <input
             id={`${titleId}-note`}

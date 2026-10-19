@@ -25,7 +25,7 @@ const features = [
   {
     title: 'Payment Tracking',
     description:
-      'See who has paid and who hasn\'t at a glance. Mark payments as paid, pending, or waived — no more awkward WhatsApp chases.',
+      'See who has paid and who hasn\'t at a glance. See who’s paid, who still has to pay and who plays free: no more awkward WhatsApp chases.',
     art: KittyJar,
     tint: 'bg-sky-300/50',
   },
@@ -351,7 +351,7 @@ export default function LandingPage() {
               {[
                 { name: 'Tunde Bakare', status: 'Paid' },
                 { name: 'Chidi Okafor', status: 'Paid' },
-                { name: 'Emeka Nwosu', status: 'Pending' },
+                { name: 'Emeka Nwosu', status: 'To pay' },
               ].map((p) => {
                 const k = kitFor(p.name);
                 return (

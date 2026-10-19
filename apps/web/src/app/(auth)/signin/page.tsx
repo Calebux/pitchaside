@@ -160,7 +160,7 @@ export default function SignInPage() {
           disabled={submitting}
           className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
-          {submitting ? 'Signing in...' : 'Sign In'}
+          {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
 

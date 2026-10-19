@@ -218,7 +218,7 @@ export class SessionsService {
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
 
-    if (!session) throw new NotFoundException('Session not found');
+    if (!session) throw new NotFoundException('Game not found');
     await this.markGamePaid([session]);
     return session;
   }
@@ -312,7 +312,7 @@ export class SessionsService {
       {
         kind: 'payment_reminder',
         title: `Quick one — ${naira(unpaid[0].amount)} for ${session.group?.name ?? 'your group'}`,
-        body: `Still open for ${what}. Tap for the account details and your reference.`,
+        body: `Still open for ${what}. Tap for the account details and your payment code.`,
         url: '/me/pay',
       },
     );

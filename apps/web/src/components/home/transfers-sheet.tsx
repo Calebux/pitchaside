@@ -104,7 +104,7 @@ export function TransfersSheet({
                     <dd className="font-semibold text-ink break-words">{t.senderName || 'Not given by the bank'}</dd>
                     <dt className="text-gray-600">Received</dt>
                     <dd className="font-semibold text-ink">{when(t.receivedAt)}</dd>
-                    <dt className="text-gray-600">Narration</dt>
+                    <dt className="text-gray-600">Description</dt>
                     <dd className="font-semibold text-ink break-words">{t.narration ? `“${t.narration}”` : 'None'}</dd>
                     <dt className="text-gray-600">Paid for</dt>
                     <dd className="font-semibold text-ink">
@@ -113,7 +113,7 @@ export function TransfersSheet({
                         : t.status === 'ignored'
                           ? 'Marked as not for the group'
                           : p
-                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · kept for next game')
+                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · paid ahead')
                             : '—'}
                     </dd>
                     {t.status === 'unmatched' && (

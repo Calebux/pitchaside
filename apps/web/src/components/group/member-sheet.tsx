@@ -75,7 +75,7 @@ export function MemberSheet({
       tone: due.state === 'owes' ? 'text-amber-700' : due.state === 'paid' ? 'text-pitch-600' : 'text-gray-600',
     },
     credit > 0 && {
-      k: 'Kept for next game',
+      k: 'Paid ahead',
       v: formatCurrency(credit),
       note: 'Not used yet. Goes towards their next game.',
     },
