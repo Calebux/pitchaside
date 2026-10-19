@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { GameCard, Section } from '@/components/player-ui';
+import { GameCard, Section, daysFrom } from '@/components/player-ui';
 import { getPlayerGame, type GamePlayer, type PlayerGame } from '@/lib/player';
 
 /** One game from the player's side: their game card, where it is, and who's playing. */
@@ -69,7 +69,13 @@ export default function PlayerGamePage() {
           </div>
 
           <div>
-            <Section title={`Who's playing (${game.playing.length}${game.requireRsvp ? `/${game.capacity}` : ''})`}>
+            <Section
+              title={
+                game.status === 'completed' || daysFrom(game.date) < 0
+                  ? `Who played (${game.playing.length})`
+                  : `Who's playing (${game.playing.length}${game.requireRsvp ? `/${game.capacity}` : ''})`
+              }
+            >
               {game.playing.length === 0 ? (
                 <p className="text-sm text-gray-500 bg-chalk rounded-2xl px-4 py-5 text-center">
                   {game.requireRsvp ? 'Nobody’s said they’re in yet. Be the first.' : 'The squad isn’t set yet.'}

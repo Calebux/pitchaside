@@ -29,6 +29,11 @@ export default function PlayerPayPage() {
   }
 
   const total = data.owed.reduce((s, o) => s + o.amount, 0);
+  // Money sent that isn't used yet, after what already counts towards a due ("paid so far").
+  const ahead = data.groups.reduce(
+    (sum, g) => sum + Math.max(0, (g.paidAhead ?? 0) - data.owed.filter((o) => o.groupId === g.id).reduce((s, o) => s + o.paidSoFar, 0)),
+    0,
+  );
   const owedGroups = data.groups.filter((g) => data.owed.some((o) => o.groupId === g.id));
 
   return (
@@ -40,7 +45,12 @@ export default function PlayerPayPage() {
           {total > 0 ? 'You owe' : 'Balance'}
         </p>
         <p className="font-display text-3xl font-extrabold tabular-nums">{total > 0 ? formatCurrency(total) : 'All square ✅'}</p>
-        {total > 0 && <p className="text-xs text-white/60 mt-1">Put your reference in the transfer narration and it’s marked paid automatically.</p>}
+        {total > 0 && <p className="text-xs text-white/60 mt-1">Put your payment code in the transfer description and it’s marked paid automatically.</p>}
+        {ahead > 0 && (
+          <p className={`text-sm font-semibold mt-1 ${total > 0 ? 'text-volt-300' : 'text-pitch-700'}`}>
+            {formatCurrency(ahead)} paid ahead: it pays your next game.
+          </p>
+        )}
       </div>
 
       <div className="md:grid md:grid-cols-2 md:gap-6">

@@ -233,7 +233,7 @@ export default function GroupLinkPage() {
           ) : (
             <PlayerSignupForm
               subtitle="Create your PitchAside account — you'll get your payment reference straight after."
-              cta="Join & get payment details"
+              cta="Join the group"
               onSubmit={signup}
               onEmailChange={setLastEmail}
               onSwitchToSignIn={() => {
@@ -244,10 +244,13 @@ export default function GroupLinkPage() {
           )}
         </div>
 
-        <div className="mt-6">
-          <p className="text-xs font-bold text-gray-500 mb-2 text-center">Already a member? Pay here</p>
-          <PayIntoCard account={group.account} fee={group.feePerPlayer} paymentType={group.paymentType} />
-        </div>
+        {/* Paying without their code wouldn't match them, so members pay from their own page. */}
+        <p className="mt-6 text-center text-sm text-gray-600">
+          Already a member?{' '}
+          <Link href="/me" className="font-bold text-pitch-700 hover:text-ink">
+            Sign in to see what you owe
+          </Link>
+        </p>
       </div>
     </div>
   );

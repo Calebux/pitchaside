@@ -201,6 +201,8 @@ export class PlayerPortalService {
       feePerPlayer: Number(m.group.feePerPlayer),
       paymentType: m.group.paymentType,
       paymentRef: m.paymentRef,
+      /** Money they've sent that isn't used yet: it pays their next game (part of it may already count towards what they owe). */
+      paidAhead: Number(m.credit ?? 0),
       account: m.group.accountNumber
         ? { accountNumber: m.group.accountNumber, accountName: m.group.accountName, bankName: m.group.bankName }
         : null,
