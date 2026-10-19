@@ -10,6 +10,7 @@ import { RsvpModule } from '../rsvp/rsvp.module';
 import { RatingsModule } from '../ratings/ratings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BillingModule } from '../billing/billing.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BillingModule } from '../billing/billing.module';
     RatingsModule,
     NotificationsModule,
     BillingModule,
+    PaymentsModule,
   ],
   controllers: [SessionsController],
   providers: [SessionsService],

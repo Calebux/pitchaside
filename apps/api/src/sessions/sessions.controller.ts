@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { Response } from 'express';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { EndGameDto } from './dto/end-game.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { toCsv } from '../common/csv.util';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -65,6 +66,12 @@ export class SessionsController {
     @CurrentUser() user: User,
   ) {
     return this.sessionsService.updateStatus(id, status, user.organizationId);
+  }
+
+  /** Full time: who didn't come (payment ids) owe nothing; everyone else came and gets the vote. */
+  @Post(':id/end')
+  endGame(@Param('id') id: string, @Body() dto: EndGameDto, @CurrentUser() user: User) {
+    return this.sessionsService.endGame(id, dto.noShows ?? [], user.organizationId, `${user.firstName} ${user.lastName}`);
   }
 
   @Delete(':id')

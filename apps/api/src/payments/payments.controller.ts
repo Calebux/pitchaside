@@ -91,6 +91,36 @@ export class PaymentsController {
     return result;
   }
 
+  /** Said they were in and didn't come: nothing to pay; any transfer money is kept for their next game. */
+  @Patch(':id/no-show')
+  async noShow(@Param('id') id: string, @CurrentUser() user: User) {
+    const result = await this.paymentsService.markNoShow(id, user.organizationId, `${user.firstName} ${user.lastName}`);
+    await this.auditService.log({
+      action: AuditAction.PAYMENT_NO_SHOW,
+      entityType: 'payment',
+      entityId: id,
+      userId: user.id,
+      organizationId: user.organizationId,
+      metadata: { amount: result.amount, playerId: result.playerId },
+    });
+    return result;
+  }
+
+  /** They came after all: back to owing (undoes "didn't come"). */
+  @Patch(':id/came')
+  async came(@Param('id') id: string, @CurrentUser() user: User) {
+    const result = await this.paymentsService.markCame(id, user.organizationId);
+    await this.auditService.log({
+      action: AuditAction.PAYMENT_CAME,
+      entityType: 'payment',
+      entityId: id,
+      userId: user.id,
+      organizationId: user.organizationId,
+      metadata: { amount: result.amount, playerId: result.playerId },
+    });
+    return result;
+  }
+
   @Get('session/:sessionId')
   findBySession(@Param('sessionId') sessionId: string, @CurrentUser() user: User) {
     return this.paymentsService.findBySession(sessionId, user.organizationId);

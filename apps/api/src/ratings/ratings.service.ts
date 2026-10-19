@@ -122,10 +122,10 @@ export class RatingsService {
     };
   }
 
-  /** Everyone with a payment row for the game is in the squad. */
+  /** Everyone with a payment row for the game is in the squad, except anyone who didn't come. */
   private squad(session: Session): SquadMember[] {
     return (session.payments ?? [])
-      .filter((p) => p.player)
+      .filter((p) => p.player && p.attendance !== 'no_show')
       .map((p) => ({ id: p.player.id, firstName: p.player.firstName, lastName: p.player.lastName, nickname: p.player.nickname ?? null }));
   }
 
@@ -371,7 +371,7 @@ export class RatingsService {
       teamCount: session.teamCount,
       captains: this.captainsOf(session),
       squad: (session.payments ?? [])
-        .filter((p) => p.player)
+        .filter((p) => p.player && p.attendance !== 'no_show')
         .map((p) => ({
           id: p.player.id,
           firstName: p.player.firstName,
@@ -498,7 +498,7 @@ export class RatingsService {
       myPaid: paid.get(mine.playerId) ?? 'unpaid',
       showPaid,
       squad: (session.payments ?? [])
-        .filter((p) => p.player)
+        .filter((p) => p.player && p.attendance !== 'no_show')
         .map((p) => ({
           name: sheetName(p.player),
           me: p.playerId === mine.playerId,

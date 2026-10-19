@@ -17,6 +17,7 @@ import { prettyTime } from '../common/time.util';
 import { coveredByDues, squadEntry } from '../payments/game-dues';
 import { Rsvp, RsvpStatus } from './entities/rsvp.entity';
 import { BillingService } from '../billing/billing.service';
+import { paidByTransfer, refundToCredit } from '../payments/credit';
 
 type Person = { id: string; firstName: string; lastName: string; nickname?: string | null };
 
@@ -160,8 +161,10 @@ export class RsvpService {
     if (status === RsvpStatus.IN && !payment) {
       await this.paymentsRepo.save(this.paymentsRepo.create(squadEntry(session.group, session.id, playerId)));
       await this.billing.applyCredits(session.groupId, [playerId]);
-    } else if (status !== RsvpStatus.IN && payment && (payment.status === PaymentStatus.PENDING || coveredByDues(payment))) {
-      // Paid players who drop out keep their payment; the organiser decides on refunds.
+    } else if (status !== RsvpStatus.IN && payment && (payment.status === PaymentStatus.PENDING || coveredByDues(payment) || paidByTransfer(payment))) {
+      // Out before the game: nothing to pay. If they'd paid by transfer, that money is kept for
+      // their next game. Paid in cash stays as it is: that money never reached the account.
+      await refundToCredit(this.paymentsRepo.manager, session.groupId, [payment]);
       await this.paymentsRepo.remove(payment);
     }
     await this.payments.recalculateSessionTotal(session.id);

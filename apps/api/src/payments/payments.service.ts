@@ -89,17 +89,14 @@ export class PaymentsService {
   }
 
   async markAsUnpaid(id: string, organizationId: string) {
-    const payment = await this.paymentsRepo
-      .createQueryBuilder('payment')
-      .innerJoin('payment.session', 'session')
-      .innerJoin('session.group', 'group')
-      .where('payment.id = :id', { id })
-      .andWhere('group.organizationId = :organizationId', { organizationId })
-      .getOne();
-    if (!payment) throw new NotFoundException('Payment not found');
+    const payment = await this.ownedPayment(id, organizationId);
     if (payment.status === PaymentStatus.PENDING) return payment;
 
+    // Undoing a payment that came by transfer: that money is still in the account, so it goes
+    // back to what the player has kept, rather than vanishing from the books.
+    await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
     payment.status = PaymentStatus.PENDING;
+    if (payment.attendance === 'no_show') payment.attendance = 'came';
     payment.paidAt = null as any;
     payment.source = null as any;
     payment.markedBy = null as any;
@@ -145,11 +142,56 @@ export class PaymentsService {
     // their next due within the hour) instead of vanishing from the books.
     await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
     payment.status = PaymentStatus.WAIVED;
+    // Played free: they came.
+    payment.attendance = 'came';
     if (waivedBy) payment.markedBy = waivedBy;
     const saved = await this.paymentsRepo.save(payment);
 
     await this.recalculateSessionTotal(payment.sessionId);
     return saved;
+  }
+
+  /**
+   * Said they were in and didn't come: nothing to pay. Anything they'd paid by transfer goes back
+   * to what they've kept for their next game. Kept on the list (for the record), not chased.
+   */
+  async markNoShow(id: string, organizationId: string, markedBy?: string) {
+    const payment = await this.ownedPayment(id, organizationId);
+    await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
+    payment.status = PaymentStatus.WAIVED;
+    payment.attendance = 'no_show';
+    payment.paidAt = null as any;
+    payment.source = null as any;
+    if (markedBy) payment.markedBy = markedBy;
+    const saved = await this.paymentsRepo.save(payment);
+    await this.recalculateSessionTotal(payment.sessionId);
+    return saved;
+  }
+
+  /** They came after all: back to owing for the game (or as they were, if already settled). */
+  async markCame(id: string, organizationId: string) {
+    const payment = await this.ownedPayment(id, organizationId);
+    if (payment.attendance === 'no_show') {
+      // Back to what they'd owe for the game; in dues groups the game itself costs nothing.
+      payment.status = payment.source === 'dues' || Number(payment.amount) === 0 ? PaymentStatus.WAIVED : PaymentStatus.PENDING;
+      payment.markedBy = null as any;
+    }
+    payment.attendance = 'came';
+    const saved = await this.paymentsRepo.save(payment);
+    await this.recalculateSessionTotal(payment.sessionId);
+    return saved;
+  }
+
+  private async ownedPayment(id: string, organizationId: string) {
+    const payment = await this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoinAndSelect('payment.session', 'session')
+      .innerJoin('session.group', 'group')
+      .where('payment.id = :id', { id })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .getOne();
+    if (!payment) throw new NotFoundException('Payment not found');
+    return payment;
   }
 
   async bulkMarkAsPaid(paymentIds: string[], organizationId: string, markedBy?: string) {

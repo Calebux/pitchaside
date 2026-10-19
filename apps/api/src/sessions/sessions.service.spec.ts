@@ -10,9 +10,11 @@ import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BillingService } from '../billing/billing.service';
+import { PaymentsService } from '../payments/payments.service';
 import { RecurrenceType } from './dto/create-session.dto';
 
 describe('SessionsService', () => {
+  let paymentsService: { markNoShow: jest.Mock };
   let service: SessionsService;
   let sessionsRepo: Record<string, jest.Mock>;
   let groupsRepo: Record<string, jest.Mock>;
@@ -78,6 +80,7 @@ describe('SessionsService', () => {
       sendPaymentReminder: jest.fn().mockResolvedValue(undefined),
     };
 
+    paymentsService = { markNoShow: jest.fn() };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionsService,
@@ -90,6 +93,7 @@ describe('SessionsService', () => {
         { provide: RatingsService, useValue: { ensureVotingToken: jest.fn() } },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: BillingService, useValue: { applyCredits: jest.fn() } },
+        { provide: PaymentsService, useValue: paymentsService },
       ],
     }).compile();
 
@@ -208,5 +212,32 @@ describe('SessionsService', () => {
       expect(notificationsService.notifyPlayers.mock.calls[0][0]).toHaveLength(3);
       expect(result.sent).toBe(3);
     });
+  });
+
+  describe('endGame', () => {
+    it('marks the players who didn’t come, counts everyone else as came, then completes the game', async () => {
+      const game = { ...mockSession, payments: [{ id: 'p1', attendance: null }, { id: 'p2', attendance: null }, { id: 'p3', attendance: 'no_show' }] };
+      jest.spyOn(service, 'findOne').mockResolvedValue(game as any);
+      const complete = jest.spyOn(service, 'updateStatus').mockResolvedValue(game as any);
+      paymentsRepo.update = jest.fn();
+
+      await service.endGame('session-1', ['p2', 'p3'], 'org-1', 'Tunde B');
+
+      expect(paymentsService.markNoShow).toHaveBeenCalledTimes(1);
+      expect(paymentsService.markNoShow).toHaveBeenCalledWith('p2', 'org-1', 'Tunde B');
+      expect(paymentsRepo.update).toHaveBeenCalledWith('p1', { attendance: 'came' });
+      expect(complete).toHaveBeenCalledWith('session-1', 'completed', 'org-1');
+    });
+  });
+
+  it('sends no reminders for a cancelled game', async () => {
+    notificationsService.notifyPlayers.mockClear();
+    jest.spyOn(service, 'findOne').mockResolvedValue({ ...mockSession, status: 'cancelled', payments: [{ id: 'p1', status: PaymentStatus.PENDING }] } as any);
+    expect(await service.sendReminders('session-1', 'org-1')).toEqual({ sent: 0, missed: 0 });
+    expect(notificationsService.notifyPlayers).not.toHaveBeenCalled();
+  });
+
+  it('refuses a status that isn’t a game status', async () => {
+    await expect(service.updateStatus('session-1', 'finished', 'org-1')).rejects.toThrow('Unknown game status');
   });
 });

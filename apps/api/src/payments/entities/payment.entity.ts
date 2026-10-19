@@ -9,6 +9,8 @@ import {
 import { Session } from '../../sessions/entities/session.entity';
 import { Player } from '../../players/entities/player.entity';
 
+export type Attendance = 'came' | 'no_show';
+
 export enum PaymentStatus {
   PAID = 'paid',
   PENDING = 'pending',
@@ -57,6 +59,13 @@ export class Payment {
   /** Captain of their side for this game; the side goes by their name. At most one per side. */
   @Column({ default: false })
   captain: boolean;
+
+  /**
+   * Whether they turned up: null until the organiser ends the game (counts as came), 'came', or
+   * 'no_show' — said they were in and didn't come, so there's nothing to pay (status is WAIVED).
+   */
+  @Column({ type: 'varchar', nullable: true })
+  attendance: Attendance | null;
 
   @CreateDateColumn()
   createdAt: Date;

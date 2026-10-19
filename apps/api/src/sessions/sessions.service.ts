@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Session, SessionKind, SessionStatus, kickoffFor } from './entities/session.entity';
@@ -14,6 +14,7 @@ import { MailService } from '../mail/mail.service';
 import { CreateSessionDto, RecurrenceType } from './dto/create-session.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
+import { PaymentsService } from '../payments/payments.service';
 import { gameTarget, paidForGames, squadEntry } from '../payments/game-dues';
 
 @Injectable()
@@ -28,6 +29,7 @@ export class SessionsService {
     private ratings: RatingsService,
     private notifications: NotificationsService,
     private billing: BillingService,
+    private payments: PaymentsService,
   ) {}
 
   async create(dto: CreateSessionDto, organizationId: string) {
@@ -191,6 +193,9 @@ export class SessionsService {
   }
 
   async updateStatus(id: string, status: string, organizationId: string) {
+    if (!Object.values(SessionStatus).includes(status as SessionStatus)) {
+      throw new BadRequestException('Unknown game status');
+    }
     const session = await this.findOne(id, organizationId);
     const wasCompleted = session.status === SessionStatus.COMPLETED;
     const wasCancelled = session.status === SessionStatus.CANCELLED;
@@ -210,7 +215,8 @@ export class SessionsService {
       this.notifications.later(async () => {
         const token = await this.ratings.ensureVotingToken(saved.id);
         await this.notifications.notifyPlayers(
-          (session.payments ?? []).map((p) => p.playerId),
+          // Only the players who came; no-shows don't vote.
+          (session.payments ?? []).filter((p) => p.attendance !== 'no_show').map((p) => p.playerId),
           {
             kind: 'vote_open',
             title: `Who was Player of the Match? 🏆`,
@@ -221,6 +227,24 @@ export class SessionsService {
       });
     }
     return saved;
+  }
+
+  /**
+   * Full time: everyone who said they were in counts as came, except `noShows` (payment ids), who
+   * owe nothing for it; then the game is completed and the players who came are invited to vote.
+   */
+  async endGame(id: string, noShows: string[], organizationId: string, markedBy?: string) {
+    const session = await this.findOne(id, organizationId);
+    const missing = new Set(noShows);
+    for (const p of session.payments ?? []) {
+      if (missing.has(p.id)) {
+        if (p.attendance !== 'no_show') await this.payments.markNoShow(p.id, organizationId, markedBy);
+      } else if (!p.attendance) {
+        await this.paymentsRepo.update(p.id, { attendance: 'came' });
+      }
+    }
+    await this.updateStatus(id, SessionStatus.COMPLETED, organizationId);
+    return this.findOne(id, organizationId);
   }
 
   async remove(id: string, organizationId: string) {
@@ -246,6 +270,7 @@ export class SessionsService {
   /** Organiser's "Remind" button: a push to everyone who still owes for this game/period. */
   async sendReminders(sessionId: string, organizationId: string) {
     const session = await this.findOne(sessionId, organizationId);
+    if (session.status === SessionStatus.CANCELLED) return { sent: 0, missed: 0 };
     const unpaid = (session.payments || []).filter((p) => p.status === PaymentStatus.PENDING);
     if (!unpaid.length) return { sent: 0, missed: 0 };
     const what = session.label ? `${session.label} dues` : `the ${shortDate(session.date)} game`;
