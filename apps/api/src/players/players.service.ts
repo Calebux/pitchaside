@@ -77,7 +77,7 @@ export class PlayersService {
       where: { playerId: id, credit: MoreThan('0') },
     });
     if (withCredit) {
-      throw new ConflictException('This player has credit in a group that hasn\'t paid a due yet. Remove them from that group first.');
+      throw new ConflictException('This player has money paid ahead in a group. Remove them from that group first.');
     }
     await this.playersRepo.remove(player);
   }

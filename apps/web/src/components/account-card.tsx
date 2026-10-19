@@ -193,7 +193,7 @@ export function PayIntoCard({
             className="mt-4 w-full flex items-center justify-between gap-3 rounded-2xl bg-volt-400 text-ink px-4 py-3 text-left"
           >
             <span>
-              <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink/60">Narration / reference</span>
+              <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink/60">Payment code · put it in the description</span>
               <span className="font-display text-2xl font-extrabold tracking-[0.12em]">{reference}</span>
             </span>
             <span className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-ink text-volt-300">

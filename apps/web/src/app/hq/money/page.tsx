@@ -51,7 +51,7 @@ export default function HqMoneyPage() {
               sub={`${formatCurrency(data.summary.byTransfer)} by transfer · ${formatCurrency(data.summary.byHand)} marked by hand`}
             />
             <Tile label="Still owed" value={compactNaira(data.summary.outstanding)} sub="Pending, excluding cancelled games" />
-            <Tile label="Waived" value={compactNaira(data.summary.waived)} sub="Let off by an organiser" />
+            <Tile label="Free" value={compactNaira(data.summary.waived)} sub="Played free, by the organiser" />
             <Tile
               label="Unmatched transfers"
               value={(unmatched?.count ?? 0).toLocaleString()}

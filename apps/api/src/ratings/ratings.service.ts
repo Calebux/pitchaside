@@ -175,7 +175,7 @@ export class RatingsService {
       .where('session.id = :id', { id })
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
-    if (!session) throw new NotFoundException('Session not found');
+    if (!session) throw new NotFoundException('Game not found');
     return session;
   }
 

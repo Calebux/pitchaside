@@ -52,11 +52,11 @@ export function describeGive(amount: number, member: MatchMember, owed: OwedItem
       : next
         ? owesLine?.slice(0, -1)
         : paid.length && kept > 0
-          ? `${formatCurrency(kept)} kept for next game`
+          ? `${formatCurrency(kept)} paid ahead`
           : null,
   ];
-  const brief = parts('Pays', 'Goes towards', `${first} owes nothing, so it’s kept for next game`).filter(Boolean).join('. ');
-  const toast = `${formatCurrency(amount)} given to ${member.name}. ${parts('Paid', 'Went towards', 'Kept for next game').filter(Boolean).join('. ')}.`;
+  const brief = parts('Pays', 'Goes towards', `${first} owes nothing, so it’s paid ahead for their next game`).filter(Boolean).join('. ');
+  const toast = `${formatCurrency(amount)} given to ${member.name}. ${parts('Paid', 'Went towards', 'Paid ahead').filter(Boolean).join('. ')}.`;
   return { paid, kept, brief, toast };
 }
 

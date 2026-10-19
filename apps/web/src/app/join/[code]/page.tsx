@@ -250,7 +250,7 @@ export default function JoinPage() {
           </div>
         ) : signedIn ? (
           <div className="bg-white rounded-3xl border-2 border-ink shadow-sticker p-5 space-y-3">
-            <h2 className="text-xl font-extrabold text-ink">Join the squad</h2>
+            <h2 className="text-xl font-extrabold text-ink">Join the group</h2>
             <p className="text-sm text-gray-500">You&apos;re already signed in to PitchAside.</p>
             <button
               onClick={joinSignedIn}
@@ -286,7 +286,7 @@ export default function JoinPage() {
         ) : (
           <PlayerSignupForm
             subtitle="Create your PitchAside account to see your games, pay and vote."
-            cta="Join the squad"
+            cta="Join"
             onSubmit={signup}
             onEmailChange={setLastEmail}
             onSwitchToSignIn={() => {

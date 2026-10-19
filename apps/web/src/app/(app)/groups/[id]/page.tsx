@@ -275,7 +275,7 @@ export default function GroupDetailPage() {
       // Their credit is dropped with them, so say how much before it goes.
       message:
         credit > 0
-          ? `${playerName} has ${formatCurrency(credit)} paid in that's being kept for their next game. Removing them drops it from the group's books, so send it back to them first if they're owed it. Remove anyway?`
+          ? `${playerName} has ${formatCurrency(credit)} paid ahead. Removing them drops it from the group's books, so send it back to them first if they're owed it. Remove anyway?`
           : `${playerName} comes off this group's list.`,
       confirmLabel: credit > 0 ? 'Remove anyway' : 'Remove',
       variant: 'danger',

@@ -14,7 +14,7 @@ const input =
  * optional phone number. Used by group links (/g) and club invite links (/join).
  */
 export function PlayerSignupForm({
-  title = 'Join the squad',
+  title = 'Join the group',
   subtitle = 'Create your PitchAside account.',
   cta = 'Create my account',
   onSubmit,

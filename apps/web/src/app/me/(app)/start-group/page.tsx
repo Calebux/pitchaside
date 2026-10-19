@@ -8,7 +8,7 @@ import { BallSpinner } from '@/components/skeleton';
 import { usePlayerProfile } from '@/components/player-shell';
 import { startGroup } from '@/lib/player';
 
-/** A player becomes an organiser: new club, same person. */
+/** A player becomes an organiser: same person, now running groups too. */
 export default function StartGroupPage() {
   const router = useRouter();
   const { profile } = usePlayerProfile();
@@ -41,7 +41,7 @@ export default function StartGroupPage() {
   return (
     <FormShell>
       <FormHero
-        eyebrow="New club"
+        eyebrow="Organising"
         title="Start your group"
         subtitle="You'll run it from the Organising side — and keep playing from here."
         art={<KitLine className="w-full h-auto" />}
@@ -50,7 +50,7 @@ export default function StartGroupPage() {
         {error && <div className="bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
         <div>
           <label htmlFor="clubName" className="block text-xs font-bold text-gray-700 mb-1.5">
-            Club / team name
+            Your organiser name
           </label>
           <input
             id="clubName"
@@ -62,7 +62,8 @@ export default function StartGroupPage() {
             placeholder="e.g. Yaba Ballers"
           />
         </div>
-        <p className="text-xs text-gray-500 -mb-1">
+        <p className="-mt-2 text-xs text-gray-500">Players see it on your invites. You’ll name your first group next.</p>
+        <p className="text-xs text-gray-500">
           Organising involves money, so your organiser side gets its own password.
           {profile ? (
             <>
@@ -92,7 +93,7 @@ export default function StartGroupPage() {
           className="w-full py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {busy && <BallSpinner />}
-          Create my club
+          Continue
         </button>
       </form>
     </FormShell>

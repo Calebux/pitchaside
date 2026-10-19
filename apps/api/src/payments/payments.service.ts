@@ -53,7 +53,7 @@ export class PaymentsService {
       .where('session.id = :id', { id: dto.sessionId })
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
-    if (!session) throw new NotFoundException('Session not found');
+    if (!session) throw new NotFoundException('Game not found');
 
     const payment = this.paymentsRepo.create(dto);
     if (dto.status === PaymentStatus.PAID) {

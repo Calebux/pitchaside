@@ -32,6 +32,9 @@ const paymentStatusStyles: Record<string, string> = {
   waived: 'bg-gray-100 text-gray-500',
 };
 
+/** The app's words for a payment's state, not the database's. */
+const PAYMENT_WORDS: Record<string, string> = { paid: 'Paid', pending: 'To pay', waived: 'Free' };
+
 export default function PlayerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -335,9 +338,9 @@ export default function PlayerDetailPage() {
       {stats && (
         <div className="grid grid-cols-2 gap-3 mb-6">
           <StatCard label="Games" value={stats.totalSessions} />
-          <StatCard label="Payment Rate" value={`${stats.paymentRate}%`} tone="volt" />
-          <StatCard label="Total Paid" value={formatCurrency(stats.totalPaid)} />
-          <StatCard label="Outstanding" value={formatCurrency(stats.totalOwed)} tone={Number(stats.totalOwed) > 0 ? 'ink' : 'white'} />
+          <StatCard label="Payment rate" value={`${stats.paymentRate}%`} tone="volt" />
+          <StatCard label="Total paid" value={formatCurrency(stats.totalPaid)} />
+          <StatCard label="To pay" value={formatCurrency(stats.totalOwed)} tone={Number(stats.totalOwed) > 0 ? 'ink' : 'white'} />
         </div>
       )}
 
@@ -378,7 +381,7 @@ export default function PlayerDetailPage() {
 
       {/* Payment History */}
       <div>
-        <h2 className="text-lg font-bold text-ink mb-3">Payment History</h2>
+        <h2 className="text-lg font-bold text-ink mb-3">Payment history</h2>
         {payments.length === 0 ? (
           <EmptyState
             icon="receipt"
@@ -409,7 +412,7 @@ export default function PlayerDetailPage() {
                     paymentStatusStyles[payment.status] || 'bg-gray-100 text-gray-500'
                   }`}
                 >
-                  {payment.status}
+                  {payment.attendance === 'no_show' ? 'Didn’t come' : PAYMENT_WORDS[payment.status] ?? payment.status}
                 </span>
               </div>
             ))}

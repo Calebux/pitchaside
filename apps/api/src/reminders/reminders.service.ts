@@ -115,7 +115,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
           board.noReply.map((p) => p.id),
           {
             kind: 'rsvp_nudge',
-            title: `${spots} spot${spots === 1 ? '' : 's'} left for tomorrow`,
+            title: `${spots} place${spots === 1 ? '' : 's'} left for tomorrow`,
             body: `${g.name}${ko ? ` at ${prettyTime(ko)}` : ''}. Tap “I'm in” before they're gone.`,
             url: '/me',
           },
@@ -167,7 +167,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
         await this.notifications.notifyPlayers([p.playerId], {
           kind: 'payment_reminder',
           title: `${naira(p.amount)} for last night 🙏`,
-          body: `${g.name} — tap for the account details. Your reference is ${refs.get(p.playerId) ?? ''}.`,
+          body: `${g.name} — tap for the account details. Your payment code is ${refs.get(p.playerId) ?? ''}.`,
           url: '/me/pay',
         });
       }
