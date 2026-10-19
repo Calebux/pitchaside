@@ -371,7 +371,7 @@ export default function GamePage() {
 
       {/* Tabs: players / teams / stars */}
       {isGame && (
-        <div className="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mt-4 mb-3 bg-chalk/95 backdrop-blur">
+        <div className="sticky top-safe z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mt-4 mb-3 bg-chalk/95 backdrop-blur">
           <div className="grid grid-cols-3 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="This game">
             {([
               ['players', 'Players', TAB_ICONS.players, played && tally.toPay ? tally.toPay : null],

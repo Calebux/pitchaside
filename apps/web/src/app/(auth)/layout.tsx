@@ -43,7 +43,7 @@ export default function AuthLayout({
       </div>
 
       {/* Floodlit night game */}
-      <aside className="hidden lg:block p-3 h-screen sticky top-0">
+      <aside className="hidden lg:block p-3 h-screen sticky top-safe">
         <div className="relative h-full rounded-[32px] overflow-hidden bg-pitch-950">
           <NightStadium className="absolute inset-x-0 top-0 bottom-44 w-full h-[calc(100%-11rem)]" />
           <div className="absolute inset-x-0 bottom-44 h-32 bg-gradient-to-t from-pitch-950 to-transparent" />
