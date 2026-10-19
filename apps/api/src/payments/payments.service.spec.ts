@@ -111,6 +111,42 @@ describe('PaymentsService', () => {
     });
   });
 
+  describe('attendance', () => {
+    const transferPaid = () => {
+      const payment: any = { ...mockPayment, status: PaymentStatus.PAID, source: 'transfer', session: { groupId: 'group-1' } };
+      const membership = { groupId: 'group-1', playerId: 'player-1', credit: '0.00' };
+      const tx = { findOne: jest.fn().mockResolvedValue(membership), save: jest.fn() };
+      (paymentsRepo as any).manager = { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) };
+      paymentsRepo.createQueryBuilder.mockReturnValue({ ...mockQueryBuilder, getOne: jest.fn().mockResolvedValue(payment) });
+      paymentsRepo.save.mockImplementation(async (x) => x);
+      paymentsRepo.find.mockResolvedValue([]);
+      return { payment, membership };
+    };
+
+    it("didn't come: nothing to pay, and transfer money is kept for their next game", async () => {
+      const { payment, membership } = transferPaid();
+      await service.markNoShow('pay-1', 'org-1', 'Tunde B');
+      expect(payment).toMatchObject({ status: PaymentStatus.WAIVED, attendance: 'no_show', source: null });
+      expect(membership.credit).toBe('1000.00');
+    });
+
+    it('came after all: back to owing', async () => {
+      const payment: any = { ...mockPayment, status: PaymentStatus.WAIVED, attendance: 'no_show', session: { groupId: 'group-1' } };
+      paymentsRepo.createQueryBuilder.mockReturnValue({ ...mockQueryBuilder, getOne: jest.fn().mockResolvedValue(payment) });
+      paymentsRepo.save.mockImplementation(async (x) => x);
+      paymentsRepo.find.mockResolvedValue([]);
+      await service.markCame('pay-1', 'org-1');
+      expect(payment).toMatchObject({ status: PaymentStatus.PENDING, attendance: 'came' });
+    });
+
+    it('undoing a transfer payment keeps the money for their next game', async () => {
+      const { payment, membership } = transferPaid();
+      await service.markAsUnpaid('pay-1', 'org-1');
+      expect(payment.status).toBe(PaymentStatus.PENDING);
+      expect(membership.credit).toBe('1000.00');
+    });
+  });
+
   describe('bulkMarkAsPaid', () => {
     it('should mark multiple payments and recalculate affected sessions', async () => {
       const payment1 = { ...mockPayment, id: 'pay-1', sessionId: 'session-1' };
