@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
-import { PaymentStatus } from '@pitchaside/shared';
+import { PaymentStatus, PaymentType } from '@pitchaside/shared';
 import {
   formatCurrency,
   getGroupBalance,
@@ -33,6 +33,7 @@ import { coveredByDues } from '@/lib/game-player';
 import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
 import { moneyHref } from '@/lib/money-href';
+import { Ticket } from '@/components/ticket';
 
 // ── Dates ──
 
@@ -841,9 +842,40 @@ export function GameCard({
     }
   }
 
-  const cardCls = 'relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift';
+  const kickoffOf = (g: ISessionWithDetails) => g.kickoffTime || group.kickoffTime;
+  const showNext = !!(next && game && next.id !== game.id);
+  // The stub: the next game while this one is still being settled or voted on; otherwise where
+  // it's played and what a place costs, as on a ticket.
+  const venue = [group.location, group.paymentType === PaymentType.PER_SESSION ? `${formatCurrency(Number(group.feePerPlayer))} a player` : null]
+    .filter(Boolean)
+    .join(' · ');
+  const stub = !game ? null : showNext ? (
+    <Link
+      href={`/sessions/${next!.id}`}
+      aria-label={`Next game, ${gameDay(next!.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}: ${formatCurrency(Number(next!.collectedAmount))} paid so far`}
+      className="press flex items-center gap-3 h-[52px] px-5 hover:bg-white/[0.04] transition-colors"
+    >
+      <span className="flex-1 min-w-0 truncate text-[13px] font-semibold text-white/85">
+        <span className="text-white/65">Next · </span>
+        {gameDay(next!.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}
+        {kickoffOf(next!) && ` · ${prettyTime(kickoffOf(next!)!)}`}
+      </span>
+      <span className="shrink-0 text-xs font-semibold tabular-nums text-white/65">{formatCurrency(Number(next!.collectedAmount))} paid</span>
+      <svg className="w-3.5 h-3.5 shrink-0 text-white/45" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+      </svg>
+    </Link>
+  ) : venue ? (
+    <p className="flex items-center h-[52px] px-5 text-[13px] font-semibold text-white/75 truncate">{venue}</p>
+  ) : null;
+
   return (
-    <section aria-label="This week's game" className={`${cardCls} ${className}`}>
+    <Ticket
+      aria-label="This week's game"
+      className={className}
+      bodyClassName="rounded-[28px] text-white bg-[linear-gradient(160deg,#134927_0%,#10301d_42%,#0f1a14_100%)]"
+      stub={stub}
+    >
       <div className="absolute inset-0 turf-stripes-soft" />
       <div className="relative p-5">
         {game ? (
@@ -878,25 +910,6 @@ export function GameCard({
           </div>
         )}
       </div>
-      {next && game && next.id !== game.id && (
-        <Link
-          href={`/sessions/${next.id}`}
-          aria-label={`Next game, ${gameDay(next.date).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}: ${formatCurrency(Number(next.collectedAmount))} of ${formatCurrency(Number(next.targetAmount))} collected`}
-          className="press relative flex items-center gap-3 px-5 min-h-12 py-2.5 border-t border-white/[0.08] hover:bg-white/[0.04] transition-colors"
-        >
-          <span className="flex-1 min-w-0 truncate text-[13px] font-semibold text-white/85">
-            <span className="text-white/65">Next · </span>
-            {gameDay(next.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}
-            {(next.kickoffTime || group.kickoffTime) && ` · ${prettyTime((next.kickoffTime || group.kickoffTime)!)}`}
-          </span>
-          <span className="shrink-0 text-xs font-semibold tabular-nums text-white/65">
-            {formatCurrency(Number(next.collectedAmount))} paid
-          </span>
-          <svg className="w-3.5 h-3.5 shrink-0 text-white/45" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-          </svg>
-        </Link>
-      )}
       {confirmEnd && game && (
         <EndGameSheet
           session={game}
@@ -909,7 +922,7 @@ export function GameCard({
           }}
         />
       )}
-    </section>
+    </Ticket>
   );
 }
 

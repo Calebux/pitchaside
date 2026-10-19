@@ -2,6 +2,7 @@
 
 import type { IPayment } from '@pitchaside/shared';
 import { CountUpNaira } from '@/components/motion';
+import { Ticket } from '@/components/ticket';
 import { prettyTime } from '@/components/player-ui';
 import { gameDay } from '@/components/money-card';
 import { formatCurrency, type ISessionWithDetails } from '@/lib/api';
@@ -47,9 +48,42 @@ export function GameHero({
   const canRemind = tally.toPay > 0 && phase !== 'cancelled' && !coveredByDues;
   // Before the game the squad is the story; after, the money.
   const squadFirst = before && !isDues;
+  // The ticket's stub: the money, with the action it needs right next to it.
+  const stub =
+    !isDues && !coveredByDues && onPitch.length > 0 ? (
+      <div className="flex items-center gap-3 h-[68px] px-5">
+        <p className="flex-1 min-w-0 text-[13px] leading-snug text-white/75 tabular-nums truncate">
+          {squadFirst ? (
+            <>
+              <b className="block text-[14px] text-white">{formatCurrency(collected)} paid ahead</b>
+              {tally.toPay > 0 ? <span className="text-sun-400 font-semibold">{tally.toPay} not paid yet</span> : 'Everyone who’s in has paid'}
+            </>
+          ) : (
+            <>
+              <b className="block text-[14px] text-white">
+                {tally.paid} paid{tally.toPay > 0 && <span className="text-sun-400"> · {tally.toPay} to pay</span>}
+              </b>
+              {tally.noShows > 0 ? `${tally.noShows} didn’t come` : `${tally.playing} played`}
+            </>
+          )}
+        </p>
+        {canRemind && (
+          <button
+            onClick={onRemind}
+            disabled={reminding}
+            className="press shrink-0 inline-flex items-center gap-1.5 h-11 pl-3.5 pr-4 rounded-full bg-white text-ink text-[13px] font-bold shadow-card hover:bg-volt-300 disabled:opacity-60"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+            </svg>
+            {reminding ? 'Sending…' : `Remind ${tally.toPay}`}
+          </button>
+        )}
+      </div>
+    ) : null;
 
   return (
-    <div className="relative bg-pitch-800 rounded-[28px] text-white overflow-hidden shadow-lift">
+    <Ticket aria-label="The game" stub={stub} stubHeight={68} bodyClassName="bg-pitch-800 rounded-[28px] text-white">
       <div className="absolute inset-0 turf-stripes" />
       <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 400 300" aria-hidden>
         <g stroke="white" strokeOpacity="0.1" strokeWidth="2" fill="none">
@@ -150,39 +184,7 @@ export function GameHero({
           )}
         </div>
 
-        {/* Money, with the action it needs right next to it */}
-        {!isDues && !coveredByDues && onPitch.length > 0 && (
-          <div className="mt-3 flex items-center gap-3">
-            <p className="flex-1 min-w-0 text-[13px] leading-snug text-white/75 tabular-nums">
-              {squadFirst ? (
-                <>
-                  <b className="block text-[14px] text-white">{formatCurrency(collected)} paid ahead</b>
-                  {tally.toPay > 0 ? <span className="text-sun-400 font-semibold">{tally.toPay} not paid yet</span> : 'Everyone who’s in has paid'}
-                </>
-              ) : (
-                <>
-                  <b className="block text-[14px] text-white">
-                    {tally.paid} paid{tally.toPay > 0 && <span className="text-sun-400"> · {tally.toPay} to pay</span>}
-                  </b>
-                  {tally.noShows > 0 ? `${tally.noShows} didn’t come` : `${tally.playing} played`}
-                </>
-              )}
-            </p>
-            {canRemind && (
-              <button
-                onClick={onRemind}
-                disabled={reminding}
-                className="press shrink-0 inline-flex items-center gap-1.5 h-9 pl-3 pr-3.5 rounded-full bg-white text-ink text-[13px] font-bold shadow-card hover:bg-volt-300 disabled:opacity-60"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                </svg>
-                {reminding ? 'Sending…' : `Remind ${tally.toPay}`}
-              </button>
-            )}
-          </div>
-        )}
       </div>
-    </div>
+    </Ticket>
   );
 }

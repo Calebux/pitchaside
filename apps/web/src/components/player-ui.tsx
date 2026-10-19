@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Ticket } from '@/components/ticket';
 import { Ball, Player, kitFor, skins } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
@@ -200,96 +201,105 @@ export function GameCard({
           : null;
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-pitch-600">
-            {daysUntil(game.date)}
-            {time ? ` · ${time}` : ''}
-          </p>
-          <p className="font-display text-xl font-extrabold text-ink leading-tight truncate">{game.groupName}</p>
-          <p className="text-xs text-gray-500 mt-0.5">{niceDate(game.date)}</p>
+    <Ticket
+      tone="light"
+      aria-label={`${game.groupName}, ${niceDate(game.date)}`}
+      bodyClassName="bg-white rounded-3xl"
+      stubHeight={48}
+      stub={
+        showDetails ? (
+          <Link href={`/me/games/${game.id}`} className="flex items-center justify-center h-12 text-[13px] font-bold text-pitch-600 hover:text-ink">
+            See who&apos;s playing ›
+          </Link>
+        ) : null
+      }
+    >
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-pitch-600">
+              {daysUntil(game.date)}
+              {time ? ` · ${time}` : ''}
+            </p>
+            <p className="font-display text-xl font-extrabold text-ink leading-tight truncate">{game.groupName}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{niceDate(game.date)}</p>
+          </div>
+          {statusChip && (
+            <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${statusChip.cls}`}>{statusChip.text}</span>
+          )}
         </div>
-        {statusChip && (
-          <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${statusChip.cls}`}>{statusChip.text}</span>
+
+        {game.requireRsvp && !played && (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 mb-1">
+              <span className="tabular-nums">
+                {game.confirmed}/{game.capacity} confirmed
+              </span>
+              {game.waitlist > 0 && <span className="tabular-nums">{game.waitlist} waiting</span>}
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2">
+              <div className={`h-2 rounded-full ${full ? 'bg-kit-500' : 'bg-pitch-500'}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
         )}
-      </div>
 
-      {game.requireRsvp && !played && (
-        <div className="mt-3">
-          <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 mb-1">
-            <span className="tabular-nums">
-              {game.confirmed}/{game.capacity} confirmed
-            </span>
-            {game.waitlist > 0 && <span className="tabular-nums">{game.waitlist} waiting</span>}
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-2">
-            <div className={`h-2 rounded-full ${full ? 'bg-kit-500' : 'bg-pitch-500'}`} style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-      )}
+        {game.myStatus === 'in' && game.payment?.status === 'pending' && (
+          <Link href="/me/pay" className="mt-3 block text-xs font-semibold text-amber-800 bg-sun-400/20 rounded-xl px-3 py-2">
+            {formatCurrency(game.payment.amount)} to pay for this game — tap for the account details ›
+          </Link>
+        )}
 
-      {game.myStatus === 'in' && game.payment?.status === 'pending' && (
-        <Link href="/me/pay" className="mt-3 block text-xs font-semibold text-amber-800 bg-sun-400/20 rounded-xl px-3 py-2">
-          {formatCurrency(game.payment.amount)} to pay for this game — tap for the account details ›
-        </Link>
-      )}
+        {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
 
-      {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
-
-      {!played && (
-      <div className="grid grid-cols-2 gap-2 mt-4">
-        {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (
-          <button
-            onClick={() => (paid ? setConfirmOut(true) : reply('out'))}
-            disabled={!!busy}
-            className="col-span-2 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {busy === 'out' && <BallSpinner />}
-            {game.myStatus === 'waitlist' ? 'Leave the waitlist' : "I'm out"}
-          </button>
-        ) : (
-          <>
+        {!played && (
+        <div className="grid grid-cols-2 gap-2 mt-4">
+          {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (
             <button
-              onClick={() => reply('in')}
+              onClick={() => (paid ? setConfirmOut(true) : reply('out'))}
               disabled={!!busy}
-              className="py-3 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {busy === 'in' && <BallSpinner />}
-              {full && game.requireRsvp ? 'Join waitlist' : "I'm in"}
-            </button>
-            <button
-              onClick={() => reply('out')}
-              disabled={!!busy || game.myStatus === 'out'}
-              className="py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
+              className="col-span-2 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {busy === 'out' && <BallSpinner />}
-              I&apos;m out
+              {game.myStatus === 'waitlist' ? 'Leave the waitlist' : "I'm out"}
             </button>
-          </>
+          ) : (
+            <>
+              <button
+                onClick={() => reply('in')}
+                disabled={!!busy}
+                className="py-3 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {busy === 'in' && <BallSpinner />}
+                {full && game.requireRsvp ? 'Join waitlist' : "I'm in"}
+              </button>
+              <button
+                onClick={() => reply('out')}
+                disabled={!!busy || game.myStatus === 'out'}
+                className="py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {busy === 'out' && <BallSpinner />}
+                I&apos;m out
+              </button>
+            </>
+          )}
+        </div>
         )}
+
+        <ConfirmDialog
+          open={confirmOut}
+          title="Drop out of this game?"
+          message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. It’s paid ahead for your next game with ${game.groupName}.`}
+          confirmLabel="I'm out"
+          cancelLabel="Stay in"
+          onConfirm={() => {
+            setConfirmOut(false);
+            reply('out');
+          }}
+          onCancel={() => setConfirmOut(false)}
+        />
+
       </div>
-      )}
-
-      <ConfirmDialog
-        open={confirmOut}
-        title="Drop out of this game?"
-        message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. It’s paid ahead for your next game with ${game.groupName}.`}
-        confirmLabel="I'm out"
-        cancelLabel="Stay in"
-        onConfirm={() => {
-          setConfirmOut(false);
-          reply('out');
-        }}
-        onCancel={() => setConfirmOut(false)}
-      />
-
-      {showDetails && (
-        <Link href={`/me/games/${game.id}`} className="mt-3 block text-center text-xs font-bold text-pitch-600 hover:text-ink">
-          See who&apos;s playing ›
-        </Link>
-      )}
-    </div>
+    </Ticket>
   );
 }
 
