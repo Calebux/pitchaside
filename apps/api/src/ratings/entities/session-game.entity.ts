@@ -29,6 +29,10 @@ export class SessionGame {
   @Column({ name: 'score_b', type: 'int' })
   scoreB: number;
 
+  /** "Tunde (organiser)", "Ada (captain)": who saved the score. */
+  @Column({ name: 'recorded_by', type: 'varchar', nullable: true })
+  recordedBy: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }

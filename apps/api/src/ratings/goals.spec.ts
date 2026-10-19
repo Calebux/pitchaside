@@ -68,3 +68,53 @@ describe('goals and assists', () => {
     expect(open.savedGoals[0]).toMatchObject({ scorerId: 'chidi', gameId: 'g1', sessionId: 's1' });
   });
 });
+
+describe("captains keeping the score", () => {
+  function captainSetup(over: { date?: string; captain?: boolean; recordedBy?: string } = {}) {
+    const session: any = {
+      id: 's1',
+      kind: 'game',
+      date: over.date ?? today,
+      status: SessionStatus.UPCOMING,
+      teamCount: 2,
+      group: { organizationId: 'org' },
+      payments: [
+        { playerId: 'ada', team: 'A', captain: over.captain ?? true, attendance: null, player: { firstName: 'Ada', lastName: 'Obi', nickname: null } },
+        { playerId: 'bisi', team: 'B', captain: false, attendance: null, player: { firstName: 'Bisi', lastName: 'Lawal', nickname: null } },
+      ],
+    };
+    const sessionsRepo = { findOne: async () => session };
+    const gamesRepo = { findOne: async () => ({ id: 'g1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
+    const goalsRepo = { findOne: async () => ({ id: 'x1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
+    const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, {} as never);
+    const addGame = jest.spyOn(service, 'addGame').mockResolvedValue({ squad: [] } as never);
+    const deleteGame = jest.spyOn(service, 'deleteGame').mockResolvedValue({ squad: [] } as never);
+    return { service, addGame, deleteGame };
+  }
+  const input = { teamA: 'A', teamB: 'B', scoreA: 1, scoreB: 0 };
+
+  it("signs a captain's score with their name", async () => {
+    const { service, addGame } = captainSetup();
+    await service.captainAddGame('s1', ['ada'], input);
+    expect(addGame).toHaveBeenCalledWith('s1', 'org', input, 'Ada (captain)');
+  });
+
+  it('only lets captains keep the score', async () => {
+    const { service } = captainSetup({ captain: false });
+    await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('Only the captains');
+  });
+
+  it('only on match day', async () => {
+    const { service } = captainSetup({ date: '2020-01-01' });
+    await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('match day only');
+  });
+
+  it("can't delete what the organiser saved, but can delete a captain's", async () => {
+    const organiser = captainSetup();
+    await expect(organiser.service.captainDeleteGame('s1', 'g1', ['ada'])).rejects.toThrow('only they can delete it');
+    await expect(organiser.service.captainDeleteGoal('s1', 'x1', ['ada'])).rejects.toThrow('only they can remove it');
+    const captain = captainSetup({ recordedBy: 'Bisi (captain)' });
+    await captain.service.captainDeleteGame('s1', 'g1', ['ada']);
+    expect(captain.deleteGame).toHaveBeenCalledWith('s1', 'g1', 'org');
+  });
+});

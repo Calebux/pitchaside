@@ -503,6 +503,7 @@ export class RatingsService {
         teamB: g.teamB,
         scoreA: g.scoreA,
         scoreB: g.scoreB,
+        recordedBy: g.recordedBy ?? null,
         goals: goals
           .filter((x) => x.gameId === g.id)
           .map((x) => ({ id: x.id, team: x.team, scorerId: x.scorerId, assistId: x.assistId, recordedBy: x.recordedBy })),
@@ -596,6 +597,59 @@ export class RatingsService {
     return (await paidForGames(this.sessionsRepo.manager, [session])).get(session.id) ?? new Map<string, GamePaid>();
   }
 
+  // ── Match day from a captain's phone ──
+
+  /**
+   * Whoever captains a side on match day can keep the score that day, from the player app: add
+   * games and name scorers, and take back what captains added. Anything the organiser added is
+   * theirs to change. Returns the session and how to sign their entries ("Ada (captain)").
+   */
+  private async captainToday(sessionId: string, playerIds: string[]) {
+    const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['group', 'payments', 'payments.player'] });
+    const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
+    if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
+    if (!this.isCaptain(session, mine)) throw new BadRequestException('Only the captains can keep the score');
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    if (localDate(0) !== String(session.date).slice(0, 10)) throw new BadRequestException('Captains can keep the score on match day only');
+    return { session, organizationId: session.group.organizationId, signedAs: `${pitchName(mine.player)} (captain)` };
+  }
+
+  /** The match day as a captain sees it: like the organiser's, without ratings or who's paid. */
+  async captainLineup(sessionId: string, playerIds: string[]) {
+    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    return this.forCaptain(await this.getLineup(sessionId, organizationId));
+  }
+
+  private forCaptain(lineup: Awaited<ReturnType<RatingsService['getLineup']>>) {
+    return { ...lineup, squad: lineup.squad.map((m) => ({ ...m, ovr: null, skill: 0, paid: undefined })) };
+  }
+
+  async captainAddGame(sessionId: string, playerIds: string[], input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[] }) {
+    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
+    return this.forCaptain(await this.addGame(sessionId, organizationId, input, signedAs));
+  }
+
+  async captainAddGoal(sessionId: string, gameId: string, playerIds: string[], input: GoalInput) {
+    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
+    return this.forCaptain(await this.addGoal(sessionId, gameId, organizationId, input, signedAs));
+  }
+
+  async captainDeleteGame(sessionId: string, gameId: string, playerIds: string[]) {
+    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    const game = await this.gamesRepo.findOne({ where: { id: gameId, sessionId } });
+    if (!game) throw new NotFoundException('Game not found');
+    if (!game.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser saved this score: only they can delete it');
+    return this.forCaptain(await this.deleteGame(sessionId, gameId, organizationId));
+  }
+
+  async captainDeleteGoal(sessionId: string, goalId: string, playerIds: string[]) {
+    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    const goal = await this.goalsRepo.findOne({ where: { id: goalId, sessionId } });
+    if (!goal) throw new NotFoundException('Goal not found');
+    if (!goal.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser added this scorer: only they can remove it');
+    return this.forCaptain(await this.deleteGoal(sessionId, goalId, organizationId));
+  }
+
   // ── Bibs, from the player's side ──
 
   /** A game's squad as one of its players sees it: bibs, and who's paid if the group shares that. */
@@ -615,6 +669,9 @@ export class RatingsService {
       bibsClosed: locked || this.bibsClosed(session),
       myTeam: this.teamOf(session, mine.team),
       captains: this.captainsOf(session),
+      /** They captain a side today, so they can keep the score from their phone. */
+      canKeepScore:
+        this.isCaptain(session, mine) && session.status !== SessionStatus.CANCELLED && localDate(0) === String(session.date).slice(0, 10),
       myPaid: paid.get(mine.playerId) ?? 'unpaid',
       showPaid,
       squad: (session.payments ?? [])
@@ -718,6 +775,7 @@ export class RatingsService {
       teamB: input.teamB,
       scoreA: clean(input.scoreA),
       scoreB: clean(input.scoreB),
+      recordedBy: recordedBy ?? null,
     });
     const goals = input.goals ?? [];
     this.checkGoals(session, game, [], goals);

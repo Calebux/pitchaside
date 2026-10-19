@@ -16,6 +16,7 @@ import { PlayerPortalService } from './player-portal.service';
 import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
+import { GameDto, GoalDto } from '../ratings/ratings.controller';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
 
@@ -286,6 +287,32 @@ export class PlayerPortalController {
   @Get('games/:id/lineup')
   lineup(@Param('id') id: string, @CurrentPerson() person: Person) {
     return this.portal.gameLineup(person, id);
+  }
+
+  /** Match day for the day's captains: the scoreboard, games and scorers. */
+  @Get('games/:id/match-day')
+  matchDay(@Param('id') id: string, @CurrentPerson() person: Person) {
+    return this.portal.matchDay(person, id);
+  }
+
+  @Post('games/:id/match-day/games')
+  addMatchGame(@Param('id') id: string, @Body() dto: GameDto, @CurrentPerson() person: Person) {
+    return this.portal.addMatchGame(person, id, dto);
+  }
+
+  @Post('games/:id/match-day/games/:gameId/goals')
+  addGoal(@Param('id') id: string, @Param('gameId') gameId: string, @Body() dto: GoalDto, @CurrentPerson() person: Person) {
+    return this.portal.addGoal(person, id, gameId, dto);
+  }
+
+  @Delete('games/:id/match-day/games/:gameId')
+  deleteMatchGame(@Param('id') id: string, @Param('gameId') gameId: string, @CurrentPerson() person: Person) {
+    return this.portal.deleteMatchGame(person, id, gameId);
+  }
+
+  @Delete('games/:id/match-day/goals/:goalId')
+  deleteGoal(@Param('id') id: string, @Param('goalId') goalId: string, @CurrentPerson() person: Person) {
+    return this.portal.deleteGoal(person, id, goalId);
   }
 
   /** The bib the player was handed on the day. */
