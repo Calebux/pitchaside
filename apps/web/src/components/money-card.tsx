@@ -32,6 +32,7 @@ import { EndGameSheet } from '@/components/game/end-game-sheet';
 import { coveredByDues } from '@/lib/game-player';
 import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
+import { moneyHref } from '@/lib/money-href';
 
 // ── Dates ──
 
@@ -347,8 +348,8 @@ export function MoneyCard({
   const ticker = [...unknown.slice(0, 1), ...recent.filter((t) => t.status !== 'unmatched')].slice(0, 2);
   const [sheet, setSheet] = useState<{ id: string | null } | null>(null);
   // Payments with no name are sorted out on the group's Money tab: the list of them, or one in the picker.
-  const unnamedHref = `/groups/${group.id}?tab=money&show=unnamed`;
-  const chooseHref = (id: string) => `/groups/${group.id}?tab=money&transfer=${id}`;
+  const unnamedHref = moneyHref(group.id, { unnamed: true });
+  const chooseHref = (id: string) => moneyHref(group.id, { transfer: id });
   const account = billing?.account ?? null;
   const [accountOpen, toggleAccount] = useRemembered('pitchaside_home_account_open', true);
   const [gameOpen, toggleGame] = useRemembered('pitchaside_home_game_open', true);
@@ -436,7 +437,7 @@ export function MoneyCard({
               Set one up so players can pay by transfer and see their payments matched automatically.
             </p>
             <Link
-              href={`/groups/${group.id}?tab=money`}
+              href={moneyHref(group.id)}
               className="press mt-3 inline-flex items-center justify-center h-11 px-4 rounded-xl bg-volt-400 text-sm font-bold text-ink hover:bg-volt-300 transition-colors"
             >
               Set up account

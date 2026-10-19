@@ -37,6 +37,7 @@ import {
 import { openWhatsApp } from '@/lib/whatsapp';
 import { useAuth } from '@/lib/auth';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
+import { moneyHref } from '@/lib/money-href';
 
 function copy(text: string, toast: ReturnType<typeof useToast>, label: string) {
   navigator.clipboard.writeText(text).then(
@@ -225,7 +226,7 @@ export function GroupAccountCard({
           onMatch={(transferId) => {
             setShowRecord(false);
             if (onMatchTransfer) onMatchTransfer(transferId);
-            else router.push(`/groups/${groupId}?tab=transfers&transfer=${transferId}`);
+            else router.push(moneyHref(groupId, { transfer: transferId }));
           }}
         />
       )}
