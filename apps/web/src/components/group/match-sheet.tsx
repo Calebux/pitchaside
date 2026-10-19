@@ -12,14 +12,31 @@ import { describeGive, owedLabel, type MatchMember } from '@/lib/give-outcome';
 
 const firstName = (m: MatchMember) => m.name.split(' ')[0];
 
-/** Why a member might have sent this: the bank's name is theirs (or nearly), or they tapped "I've paid" for it. */
+/** A ₦25 bank fee either way, and within three days of the transfer. */
+const CLAIM_SLACK = 25;
+const CLAIM_DAYS = 3;
+
+/**
+ * Why a member might have sent this. The name the bank gave comes first: it's the strongest
+ * clue. "I've paid" only makes someone likely when the amount and the day also fit; otherwise
+ * it's mentioned under their name but doesn't put them at the top.
+ */
 function likeliness(t: BankTransfer, m: MatchMember) {
   const { fit, hits } = nameFit(m.name, `${senderFrom(t) ?? ''} ${t.narration ?? ''}`);
-  const claimed = (t.claims ?? []).some((c) => c.player.id === m.playerId);
+  const at = new Date(t.receivedAt).getTime();
+  const claims = (t.claims ?? []).filter((c) => c.player.id === m.playerId);
+  const fits = claims.some(
+    (c) => Math.abs(Number(c.amount) - Number(t.amount)) <= CLAIM_SLACK && Math.abs(new Date(c.createdAt).getTime() - at) <= CLAIM_DAYS * 86_400_000,
+  );
   const name = fit === 'exact' ? 'Name matches' : fit === 'similar' ? 'Name looks similar' : null;
   const both = fit === 'exact' ? 'Name matches' : 'Similar name';
-  const reason = name && claimed ? `${both}, said they’ve paid` : name ?? (claimed ? 'Said they’ve paid' : null);
-  return { score: (fit === 'exact' ? 20 : fit === 'similar' ? 12 : 0) + (claimed ? 10 : 0) + hits, reason };
+  const reason = name && claims.length ? `${both}, said they’ve paid` : name ?? (fits ? 'Said they’ve paid this amount' : null);
+  return {
+    score: (fit === 'exact' ? 20 : fit === 'similar' ? 12 : 0) + (fits ? 8 : claims.length ? 2 : 0) + hits,
+    reason,
+    /** Said they've paid, but the amount or the day doesn't fit this transfer. */
+    claimedOther: !reason && claims.length > 0,
+  };
 }
 
 function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
@@ -77,9 +94,9 @@ export function MatchPlayerSheet({
       <section key={title} className="mt-5">
         <h3 className="px-1 mb-1.5 text-[13px] font-semibold text-gray-500">{title}</h3>
         <ul className="rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden" role="radiogroup" aria-label={title}>
-          {list.map(({ m, theirs, total, reason }) => {
+          {list.map(({ m, theirs, total, reason, claimedOther }) => {
             const on = picked === m.playerId;
-            const sub = reason ?? (theirs.length === 0 ? 'Owes nothing' : theirs.length === 1 ? `Owes for ${owedLabel(theirs[0])}` : `Owes for ${theirs.length} games`);
+            const sub = reason ?? (claimedOther ? 'Said they’ve paid, not this amount or day' : theirs.length === 0 ? 'Owes nothing' : theirs.length === 1 ? `Owes for ${owedLabel(theirs[0])}` : `Owes for ${theirs.length} games`);
             return (
               <li key={m.playerId}>
                 <button

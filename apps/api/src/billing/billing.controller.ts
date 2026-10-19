@@ -130,6 +130,12 @@ export class BillingController {
     return this.billing.ignoreTransfer(id, user.organizationId);
   }
 
+  @AllowTreasurer()
+  @Post('transfers/:id/restore')
+  restore(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.restoreTransfer(id, user.organizationId);
+  }
+
   // ── Payouts (transfer out) ──
 
   @Get('groups/:id/balance')

@@ -5,13 +5,14 @@
  * places a payment by itself on an exact fit and never on a similar one.
  */
 
-const plain = (s?: string | null) =>
+/** Lower-case words without accents. Initials ("K") are kept only when `initials` is set (the bank's side). */
+const plain = (s?: string | null, initials = false) =>
   (s ?? '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .split(/[^a-z]+/)
-    .filter((w) => w.length > 1);
+    .filter((w) => w.length > (initials ? 0 : 1));
 
 /** The word's consonants, with letters that sound alike folded together: "rodrick" and "rodrigue" both give "rdrk". */
 function skeleton(w: string) {
@@ -40,6 +41,8 @@ function distance(a: string, b: string) {
 /** Nearly the same word: a short form of it ("Seun" in "Oluwaseun"), a typo or two, or the same sound. */
 function close(a: string, b: string) {
   if (a === b) return true;
+  // An initial for a surname ("Femi K" for Femi Kuti); the other words still have to match.
+  if ((a.length === 1 && b.startsWith(a)) || (b.length === 1 && a.startsWith(b))) return true;
   // A short form: the start of it ("Ade" for "Adewale") or, from four letters, the end ("Seun" for "Oluwaseun").
   if (Math.min(a.length, b.length) >= 3 && (a.startsWith(b) || b.startsWith(a))) return true;
   if (Math.min(a.length, b.length) >= 4 && (a.endsWith(b) || b.endsWith(a))) return true;
@@ -52,7 +55,7 @@ function close(a: string, b: string) {
  * is there or nearly there, otherwise null. `hits` counts exact words, for ordering.
  */
 export function nameFit(memberName: string, said: string): { fit: 'exact' | 'similar' | null; hits: number } {
-  const theirs = plain(said);
+  const theirs = plain(said, true);
   const mine = plain(memberName);
   if (!mine.length || !theirs.length) return { fit: null, hits: 0 };
   const hits = mine.filter((w) => theirs.includes(w)).length;

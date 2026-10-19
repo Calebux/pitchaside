@@ -511,6 +511,11 @@ export function ignoreTransfer(transferId: string): Promise<BankTransfer> {
   return http.post(`/transfers/${transferId}/ignore`);
 }
 
+/** Undoes Set aside: the payment is back among those with no name yet. */
+export function restoreTransfer(transferId: string): Promise<BankTransfer> {
+  return http.post(`/transfers/${transferId}/restore`);
+}
+
 export function getPublicGroup(code: string): Promise<PublicGroup> {
   return http.get(`/public/groups/${code}`);
 }

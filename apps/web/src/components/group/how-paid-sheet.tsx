@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
-import { senderFrom } from '@/lib/name-match';
+import { nameFit, senderFrom } from '@/lib/name-match';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
 import { describeUse, type MatchMember } from '@/lib/give-outcome';
 
@@ -60,8 +60,11 @@ export function HowPaidSheet({
   const titleId = useId();
   const first = member.name.split(' ')[0];
   const [picked, setPicked] = useState<string | null>(null);
-  // Enough to pay it, nearest the amount first; then the ones that aren't enough.
+  // The name on the transfer is the best clue: theirs (or nearly) first. Then enough to pay it,
+  // nearest the amount first; then the ones that aren't enough.
+  const looksLike = (t: BankTransfer) => nameFit(member.name, `${senderFrom(t) ?? ''} ${t.narration ?? ''}`).fit !== null;
   const sorted = [...transfers].sort((a, b) => {
+    if (looksLike(a) !== looksLike(b)) return looksLike(a) ? -1 : 1;
     const da = Number(a.amount) - due;
     const db = Number(b.amount) - due;
     if (da >= -0.001 !== db >= -0.001) return da >= -0.001 ? -1 : 1;
@@ -112,6 +115,7 @@ export function HowPaidSheet({
               >
                 <span className="flex-1 min-w-0">
                   <span className="block text-[15px] font-bold text-ink truncate">{from(t)}</span>
+                  {looksLike(t) && <span className="block text-[13px] font-semibold text-pitch-600">Looks like {first}</span>}
                   <span className="block text-[13px] text-gray-500 truncate">
                     {when(t.receivedAt)}
                     {accountHint(t)}

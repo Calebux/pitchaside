@@ -23,6 +23,7 @@ import {
   getGroupTransfers,
   getWebhookStatus,
   ignoreTransfer,
+  restoreTransfer,
   provisionGroupAccount,
   recordManualTransfer,
   regenerateGroupInvite,
@@ -306,12 +307,15 @@ export function GroupAccountCard({
           ) : (
             <div className="mt-5">
               <p className="text-sm text-white/70">
-                The collection account isn&apos;t ready yet. This usually means Payrep MFB didn&apos;t respond when the group was created.
+                {user?.bvn
+                  ? 'The group’s account isn’t open yet: the bank didn’t answer when the group was made. Try again.'
+                  : 'Add your BVN to open the group’s bank account. Players pay into it, and it’s in your name as the organiser.'}
               </p>
               {showBvnPrompt ? (
                 <form onSubmit={handleBvnSubmit} className="mt-4 space-y-3">
                   <p className="text-xs text-white/80">
-                    A BVN (Bank Verification Number) is required to open the collection account.
+                    Your BVN (Bank Verification Number) is the 11 digits you get by dialling *565*0#. The bank needs it to open an account
+                    in your name. It isn’t shown to players.
                   </p>
                   <input
                     type="text"
@@ -320,7 +324,8 @@ export function GroupAccountCard({
                     maxLength={11}
                     value={bvnInput}
                     onChange={(e) => setBvnInput(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                    placeholder="Enter your 11-digit BVN"
+                    placeholder="11-digit BVN"
+                    aria-label="Your BVN"
                     className="w-full px-3 py-2.5 bg-white/10 border border-white/20 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-volt-400"
                   />
                   <div className="flex gap-2">
@@ -329,7 +334,7 @@ export function GroupAccountCard({
                       disabled={busy || bvnInput.length !== 11}
                       className="px-4 py-2.5 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 disabled:opacity-50 transition-colors"
                     >
-                      {busy ? 'Creating…' : 'Save & create account'}
+                      {busy ? 'Opening…' : bvnInput.length === 11 ? 'Open the account' : `${11 - bvnInput.length} digits to go`}
                     </button>
                     <button
                       type="button"
@@ -346,7 +351,7 @@ export function GroupAccountCard({
                   disabled={busy}
                   className="mt-4 px-4 py-2.5 text-sm font-bold text-ink bg-volt-400 rounded-xl hover:bg-volt-300 disabled:opacity-50 transition-colors"
                 >
-                  {busy ? 'Creating…' : 'Create account'}
+                  {busy ? 'Opening…' : user?.bvn ? 'Try again' : 'Add BVN and open account'}
                 </button>
               )}
             </div>
@@ -803,13 +808,13 @@ export function TransfersPanel({
       <ConfirmDialog
         open={!!ignoring}
         title={`Set this ${ignoring ? formatCurrency(Number(ignoring.amount)) : ''} aside?`}
-        message="It won't count as anyone's payment or in Money in. Use this for money that isn't from a player, like a refund to you. You can't undo this yet."
+        message="It won't count as anyone's payment or in Money in. Use this for money that isn't from a player, like a refund to you. You can put it back from 'Money set aside'."
         confirmLabel="Set aside"
         variant="danger"
         onConfirm={() => {
           const t = ignoring;
           setIgnoring(null);
-          if (t) run(t.id, () => ignoreTransfer(t.id), 'Set aside. It won’t count as a payment.');
+          if (t) run(t.id, () => ignoreTransfer(t.id), 'Set aside. Put it back any time from Money set aside.');
         }}
         onCancel={() => setIgnoring(null)}
       />
@@ -924,7 +929,18 @@ export function TransfersPanel({
           {showSetAside && (
             <div className="bg-white rounded-3xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
               {setAside.map((t) => (
-                <TransferRow key={t.id} t={t} onClick={() => {}} />
+                <div key={t.id} className="flex items-center gap-2 pr-3">
+                  <div className="flex-1 min-w-0">
+                    <TransferRow t={t} onClick={() => {}} />
+                  </div>
+                  <button
+                    onClick={() => run(t.id, () => restoreTransfer(t.id), 'Put back with the payments that have no name yet')}
+                    disabled={workingId === t.id}
+                    className="shrink-0 h-9 px-3 rounded-xl border border-gray-200 text-[13px] font-bold text-ink hover:border-ink disabled:opacity-50"
+                  >
+                    Put back
+                  </button>
+                </div>
               ))}
             </div>
           )}
