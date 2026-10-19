@@ -22,6 +22,7 @@ import {
   type SessionVoting,
 } from '@/lib/api';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { isVotingOpen } from '@/lib/game-status';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
 import { CountUp, CountUpNaira, LiveDot, stagger } from '@/components/motion';
 import { Collapse, CollapseButton, useRemembered } from '@/components/collapse';
@@ -64,10 +65,12 @@ export function phaseOf(game: ISessionWithDetails): GamePhase {
 }
 
 /**
- * The game the home card is about. A game on today wins. Otherwise last game stays while it needs
- * the organiser: not ended yet (up to a week back), or ended in the last two days while its vote is
- * on. Once it's ended and that's passed, or the next game is tomorrow, the card moves on to the
- * next game.
+ * The game the home card is about, by these rules, in order:
+ * 1. A game on today, or the next game when it's tomorrow.
+ * 2. The last game while it still needs the organiser: played but not ended (up to a week back),
+ *    or ended with its vote still open.
+ * 3. Otherwise the next game. Once the last game is ended and its vote has closed, it's done:
+ *    it moves to Games › Played and the card moves on.
  */
 export function featuredGame(sessions: ISessionWithDetails[], groupId: string) {
   const games = sessions.filter((s) => s.groupId === groupId && s.kind !== 'dues' && s.status !== 'cancelled');
@@ -78,7 +81,7 @@ export function featuredGame(sessions: ISessionWithDetails[], groupId: string) {
   const recent = games
     .filter((s) => {
       const d = daysFromToday(s.date);
-      return d < 0 && (s.status !== 'completed' ? d >= -VOTE_DAYS : d >= -2);
+      return d < 0 && (s.status !== 'completed' ? d >= -VOTE_DAYS : isVotingOpen(s));
     })
     .sort((a, b) => gameDay(b.date).getTime() - gameDay(a.date).getTime())[0];
   return recent ?? next;

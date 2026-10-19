@@ -84,6 +84,8 @@ export interface ISession {
   payments?: IPayment[];
   /** When the vote opened (the game was ended); null until then. */
   voteOpensAt?: string | null;
+  /** Set when everyone who came had voted: the vote closed early, then. */
+  voteClosedAt?: string | null;
 }
 
 export interface IPayment {

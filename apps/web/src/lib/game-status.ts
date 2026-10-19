@@ -20,12 +20,15 @@ export const toneOnDark: Record<Tone, string> = {
 };
 
 /**
- * True while a game is taking votes: from when it was ended, for 48 hours (the server's rule).
- * Games ended before the vote moved to full time keep their match-day-plus-a-week window.
+ * True while a game is taking votes, by the server's rule (RatingsService.window): from when it
+ * was ended, for 48 hours, or until everyone who came has voted, whichever is first. Games ended
+ * before the vote moved to full time keep their match-day-plus-a-week window.
  */
-export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' | 'status' | 'voteOpensAt'>) {
+export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' | 'status' | 'voteOpensAt' | 'voteClosedAt'>) {
   if (session.kind === 'dues' || session.status !== 'completed') return false;
   const now = Date.now();
+  // Everyone who came has voted: it's closed, whatever the clock says.
+  if (session.voteClosedAt && new Date(session.voteClosedAt).getTime() <= now) return false;
   if (session.voteOpensAt) {
     const opens = new Date(session.voteOpensAt).getTime();
     return now >= opens && now < opens + 48 * 3_600_000;
