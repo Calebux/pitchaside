@@ -417,9 +417,14 @@ export interface TransferClaim {
   player: { id: string; firstName: string; lastName: string };
 }
 
+/** Who the invite is from: the organiser by first name; the club's name only if we don't have one. */
+export const invitedBy = (g: { organiserName?: string | null; organizationName?: string }) => g.organiserName || g.organizationName || '';
+
 export interface PublicGroup {
   groupName: string;
   organizationName?: string;
+  /** First name of the person who runs the account: "Matthew invites you". */
+  organiserName?: string | null;
   description?: string;
   schedule?: string;
   feePerPlayer: number;
