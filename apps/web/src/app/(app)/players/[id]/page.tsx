@@ -1,7 +1,5 @@
 'use client';
 
-import { PlayerLevelPicker } from '@/components/player-level';
-import type { PlayerLevel } from '@pitchaside/shared';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -9,6 +7,9 @@ import { BackButton } from '@/components/back-button';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
+import { PlayerSheet } from '@/components/group/member-sheet';
+import { UserRole } from '@pitchaside/shared';
+import { useAuth } from '@/lib/auth';
 import {
   getPlayer,
   getGroups,
@@ -16,7 +17,6 @@ import {
   getPlayerStats,
   getPlayerRatings,
   type PlayerRatings,
-  updatePlayer,
   deletePlayer,
   formatCurrency,
   type IGroupWithMembers,
@@ -46,17 +46,10 @@ export default function PlayerDetailPage() {
   const [stats, setStats] = useState<{ totalSessions: number; totalPaid: number; totalOwed: number; paymentRate: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Edit state
+  // The one player card, opened to edit.
   const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState({
-    firstName: '',
-    lastName: '',
-    nickname: '',
-    phone: '',
-    email: '',
-    level: 'average' as PlayerLevel,
-  });
-  const [saving, setSaving] = useState(false);
+  const { user } = useAuth();
+  const canManage = user?.role !== UserRole.TREASURER;
 
   // Delete confirm
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -73,41 +66,6 @@ export default function PlayerDetailPage() {
       .catch(() => router.push('/players'))
       .finally(() => setLoading(false));
   }, [id, router]);
-
-  function startEdit() {
-    if (!player) return;
-    setEditData({
-      firstName: player.firstName,
-      lastName: player.lastName,
-      nickname: player.nickname || '',
-      phone: player.phone || '',
-      email: player.email || '',
-      level: player.level ?? 'average',
-    });
-    setEditing(true);
-  }
-
-  async function handleSaveEdit() {
-    setSaving(true);
-    try {
-      await updatePlayer(id, {
-        firstName: editData.firstName.trim(),
-        lastName: editData.lastName.trim(),
-        nickname: editData.nickname.trim(),
-        phone: editData.phone.trim() || null,
-        email: editData.email.trim() || null,
-        level: editData.level,
-      });
-      const updated = await getPlayer(id);
-      setPlayer(updated);
-      setEditing(false);
-      toast.success('Player updated');
-    } catch {
-      toast.error('Failed to update player');
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function handleDelete() {
     setShowDeleteConfirm(false);
@@ -162,75 +120,22 @@ export default function PlayerDetailPage() {
         onCancel={() => setShowDeleteConfirm(false)}
       />
 
-      {/* Header / Edit */}
-      {editing ? (
-        <div className="mb-6 bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">First Name</label>
-              <input
-                value={editData.firstName}
-                onChange={(e) => setEditData({ ...editData, firstName: e.target.value })}
-                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">Last Name</label>
-              <input
-                value={editData.lastName}
-                onChange={(e) => setEditData({ ...editData, lastName: e.target.value })}
-                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Nickname</label>
-            <input
-              value={editData.nickname}
-              maxLength={24}
-              placeholder="What they're called on the pitch"
-              onChange={(e) => setEditData({ ...editData, nickname: e.target.value })}
-              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Email</label>
-            <input
-              type="email"
-              value={editData.email}
-              onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-              placeholder="What they sign in with"
-              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Phone</label>
-            <input
-              type="tel"
-              value={editData.phone}
-              onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-              placeholder="Optional"
-              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-            />
-          </div>
-          <PlayerLevelPicker value={editData.level} onChange={(level) => setEditData({ ...editData, level })} />
-          <div className="flex gap-3 pt-1">
-            <button
-              onClick={() => setEditing(false)}
-              className="flex-1 py-2.5 text-sm font-semibold text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveEdit}
-              disabled={saving || !editData.firstName.trim() || !editData.lastName.trim()}
-              className="flex-1 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
-        </div>
-      ) : (
+      {editing && (
+        <PlayerSheet
+          player={player}
+          canEdit
+          startEditing
+          showProfileLink={false}
+          onSaved={(p) => {
+            setPlayer(p);
+            setEditing(false);
+          }}
+          onClose={() => setEditing(false)}
+        />
+      )}
+
+      {/* Header */}
+      {(
         <div className="relative mb-6 rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
           <div className="absolute inset-0 turf-stripes" />
           <div className="relative grid grid-cols-[auto_1fr] gap-4 sm:gap-6 p-5 sm:p-6">
@@ -270,11 +175,13 @@ export default function PlayerDetailPage() {
                   </h1>
                   {player.nickname && <p className="text-sm font-bold text-volt-300 mt-1">“{player.nickname}”</p>}
                 </div>
+                {canManage && (
                 <div className="flex gap-1.5 shrink-0">
                   <button
-                    onClick={startEdit}
+                    onClick={() => setEditing(true)}
                     className="p-2.5 text-white/70 bg-white/10 rounded-xl hover:text-white hover:bg-white/15 transition-colors"
-                    title="Edit player"
+                    title="Edit details"
+                    aria-label={`Edit ${player.firstName}’s details`}
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
@@ -284,12 +191,14 @@ export default function PlayerDetailPage() {
                     onClick={() => setShowDeleteConfirm(true)}
                     className="p-2.5 text-white/70 bg-white/10 rounded-xl hover:text-white hover:bg-kit-500 transition-colors"
                     title="Delete player"
+                    aria-label={`Delete ${player.firstName} ${player.lastName}`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
                   </button>
                 </div>
+                )}
               </div>
 
               {ratings && (
