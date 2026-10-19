@@ -43,25 +43,6 @@ import { CompetitionTeam, TeamRegistrationStatus } from '../competitions/entitie
 
 export { periodFor };
 
-/**
- * Pulse MFB charges 2.5% per incoming transfer, min ₦2, max ₦25.
- * The webhook reports the net amount (after their fee). This reverses
- * the fee so we store what the player actually sent.
- *
- *   fee(gross) = clamp(gross × 0.025, 2, 25)
- *   net = gross − fee
- *
- * Reversed:
- *   net > 975  → gross = net + 25   (fee was capped at ₦25)
- *   net ≥ 78   → gross = net / 0.975 (fee was 2.5%)
- *   net < 78   → gross = net + 2    (fee was floored at ₦2)
- */
-function grossAmount(net: number): number {
-  if (net > 975) return Math.round(net + 25);
-  if (net >= 78) return Math.round(net / 0.975);
-  return Math.round(net + 2);
-}
-
 /** PitchAside service fee per outbound payout, transferred to the platform account. */
 const PLATFORM_FEE = 350;
 /** Transfers an organiser records by hand get this id prefix; they never count as withdrawable. */
@@ -657,8 +638,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     if (seen) return { received: true, duplicate: true, status: seen.status };
 
-    // Pulse takes 2.5% (min ₦2, max ₦25); reverse it so we store what the player sent.
-    incoming.amount = grossAmount(incoming.amount);
+    // Saved exactly as the bank reports it: that is what the player sent and what the account
+    // holds. (A ₦25 "fee" used to be added back on top, which gave every payer a ₦25 credit
+    // nobody paid and put the balance above the real account; see migration NoFeeAddBack.)
 
     const group = await this.groupsRepo.createQueryBuilder('g')
       .where('RIGHT(g.account_number, 10) = :acct', { acct: incoming.accountNumber })

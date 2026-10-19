@@ -8,7 +8,7 @@
 
 /** A claim and a transfer this far apart in time can still be the same payment. */
 export const CLAIM_WINDOW_MS = 24 * 60 * 60 * 1000;
-/** Rounding when we add PulseMFB's fee back on, plus slack for a player's typo. */
+/** Slack for a player's typo or a bank charge when pairing "I've paid" with a transfer. */
 export const AMOUNT_TOLERANCE = 30;
 
 export interface ClaimLike {

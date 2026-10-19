@@ -12,7 +12,7 @@ import { describeGive, owedLabel, type MatchMember } from '@/lib/give-outcome';
 
 const firstName = (m: MatchMember) => m.name.split(' ')[0];
 
-/** A ₦25 bank fee either way, and within three days of the transfer. */
+/** A small difference either way (a typo, a bank charge), and within three days of the transfer. */
 const CLAIM_SLACK = 25;
 const CLAIM_DAYS = 3;
 
