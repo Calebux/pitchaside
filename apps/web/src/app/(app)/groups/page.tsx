@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useCurrentGroup } from '@/lib/current-group';
 import { EmptyState } from '@/components/empty-state';
 import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
@@ -12,6 +14,8 @@ import { getGroupsPaginated, exportGroupsCsv, formatCurrency, type IGroupWithMem
 
 export default function GroupsPage() {
   const toast = useToast();
+  const router = useRouter();
+  const { setGroupId } = useCurrentGroup();
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [meta, setMeta] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [page, setPage] = useState(1);
@@ -91,14 +95,21 @@ export default function GroupsPage() {
       ) : (
         <>
           {/* One card of rows, like the home's lists. No "16/28 full": membership has no cap (the
-              limit is per game, shown on the group). Deleting lives in each group's ⋯ menu. */}
+              limit is per game). Tapping a group switches to it on Home; its settings (and
+              deleting it) are in the group switch. */}
           <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
             {groups.map((group) => {
               const memberCount = group.memberships?.length || 0;
               const where = [group.location, group.schedule].filter(Boolean).join(', ');
               return (
                 <li key={group.id}>
-                  <Link href={`/groups/${group.id}`} className="flex items-center gap-3 px-4 min-h-[76px] py-3 hover:bg-chalk transition-colors">
+                  <button
+                    onClick={() => {
+                      setGroupId(group.id);
+                      router.push('/dashboard');
+                    }}
+                    className="w-full flex items-center gap-3 px-4 min-h-[76px] py-3 text-left hover:bg-chalk transition-colors"
+                  >
                     <JerseyBadge label={group.name.charAt(0).toUpperCase()} name={group.name} className="w-11 h-11 shrink-0" />
                     <span className="flex-1 min-w-0">
                       <span className="block text-[15px] font-bold text-ink leading-snug truncate">{group.name}</span>
@@ -114,7 +125,7 @@ export default function GroupsPage() {
                     <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
                       <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                     </svg>
-                  </Link>
+                  </button>
                 </li>
               );
             })}

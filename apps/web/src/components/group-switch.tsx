@@ -6,26 +6,33 @@ import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { kitFor } from '@/components/illustrations';
 import { stagger } from '@/components/motion';
+import { GroupSettingsSheet } from '@/components/group/group-settings';
+import { ICON_PATHS, icon } from '@/components/icons';
 import { formatCurrency, type IGroupWithMembers } from '@/lib/api';
 
 /**
  * Which group you're looking at, at the top of the screen: its name in a pill, and a tap to switch
- * to another, see all groups or start a new one. With one group it still opens, so New group is
- * always one tap away.
+ * to another, change this group's settings, see all groups or start a new one. With one group it
+ * still opens, so settings and New group are always one tap away.
  */
 export function GroupSwitch({
   groups,
   currentId,
   onPick,
-  canCreate = true,
+  canManage = true,
+  onGroupsChanged,
 }: {
   groups: IGroupWithMembers[];
   currentId: string | null;
   onPick: (id: string) => void;
-  canCreate?: boolean;
+  /** Organisers can change settings and start groups; a treasurer only switches. */
+  canManage?: boolean;
+  /** A group was changed or deleted from its settings: reload the list. */
+  onGroupsChanged?: () => void;
 }) {
   const titleId = useId();
   const [open, setOpen] = useState(false);
+  const [settings, setSettings] = useState(false);
   const current = groups.find((g) => g.id === currentId) ?? null;
   if (!groups.length) return null;
 
@@ -86,17 +93,35 @@ export function GroupSwitch({
               );
             })}
           </ul>
+          {canManage && current && onGroupsChanged && (
+            <button
+              onClick={() => {
+                setOpen(false);
+                setSettings(true);
+              }}
+              className="press mt-3 w-full flex items-center gap-3 min-h-12 px-3.5 rounded-2xl bg-chalk text-left hover:bg-gray-100"
+            >
+              <span className="w-8 h-8 shrink-0 rounded-lg bg-white text-ink flex items-center justify-center">{icon(ICON_PATHS.pencil)}</span>
+              <span className="flex-1 min-w-0 truncate text-[15px] font-semibold text-ink">Settings for {current.name}</span>
+              <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </button>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-2">
             <Link href="/groups" onClick={() => setOpen(false)} className="press flex items-center justify-center h-11 rounded-xl border border-gray-200 text-sm font-bold text-ink hover:border-ink">
               All groups
             </Link>
-            {canCreate && (
+            {canManage && (
               <Link href="/groups/new" onClick={() => setOpen(false)} className="press flex items-center justify-center h-11 rounded-xl bg-ink text-volt-300 text-sm font-bold hover:bg-pitch-900">
                 New group
               </Link>
             )}
           </div>
         </Sheet>
+      )}
+      {settings && current && onGroupsChanged && (
+        <GroupSettingsSheet group={current} onClose={() => setSettings(false)} onSaved={onGroupsChanged} onDeleted={onGroupsChanged} />
       )}
     </>
   );

@@ -81,7 +81,8 @@ export default function MoneyPage() {
             <GroupSwitch
               groups={groups}
               currentId={group.id}
-              canCreate={canManage}
+              canManage={canManage}
+              onGroupsChanged={() => getGroups().then(setGroups).catch(() => {})}
               onPick={(id) => {
                 setGroupId(id);
                 setAsked(null);

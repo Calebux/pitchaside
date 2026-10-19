@@ -7,6 +7,7 @@ import { FormHero, FormShell, formCardClass } from '@/components/form-hero';
 import { KitLine } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { createGroup } from '@/lib/api';
+import { useCurrentGroup } from '@/lib/current-group';
 import { PaymentType, type ContributionsVisibility } from '@pitchaside/shared';
 import { frequencyOptions } from '@/lib/billing';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
@@ -35,6 +36,7 @@ function validate(form: FormData): Errors | null {
 
 export default function NewGroupPage() {
   const router = useRouter();
+  const { setGroupId } = useCurrentGroup();
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -63,7 +65,9 @@ export default function NewGroupPage() {
         requireRsvp: form.get('requireRsvp') === 'on',
         contributionsVisibility: form.get('contributionsVisibility') as ContributionsVisibility,
       });
-      router.push(`/groups/${group.id}`);
+      // Home shows what's next for a new group: its bank account, then its first game.
+      setGroupId(group.id);
+      router.push('/dashboard');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create group');
       setSubmitting(false);

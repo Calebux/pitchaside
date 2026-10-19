@@ -362,7 +362,13 @@ export default function Dashboard() {
       {/* Whose money and game this is: the group switch, shared with the rest of the app */}
       {groups.length > 0 && (
         <div className="mb-3">
-          <GroupSwitch groups={groups} currentId={groupId} onPick={setPicked} canCreate={canManage} />
+          <GroupSwitch
+            groups={groups}
+            currentId={groupId}
+            onPick={setPicked}
+            canManage={canManage}
+            onGroupsChanged={() => getGroups().then(setGroups).catch(() => {})}
+          />
         </div>
       )}
 

@@ -131,11 +131,14 @@ export function GroupEditSheet({
   saving,
   onSave,
   onClose,
+  onDelete,
 }: {
   initial: GroupEditData;
   saving: boolean;
   onSave: (data: GroupEditData) => void;
   onClose: () => void;
+  /** Delete the group (the caller asks first). Left out, there's no delete. */
+  onDelete?: () => void;
 }) {
   const titleId = useId();
   const [d, setD] = useState<GroupEditData>({ ...initial, feePerPlayer: Math.round(Number(initial.feePerPlayer)) });
@@ -290,6 +293,15 @@ export function GroupEditSheet({
         {/* How games and money show to players */}
         <RsvpToggle checked={d.requireRsvp} onChange={(v) => set({ requireRsvp: v })} />
         <ContributionsVisibilityPicker value={d.contributionsVisibility} onChange={(v) => set({ contributionsVisibility: v })} />
+
+        {onDelete && (
+          <div className="pt-4 border-t border-gray-100">
+            <button onClick={onDelete} className="press -mx-2 w-[calc(100%+1rem)] flex items-center min-h-12 px-2 rounded-xl text-[15px] font-semibold text-kit-600 hover:bg-kit-500/10">
+              Delete group
+            </button>
+            <p className="text-xs leading-snug text-gray-500">Removes the group, its games and their payment records. Its players stay in All players.</p>
+          </div>
+        )}
       </div>
     </Sheet>
   );
