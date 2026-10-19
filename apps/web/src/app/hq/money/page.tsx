@@ -15,6 +15,7 @@ const statusMeta: Record<TransferStatus, { label: string; tone: 'good' | 'bad' |
   assigned: { label: 'Assigned by hand', tone: 'good' },
   unmatched: { label: 'Unmatched', tone: 'bad' },
   ignored: { label: 'Ignored', tone: 'muted' },
+  other: { label: 'Not a player', tone: 'muted' },
 };
 
 const statuses = Object.keys(statusMeta) as TransferStatus[];

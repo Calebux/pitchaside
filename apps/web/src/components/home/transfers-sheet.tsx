@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import Link from 'next/link';
+import { MONEY_IN } from '@/lib/money-categories';
 import { formatCurrency, type BankTransfer } from '@/lib/api';
 import { senderFrom } from '@/lib/name-match';
 import { Sheet } from '@/components/sheet';
@@ -22,6 +23,7 @@ const STATUS: Record<BankTransfer['status'], { label: string; cls: string }> = {
   assigned: { label: 'Paid', cls: 'bg-pitch-50 text-pitch-700' },
   unmatched: { label: 'No name', cls: 'bg-sun-400/20 text-ink' },
   ignored: { label: 'Set aside', cls: 'bg-gray-100 text-gray-600' },
+  other: { label: 'Not a player', cls: 'text-gray-600' },
 };
 
 const when = (iso: string) =>
@@ -113,6 +115,8 @@ export function TransfersSheet({
                         ? 'No player yet'
                         : t.status === 'ignored'
                           ? 'Marked as not for the group'
+                          : t.status === 'other'
+                            ? `Not a player · ${t.category ? MONEY_IN[t.category].label : 'Other'}${t.note ? `, “${t.note}”` : ''}`
                           : p
                             ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · paid ahead')
                             : '—'}

@@ -159,7 +159,7 @@ export interface HqPlayer {
   owed: number;
 }
 
-export type TransferStatus = 'matched' | 'assigned' | 'unmatched' | 'ignored';
+export type TransferStatus = 'matched' | 'assigned' | 'unmatched' | 'ignored' | 'other';
 
 export interface HqTransfer {
   id: string;

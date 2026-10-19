@@ -15,6 +15,8 @@ import { MatchPlayerSheet } from '@/components/group/match-sheet';
 import type { MatchMember } from '@/lib/give-outcome';
 import { accountHint, from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
 import { btnPrimary } from '@/components/buttons';
+import { NotPlayerSheet } from '@/components/money/not-player-sheet';
+import { MONEY_IN } from '@/lib/money-categories';
 import {
   giveTransfer,
   getGroupOwed,
@@ -23,6 +25,8 @@ import {
   getGroupTransfers,
   getWebhookStatus,
   ignoreTransfer,
+  markNotPlayer,
+  markPlayerMoney,
   restoreTransfer,
   provisionGroupAccount,
   recordManualTransfer,
@@ -414,6 +418,7 @@ const transferStatus: Record<BankTransfer['status'], { label: string; text: stri
   assigned: { label: 'Paid', text: 'text-pitch-600', avatar: 'bg-volt-300 text-ink' },
   unmatched: { label: 'No name', text: 'text-amber-700', avatar: 'bg-sun-400/30 text-amber-800' },
   ignored: { label: 'Set aside', text: 'text-gray-400', avatar: 'bg-gray-100 text-gray-400' },
+  other: { label: 'Not a player', text: 'text-gray-600', avatar: 'bg-chalk text-gray-700' },
 };
 
 /** What a player's payment went on: "Sat 17 Oct", "October 2026 dues", or kept for their next game. */
@@ -519,7 +524,7 @@ function TransferRow({
       <span className="text-right shrink-0">
         <span
           className={`block font-display text-[15px] font-extrabold tabular-nums ${
-            t.status === 'ignored' ? 'text-gray-400 line-through' : t.status === 'unmatched' ? 'text-amber-700' : 'text-pitch-600'
+            t.status === 'ignored' ? 'text-gray-400 line-through' : t.status === 'unmatched' ? 'text-amber-700' : t.status === 'other' ? 'text-ink' : 'text-pitch-600'
           }`}
         >
           +{formatCurrency(Number(t.amount))}
@@ -553,7 +558,13 @@ function TransferDetails({ t }: { t: BankTransfer }) {
           {t.payment.session?.label ? ` · ${t.payment.session.label}` : ''}
         </p>
       )}
-      {who && !t.payment && t.status !== 'unmatched' && (
+      {t.status === 'other' && (
+        <p>
+          Not a player payment{t.category ? <>: <span className="font-bold text-ink">{MONEY_IN[t.category].label}</span></> : ''}
+          {t.note ? <> · “{t.note}”</> : ''}
+        </p>
+      )}
+      {who && !t.payment && t.status !== 'unmatched' && t.status !== 'other' && (
         <p>
           From <span className="font-bold text-ink">{who}</span>. Paid ahead for their next game
         </p>
@@ -631,7 +642,12 @@ function TransferRecordSheet({
                 <TransferRow t={t} onClick={() => onMatch(t.id)} statusLabel="No name yet →" />
               ) : (
                 <>
-                  <TransferRow t={t} onClick={() => setOpenId(openId === t.id ? null : t.id)} expanded={openId === t.id} />
+                  <TransferRow
+                    t={t}
+                    onClick={() => setOpenId(openId === t.id ? null : t.id)}
+                    expanded={openId === t.id}
+                    statusLabel={t.status === 'other' && t.category ? MONEY_IN[t.category].label : undefined}
+                  />
                   {openId === t.id && (
                     <div className="px-4 pb-4 -mt-1 space-y-1.5 text-xs text-gray-600">
                       <TransferDetails t={t} />
@@ -724,6 +740,9 @@ export function TransfersPanel({
   const membersRef = useRef(0);
   membersRef.current = members.length;
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
+  const [classifying, setClassifying] = useState<BankTransfer | null>(null);
+  const [search, setSearch] = useState('');
+  const [show, setShow] = useState<'all' | 'players' | 'other'>('all');
 
   async function run(id: string, fn: () => Promise<unknown>, ok: string) {
     setWorkingId(id);
@@ -785,8 +804,21 @@ export function TransfersPanel({
 
   const unnamed = transfers.filter((t) => t.status === 'unmatched');
   const placed = transfers.filter((t) => t.status === 'matched' || t.status === 'assigned');
+  const notPlayers = transfers.filter((t) => t.status === 'other');
   const setAside = transfers.filter((t) => t.status === 'ignored');
   const received = placed.reduce((sum, t) => sum + Number(t.amount), 0);
+  const otherIn = notPlayers.reduce((sum, t) => sum + Number(t.amount), 0);
+  // Money in: players' payments and money that isn't, narrowed by the chips and the search.
+  const q = search.trim().toLowerCase();
+  const listed = transfers.filter((t) => {
+    if (show !== 'other' && (t.status === 'matched' || t.status === 'assigned')) {
+      if (!q) return true;
+    } else if (show !== 'players' && t.status === 'other') {
+      if (!q) return true;
+    } else return false;
+    const words = [transferName(t), payerName(t), t.senderName, t.narration, t.note, t.category && MONEY_IN[t.category].label, paidFor(t), String(Number(t.amount))];
+    return words.some((w) => w && w.toLowerCase().includes(q.replace(/[₦,]/g, '')));
+  });
 
   return (
     <div className="space-y-3">
@@ -804,10 +836,36 @@ export function TransfersPanel({
           }}
         />
       )}
+      {classifying && (
+        <NotPlayerSheet
+          transfer={classifying}
+          playerName={payerName(classifying)}
+          busy={workingId === classifying.id}
+          onClose={() => setClassifying(null)}
+          onSetAside={
+            classifying.status === 'unmatched'
+              ? () => {
+                  const t = classifying;
+                  setClassifying(null);
+                  setIgnoring(t);
+                }
+              : undefined
+          }
+          onConfirm={(category, note) => {
+            const t = classifying;
+            setClassifying(null);
+            run(
+              t.id,
+              () => markNotPlayer(t.id, { category, note: note.trim() || undefined }),
+              t.status === 'other' ? 'Saved' : `Marked as ${MONEY_IN[category].label.toLowerCase()}. It isn’t anyone’s payment now.`,
+            );
+          }}
+        />
+      )}
       <ConfirmDialog
         open={!!ignoring}
         title={`Set this ${ignoring ? formatCurrency(Number(ignoring.amount)) : ''} aside?`}
-        message="It won't count as anyone's payment or in Money in. Use this for money that isn't from a player, like a refund to you. You can put it back from 'Money set aside'."
+        message="For a duplicate or a mistake. It won't count as anyone's payment or in Money in. You can put it back from 'Money set aside'."
         confirmLabel="Set aside"
         variant="danger"
         onConfirm={() => {
@@ -870,7 +928,7 @@ export function TransfersPanel({
                   )}
                   <button
                     disabled={workingId === t.id}
-                    onClick={() => setIgnoring(t)}
+                    onClick={() => setClassifying(t)}
                     className="shrink-0 h-10 px-3 text-[13px] font-bold text-gray-600 hover:text-ink disabled:opacity-40"
                   >
                     Not a player’s
@@ -888,10 +946,46 @@ export function TransfersPanel({
           <h2 id="money-in-title" className="text-base font-bold text-ink">
             Money in
           </h2>
-          <p className="text-xs font-semibold text-gray-500 tabular-nums">
+          <p className="text-xs font-semibold text-gray-500 tabular-nums text-right">
             {formatCurrency(received)} from {placed.length} payment{placed.length === 1 ? '' : 's'}
+            {notPlayers.length > 0 && <span className="block">+ {formatCurrency(otherIn)} not from players</span>}
           </p>
         </div>
+        {placed.length + notPlayers.length > 4 && (
+          <div className="mt-2.5 space-y-2">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search a name, note or amount"
+              aria-label="Search money in"
+              className="w-full min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+            {notPlayers.length > 0 && (
+              <div role="radiogroup" aria-label="Show" className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {(
+                  [
+                    ['all', 'All'],
+                    ['players', `Players (${placed.length})`],
+                    ['other', `Not players (${notPlayers.length})`],
+                  ] as const
+                ).map(([k, label]) => (
+                  <button
+                    key={k}
+                    role="radio"
+                    aria-checked={show === k}
+                    onClick={() => setShow(k)}
+                    className={`press shrink-0 min-h-11 px-3.5 rounded-full text-[13px] font-bold border transition-colors ${
+                      show === k ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-600 hover:text-ink'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {transfers.length === 0 ? (
@@ -900,18 +994,65 @@ export function TransfersPanel({
           title="No payments yet"
           description="When players pay into the group account, they show up here with what they paid for."
         />
-      ) : placed.length === 0 ? (
+      ) : placed.length + notPlayers.length === 0 ? (
         <p className="text-sm text-gray-500 text-center py-4">No one’s payment is in yet.</p>
+      ) : listed.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-500">{q ? `Nothing matches “${search.trim()}”.` : 'Nothing here yet.'}</p>
+          <button
+            onClick={() => {
+              setSearch('');
+              setShow('all');
+            }}
+            className="mt-1 min-h-11 px-3 text-sm font-bold text-pitch-700"
+          >
+            Show everything
+          </button>
+        </div>
       ) : (
-        <TransferDayList days={groupByDay(placed)}>
+        <TransferDayList days={groupByDay(listed)}>
           {(t) => {
             const open = openId === t.id;
+            const other = t.status === 'other';
             return (
               <>
-                <TransferRow t={t} onClick={() => setOpenId(open ? null : t.id)} expanded={open} statusLabel={paidFor(t)} />
+                <TransferRow
+                  t={t}
+                  onClick={() => setOpenId(open ? null : t.id)}
+                  expanded={open}
+                  statusLabel={other ? (t.category ? MONEY_IN[t.category].label : 'Not a player') : paidFor(t)}
+                />
                 {open && (
                   <div className="px-4 pb-4 -mt-1 space-y-1.5 text-xs text-gray-600">
                     <TransferDetails t={t} />
+                    <div className="flex flex-wrap gap-2 pt-1.5">
+                      {other ? (
+                        <>
+                          <button
+                            onClick={() => setClassifying(t)}
+                            disabled={workingId === t.id}
+                            className="min-h-11 px-3.5 rounded-xl border border-gray-200 text-[13px] font-bold text-ink hover:border-ink disabled:opacity-50"
+                          >
+                            Change what it was
+                          </button>
+                          <button
+                            onClick={() => run(t.id, () => markPlayerMoney(t.id), 'Moved to the payments with no name. Choose the player there.')}
+                            disabled={workingId === t.id}
+                            className="min-h-11 px-3.5 rounded-xl border border-gray-200 text-[13px] font-bold text-ink hover:border-ink disabled:opacity-50"
+                          >
+                            It was a player’s
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => setClassifying(t)}
+                          disabled={workingId === t.id}
+                          className="min-h-11 px-3.5 rounded-xl border border-gray-200 text-[13px] font-bold text-ink hover:border-ink disabled:opacity-50"
+                        >
+                          Not a player payment
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </>
