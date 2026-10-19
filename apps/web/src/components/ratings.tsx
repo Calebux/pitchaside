@@ -28,6 +28,13 @@ export const categoryMeta: Record<VoteCategory, { short: string; tone: string; c
   defending: { short: 'DEF', tone: 'bg-ink text-volt-300', chip: 'bg-ink', attr: 'DEF' },
   keeper: { short: 'GK', tone: 'bg-pitch-600 text-white', chip: 'bg-pitch-600', attr: 'GK' },
   teammate: { short: 'TEAM', tone: 'bg-pitch-600 text-white', chip: 'bg-pitch-600' },
+  vii: { short: 'VII', tone: 'bg-ink text-sun-400', chip: 'bg-ink' },
+  vii_sub: { short: 'SUB', tone: 'bg-ink text-sun-400', chip: 'bg-ink' },
+  dribbling: { short: 'TEC', tone: 'bg-sky-300 text-ink', chip: 'bg-sky-300' },
+  smartest: { short: 'IQ', tone: 'bg-pitch-500 text-white', chip: 'bg-pitch-500' },
+  engine: { short: 'ENG', tone: 'bg-kit-400 text-ink', chip: 'bg-kit-400' },
+  playmaker: { short: 'PLAY', tone: 'bg-volt-300 text-ink', chip: 'bg-volt-300' },
+  movement: { short: 'MOV', tone: 'bg-sun-400 text-ink', chip: 'bg-sun-400' },
 };
 
 /** A result's heading: "Best on Orange" for the per-team pick, else the category's own title. */
@@ -72,7 +79,24 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
                 {resultTitle(c)}
               </span>
             </div>
-            {winner ? (
+            {c.key === 'vii' && c.standings.length > 0 ? (
+              // Best VII of the Day: the six starters, then the sub.
+              <ol className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {c.standings.map((s, i) => (
+                  <li key={s.playerId} className="flex items-center gap-2 min-w-0">
+                    <Avatar name={`${s.player.firstName} ${s.player.lastName}`} className="w-7 h-7 text-[10px]" />
+                    <span className="min-w-0 truncate text-[13px] font-bold">
+                      {s.player.nickname || s.player.firstName}
+                      {i === c.standings.length - 1 && c.standings.length === 7 && <span className="font-semibold text-gray-500"> · sub</span>}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            ) : c.inconclusive ? (
+              <p className="text-sm mt-3 text-gray-500">
+                Not enough votes to call it{c.voters ? ` (${c.voters} voted)` : ''}
+              </p>
+            ) : winner ? (
               <div className="flex items-center gap-3 mt-3">
                 <Avatar name={winnerName} className="w-10 h-10 text-sm" />
                 <div className="min-w-0 flex-1">
@@ -198,7 +222,7 @@ export function SessionVotingCard({
   if (!voting) return null;
 
   const share = () => {
-    const text = `⚽ ${groupName} — who was Player of the Match? Vote in 30 seconds: ${voting.link}`;
+    const text = `⚽ ${groupName} — vote for Player of the Match and your Best VII (about a minute): ${voting.link}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
   };
   const copy = () =>

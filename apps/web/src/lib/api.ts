@@ -771,7 +771,21 @@ export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
 
 // ── Post-match voting, ratings & league table ──
 
-export type VoteCategory = 'potm' | 'pace' | 'shooting' | 'passing' | 'defending' | 'keeper' | 'teammate';
+export type VoteCategory =
+  | 'potm'
+  | 'pace'
+  | 'shooting'
+  | 'passing'
+  | 'defending'
+  | 'keeper'
+  | 'teammate'
+  | 'vii'
+  | 'vii_sub'
+  | 'dribbling'
+  | 'smartest'
+  | 'engine'
+  | 'playmaker'
+  | 'movement';
 export type Attribute = 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK';
 
 export interface SquadMember {
@@ -792,6 +806,10 @@ export interface VoteResults {
     /** For "Best on your team": whose team this result is for. */
     team?: TeamKey | null;
     standings: { playerId: string; count: number; player: SquadMember }[];
+    /** Awards: how many different voters nominated anyone. */
+    voters?: number;
+    /** Awards: too few voters to name a winner. */
+    inconclusive?: boolean;
   }[];
 }
 
@@ -811,6 +829,11 @@ export interface Ballot {
   notYet: boolean;
   closesAt: string | null;
   categories: { key: VoteCategory; title: string }[];
+  /** Best VII of the Day: six starters and a sub, some from other teams. Null when too few played. */
+  vii: { starters: number; subs: number; minOtherTeams: number } | null;
+  /** The awards a voter can nominate for, each optional, up to maxAwards. */
+  awards: { key: VoteCategory; title: string; hint: string }[];
+  maxAwards: number;
   /** Who played, each with their side (null when teams weren't set). */
   squad: (SquadMember & { team: TeamKey | null })[];
   teamCount: number;

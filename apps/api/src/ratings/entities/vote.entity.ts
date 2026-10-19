@@ -23,13 +23,28 @@ export enum VoteCategory {
   DEFENDING = 'defending',
   /** Best goalkeeper → GK */
   KEEPER = 'keeper',
-  /** Best on the voter's own team (optional, picked from their teammates). */
+  /** Best on the voter's own team (picked from their teammates). */
   TEAMMATE = 'teammate',
+  /** Best VII of the Day: one of the six starters (a voter picks six). */
+  VII = 'vii',
+  /** Best VII of the Day: the substitute (one per voter). */
+  VII_SUB = 'vii_sub',
+  /** Close control, take-ons, keeping the ball → TEC */
+  DRIBBLING = 'dribbling',
+  /** Decisions, positioning, reading the game → IQ */
+  SMARTEST = 'smartest',
+  /** Work rate, recovery runs, pressing → PHY, MOV */
+  ENGINE = 'engine',
+  /** Making chances for teammates → PAS, IQ */
+  PLAYMAKER = 'playmaker',
+  /** Finding space, timing runs → MOV, IQ */
+  MOVEMENT = 'movement',
 }
 
 /** One player's pick for one category in one game. */
 @Entity('votes')
-@Unique(['sessionId', 'voterId', 'category'])
+// One pick per category, except Best VII's six starters: so one row per voter, category and nominee.
+@Unique(['sessionId', 'voterId', 'category', 'nomineeId'])
 export class Vote {
   @PrimaryGeneratedColumn('uuid')
   id: string;
