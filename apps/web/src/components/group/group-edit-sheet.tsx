@@ -23,23 +23,23 @@ export interface GroupEditData {
   contributionsVisibility: ContributionsVisibility;
 }
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 // Kick-off times on the half hour, early morning to late evening.
-const TIMES = Array.from({ length: 37 }, (_, i) => {
+export const TIMES = Array.from({ length: 37 }, (_, i) => {
   const mins = 5 * 60 + i * 30;
   return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 });
 
-const label = 'block text-xs font-bold text-gray-700 mb-1.5';
-const field =
+export const label = 'block text-xs font-bold text-gray-700 mb-1.5';
+export const field =
   'w-full min-h-12 px-3.5 bg-white border border-gray-200 rounded-xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
-const chip = (on: boolean) =>
+export const chip = (on: boolean) =>
   `h-10 px-3 rounded-full border text-[13px] font-bold whitespace-nowrap transition-colors ${
     on ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
   }`;
 
 /** A native select with the field's padding and a chevron set in from the edge like the app's other icons. */
-function Select({ id, value, onChange, children }: { id: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) {
+export function Select({ id, value, onChange, children }: { id: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
     <div className="relative">
       <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={`${field} appearance-none pr-11 cursor-pointer`}>
@@ -56,7 +56,7 @@ function Select({ id, value, onChange, children }: { id: string; value: string; 
  * A number you nudge or type: − and + sit inside the one field, so it reads as a single control.
  * `prefix` shows a unit (₦) before the number; `format` shows it grouped while not being edited.
  */
-function Stepper({
+export function Stepper({
   id,
   value,
   onChange,
@@ -115,7 +115,7 @@ function Stepper({
 }
 
 /** "Every Saturday" → "Saturday"; anything else is a custom schedule. */
-function dayOf(schedule: string) {
+export function dayOf(schedule: string) {
   const m = /^every\s+(\w+)$/i.exec(schedule.trim());
   const d = m && DAYS.find((x) => x.toLowerCase() === m[1].toLowerCase());
   return d ?? (schedule.trim() ? 'other' : '');

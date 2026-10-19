@@ -36,13 +36,10 @@ import { GameHero } from '@/components/game/game-hero';
 import { GameActions } from '@/components/game/game-actions';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
-import { gameTally } from '@/lib/game-player';
+import { coveredByDues as coversByDues, gameTally } from '@/lib/game-player';
 
 type Tab = 'players' | 'teams' | 'stars';
 const TABS: Tab[] = ['players', 'teams', 'stars'];
-
-/** Groups whose period dues cover their games. */
-const PERIODIC = ['weekly', 'monthly', 'quarterly', 'annually'];
 
 /** Today as YYYY-MM-DD in the browser's time zone. */
 function localToday() {
@@ -189,7 +186,7 @@ export default function GamePage() {
   const payments = session.payments || [];
   // Monthly-type groups: a game costs nothing extra; a player has paid for it when their dues
   // for that period are paid, and that's where they're collected.
-  const coveredByDues = session.kind !== 'dues' && PERIODIC.includes(session.group?.paymentType ?? '');
+  const coveredByDues = coversByDues(session);
   const isGame = session.kind !== 'dues';
   const days = daysFromToday(session.date);
   const ended = session.status === SessionStatus.COMPLETED;

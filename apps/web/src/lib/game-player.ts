@@ -1,6 +1,13 @@
 import { PaymentStatus, type IPayment } from '@pitchaside/shared';
 import { formatCurrency } from './api';
 
+/** Groups whose weekly, monthly (…) dues cover their games: a game costs nothing extra. */
+const PERIODIC = ['weekly', 'monthly', 'quarterly', 'annually'];
+
+export function coveredByDues(game: { kind?: string; group?: { paymentType?: string } | null }, paymentType = game.group?.paymentType) {
+  return game.kind !== 'dues' && PERIODIC.includes(paymentType ?? '');
+}
+
 /**
  * Where one player stands for one game, in the words every screen uses. Attendance comes first
  * (a player who didn't come owes nothing), then money: paid by transfer, marked paid by hand,
