@@ -10,8 +10,9 @@ import { stagger } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
 import { playerState, type PlayerStateKey } from '@/lib/game-player';
 
+
 type Filter = 'to_pay' | 'paid' | 'no_show' | 'all';
-type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid';
+type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid' | 'out';
 
 const name = (p: IPayment) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
 const tone: Record<PlayerStateKey, string> = {
@@ -23,10 +24,32 @@ const tone: Record<PlayerStateKey, string> = {
   no_show: 'text-gray-500',
 };
 
-/** What can be done for a player, by where they stand, each said in plain words. */
-function actionsFor(p: IPayment, key: PlayerStateKey): { action: Action; title: string; detail: string; danger?: boolean }[] {
+/**
+ * What can be done for a player, by where they stand and whether the game has been played, each
+ * said in plain words. Before the game: paid ahead, free, or off the game. After: who didn't come.
+ */
+function actionsFor(p: IPayment, key: PlayerStateKey, before: boolean): { action: Action; title: string; detail: string }[] {
   const amount = formatCurrency(Number(p.amount));
-  const kept = p.source === 'transfer' ? ' What they paid by transfer is kept for their next game.' : '';
+  const byTransfer = p.source === 'transfer';
+  const kept = byTransfer ? ' What they paid by transfer is kept for their next game.' : '';
+  // Taking someone off keeps money paid by transfer as credit; cash marked paid has to be undone first.
+  const takeOff = { action: 'out' as const, title: 'Take off this game', detail: `Frees their place. Nothing to pay.${kept}` };
+  if (before) {
+    switch (key) {
+      case 'to_pay':
+        return [
+          { action: 'paid', title: 'Mark paid', detail: 'They paid ahead in cash, or by a transfer with no name on it.' },
+          { action: 'free', title: 'Let them play free', detail: 'They won’t be charged for this game.' },
+          takeOff,
+        ];
+      case 'paid':
+        return [{ action: 'unpaid', title: 'Undo payment', detail: `Back to ${amount} not paid yet.${kept}` }, ...(byTransfer ? [takeOff] : [])];
+      case 'free':
+        return [{ action: 'unpaid', title: 'Charge them after all', detail: `Back to ${amount} not paid yet.` }, takeOff];
+      default:
+        return [takeOff];
+    }
+  }
   switch (key) {
     case 'to_pay':
       return [
@@ -54,24 +77,27 @@ function actionsFor(p: IPayment, key: PlayerStateKey): { action: Action; title: 
 
 /**
  * Everyone in a game, with where they stand. Unpaid first while anyone owes. Each row has its one
- * likely action (Mark paid) and the rest behind ⋯, each explained before it's done. "Select" marks
+ * likely action (Mark paid) on it; tapping the row opens the rest, each explained first. "Select" marks
  * several paid at once, after a confirm that names them.
  */
 export function PlayerList({
   payments,
   coveredByDues,
+  before,
   busyId,
   onAction,
   onBulkPaid,
 }: {
   payments: IPayment[];
   coveredByDues: boolean;
+  /** The game hasn't been played yet: everyone listed has said they're in. */
+  before: boolean;
   busyId: string | null;
   onAction: (p: IPayment, action: Action) => void;
   onBulkPaid: (ids: string[]) => Promise<void>;
 }) {
   const sheetTitle = useId();
-  const rows = payments.map((p) => ({ p, s: playerState(p, coveredByDues) }));
+  const rows = payments.map((p) => ({ p, s: playerState(p, coveredByDues, before) }));
   const count = (k: Filter) =>
     k === 'all' ? rows.length : rows.filter(({ s }) => (k === 'paid' ? s.key === 'paid' || s.key === 'dues_paid' : s.key === k)).length;
   const [filter, setFilter] = useState<Filter | null>(null);
@@ -94,7 +120,7 @@ export function PlayerList({
 
   const filters = (
     [
-      { key: 'to_pay', label: 'To pay' },
+      { key: 'to_pay', label: before ? 'Not paid' : 'To pay' },
       { key: 'paid', label: 'Paid' },
       { key: 'no_show', label: 'Didn’t come' },
       { key: 'all', label: 'All' },
@@ -114,7 +140,7 @@ export function PlayerList({
     <section aria-labelledby="players-title">
       <div className="flex items-center justify-between gap-3">
         <h2 id="players-title" className="text-base font-bold text-ink">
-          Players
+          {before ? 'Who’s in' : 'Who played'}
         </h2>
         {!coveredByDues && count('to_pay') > 1 && (
           <button
@@ -167,7 +193,7 @@ export function PlayerList({
 
       {visible.length === 0 ? (
         <p className="py-8 text-center text-sm text-gray-500">
-          {needle ? `No one called “${search.trim()}”.` : shown === 'to_pay' ? 'Everyone who came has paid.' : 'No one here.'}
+          {needle ? `No one called “${search.trim()}”.` : shown === 'to_pay' ? (before ? 'Everyone who’s in has paid.' : 'Everyone who came has paid.') : 'No one here.'}
         </p>
       ) : (
         <ul className="mt-3 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
@@ -177,54 +203,50 @@ export function PlayerList({
             const canPick = selecting && s.key === 'to_pay';
             return (
               <li key={p.id} className="animate-rise" style={stagger(Math.min(i, 12), 22, 0)}>
-                <div className={`flex items-center gap-3 px-3.5 min-h-16 py-2.5 transition-colors ${picked.has(p.id) ? 'bg-volt-300/35' : ''}`}>
+                <div className={`relative flex items-center gap-3 px-3.5 min-h-16 py-2.5 transition-colors ${picked.has(p.id) ? 'bg-volt-300/35' : ''}`}>
+                  {/* The whole row opens their options (or picks them, when selecting) */}
+                  <button
+                    onClick={() => (selecting ? canPick && togglePick(p.id) : setMenuFor(p))}
+                    disabled={busy || (selecting && !canPick)}
+                    aria-label={selecting ? `Select ${name(p)}` : `Options for ${name(p)}`}
+                    {...(selecting && canPick ? { role: 'checkbox', 'aria-checked': picked.has(p.id) } : {})}
+                    className="absolute inset-0 w-full hover:bg-chalk/70 active:bg-chalk transition-colors disabled:cursor-default disabled:hover:bg-transparent"
+                  />
                   {canPick && (
-                    <button
-                      role="checkbox"
-                      aria-checked={picked.has(p.id)}
-                      aria-label={`Select ${name(p)}`}
-                      onClick={() => togglePick(p.id)}
-                      className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${picked.has(p.id) ? 'bg-ink text-volt-300' : 'border-2 border-gray-300'}`}
+                    <span
+                      aria-hidden
+                      className={`relative pointer-events-none w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${picked.has(p.id) ? 'bg-ink text-volt-300' : 'border-2 border-gray-300'}`}
                     >
                       {picked.has(p.id) && (
                         <svg className="w-3.5 h-3.5 animate-pop-in" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor" aria-hidden>
                           <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                         </svg>
                       )}
-                    </button>
+                    </span>
                   )}
                   <span
-                    className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display ${s.key === 'no_show' ? 'grayscale opacity-50' : ''}`}
+                    className={`relative pointer-events-none w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display ${s.key === 'no_show' ? 'grayscale opacity-50' : ''}`}
                     aria-hidden
                   >
                     {name(p).charAt(0)}
                   </span>
-                  <span className="flex-1 min-w-0">
-                    <span className={`block text-[15px] font-bold leading-snug ${s.key === 'no_show' ? 'text-gray-500' : 'text-ink'}`}>{name(p)}</span>
-                    <span className={`block text-[13px] ${tone[s.key]}`}>{s.label}</span>
+                  <span className="relative pointer-events-none flex-1 min-w-0">
+                    <span className={`block text-[15px] font-bold leading-snug truncate ${s.key === 'no_show' ? 'text-gray-500' : 'text-ink'}`}>{name(p)}</span>
+                    <span className={`block text-[13px] truncate ${tone[s.key]}`}>{s.label}</span>
                   </span>
                   {s.key === 'to_pay' && !selecting && (
                     <button
                       onClick={() => onAction(p, 'paid')}
                       disabled={busy}
-                      className="press shrink-0 h-9 px-3.5 rounded-xl bg-ink text-volt-300 text-[13px] font-bold hover:bg-pitch-900 disabled:opacity-50"
+                      className="press relative shrink-0 h-9 px-3.5 rounded-xl bg-ink text-volt-300 text-[13px] font-bold hover:bg-pitch-900 disabled:opacity-50"
                     >
                       {busy ? '…' : 'Mark paid'}
                     </button>
                   )}
                   {!selecting && (
-                    <button
-                      onClick={() => setMenuFor(p)}
-                      disabled={busy}
-                      aria-label={`More for ${name(p)}`}
-                      className="press shrink-0 w-10 h-10 -mr-1.5 rounded-full flex items-center justify-center text-gray-500 hover:bg-chalk hover:text-ink disabled:opacity-50"
-                    >
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
-                        <circle cx="5" cy="12" r="1.8" />
-                        <circle cx="12" cy="12" r="1.8" />
-                        <circle cx="19" cy="12" r="1.8" />
-                      </svg>
-                    </button>
+                    <svg className="relative pointer-events-none w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                    </svg>
                   )}
                 </div>
               </li>
@@ -259,12 +281,12 @@ export function PlayerList({
       />
 
       {menuFor && (() => {
-        const s = playerState(menuFor, coveredByDues);
+        const s = playerState(menuFor, coveredByDues, before);
         return (
           <Sheet titleId={sheetTitle} onClose={() => setMenuFor(null)} align="left">
             <SheetTitle id={sheetTitle} title={name(menuFor)} sub={s.label} onClose={() => setMenuFor(null)} />
             <ul className="mt-4 -mx-2">
-              {actionsFor(menuFor, s.key).map((a, i) => (
+              {actionsFor(menuFor, s.key, before).map((a, i) => (
                 <li key={a.action} className="animate-rise" style={stagger(i, 50, 40)}>
                   <button
                     onClick={() => {

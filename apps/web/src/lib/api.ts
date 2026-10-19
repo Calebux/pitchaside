@@ -366,14 +366,19 @@ export function validate2FALogin(userId: string, code: string): Promise<any> {
   return http.post('/auth/2fa/validate', { userId, code });
 }
 
+/** The Games screens' lists: coming up (soonest first), played with money still to collect, played. */
+export type GameList = 'ahead' | 'collect' | 'past';
+
 export function getSessionsPaginated(
   page = 1,
   limit = 10,
   groupId?: string,
-): Promise<PaginatedResponse<ISessionWithDetails>> {
+  when?: GameList,
+): Promise<PaginatedResponse<ISessionWithDetails> & { meta: { counts?: Record<GameList, number> } }> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (groupId) params.set('groupId', groupId);
-  return http.get<PaginatedResponse<ISessionWithDetails>>(`/sessions?${params}`);
+  if (when) params.set('when', when);
+  return http.get(`/sessions?${params}`);
 }
 
 // ── Group accounts, share links & transfers (PulseMFB) ──

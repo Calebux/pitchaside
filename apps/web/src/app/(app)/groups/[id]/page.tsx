@@ -18,8 +18,7 @@ import { InviteSheet } from '@/components/home/invite-sheet';
 import { InviteIcon, ICON_PATHS, icon } from '@/components/home/quick-actions';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { Sheet } from '@/components/sheet';
-import { btnSecondary } from '@/components/buttons';
-import { GamesList } from '@/components/group/games-list';
+import { GamesBrowser } from '@/components/group/games-list';
 import { MemberSheet, type MemberDue } from '@/components/group/member-sheet';
 import { GroupEditSheet, type GroupEditData } from '@/components/group/group-edit-sheet';
 import { useAuth } from '@/lib/auth';
@@ -60,9 +59,6 @@ export default function GroupDetailPage() {
   const [group, setGroup] = useState<IGroupWithMembers | null>(null);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   // The API sends the newest games first, 20 at a time (100 at most per call); "Show older games" asks for more.
-  const [gameLimit, setGameLimit] = useState(20);
-  const [gameTotal, setGameTotal] = useState(0);
-  const [loadingGames, setLoadingGames] = useState(false);
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
@@ -131,7 +127,6 @@ export default function GroupDetailPage() {
       .then(([g, s, p]) => {
         setGroup(g);
         setSessions(s.data);
-        setGameTotal(s.meta.total);
         setAllPlayers(p);
       })
       .catch(() => {
@@ -160,24 +155,8 @@ export default function GroupDetailPage() {
   }, [wantEdit, group]);
 
   async function refreshPayments() {
-    const [s] = await Promise.all([getSessionsPaginated(1, gameLimit, id), money.reload()]);
+    const [s] = await Promise.all([getSessionsPaginated(1, 20, id), money.reload()]);
     setSessions(s.data);
-    setGameTotal(s.meta.total);
-  }
-
-  async function showOlderGames() {
-    const limit = Math.min(100, gameLimit + 20);
-    setLoadingGames(true);
-    try {
-      const s = await getSessionsPaginated(1, limit, id);
-      setSessions(s.data);
-      setGameTotal(s.meta.total);
-      setGameLimit(limit);
-    } catch {
-      toast.error('Older games didn’t load. Try again.');
-    } finally {
-      setLoadingGames(false);
-    }
   }
 
   /** Switch section; if the tabs have been scrolled under the top, bring the new section's start into view. */
@@ -896,43 +875,14 @@ export default function GroupDetailPage() {
         </section>
       )}
 
-      {/* Games Tab */}
+      {/* Games Tab: the same list as the Games page, for this group */}
       {tab === 'games' && (
-        <div>
-          <button onClick={() => setShowCreateSession(true)} className={`${btnSecondary} w-full mb-4`}>
-            <PlusIcon />
-            Schedule a game
-          </button>
-          {sessions.length === 0 ? (
-            <EmptyState
-              icon="calendar"
-              title="No games yet"
-              description={
-                group.requireRsvp
-                  ? 'Schedule one and players say they’re in from the game link, then pay once they’ve played.'
-                  : 'Schedule one and everyone in the group is on it, and pays once they’ve played.'
-              }
-            />
-          ) : (
-            <>
-              <GamesList sessions={sessions} targetPlayers={group.targetPlayers} kickoff={group.kickoffTime} />
-              {gameTotal > sessions.length &&
-                (gameLimit < 100 ? (
-                  <button onClick={showOlderGames} disabled={loadingGames} className={`${btnSecondary} w-full mt-4`}>
-                    {loadingGames ? 'Loading…' : `Show older games (${gameTotal - sessions.length} more)`}
-                  </button>
-                ) : (
-                  <p className="mt-4 text-center text-sm text-gray-600">
-                    Older games are on the{' '}
-                    <Link href="/sessions" className="font-bold text-pitch-600 hover:underline">
-                      Games page
-                    </Link>
-                    .
-                  </p>
-                ))}
-            </>
-          )}
-        </div>
+        <GamesBrowser
+          groups={[{ id: group.id, name: group.name, targetPlayers: group.targetPlayers, kickoffTime: group.kickoffTime, location: group.location }]}
+          groupId={group.id}
+          canSchedule
+          onNew={() => setShowCreateSession(true)}
+        />
       )}
       </div>
       {showCreateSession && <NewSessionSheet groups={[group]} onClose={() => setShowCreateSession(false)} />}
