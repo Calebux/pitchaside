@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import Link from 'next/link';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { btnPrimary } from '@/components/buttons';
+import { btnPrimary, btnSecondary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { formatCurrency, updatePlayer } from '@/lib/api';
@@ -24,6 +24,7 @@ export function MemberSheet({
   due,
   onSaved,
   onRemove,
+  onSendDetails,
   onClose,
 }: {
   player: IPlayer;
@@ -34,6 +35,8 @@ export function MemberSheet({
   due: MemberDue;
   onSaved: (p: Pick<IPlayer, 'id' | 'firstName' | 'lastName' | 'nickname'>) => void;
   onRemove: () => void;
+  /** WhatsApp them the account and their code; only when the group has an account. */
+  onSendDetails?: () => void;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -123,7 +126,11 @@ export function MemberSheet({
           </div>
         )}
       </dl>
-
+      {onSendDetails && (
+        <button onClick={onSendDetails} className={`${btnSecondary} mt-3 w-full`}>
+          Send payment details on WhatsApp
+        </button>
+      )}
 
       <h3 className="mt-5 text-[11px] font-bold uppercase tracking-[0.1em] text-gray-600">Name on the app</h3>
       <div className="mt-2 grid grid-cols-2 gap-2">

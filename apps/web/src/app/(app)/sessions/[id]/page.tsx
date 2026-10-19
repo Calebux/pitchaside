@@ -11,6 +11,7 @@ import {
   getGroup,
   getGroupOwed,
   getGroupTransfers,
+  getGroupBilling,
   assignTransfer,
   markPaid,
   markUnpaid,
@@ -24,6 +25,8 @@ import {
   sendReminders,
   setRsvpForPlayer,
   type BankTransfer,
+  type GroupBilling,
+  type IGroupWithMembers,
   type OwedItem,
   type ISessionWithDetails,
 } from '@/lib/api';
@@ -38,7 +41,10 @@ import { GameMenu } from '@/components/game/game-actions';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
 import { coveredByDues as coversByDues, gamePhase, gameTally } from '@/lib/game-player';
-import { btnPrimary } from '@/components/buttons';
+import { btnPrimary, btnSecondary } from '@/components/buttons';
+import { AddToGameSheet } from '@/components/game/add-to-game-sheet';
+import { gameInviteMessage, openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
+import { prettyTime } from '@/components/player-ui';
 
 type Tab = 'players' | 'teams' | 'stars';
 const TABS: Tab[] = ['players', 'teams', 'stars'];
@@ -53,6 +59,10 @@ function localToday() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/** "Sat 24 Oct", or "October 2026 dues". */
+const gameLabel = (s: ISessionWithDetails) =>
+  s.kind === 'dues' && s.label ? `${s.label} dues` : gameDay(s.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
 
 const nameOfPayment = (p?: IPayment) => (p?.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
 
@@ -73,6 +83,10 @@ export default function GamePage() {
   const [owed, setOwed] = useState<OwedItem[]>([]);
   const [kept, setKept] = useState<Record<string, number>>({});
   const [howPaid, setHowPaid] = useState<string | null>(null);
+  // The group's members (payment codes, phones) and its link and account, for WhatsApp.
+  const [members, setMembers] = useState<NonNullable<IGroupWithMembers['memberships']>>([]);
+  const [billing, setBilling] = useState<GroupBilling | null>(null);
+  const [adding, setAdding] = useState(false);
 
   const fetchSession = useCallback(() => {
     return getSession(id)
@@ -92,8 +106,12 @@ export default function GamePage() {
       // Treasurers without access, or offline: Mark paid just marks paid.
       .catch(() => setUnnamed([]));
     getGroupOwed(groupId).then(setOwed).catch(() => setOwed([]));
+    getGroupBilling(groupId).then(setBilling).catch(() => setBilling(null));
     getGroup(groupId)
-      .then((g) => setKept(Object.fromEntries((g.memberships ?? []).map((m) => [m.player.id, Number(m.credit ?? 0)]))))
+      .then((g) => {
+        setMembers(g.memberships ?? []);
+        setKept(Object.fromEntries((g.memberships ?? []).map((m) => [m.player.id, Number(m.credit ?? 0)])));
+      })
       .catch(() => setKept({}));
   }, [groupId]);
   useEffect(loadUnnamed, [loadUnnamed]);
@@ -144,7 +162,7 @@ export default function GamePage() {
       const result = await sendReminders(id);
       toast.success(
         result.missed
-          ? `Reminder sent to ${result.sent}. ${result.missed} haven’t turned on notifications yet.`
+          ? `Reminder sent to ${result.sent}. ${result.missed} haven’t turned on notifications: tap their name to send their payment details on WhatsApp.`
           : `Reminder sent to ${result.sent} player${result.sent === 1 ? '' : 's'}`,
       );
     } catch {
@@ -156,6 +174,22 @@ export default function GamePage() {
 
   function onPlayerAction(p: IPayment, action: PlayerAction) {
     const first = nameOfPayment(p).split(' ')[0];
+    if (action === 'details') {
+      if (!billing?.account || !session) return;
+      const member = members.find((m) => m.player.id === p.playerId);
+      openWhatsApp(
+        paymentDetailsMessage({
+          firstName: first,
+          groupName: session.group?.name ?? 'Your group',
+          account: billing.account,
+          code: member?.paymentRef,
+          amount: Number(p.amount),
+          forWhat: gameLabel(session),
+        }),
+        p.player?.phone ?? member?.player.phone,
+      );
+      return;
+    }
     if (action === 'paid') {
       // With money waiting for a name, ask whether it was one of those; otherwise just mark paid.
       if (unnamed.length) setHowPaid(p.id);
@@ -219,10 +253,26 @@ export default function GamePage() {
   const cancelled = phase === 'cancelled';
   const played = !before && !cancelled;
   const tally = gameTally(payments, coveredByDues, before);
-  const gameLabel =
-    session.kind === 'dues' && session.label
-      ? `${session.label} dues`
-      : gameDay(session.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+  // Members not on this game yet, for "Add players".
+  const onGame = new Set(payments.map((p) => p.playerId));
+  const notOnGame = members
+    .filter((m) => !onGame.has(m.player.id))
+    .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}` }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const shareGame = () => {
+    if (!billing) return;
+    const kickoff = session.kickoffTime || session.group?.kickoffTime;
+    openWhatsApp(
+      gameInviteMessage({
+        groupName: session.group?.name ?? 'Game',
+        when: `${gameLabel(session)}${kickoff ? ` · ${prettyTime(kickoff)}` : ''}`,
+        where: session.group?.location,
+        inCount: tally.playing,
+        places: Number(session.group?.targetPlayers ?? 0) || undefined,
+        link: billing.link,
+      }),
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -255,7 +305,7 @@ export default function GamePage() {
             paymentId={p.id}
             owed={owed}
             due={Number(p.amount)}
-            game={gameLabel}
+            game={gameLabel(session)}
             transfers={unnamed}
             busy={busyId === p.id}
             onUseTransfer={(t, outcome) => payWithTransfer(p.id, t, outcome)}
@@ -267,6 +317,23 @@ export default function GamePage() {
           />
         );
       })()}
+
+      {adding && (
+        <AddToGameSheet
+          members={notOnGame}
+          onClose={() => setAdding(false)}
+          onAdd={async (m) => {
+            try {
+              await setRsvpForPlayer(id, m.playerId, 'in');
+              await fetchSession();
+              toast.success(`${m.name.split(' ')[0]} is in`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'That didn’t save. Try again.');
+              throw err;
+            }
+          }}
+        />
+      )}
 
       {ending && (
         <EndGameSheet
@@ -292,6 +359,13 @@ export default function GamePage() {
       {isGame && phase === 'today' && tab !== 'teams' && (
         <button onClick={() => chooseTab('teams')} className={`${btnPrimary} w-full mt-4 animate-rise`}>
           Pick today’s teams
+        </button>
+      )}
+      {/* Before kick-off the job is getting players in: share it where they talk */}
+      {isGame && before && billing && (
+        <button onClick={shareGame} className={`${btnSecondary} w-full mt-3 animate-rise`}>
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.03c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.16 0 .39-.06.61.47.24.56.79 1.92.86 2.06.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.89 1.04.93 1.92 1.22 2.19 1.36.27.14.43.11.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34Z"/></svg>
+          Share on WhatsApp
         </button>
       )}
 
@@ -349,9 +423,11 @@ export default function GamePage() {
             title={played ? 'No one played' : 'No one’s in yet'}
             description={
               session.group?.requireRsvp
-                ? 'Players say they’re in from the game link. Each player who’s in pays once they’ve played.'
+                ? 'Share the game on WhatsApp so players can say they’re in, or add the ones who told you.'
                 : 'Everyone in the group is added when the game is made. Add players to the group first.'
             }
+            actionLabel={before && notOnGame.length ? 'Add players' : undefined}
+            onAction={before && notOnGame.length ? () => setAdding(true) : undefined}
           />
         ) : (
           <>
@@ -363,10 +439,22 @@ export default function GamePage() {
                 </Link>
               </p>
             )}
+            {before && notOnGame.length > 0 && (
+              <button
+                onClick={() => setAdding(true)}
+                className="press mb-3 w-full flex items-center justify-center gap-1.5 h-11 rounded-2xl border-2 border-dashed border-gray-300 text-[14px] font-bold text-ink hover:border-ink"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Add players who told you they’re in
+              </button>
+            )}
             <PlayerList
               payments={payments}
               coveredByDues={coveredByDues}
               before={before}
+              canSendDetails={!!billing?.account}
               busyId={busyId}
               onAction={onPlayerAction}
               onBulkPaid={async (ids) => {

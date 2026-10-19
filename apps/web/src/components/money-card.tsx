@@ -21,6 +21,7 @@ import {
   type RsvpBoard,
   type SessionVoting,
 } from '@/lib/api';
+import { openWhatsApp } from '@/lib/whatsapp';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
 import { CountUp, CountUpNaira, LiveDot, stagger } from '@/components/motion';
 import { Collapse, CollapseButton, useRemembered } from '@/components/collapse';
@@ -1056,9 +1057,6 @@ const BellIcon = () => (
 
 // ── Account details sheet ──
 
-function openWhatsApp(text: string) {
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-}
 
 /**
  * The account number, share buttons, group link and QR — what used to fill the top of the

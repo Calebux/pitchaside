@@ -34,6 +34,7 @@ import {
   type ISessionWithDetails,
   type WebhookStatus,
 } from '@/lib/api';
+import { openWhatsApp } from '@/lib/whatsapp';
 import { useAuth } from '@/lib/auth';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
 
@@ -44,9 +45,6 @@ function copy(text: string, toast: ReturnType<typeof useToast>, label: string) {
   );
 }
 
-function openWhatsApp(text: string) {
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
-}
 
 const WhatsAppIcon = () => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>

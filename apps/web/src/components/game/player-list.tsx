@@ -12,7 +12,7 @@ import { playerState, type PlayerStateKey } from '@/lib/game-player';
 
 
 type Filter = 'to_pay' | 'paid' | 'no_show' | 'all';
-type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid' | 'out';
+type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid' | 'out' | 'details';
 
 const name = (p: IPayment) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
 const tone: Record<PlayerStateKey, string> = {
@@ -84,6 +84,7 @@ export function PlayerList({
   payments,
   coveredByDues,
   before,
+  canSendDetails = false,
   busyId,
   onAction,
   onBulkPaid,
@@ -92,6 +93,8 @@ export function PlayerList({
   coveredByDues: boolean;
   /** The game hasn't been played yet: everyone listed has said they're in. */
   before: boolean;
+  /** The group has an account, so players can be sent its details on WhatsApp. */
+  canSendDetails?: boolean;
   busyId: string | null;
   onAction: (p: IPayment, action: Action) => void;
   onBulkPaid: (ids: string[]) => Promise<void>;
@@ -286,7 +289,13 @@ export function PlayerList({
           <Sheet titleId={sheetTitle} onClose={() => setMenuFor(null)} align="left">
             <SheetTitle id={sheetTitle} title={name(menuFor)} sub={s.label} onClose={() => setMenuFor(null)} />
             <ul className="mt-4 -mx-2">
-              {actionsFor(menuFor, s.key, before).map((a, i) => (
+              {[
+                ...actionsFor(menuFor, s.key, before),
+                // Reaches players the app can't: no notifications, or added by hand and never signed in.
+                ...(canSendDetails && s.key === 'to_pay'
+                  ? [{ action: 'details' as const, title: 'Send payment details', detail: 'On WhatsApp: the account, the amount and their payment code.' }]
+                  : []),
+              ].map((a, i) => (
                 <li key={a.action} className="animate-rise" style={stagger(i, 50, 40)}>
                   <button
                     onClick={() => {
