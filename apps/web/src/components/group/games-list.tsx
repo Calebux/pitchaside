@@ -1,5 +1,6 @@
 'use client';
 
+import { leftToPay } from '@/lib/game-player';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { formatCurrency, getSessionsPaginated, type GameList, type ISessionWithDetails } from '@/lib/api';
@@ -23,7 +24,7 @@ function GameCard({ s, group, showGroup, index }: { s: ISessionWithDetails; grou
   const { payments, paid, owing } = gameMoney(s);
   const noShows = (s.payments ?? []).filter((p) => p.attendance === 'no_show').length;
   const collected = Number(s.collectedAmount);
-  const owed = owing.reduce((sum, p) => sum + Number(p.amount), 0);
+  const owed = owing.reduce((sum, p) => sum + leftToPay(p), 0);
   // Money is measured against what the players who are in owe, never the empty places.
   const due = collected + owed;
   const pct = due > 0 ? Math.min(100, Math.round((collected / due) * 100)) : 0;

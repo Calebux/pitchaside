@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { markPartPaid } from '../payments/part-paid';
 import { Session, SessionKind, SessionStatus, kickoffFor } from './entities/session.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
@@ -199,8 +200,12 @@ export class SessionsService {
     };
   }
 
-  /** Sets payment.gamePaid on each game's squad: paid for the game, or for its dues period. */
+  /**
+   * Sets payment.gamePaid on each game's squad (paid for the game, or for its dues period), and
+   * payment.paidSoFar on any due a player has part paid.
+   */
   private async markGamePaid(sessions: Session[]) {
+    await markPartPaid(this.sessionsRepo.manager, sessions);
     const games = sessions.filter((s) => s.kind !== SessionKind.DUES && s.group);
     if (!games.length) return sessions;
     const paid = await paidForGames(this.sessionsRepo.manager, games);
@@ -307,16 +312,25 @@ export class SessionsService {
     const unpaid = (session.payments || []).filter((p) => p.status === PaymentStatus.PENDING);
     if (!unpaid.length) return { sent: 0, missed: 0 };
     const what = session.label ? `${session.label} dues` : `the ${shortDate(session.date)} game`;
-    const { delivered, missed } = await this.notifications.notifyPlayers(
-      unpaid.map((p) => p.playerId),
-      {
+    // Each player is asked for what's left: someone who's part paid gets the rest, not the full fee.
+    const byLeft = new Map<number, string[]>();
+    for (const p of unpaid) {
+      const left = Number(p.amount) - (p.paidSoFar ?? 0);
+      byLeft.set(left, [...(byLeft.get(left) ?? []), p.playerId]);
+    }
+    let sent = 0;
+    let missedTotal = 0;
+    for (const [left, playerIds] of byLeft) {
+      const { delivered, missed } = await this.notifications.notifyPlayers(playerIds, {
         kind: 'payment_reminder',
-        title: `Quick one — ${naira(unpaid[0].amount)} for ${session.group?.name ?? 'your group'}`,
+        title: `Quick one — ${naira(left)} for ${session.group?.name ?? 'your group'}`,
         body: `Still open for ${what}. Tap for the account details and your payment code.`,
         url: '/me/pay',
-      },
-    );
-    return { sent: delivered, missed };
+      });
+      sent += delivered;
+      missedTotal += missed;
+    }
+    return { sent, missed: missedTotal };
   }
 
   async totalCollectedByOrganization(organizationId: string): Promise<number> {

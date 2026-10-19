@@ -12,7 +12,7 @@ import { useToast } from '@/components/toast';
 import { formatCurrency, updatePlayer } from '@/lib/api';
 import type { IPlayer, PlayerLevel } from '@pitchaside/shared';
 
-export type MemberDue = { label: string; state: 'paid' | 'owes' | 'waived' | 'out'; amount: number } | null;
+export type MemberDue = { label: string; state: 'paid' | 'owes' | 'waived' | 'out'; amount: number; paidSoFar?: number } | null;
 
 /** Where a player stands in the group they were opened from. */
 export type Membership = {
@@ -99,12 +99,22 @@ export function PlayerSheet({
   const input =
     'w-full h-11 px-3.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
   const due = membership?.due;
-  const credit = membership?.credit ?? 0;
+  // Kept money already counted as part of the due below isn't also "paid ahead".
+  const credit = (membership?.credit ?? 0) - (due?.paidSoFar ?? 0);
   const facts = [
     membership && { k: 'Joined', v: new Date(membership.joinedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) },
     due && {
       k: due.label,
-      v: due.state === 'paid' ? 'Paid' : due.state === 'waived' ? 'Free' : due.state === 'owes' ? `${formatCurrency(due.amount)} to pay` : 'Not in',
+      v:
+        due.state === 'paid'
+          ? 'Paid'
+          : due.state === 'waived'
+            ? 'Free'
+            : due.state === 'owes'
+              ? due.paidSoFar
+                ? `${formatCurrency(due.paidSoFar)} paid · ${formatCurrency(due.amount)} left`
+                : `${formatCurrency(due.amount)} to pay`
+              : 'Not in',
       tone: due.state === 'owes' ? 'text-amber-700' : due.state === 'paid' ? 'text-pitch-600' : 'text-gray-600',
     },
     credit > 0 && {

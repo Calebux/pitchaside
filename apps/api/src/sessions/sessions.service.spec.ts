@@ -70,6 +70,9 @@ describe('SessionsService', () => {
       save: jest.fn((entity) => Promise.resolve({ ...entity, id: entity.id || 'session-new' })),
       createQueryBuilder: jest.fn().mockReturnValue({ ...mockQueryBuilder }),
     };
+    // Part payments: no one has kept money in these tests.
+    const none: any = { where: () => none, andWhere: () => none, getMany: async () => [] };
+    (sessionsRepo as any).manager = { getRepository: () => ({ createQueryBuilder: () => none }) };
     groupsRepo = { findOne: jest.fn() };
     membershipsRepo = { find: jest.fn() };
     paymentsRepo = {

@@ -10,13 +10,18 @@ export function paidByTransfer(p: Payment) {
 /**
  * Dues paid from transfers that no longer stand (game deleted or cancelled, due waived): their
  * amounts go back to each member's credit in `groupId`, where they pay the member's next due.
- * Dues marked paid by hand are left alone — that money never reached the group's account.
+ * Dues marked paid by hand give back only what came from transfers (`fromCredit`): the rest never
+ * reached the group's account.
  * Returns the members credited.
  */
 export async function refundToCredit(manager: EntityManager, groupId: string, payments: Payment[]): Promise<string[]> {
   const byPlayer = new Map<string, number>();
-  for (const p of payments.filter(paidByTransfer)) {
-    byPlayer.set(p.playerId, (byPlayer.get(p.playerId) ?? 0) + Number(p.amount));
+  for (const p of payments) {
+    // By transfer: all of it. Marked paid by hand: only the part that came from their transfers.
+    const back = paidByTransfer(p) ? Number(p.amount) : p.status === PaymentStatus.PAID ? Number(p.fromCredit ?? 0) : 0;
+    if (back > 0) byPlayer.set(p.playerId, (byPlayer.get(p.playerId) ?? 0) + back);
+    // Given back: the caller saves the payment with nothing left from transfers on it.
+    if (!paidByTransfer(p) && back > 0) p.fromCredit = '0';
   }
   if (!byPlayer.size) return [];
 

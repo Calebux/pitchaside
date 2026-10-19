@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { kitFor } from '@/components/illustrations';
 import { stagger } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
-import { playerState, type PlayerStateKey } from '@/lib/game-player';
+import { leftToPay, playerState, type PlayerStateKey } from '@/lib/game-player';
 
 
 type Filter = 'to_pay' | 'paid' | 'no_show' | 'all';
@@ -34,11 +34,15 @@ function actionsFor(p: IPayment, key: PlayerStateKey, before: boolean): { action
   const kept = byTransfer ? ' What they paid by transfer becomes paid ahead for their next game.' : '';
   // Taking someone off keeps money paid by transfer as credit; cash marked paid has to be undone first.
   const takeOff = { action: 'out' as const, title: 'Take off this game', detail: `Frees their place. Nothing to pay.${kept}` };
+  // Part paid by transfer: Mark paid means the rest came another way.
+  const markPaidRest = p.paidSoFar
+    ? `${formatCurrency(p.paidSoFar)} came by transfer; they paid the other ${formatCurrency(leftToPay(p))} in cash or by a transfer with no name.`
+    : null;
   if (before) {
     switch (key) {
       case 'to_pay':
         return [
-          { action: 'paid', title: 'Mark paid', detail: 'They paid ahead in cash, or by a transfer with no name on it.' },
+          { action: 'paid', title: 'Mark paid', detail: markPaidRest ?? 'They paid ahead in cash, or by a transfer with no name on it.' },
           { action: 'free', title: 'Let them play free', detail: 'They won’t be charged for this game.' },
           takeOff,
         ];
@@ -53,7 +57,7 @@ function actionsFor(p: IPayment, key: PlayerStateKey, before: boolean): { action
   switch (key) {
     case 'to_pay':
       return [
-        { action: 'paid', title: 'Mark paid', detail: 'They paid in cash, or by a transfer with no name on it.' },
+        { action: 'paid', title: 'Mark paid', detail: markPaidRest ?? 'They paid in cash, or by a transfer with no name on it.' },
         { action: 'no_show', title: 'Didn’t come', detail: 'Said they were in and didn’t show. Nothing to pay.' },
         { action: 'free', title: 'Played free', detail: 'They came. Don’t charge them for this game.' },
       ];

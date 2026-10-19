@@ -7,7 +7,7 @@ import { btnPrimary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
 import { buzz, stagger } from '@/components/motion';
 import { endGame, formatCurrency, type ISessionWithDetails } from '@/lib/api';
-import { gameTally, playerState } from '@/lib/game-player';
+import { gameTally, playerState, leftToPay } from '@/lib/game-player';
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -36,7 +36,7 @@ export function EndGameSheet({
 
   const came = squad.filter((p) => !away.has(p.id));
   const stillToPay = came.filter((p) => playerState(p, coveredByDues).owes);
-  const owed = stillToPay.reduce((n, p) => n + Number(p.amount), 0);
+  const owed = stillToPay.reduce((n, p) => n + leftToPay(p), 0);
   const name = (p: (typeof squad)[number]) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
 
   function toggle(id: string) {

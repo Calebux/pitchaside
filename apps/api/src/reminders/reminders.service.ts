@@ -1,3 +1,4 @@
+import { partPaidAmounts } from '../payments/part-paid';
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -162,11 +163,13 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const g = game.group;
       const pending = (game.payments ?? []).filter((p) => p.status === PaymentStatus.PENDING);
       const refs = await this.refs(g.id, pending.map((p) => p.playerId));
+      // Part paid: ask for what's left.
+      const paidSoFar = await partPaidAmounts(this.paymentsRepo.manager, pending.map((p) => ({ ...p, groupId: g.id })));
       for (const p of pending) {
         if (!(await this.claim(`owe:${p.id}`))) continue;
         await this.notifications.notifyPlayers([p.playerId], {
           kind: 'payment_reminder',
-          title: `${naira(p.amount)} for last night 🙏`,
+          title: `${naira(Number(p.amount) - (paidSoFar.get(p.id) ?? 0))} for last night 🙏`,
           body: `${g.name} — tap for the account details. Your payment code is ${refs.get(p.playerId) ?? ''}.`,
           url: '/me/pay',
         });
@@ -204,6 +207,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       .andWhere('s.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
       .getMany();
 
+    const paidSoFar = await partPaidAmounts(this.paymentsRepo.manager, pending.map((p) => ({ ...p, groupId: p.session.groupId })));
     for (const p of pending) {
       const start = new Date(`${p.session.date.slice(0, 10)}T00:00:00Z`).getTime();
       const age = Math.floor((new Date(`${today}T00:00:00Z`).getTime() - start) / 86_400_000);
@@ -214,7 +218,7 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const g = p.session.group;
       await this.notifications.notifyPlayers([p.playerId], {
         kind: 'dues_reminder',
-        title: `${p.session.label ?? 'Dues'}: ${naira(p.amount)} outstanding`,
+        title: `${p.session.label ?? 'Dues'}: ${naira(Number(p.amount) - (paidSoFar.get(p.id) ?? 0))} outstanding`,
         body: g.accountNumber
           ? `${g.name} — pay ${g.bankName} ${g.accountNumber}, ref ${ref ?? ''}.`
           : `${g.name} — tap to see how to pay.`,

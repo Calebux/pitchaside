@@ -33,6 +33,17 @@ describe('refundToCredit', () => {
     expect(memberships.p3.credit).toBe('50.00');
   });
 
+  it('gives back only the transfer part of a part-paid due that was marked paid by hand', async () => {
+    const { memberships, manager: m } = manager({ p1: 0 });
+    const handPaid = { ...due('p1', PaymentStatus.PAID, 'manual'), amount: 1500, fromCredit: '1000.00' } as unknown as Payment;
+
+    const credited = await refundToCredit(m, 'g1', [handPaid]);
+
+    expect(credited).toEqual(['p1']);
+    expect(memberships.p1.credit).toBe('1000.00');
+    expect(handPaid.fromCredit).toBe('0');
+  });
+
   it("skips a player who is no longer a member", async () => {
     const { manager: m } = manager({});
     await expect(refundToCredit(m, 'g1', [due('gone', PaymentStatus.PAID, 'transfer')])).resolves.toEqual([]);
@@ -81,6 +92,16 @@ describe('releaseTransferDues', () => {
     await service.releaseTransferDues({ groupId: 'g1', payments: [due('p1', PaymentStatus.PAID, 'manual')] }, { reopen: true });
     expect(applyCredits).not.toHaveBeenCalled();
   });
+  it('on cancel, reopens a part-paid due marked paid by hand and gives back the transfer part', async () => {
+    const { service, memberships, paymentsRepo } = setup();
+    const handPaid = { ...due('p1', PaymentStatus.PAID, 'manual'), amount: 1500, fromCredit: '1000.00' } as unknown as Payment;
+
+    await service.releaseTransferDues({ groupId: 'g1', payments: [handPaid] }, { reopen: true });
+
+    expect(memberships.p1.credit).toBe('1000.00');
+    expect(handPaid.status).toBe(PaymentStatus.PENDING);
+    expect(paymentsRepo.save).toHaveBeenCalledWith([handPaid]);
+  });
 });
 
 describe('GroupsService money guards', () => {
@@ -118,4 +139,5 @@ describe('GroupsService money guards', () => {
     await service.remove('g1', 'org1');
     expect(groupsRepo.remove).toHaveBeenCalled();
   });
+
 });
