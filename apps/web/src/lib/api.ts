@@ -801,7 +801,7 @@ export interface PlayerRatings {
 
 export interface LeagueTable {
   games: number;
-  points: { potmVote: number; attrVote: number; potmWin: number };
+  points: { win: number; draw: number; teamOfDay: number; potm: number };
   rows: (PlayerRatings & { player: SquadMember })[];
 }
 

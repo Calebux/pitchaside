@@ -43,8 +43,16 @@ const VOTE_WEIGHT = 8;
 const VOTE_UP_MAX = 20;
 const VOTE_DOWN_MAX = 6;
 
-/** League points: what makes the table move. */
-export const POINTS = { potmVote: 3, attrVote: 1, potmWin: 5 };
+/**
+ * League points: results first, then the day's honours. Every short game on match day counts
+ * (3 for a win, 1 for a draw); finishing top of the day's table (Team of the Day) and winning
+ * Player of the Match each add a bonus. Votes still shape the player card, not the table.
+ */
+export const POINTS = { win: 3, draw: 1, teamOfDay: 2, potm: 3 };
+
+export function tablePoints(r: Pick<PlayerRatings, 'record' | 'teamOfDay' | 'potmWins'>) {
+  return r.record.w * POINTS.win + r.record.d * POINTS.draw + r.teamOfDay * POINTS.teamOfDay + r.potmWins * POINTS.potm;
+}
 
 type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName' | 'nickname'>;
 
@@ -753,8 +761,7 @@ export class RatingsService {
     }
 
     for (const [id, s] of stats) {
-      const attrVotes = s.votes.pace + s.votes.shooting + s.votes.passing + s.votes.defending + s.votes.keeper;
-      s.points = s.votes.potm * POINTS.potmVote + attrVotes * POINTS.attrVote + s.potmWins * POINTS.potmWin;
+      s.points = tablePoints(s);
       Object.assign(s, playerCard(skills.get(id), s.votes, expectedVotes.get(id) ?? 0, s.ballotsSeen));
     }
     return stats;
@@ -839,7 +846,8 @@ export class RatingsService {
     const sessions = await this.gamesQuery(organizationId).andWhere('session.groupId = :groupId', { groupId }).getMany();
     const stats = await this.aggregate(sessions, await this.skills(organizationId));
     const rows = [...stats.values()].sort(
-      (a, b) => b.points - a.points || b.votes.potm - a.votes.potm || b.games - a.games,
+      // Level on points: more Player of the Match wins, then more wins, then more games.
+      (a, b) => b.points - a.points || b.potmWins - a.potmWins || b.record.w - a.record.w || b.games - a.games,
     );
     return { games: sessions.length, points: POINTS, rows };
   }

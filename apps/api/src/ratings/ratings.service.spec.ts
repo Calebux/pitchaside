@@ -26,19 +26,39 @@ function game(over: Record<string, unknown> = {}) {
 }
 
 /** The service with in-memory repos: one game, its votes and its scores. */
-function setup(session: ReturnType<typeof game>, opts: { votes?: { voterId: string; nomineeId: string; category: VoteCategory }[]; scores?: number } = {}) {
+function setup(
+  session: ReturnType<typeof game>,
+  opts: {
+    votes?: { voterId: string; nomineeId: string; category: VoteCategory }[];
+    scores?: number;
+    games?: { teamA: string; teamB: string; scoreA: number; scoreB: number }[];
+  } = {},
+) {
   const votes = (opts.votes ?? []).map((v) => ({ sessionId: session.id, ...v }));
-  const qb = { innerJoinAndSelect: () => qb, leftJoinAndSelect: () => qb, where: () => qb, andWhere: () => qb, getOne: async () => session };
+  const qb = {
+    innerJoin: () => qb,
+    innerJoinAndSelect: () => qb,
+    leftJoinAndSelect: () => qb,
+    where: () => qb,
+    andWhere: () => qb,
+    orderBy: () => qb,
+    addOrderBy: () => qb,
+    getOne: async () => session,
+    getMany: async () => [session],
+  };
+  const games = (opts.games ?? []).map((g) => ({ sessionId: session.id, ...g }));
   const saved: unknown[] = [];
   const manager = {
     transaction: async (fn: (m: unknown) => Promise<void>) =>
       fn({ delete: async () => undefined, save: async (_e: unknown, rows: unknown) => saved.push(rows), create: (_e: unknown, r: unknown) => r }),
     save: async (rows: unknown) => saved.push(rows),
+    find: async () => [],
   };
   const sessionsRepo = { findOne: async () => session, findOneOrFail: async () => session, createQueryBuilder: () => qb, update: async () => undefined, manager };
   const votesRepo = { find: async () => votes, count: async () => votes.length, manager };
-  const gamesRepo = { count: async () => opts.scores ?? 0, find: async () => [], save: async (g: unknown) => g, create: (g: unknown) => g };
-  const service = new RatingsService(votesRepo as never, gamesRepo as never, sessionsRepo as never, {} as never);
+  const gamesRepo = { count: async () => opts.scores ?? games.length, find: async () => games, save: async (g: unknown) => g, create: (g: unknown) => g };
+  const groupsRepo = { findOne: async () => session.group };
+  const service = new RatingsService(votesRepo as never, gamesRepo as never, sessionsRepo as never, groupsRepo as never);
   return { service, saved };
 }
 
@@ -99,5 +119,41 @@ describe('match day teams and scores', () => {
   it("doesn't take scores before match day", async () => {
     const { service } = setup(game({ status: SessionStatus.UPCOMING, voteOpensAt: null, date: localDate(2) }));
     await expect(service.addGame('g1', 'org', { teamA: 'A', teamB: 'B', scoreA: 1, scoreB: 0 })).rejects.toThrow('Scores open on match day');
+  });
+});
+
+describe('the table', () => {
+  // Ada (orange) beat Bisi (blue) 2–1, then they drew 1–1; Lanre didn't come.
+  const day = [
+    { teamA: 'A', teamB: 'B', scoreA: 2, scoreB: 1 },
+    { teamA: 'A', teamB: 'B', scoreA: 1, scoreB: 1 },
+  ];
+
+  it('gives 3 for a win, 1 for a draw and 2 for Team of the Day', async () => {
+    const { rows } = await setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) }), { games: day }).service.getGroupTable('grp', 'org');
+    const ada = rows.find((r) => r.player.id === 'ada')!;
+    const bisi = rows.find((r) => r.player.id === 'bisi')!;
+    expect(ada).toMatchObject({ record: { w: 1, d: 1, l: 0 }, teamOfDay: 1, points: 3 + 1 + 2 });
+    expect(bisi).toMatchObject({ record: { w: 0, d: 1, l: 1 }, teamOfDay: 0, points: 1 });
+    expect(rows.map((r) => r.player.id)).toEqual(['ada', 'bisi']);
+  });
+
+  it('adds 3 for Player of the Match once the vote closes; other votes earn no points', async () => {
+    const votes = [
+      { voterId: 'ada', nomineeId: 'bisi', category: VoteCategory.POTM },
+      { voterId: 'bisi', nomineeId: 'ada', category: VoteCategory.PACE },
+      { voterId: 'bisi', nomineeId: 'ada', category: VoteCategory.SHOOTING },
+    ];
+    const closed = await setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) }), { games: day, votes }).service.getGroupTable('grp', 'org');
+    expect(closed.rows.find((r) => r.player.id === 'bisi')).toMatchObject({ potmWins: 1, points: 1 + 3 });
+    expect(closed.rows.find((r) => r.player.id === 'ada')).toMatchObject({ points: 6 });
+
+    const open = await setup(game(), { games: day, votes }).service.getGroupTable('grp', 'org');
+    expect(open.rows.find((r) => r.player.id === 'bisi')).toMatchObject({ potmWins: 0, points: 1 });
+  });
+
+  it("leaves out players who didn't come", async () => {
+    const { rows } = await setup(game(), { games: day }).service.getGroupTable('grp', 'org');
+    expect(rows.some((r) => r.player.id === 'lanre')).toBe(false);
   });
 });
