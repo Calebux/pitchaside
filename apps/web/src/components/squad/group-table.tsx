@@ -27,7 +27,7 @@ export function GroupTable({ groupId }: { groupId: string }) {
         <h2 id="table-title" className="text-base font-bold text-ink">
           Table
         </h2>
-        <p className="text-xs text-gray-500">Points from players&apos; votes after each game</p>
+        <p className="text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
       </div>
       {table ? (
         <LeagueTableView table={table} />

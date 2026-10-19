@@ -778,7 +778,10 @@ export interface Ballot {
   notYet: boolean;
   closesAt: string | null;
   categories: { key: VoteCategory; title: string }[];
-  squad: SquadMember[];
+  /** Who played, each with their side (null when teams weren't set). */
+  squad: (SquadMember & { team: TeamKey | null })[];
+  teamCount: number;
+  captains: Partial<Record<TeamKey, string>>;
   ballots: number;
   squadSize: number;
 }
@@ -801,7 +804,7 @@ export interface PlayerRatings {
 
 export interface LeagueTable {
   games: number;
-  points: { potmVote: number; attrVote: number; potmWin: number };
+  points: { win: number; draw: number; teamOfDay: number; potm: number };
   rows: (PlayerRatings & { player: SquadMember })[];
 }
 

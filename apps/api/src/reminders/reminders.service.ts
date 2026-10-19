@@ -184,8 +184,8 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       const token = await this.ratings.ensureVotingToken(game.id);
       await this.notifications.notifyPlayers(waiting, {
         kind: 'vote_nudge',
-        title: 'Who was the star last night? 🏆',
-        body: `${g.name}: ${voted.size}/${squad.length} have voted. Takes 30 seconds.`,
+        title: 'Who was Player of the Match? 🏆',
+        body: `${g.name}: ${voted.size}/${squad.length} have voted. One pick, 10 seconds.`,
         url: `/v/${token}`,
       });
     }

@@ -36,6 +36,12 @@ export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO
   { key: VoteCategory.KEEPER, title: 'Best goalkeeper', attr: 'GK' },
 ];
 
+/**
+ * What the ballot asks: one question that fits on one screen. The other categories stay for
+ * games voted on before, so their results and the cards built from them still show.
+ */
+const BALLOT = CATEGORIES.filter((c) => c.key === VoteCategory.POTM);
+
 /** Ratings need a few games of votes before they reach the extremes. */
 const RATING_PRIOR = 6;
 /** How far votes move a card attribute away from the player's skill: up to +20, down to −6. */
@@ -43,8 +49,16 @@ const VOTE_WEIGHT = 8;
 const VOTE_UP_MAX = 20;
 const VOTE_DOWN_MAX = 6;
 
-/** League points: what makes the table move. */
-export const POINTS = { potmVote: 3, attrVote: 1, potmWin: 5 };
+/**
+ * League points: results first, then the day's honours. Every short game on match day counts
+ * (3 for a win, 1 for a draw); finishing top of the day's table (Team of the Day) and winning
+ * Player of the Match each add a bonus. Votes still shape the player card, not the table.
+ */
+export const POINTS = { win: 3, draw: 1, teamOfDay: 2, potm: 3 };
+
+export function tablePoints(r: Pick<PlayerRatings, 'record' | 'teamOfDay' | 'potmWins'>) {
+  return r.record.w * POINTS.win + r.record.d * POINTS.draw + r.teamOfDay * POINTS.teamOfDay + r.potmWins * POINTS.potm;
+}
 
 type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName' | 'nickname'>;
 
@@ -124,6 +138,8 @@ export class RatingsService {
     if (session.voteOpensAt) {
       opensAt = new Date(session.voteOpensAt);
       closesAt = new Date(opensAt.getTime() + VOTE_HOURS * 3_600_000);
+      // Everyone who came has voted: no need to wait out the 48 hours.
+      if (session.voteClosedAt && new Date(session.voteClosedAt) < closesAt) closesAt = new Date(session.voteClosedAt);
     } else if (ended) {
       opensAt = new Date(`${session.date}T00:00:00`);
       closesAt = new Date(opensAt.getTime() + (LEGACY_WINDOW_DAYS + 1) * 86_400_000);
@@ -190,7 +206,9 @@ export class RatingsService {
     const byId = new Map(squad.map((p) => [p.id, p]));
     const ballots = new Set(votes.map((v) => v.voterId)).size;
 
-    const categories = CATEGORIES.map((c) => {
+    // Player of the Match, plus any other category this game was voted on (games before the one-question ballot).
+    const asked = CATEGORIES.filter((c) => c.key === VoteCategory.POTM || votes.some((v) => v.category === c.key));
+    const categories = asked.map((c) => {
       const counts = new Map<string, number>();
       for (const v of votes) {
         if (v.category === c.key) counts.set(v.nomineeId, (counts.get(v.nomineeId) ?? 0) + 1);
@@ -257,8 +275,14 @@ export class RatingsService {
       open: w.open,
       notYet: w.notYet,
       closesAt: w.closesAt,
-      categories: CATEGORIES.map(({ key, title }) => ({ key, title })),
-      squad: this.squad(session),
+      categories: BALLOT.map(({ key, title }) => ({ key, title })),
+      // Each player's side, so the ballot can group them by team (own team first).
+      squad: this.squad(session).map((p) => ({
+        ...p,
+        team: this.teamOf(session, session.payments?.find((x) => x.playerId === p.id)?.team ?? null),
+      })),
+      teamCount: session.teamCount,
+      captains: this.captainsOf(session),
       ballots: r.ballots,
       squadSize: r.squadSize,
     };
@@ -312,6 +336,12 @@ export class RatingsService {
       await m.delete(Vote, { sessionId: session.id, voterId: voter.id });
       await m.save(Vote, rows.map((r) => m.create(Vote, r)));
     });
+    // The last of the players who came has voted: close the vote now, so the result shows.
+    const voters = new Set((await this.votesRepo.find({ where: { sessionId: session.id } })).map((v) => v.voterId));
+    if (this.squad(session).every((p) => voters.has(p.id))) {
+      session.voteClosedAt = new Date();
+      await this.sessionsRepo.update(session.id, { voteClosedAt: session.voteClosedAt });
+    }
     return this.results(session);
   }
 
@@ -708,6 +738,9 @@ export class RatingsService {
       // Votes count towards cards and the table once the vote closes, like the results.
       const sv = this.window(session).open ? [] : (votesBySession.get(session.id) ?? []);
       const voters = new Set(sv.map((v) => v.voterId));
+      // Award votes (pace, shooting…) only move a card where the ballot asked for them; games
+      // voted on with the one-question ballot don't count against anyone's attributes.
+      const askedAwards = sv.some((v) => v.category !== VoteCategory.POTM);
 
       // Player of the match = most POTM votes (ties share it).
       const potmCounts = new Map<string, number>();
@@ -733,7 +766,7 @@ export class RatingsService {
         s.games += 1;
         const othersVoting = voters.size - (voters.has(member.id) ? 1 : 0);
         s.ballotsSeen += othersVoting;
-        expectedVotes.set(member.id, (expectedVotes.get(member.id) ?? 0) + othersVoting / Math.max(1, squad.length - 1));
+        if (askedAwards) expectedVotes.set(member.id, (expectedVotes.get(member.id) ?? 0) + othersVoting / Math.max(1, squad.length - 1));
         for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
         if (top > 0 && potmCounts.get(member.id) === top) s.potmWins += 1;
         const team = session.payments?.find((p) => p.playerId === member.id)?.team;
@@ -753,8 +786,7 @@ export class RatingsService {
     }
 
     for (const [id, s] of stats) {
-      const attrVotes = s.votes.pace + s.votes.shooting + s.votes.passing + s.votes.defending + s.votes.keeper;
-      s.points = s.votes.potm * POINTS.potmVote + attrVotes * POINTS.attrVote + s.potmWins * POINTS.potmWin;
+      s.points = tablePoints(s);
       Object.assign(s, playerCard(skills.get(id), s.votes, expectedVotes.get(id) ?? 0, s.ballotsSeen));
     }
     return stats;
@@ -839,7 +871,8 @@ export class RatingsService {
     const sessions = await this.gamesQuery(organizationId).andWhere('session.groupId = :groupId', { groupId }).getMany();
     const stats = await this.aggregate(sessions, await this.skills(organizationId));
     const rows = [...stats.values()].sort(
-      (a, b) => b.points - a.points || b.votes.potm - a.votes.potm || b.games - a.games,
+      // Level on points: more Player of the Match wins, then more wins, then more games.
+      (a, b) => b.points - a.points || b.potmWins - a.potmWins || b.record.w - a.record.w || b.games - a.games,
     );
     return { games: sessions.length, points: POINTS, rows };
   }

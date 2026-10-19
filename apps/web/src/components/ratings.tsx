@@ -90,14 +90,21 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
   );
 }
 
-/** FPL-style mini league: points from teammates' votes. */
+/** Team of the Day, in the table's small print. */
+const TrophyMark = () => (
+  <svg className="inline w-3 h-3 -mt-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.35A5 5 0 0 1 13 15.9V18h3v3H8v-3h3v-2.1A5 5 0 0 1 7.35 12H7a4 4 0 0 1-4-4V5h3V3Zm0 4H5v1a2 2 0 0 0 1 1.73V7Zm12 0v2.73A2 2 0 0 0 19 8V7h-1Z" />
+  </svg>
+);
+
+/** The group's league: points from results (every short game on match day), Team of the Day and Player of the Match. */
 export function LeagueTableView({ table }: { table: LeagueTable }) {
   if (table.rows.length === 0 || table.rows.every((r) => r.points === 0)) {
     return (
       <EmptyState
         icon="box"
         title="No points yet"
-        description="After each game, players get a link to vote. Every vote earns points here."
+        description="Points come from match day: add the scores of each game, and the vote picks Player of the Match."
       />
     );
   }
@@ -108,7 +115,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
         <span>Player</span>
         <span className="text-center">P</span>
         <span className="hidden sm:block text-center">W-D-L</span>
-        <span className="text-center" title="Player of the Match votes">★<span className="sr-only">Player of the Match votes</span></span>
+        <span className="text-center" title="Player of the Match">★<span className="sr-only">Player of the Match wins</span></span>
         <span className="hidden sm:block text-center">OVR</span>
         <span className="text-right text-volt-300">Pts</span>
       </div>
@@ -130,26 +137,33 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
             </span>
             <span className="flex items-center gap-2.5 min-w-0">
               <Avatar name={name} className="w-8 h-8 text-[11px]" />
-              <span className="text-sm font-bold text-ink truncate">{name}</span>
-              {row.potmWins > 0 && (
-                <span className="hidden sm:inline text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-sun-400 text-ink shrink-0">
-                  ★{row.potmWins}
+              <span className="min-w-0">
+                <span className="block text-sm font-bold text-ink truncate">{name}</span>
+                <span className="flex sm:hidden items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">
+                  {row.record.w}W {row.record.d}D {row.record.l}L
+                  {row.teamOfDay > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-amber-700" aria-label={`Team of the Day ${row.teamOfDay} time${row.teamOfDay === 1 ? '' : 's'}`}>
+                      <span aria-hidden>·</span>
+                      <TrophyMark />
+                      <span aria-hidden>{row.teamOfDay}</span>
+                    </span>
+                  )}
                 </span>
-              )}
+              </span>
             </span>
             <span className="text-center text-sm text-gray-500 tabular-nums">{row.games}</span>
             <span className="hidden sm:block text-center text-xs font-semibold text-gray-500 tabular-nums">
               {row.record.w}-{row.record.d}-{row.record.l}
             </span>
-            <span className="text-center text-sm text-gray-500 tabular-nums">{row.votes.potm}</span>
+            <span className={`text-center text-sm tabular-nums ${row.potmWins > 0 ? 'font-bold text-ink' : 'text-gray-500'}`}>{row.potmWins}</span>
             <span className="hidden sm:block text-center text-sm font-bold text-ink tabular-nums">{row.ovr ?? '–'}</span>
             <span className="text-right font-display text-lg font-extrabold text-ink tabular-nums">{row.points}</span>
           </div>
         );
       })}
       <p className="px-4 py-3 border-t border-gray-100 text-[11px] text-gray-500">
-        {table.points.potmVote} pts per Player of the Match vote · {table.points.attrVote} pt per award vote · +{table.points.potmWin} for
-        being Player of the Match
+        {table.points.win} pts a win · {table.points.draw} a draw · +{table.points.teamOfDay} for Team of the Day (<TrophyMark />) · +{table.points.potm} for
+        Player of the Match (★)
       </p>
     </div>
   );
@@ -194,7 +208,7 @@ export function SessionVotingCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-ink/60">Post-match vote</p>
-            <h2 className="text-xl font-extrabold text-ink leading-tight mt-0.5">Who were the stars?</h2>
+            <h2 className="text-xl font-extrabold text-ink leading-tight mt-0.5">Who was Player of the Match?</h2>
             {context && (
               <Link href={context.href} className="text-xs font-bold text-ink/70 underline decoration-ink/30 underline-offset-2 hover:text-ink">
                 {context.label}
@@ -252,7 +266,7 @@ export function SessionVotingCard({
             <VoteResultsList results={voting} compact />
             <ShareCardButton
               token={voting.token}
-              caption={`⚽ ${groupName} — match day. Who were the stars?`}
+              caption={`⚽ ${groupName} — match day. Who was Player of the Match?`}
               className="mt-3 w-full py-3 text-sm font-bold text-ink bg-white rounded-xl border-2 border-ink hover:bg-volt-300 transition-colors"
             >
               Share the match card
