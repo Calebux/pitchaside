@@ -36,24 +36,57 @@ export interface GoalInput {
   assistId?: string | null;
 }
 
-export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK' }[] = [
-  { key: VoteCategory.POTM, title: 'Player of the Match' },
-  { key: VoteCategory.PACE, title: 'Fastest on the pitch', attr: 'PAC' },
-  { key: VoteCategory.SHOOTING, title: 'Best finisher', attr: 'SHO' },
-  { key: VoteCategory.PASSING, title: 'Best passer', attr: 'PAS' },
-  { key: VoteCategory.DEFENDING, title: 'Rock at the back', attr: 'DEF' },
-  { key: VoteCategory.KEEPER, title: 'Best goalkeeper', attr: 'GK' },
-  { key: VoteCategory.TEAMMATE, title: 'Best on your team' },
-];
+/** What a player's abilities are made of, as votes describe them (GK is its own structure). */
+export type Ability = 'SHO' | 'PAS' | 'TEC' | 'DEF' | 'IQ' | 'PHY' | 'MOV' | 'GK';
 
 /**
- * What the ballot asks: Player of the Match, and (optionally, when teams were set) the best on
- * your own team. The award categories stay for games voted on before, so their results and the
- * cards built from them still show.
+ * Every vote category. `hint` is the one line the ballot shows. `abilities` is what an award is
+ * evidence of; one nomination is one observation, split across them (never counted twice).
+ * `attr` is the older card attribute, kept so games voted on before still build the same cards.
  */
-const BALLOT = CATEGORIES.filter((c) => c.key === VoteCategory.POTM || c.key === VoteCategory.TEAMMATE);
-/** The categories that move a card attribute (PAC, SHO…). */
+export const CATEGORIES: { key: VoteCategory; title: string; hint?: string; abilities?: Ability[]; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK' }[] = [
+  { key: VoteCategory.POTM, title: 'Player of the Match' },
+  { key: VoteCategory.TEAMMATE, title: 'Best on your team' },
+  { key: VoteCategory.VII, title: 'Best VII of the Day' },
+  { key: VoteCategory.SHOOTING, title: 'Best Finisher', hint: 'Clinical: took their chances', abilities: ['SHO'], attr: 'SHO' },
+  { key: VoteCategory.PASSING, title: 'Best Passer', hint: 'Accurate, well-timed, useful passes', abilities: ['PAS'], attr: 'PAS' },
+  { key: VoteCategory.DRIBBLING, title: 'Best Dribbler', hint: 'Close control, beat their player, kept the ball', abilities: ['TEC'] },
+  { key: VoteCategory.DEFENDING, title: 'Best Defender', hint: 'Tackles, marking, interceptions and blocks', abilities: ['DEF'], attr: 'DEF' },
+  { key: VoteCategory.SMARTEST, title: 'Smartest Player', hint: 'Good decisions and positioning, read the game', abilities: ['IQ'] },
+  { key: VoteCategory.ENGINE, title: 'The Engine', hint: 'Never stopped: recovery runs, pressing, work rate', abilities: ['PHY', 'MOV'] },
+  { key: VoteCategory.PLAYMAKER, title: 'Best Playmaker', hint: 'Made chances for teammates', abilities: ['PAS', 'IQ'] },
+  { key: VoteCategory.MOVEMENT, title: 'Best Off-Ball Movement', hint: 'Found space, timed runs, always an option', abilities: ['MOV', 'IQ'] },
+  { key: VoteCategory.KEEPER, title: 'Best Goalkeeper', hint: 'Only if someone kept goal: saves, positioning, distribution', abilities: ['GK'], attr: 'GK' },
+  // No longer asked; earlier votes count towards The Engine.
+  { key: VoteCategory.PACE, title: 'Fastest on the pitch', abilities: ['PHY', 'MOV'], attr: 'PAC' },
+];
+
+/** The awards a voter can nominate for, up to MAX_AWARDS of them, each optional. */
+export const AWARD_KEYS: VoteCategory[] = [
+  VoteCategory.SHOOTING,
+  VoteCategory.PASSING,
+  VoteCategory.DRIBBLING,
+  VoteCategory.DEFENDING,
+  VoteCategory.SMARTEST,
+  VoteCategory.ENGINE,
+  VoteCategory.PLAYMAKER,
+  VoteCategory.MOVEMENT,
+  VoteCategory.KEEPER,
+];
+export const MAX_AWARDS = 3;
+/** Best VII of the Day: six starters and a sub, asked when there are at least 8 others to choose from. */
+export const VII_STARTERS = 6;
+const VII_MIN_OTHERS = 8;
+/** Picks from outside the voter's own team, so a Best VII isn't just your mates. */
+export const VII_MIN_OTHER_TEAMS = 2;
+/** An award needs nominations from this many different voters before it names a winner. */
+export const AWARD_MIN_VOTERS = 3;
+
+/** The older card attributes (PAC, SHO…), from games voted on with the five-award ballot. */
 const AWARDS = new Set(CATEGORIES.filter((c) => c.attr).map((c) => c.key));
+/** Categories only the new ballot asks: a game with any of these was voted on with it. */
+const NEW_BALLOT = new Set<VoteCategory>([VoteCategory.VII, VoteCategory.VII_SUB, VoteCategory.DRIBBLING, VoteCategory.SMARTEST, VoteCategory.ENGINE, VoteCategory.PLAYMAKER, VoteCategory.MOVEMENT]);
+const titleOf = (key: VoteCategory) => CATEGORIES.find((c) => c.key === key)?.title ?? key;
 
 /** Ratings need a few games of votes before they reach the extremes. */
 const RATING_PRIOR = 6;
@@ -93,8 +126,8 @@ export interface PlayerRatings {
   attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null; GK: number | null };
 }
 
-function emptyVotes(): Record<VoteCategory, number> {
-  return { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0, teammate: 0 };
+export function emptyVotes(): Record<VoteCategory, number> {
+  return Object.fromEntries(Object.values(VoteCategory).map((k) => [k, 0])) as Record<VoteCategory, number>;
 }
 
 /**
@@ -219,26 +252,42 @@ export class RatingsService {
     const squad = this.squad(session);
     const byId = new Map(squad.map((p) => [p.id, p]));
     const ballots = new Set(votes.map((v) => v.voterId)).size;
+    const sideOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
 
-    // Player of the Match, plus any other category this game was voted on (games before the one-question ballot).
-    const asked = CATEGORIES.filter((c) => c.key === VoteCategory.POTM || votes.some((v) => v.category === c.key));
+    /** Standings in one category: nominations per player, most first. Best VII counts a sub pick as half. */
     const tally = (category: VoteCategory, team?: string) => {
       const counts = new Map<string, number>();
+      const score = new Map<string, number>();
       for (const v of votes) {
-        if (v.category === category) counts.set(v.nomineeId, (counts.get(v.nomineeId) ?? 0) + 1);
+        const weight = v.category === category ? 1 : category === VoteCategory.VII && v.category === VoteCategory.VII_SUB ? 0.5 : 0;
+        if (!weight) continue;
+        counts.set(v.nomineeId, (counts.get(v.nomineeId) ?? 0) + 1);
+        score.set(v.nomineeId, (score.get(v.nomineeId) ?? 0) + weight);
       }
       return [...counts.entries()]
-        .map(([playerId, count]) => ({ player: byId.get(playerId) ?? null, playerId, count }))
-        .filter((s) => s.player && (!team || this.teamOf(session, session.payments?.find((p) => p.playerId === s.playerId)?.team ?? null) === team))
-        .sort((a, b) => b.count - a.count);
+        .map(([playerId, count]) => ({ player: byId.get(playerId) ?? null, playerId, count, score: score.get(playerId) ?? 0 }))
+        .filter((s) => s.player && (!team || sideOf(s.playerId) === team))
+        .sort((x, y) => y.score - x.score || y.count - x.count)
+        .map(({ score: _score, ...rest }) => rest);
     };
+    const votersIn = (category: VoteCategory) => new Set(votes.filter((v) => v.category === category).map((v) => v.voterId)).size;
+
+    // Player of the Match always; the rest when this game was voted on for them.
+    const asked = CATEGORIES.filter((c) => c.key === VoteCategory.POTM || votes.some((v) => v.category === c.key));
     const categories = asked.flatMap((c) => {
-      if (c.key !== VoteCategory.TEAMMATE) return [{ key: c.key, title: c.title, team: null as string | null, standings: hidden ? [] : tally(c.key) }];
-      // Best on your team is a result per side: "Best on Orange: Ada".
-      return TEAM_KEYS.slice(0, session.teamCount)
-        .map((team) => ({ key: c.key, title: c.title, team: team as string | null, standings: tally(c.key, team) }))
-        .filter((t) => t.standings.length > 0)
-        .map((t) => ({ ...t, standings: hidden ? [] : t.standings }));
+      if (c.key === VoteCategory.TEAMMATE) {
+        // Best on your team is a result per side: "Best on Orange: Ada".
+        return TEAM_KEYS.slice(0, session.teamCount)
+          .map((team) => ({ key: c.key, title: c.title, team: team as string | null, standings: tally(c.key, team), voters: 0, inconclusive: false }))
+          .filter((t) => t.standings.length > 0)
+          .map((t) => ({ ...t, standings: hidden ? [] : t.standings }));
+      }
+      const voters = votersIn(c.key);
+      // An award with nominations from too few voters names nobody: not enough evidence.
+      const inconclusive = AWARD_KEYS.includes(c.key) && voters < AWARD_MIN_VOTERS;
+      const standings = hidden || inconclusive ? [] : tally(c.key);
+      // Best VII of the Day: the seven most picked.
+      return [{ key: c.key, title: c.title, team: null as string | null, standings: c.key === VoteCategory.VII ? standings.slice(0, VII_STARTERS + 1) : standings, voters, inconclusive }];
     });
     return { ballots, squadSize: squad.length, hidden, categories };
   }
@@ -296,7 +345,14 @@ export class RatingsService {
       open: w.open,
       notYet: w.notYet,
       closesAt: w.closesAt,
-      categories: BALLOT.filter((c) => c.key !== VoteCategory.TEAMMATE || this.hasTeams(session)).map(({ key, title }) => ({ key, title })),
+      categories: [VoteCategory.POTM, ...(this.hasTeams(session) ? [VoteCategory.TEAMMATE] : [])].map((key) => ({ key, title: titleOf(key) })),
+      // Best VII of the Day: six starters and a sub, at least two from other teams (null: too few played).
+      vii: this.viiAsked(session) ? { starters: VII_STARTERS, subs: 1, minOtherTeams: VII_MIN_OTHER_TEAMS } : null,
+      awards: AWARD_KEYS.map((key) => {
+        const c = CATEGORIES.find((x) => x.key === key)!;
+        return { key, title: c.title, hint: c.hint ?? '' };
+      }),
+      maxAwards: MAX_AWARDS,
       // Each player's side, so the ballot can group them by team (own team first).
       squad: this.squad(session).map((p) => ({
         ...p,
@@ -307,6 +363,11 @@ export class RatingsService {
       ballots: r.ballots,
       squadSize: r.squadSize,
     };
+  }
+
+  /** Enough played for a Best VII to mean something: seven picks from at least eight others. */
+  private viiAsked(session: Session) {
+    return this.squad(session).length - 1 >= VII_MIN_OTHERS;
   }
 
   /** At least two sides were picked, so "best on your team" means something. */
@@ -334,32 +395,75 @@ export class RatingsService {
     return {
       playerId: voter.id,
       firstName: voter.firstName,
-      picks: Object.fromEntries(existing.map((v) => [v.category, v.nomineeId])),
+      // Best VII's six starters come back as a list; every other category is one pick.
+      picks: {
+        ...Object.fromEntries(existing.filter((v) => v.category !== VoteCategory.VII).map((v) => [v.category, v.nomineeId])),
+        ...(existing.some((v) => v.category === VoteCategory.VII)
+          ? { [VoteCategory.VII]: existing.filter((v) => v.category === VoteCategory.VII).map((v) => v.nomineeId) }
+          : {}),
+      },
     };
   }
 
-  async submitVotes(token: string, playerIds: string[], picks: Record<string, string>) {
+  /**
+   * One ballot: Player of the Match; the best on your own team (when teams were set); Best VII of
+   * the Day, six starters and a sub with at least two from other teams (when enough played); and
+   * up to three awards, each optional. Nobody can pick themselves or anyone who didn't play.
+   */
+  async submitVotes(token: string, playerIds: string[], picks: Record<string, string | string[] | null | undefined>) {
     const session = await this.loadSessionByToken(token);
     const w = this.window(session);
     if (!w.open) throw new BadRequestException(w.notYet ? 'Voting opens when the game ends' : 'Voting has closed for this game');
 
     const voter = this.voterIn(session, playerIds);
     const squadIds = new Set(this.squad(session).map((p) => p.id));
-    const valid = new Set<string>(Object.values(VoteCategory));
+    const teamOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
+    const myTeam = teamOf(voter.id);
+    const check = (nomineeId: unknown) => {
+      if (typeof nomineeId !== 'string' || !squadIds.has(nomineeId)) throw new BadRequestException('You can only vote for players in this game');
+      if (nomineeId === voter.id) throw new BadRequestException("Nice try — you can't vote for yourself");
+      return nomineeId;
+    };
+    const rows: Partial<Vote>[] = [];
+    const add = (category: VoteCategory, nomineeId: string) => rows.push({ sessionId: session.id, voterId: voter.id, category, nomineeId });
 
     if (!picks[VoteCategory.POTM]) throw new BadRequestException('Pick a Player of the Match');
-    const rows: Partial<Vote>[] = [];
-    for (const [category, nomineeId] of Object.entries(picks)) {
-      if (!nomineeId) continue;
-      if (!valid.has(category)) throw new BadRequestException(`Unknown category "${category}"`);
-      if (!squadIds.has(nomineeId)) throw new BadRequestException('You can only vote for players in this game');
-      if (nomineeId === voter.id) throw new BadRequestException("Nice try — you can't vote for yourself");
-      if (category === VoteCategory.TEAMMATE) {
-        const teamOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
-        if (!teamOf(voter.id) || teamOf(nomineeId) !== teamOf(voter.id)) throw new BadRequestException('Pick the best player from your own team');
-      }
-      rows.push({ sessionId: session.id, voterId: voter.id, category: category as VoteCategory, nomineeId });
+    add(VoteCategory.POTM, check(picks[VoteCategory.POTM]));
+
+    // Best on your team: required when you were on a side with teammates.
+    const mates = [...squadIds].filter((id) => id !== voter.id && myTeam && teamOf(id) === myTeam);
+    if (this.hasTeams(session) && mates.length) {
+      const mate = picks[VoteCategory.TEAMMATE];
+      if (!mate) throw new BadRequestException('Pick the best player on your team');
+      if (teamOf(check(mate)) !== myTeam) throw new BadRequestException('Pick the best player from your own team');
+      add(VoteCategory.TEAMMATE, mate as string);
     }
+
+    if (this.viiAsked(session)) {
+      const starters = picks[VoteCategory.VII];
+      const sub = picks[VoteCategory.VII_SUB];
+      if (!Array.isArray(starters) || starters.length !== VII_STARTERS || !sub) {
+        throw new BadRequestException(`Pick your Best VII: ${VII_STARTERS} starters and a sub`);
+      }
+      const seven = [...starters, sub].map(check);
+      if (new Set(seven).size !== seven.length) throw new BadRequestException('Pick seven different players for your Best VII');
+      // At least two from other teams (or all of them, if fewer played).
+      const elsewhere = [...squadIds].filter((id) => id !== voter.id && myTeam && teamOf(id) && teamOf(id) !== myTeam).length;
+      const need = Math.min(VII_MIN_OTHER_TEAMS, elsewhere);
+      if (seven.filter((id) => teamOf(id) && teamOf(id) !== myTeam).length < need) {
+        throw new BadRequestException(`Pick at least ${need} players from other teams for your Best VII`);
+      }
+      for (const id of starters as string[]) add(VoteCategory.VII, id);
+      add(VoteCategory.VII_SUB, sub as string);
+    }
+
+    const handled = new Set<string>([VoteCategory.POTM, VoteCategory.TEAMMATE, VoteCategory.VII, VoteCategory.VII_SUB]);
+    const awards = Object.entries(picks).filter(([k, v]) => !handled.has(k) && v);
+    for (const [category] of awards) {
+      if (!AWARD_KEYS.includes(category as VoteCategory)) throw new BadRequestException(`Unknown category "${category}"`);
+    }
+    if (awards.length > MAX_AWARDS) throw new BadRequestException(`Up to ${MAX_AWARDS} awards`);
+    for (const [category, nomineeId] of awards) add(category as VoteCategory, check(nomineeId));
 
     // Re-voting replaces your previous ballot.
     await this.votesRepo.manager.transaction(async (m) => {
@@ -393,7 +497,9 @@ export class RatingsService {
     ]);
     const name = (p: SquadMember) => sheetName(p);
     // Empty while the vote is open: the winners show at the close.
+    // Best VII of the Day is a team, not one winner: it isn't one of the card's awards.
     const awards = results.categories
+      .filter((c) => c.key !== VoteCategory.VII)
       .map((c) => {
         const top = c.standings[0];
         if (!top?.player) return null;
@@ -891,7 +997,10 @@ export class RatingsService {
       const voters = new Set(sv.map((v) => v.voterId));
       // Award votes (pace, shooting…) only move a card where the ballot asked for them; games
       // voted on with the one-question ballot don't count against anyone's attributes.
-      const askedAwards = sv.some((v) => AWARDS.has(v.category));
+      // The new ballot's awards are optional and become evidence on the player's profile, not
+      // card attributes, so they neither lift nor count against the older card.
+      const newBallot = sv.some((v) => NEW_BALLOT.has(v.category));
+      const askedAwards = !newBallot && sv.some((v) => AWARDS.has(v.category));
 
       // Player of the match = most POTM votes (ties share it).
       const potmCounts = new Map<string, number>();
@@ -918,7 +1027,7 @@ export class RatingsService {
         const othersVoting = voters.size - (voters.has(member.id) ? 1 : 0);
         s.ballotsSeen += othersVoting;
         if (askedAwards) expectedVotes.set(member.id, (expectedVotes.get(member.id) ?? 0) + othersVoting / Math.max(1, squad.length - 1));
-        for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
+        for (const v of sv) if (v.nomineeId === member.id && !(newBallot && AWARDS.has(v.category))) s.votes[v.category] += 1;
         if (top > 0 && potmCounts.get(member.id) === top) s.potmWins += 1;
         const team = session.payments?.find((p) => p.playerId === member.id)?.team;
         if (team) {

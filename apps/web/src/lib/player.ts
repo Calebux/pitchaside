@@ -389,7 +389,7 @@ export function getMyBallot(token: string) {
   );
 }
 
-export function submitMyVotes(token: string, picks: Partial<Record<VoteCategory, string>>) {
+export function submitMyVotes(token: string, picks: Partial<Record<VoteCategory, string | string[]>>) {
   return request<VoteResults>('POST', `/me/votes/${token}`, { picks });
 }
 

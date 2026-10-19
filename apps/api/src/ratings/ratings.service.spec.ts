@@ -253,3 +253,84 @@ describe('best on your team', () => {
     }
   });
 });
+
+describe('the new ballot', () => {
+  // Ten played: Ada and four teammates on A, five on B.
+  const ten = () =>
+    game({
+      payments: [
+        pay('ada', { team: 'A' }),
+        ...['a1', 'a2', 'a3', 'a4'].map((id) => pay(id, { team: 'A' })),
+        ...['b1', 'b2', 'b3', 'b4', 'b5'].map((id) => pay(id, { team: 'B' })),
+      ],
+    });
+  const full = { potm: 'b1', teammate: 'a1', vii: ['a1', 'a2', 'a3', 'b1', 'b2', 'b3'], vii_sub: 'a4' };
+
+  it('asks for Best VII and the awards when enough played', async () => {
+    const ballot = await setup(ten()).service.getBallot('tok');
+    expect(ballot.vii).toEqual({ starters: 6, subs: 1, minOtherTeams: 2 });
+    expect(ballot.awards.map((a) => a.title)).toContain('The Engine');
+    expect(ballot.maxAwards).toBe(3);
+    const few = game({ payments: [pay('ada', { team: 'A' }), pay('bisi', { team: 'B' })] });
+    expect((await setup(few).service.getBallot('tok')).vii).toBeNull();
+  });
+
+  it('takes a full ballot: six starters, a sub and up to three awards', async () => {
+    const { service, saved } = setup(ten());
+    await service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5' });
+    const rows = (saved.flat() as { category: string }[]).map((r) => r.category);
+    expect(rows.filter((c) => c === 'vii')).toHaveLength(6);
+    expect(rows).toEqual(expect.arrayContaining(['potm', 'teammate', 'vii_sub', 'passing', 'engine', 'keeper']));
+  });
+
+  it('needs the best on your team when teams were set', async () => {
+    const { service } = setup(ten());
+    await expect(service.submitVotes('tok', ['ada'], { ...full, teammate: undefined })).rejects.toThrow('best player on your team');
+  });
+
+  it('needs a whole Best VII of seven different players', async () => {
+    const { service } = setup(ten());
+    await expect(service.submitVotes('tok', ['ada'], { ...full, vii: ['a1', 'a2'] })).rejects.toThrow('6 starters and a sub');
+    await expect(service.submitVotes('tok', ['ada'], { ...full, vii_sub: 'a1' })).rejects.toThrow('seven different');
+    await expect(service.submitVotes('tok', ['ada'], { ...full, vii: ['ada', 'a2', 'a3', 'b1', 'b2', 'b3'] })).rejects.toThrow("can't vote for yourself");
+  });
+
+  it('needs at least two Best VII picks from other teams', async () => {
+    // Seven on A, three on B: a Best VII of six teammates and one from B is refused.
+    const lopsided = game({
+      payments: [pay('ada', { team: 'A' }), ...['a1', 'a2', 'a3', 'a4', 'a5', 'a6'].map((id) => pay(id, { team: 'A' })), ...['b1', 'b2', 'b3'].map((id) => pay(id, { team: 'B' }))],
+    });
+    const { service } = setup(lopsided);
+    const ballot = { potm: 'b1', teammate: 'a1', vii: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6'], vii_sub: 'b1' };
+    await expect(service.submitVotes('tok', ['ada'], ballot)).rejects.toThrow('at least 2 players from other teams');
+    await expect(service.submitVotes('tok', ['ada'], { ...ballot, vii: ['a1', 'a2', 'a3', 'a4', 'a5', 'b2'] })).resolves.toBeDefined();
+  });
+
+  it('refuses more than three awards, and categories it does not ask', async () => {
+    const { service } = setup(ten());
+    await expect(
+      service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5', smartest: 'b1' }),
+    ).rejects.toThrow('Up to 3 awards');
+    await expect(service.submitVotes('tok', ['ada'], { ...full, pace: 'b1' })).rejects.toThrow('Unknown category');
+  });
+
+  it('names the Best VII of the Day, and an award only with enough voters', async () => {
+    const closed = { ...ten(), voteOpensAt: new Date(Date.now() - 100 * HOUR) };
+    const vii = (voterId: string, ids: string[], sub: string) => [
+      ...ids.map((nomineeId) => ({ voterId, nomineeId, category: VoteCategory.VII })),
+      { voterId, nomineeId: sub, category: VoteCategory.VII_SUB },
+    ];
+    const votes = [
+      ...vii('a1', ['a2', 'a3', 'a4', 'b1', 'b2', 'b3'], 'b4'),
+      ...vii('b1', ['a2', 'a3', 'b2', 'b3', 'b4', 'b5'], 'a4'),
+      { voterId: 'a1', nomineeId: 'b1', category: VoteCategory.PASSING },
+      { voterId: 'b1', nomineeId: 'a2', category: VoteCategory.PASSING },
+    ];
+    const r = await setup(closed, { votes }).service.getPublicResults('tok');
+    const best = r.categories.find((c) => c.key === VoteCategory.VII)!;
+    expect(best.standings).toHaveLength(7);
+    expect(best.standings.slice(0, 2).map((s) => s.playerId).sort()).toEqual(['a2', 'a3']);
+    const passing = r.categories.find((c) => c.key === VoteCategory.PASSING)!;
+    expect(passing).toMatchObject({ voters: 2, inconclusive: true, standings: [] });
+  });
+});
