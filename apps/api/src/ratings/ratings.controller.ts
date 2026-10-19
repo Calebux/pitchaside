@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
-import { IsIn, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsUUID, Max, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { RatingsService } from './ratings.service';
@@ -34,6 +35,18 @@ export class BalanceDto {
   teamCount?: number;
 }
 
+export class GoalDto {
+  @IsIn(['A', 'B', 'C', 'D', 'E', 'F'])
+  team: string;
+
+  @IsUUID()
+  scorerId: string;
+
+  @IsOptional()
+  @IsUUID()
+  assistId?: string | null;
+}
+
 export class GameDto {
   @IsIn(['A', 'B', 'C', 'D', 'E', 'F'])
   teamA: string;
@@ -50,6 +63,14 @@ export class GameDto {
   @Min(0)
   @Max(99)
   scoreB: number;
+
+  /** Who scored (and set up) each goal, when the organiser saw it. Fewer than the score is fine. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(198)
+  @ValidateNested({ each: true })
+  @Type(() => GoalDto)
+  goals?: GoalDto[];
 }
 
 /** Organiser views: vote link + results per game, league table, player ratings. */
@@ -84,7 +105,17 @@ export class RatingsController {
 
   @Post('sessions/:id/games')
   addGame(@Param('id') id: string, @Body() dto: GameDto, @CurrentUser() user: User) {
-    return this.ratings.addGame(id, user.organizationId, dto);
+    return this.ratings.addGame(id, user.organizationId, dto, `${user.firstName} (organiser)`);
+  }
+
+  @Post('sessions/:id/games/:gameId/goals')
+  addGoal(@Param('id') id: string, @Param('gameId') gameId: string, @Body() dto: GoalDto, @CurrentUser() user: User) {
+    return this.ratings.addGoal(id, gameId, user.organizationId, dto, `${user.firstName} (organiser)`);
+  }
+
+  @Delete('sessions/:id/goals/:goalId')
+  deleteGoal(@Param('id') id: string, @Param('goalId') goalId: string, @CurrentUser() user: User) {
+    return this.ratings.deleteGoal(id, goalId, user.organizationId);
   }
 
   @Delete('sessions/:id/games/:gameId')

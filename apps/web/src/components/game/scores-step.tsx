@@ -6,9 +6,10 @@ import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { BallSpinner } from '@/components/skeleton';
 import { buzz, stagger } from '@/components/motion';
-import { addMatchGame, deleteMatchGame, type Lineup, type MatchGame, type TeamKey } from '@/lib/api';
+import { addGoal, addMatchGame, deleteGoal, deleteMatchGame, type GoalInput, type Lineup, type MatchGame, type TeamKey } from '@/lib/api';
 import { TEAMS, teamName } from '@/lib/teams';
-import { Swatch } from './teams-step';
+import { Swatch, shortName } from './teams-step';
+import { ScorerSheet } from './scorer-sheet';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
@@ -16,6 +17,8 @@ const KEYS = Object.keys(TEAMS) as TeamKey[];
  * Step 3 of match day: each short game's score. A scoreboard with big − and + for each side
  * (two teams are fixed; with more, tap a side's name to pick who's playing), then the games so
  * far and today's table. The first score locks the teams, and the page says so before it's saved.
+ * Tapping + asks who scored and who set it up (two taps, or "Not sure who"); a saved game's
+ * scorers can be named or corrected afterwards by tapping it.
  */
 export function ScoresStep({
   sessionId,
@@ -35,7 +38,12 @@ export function ScoresStep({
 }) {
   const sideTitle = useId();
   const teams = KEYS.slice(0, lineup.teamCount);
-  const [draft, setDraft] = useState({ teamA: 'A' as TeamKey, teamB: 'B' as TeamKey, scoreA: 0, scoreB: 0 });
+  const [draft, setDraft] = useState({ teamA: 'A' as TeamKey, teamB: 'B' as TeamKey, scoreA: 0, scoreB: 0, goals: [] as GoalInput[] });
+  // Asking who scored: for the game being played (`side`) or for one already saved (`gameId`).
+  const [scoring, setScoring] = useState<{ team: TeamKey; side?: 'teamA' | 'teamB'; gameId?: string } | null>(null);
+  // A saved game whose scorers are open.
+  const [editing, setEditing] = useState<string | null>(null);
+  const gamesTitle = useId();
   const [choosing, setChoosing] = useState<'teamA' | 'teamB' | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [removing, setRemoving] = useState<MatchGame | null>(null);
@@ -62,6 +70,12 @@ export function ScoresStep({
   }
 
   const name = (t: TeamKey) => teamName(t, lineup.captains);
+  const who = (id: string | null | undefined) => {
+    const m = id ? lineup.squad.find((x) => x.id === id) : null;
+    return m ? shortName(m) : 'Someone';
+  };
+  /** "Ada (Chidi), Bisi": a side's scorers, with who set each one up. */
+  const scorersLine = (goals: GoalInput[]) => goals.map((g) => `${who(g.scorerId)}${g.assistId ? ` (${who(g.assistId)})` : ''}`).join(', ');
   const valid = teams.includes(draft.teamA) && teams.includes(draft.teamB) && draft.teamA !== draft.teamB;
 
   async function save() {
@@ -69,9 +83,42 @@ export function ScoresStep({
     try {
       onLineup(await addMatchGame(sessionId, draft));
       buzz([12, 40, 18]);
-      setDraft((d) => ({ ...d, scoreA: 0, scoreB: 0 }));
+      setDraft((d) => ({ ...d, scoreA: 0, scoreB: 0, goals: [] }));
     } catch (err) {
       onError(err instanceof Error ? err.message : 'The score didn’t save. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** A goal for the game being played: the score goes up, and the scorer is noted if known. */
+  function goalFor(side: 'teamA' | 'teamB', goal: { scorerId: string | null; assistId: string | null }) {
+    buzz(6);
+    const score = side === 'teamA' ? 'scoreA' : 'scoreB';
+    setDraft((d) => ({
+      ...d,
+      [score]: Math.min(99, d[score] + 1),
+      goals: goal.scorerId ? [...d.goals, { team: d[side], scorerId: goal.scorerId, assistId: goal.assistId }] : d.goals,
+    }));
+  }
+
+  async function nameScorer(gameId: string, goal: GoalInput) {
+    setBusy(`goal-${gameId}`);
+    try {
+      onLineup(await addGoal(sessionId, gameId, goal));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'That didn’t save. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function unnameScorer(goalId: string) {
+    setBusy(goalId);
+    try {
+      onLineup(await deleteGoal(sessionId, goalId));
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'That didn’t save. Try again.');
     } finally {
       setBusy(null);
     }
@@ -93,10 +140,18 @@ export function ScoresStep({
     const t = draft[side];
     const score = side === 'teamA' ? 'scoreA' : 'scoreB';
     const value = draft[score];
-    const set = (v: number) => {
+    const sideGoals = draft.goals.filter((g) => g.team === t);
+    // One fewer: the last named scorer goes too, if every goal had a name.
+    const minus = () => {
       buzz(6);
-      setDraft((d) => ({ ...d, [score]: Math.max(0, Math.min(99, v)) }));
+      setDraft((d) => {
+        const next = Math.max(0, d[score] - 1);
+        const mine = d.goals.filter((g) => g.team === t);
+        const drop = mine.length > next ? mine[mine.length - 1] : null;
+        return { ...d, [score]: next, goals: drop ? d.goals.filter((g) => g !== drop) : d.goals };
+      });
     };
+    const hasPlayers = lineup.squad.some((m) => m.team === t);
     return (
       <div className="min-w-0 flex flex-col items-center gap-2">
         <button
@@ -118,7 +173,7 @@ export function ScoresStep({
         </span>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => set(value - 1)}
+            onClick={minus}
             disabled={value === 0}
             aria-label={`${name(t)} minus one`}
             className="press w-12 h-12 rounded-full bg-white/10 text-2xl font-bold text-white hover:bg-white/20 disabled:opacity-30"
@@ -126,13 +181,19 @@ export function ScoresStep({
             −
           </button>
           <button
-            onClick={() => set(value + 1)}
+            onClick={() => (hasPlayers ? setScoring({ team: t, side }) : goalFor(side, { scorerId: null, assistId: null }))}
             aria-label={`${name(t)} plus one`}
             className="press w-12 h-12 rounded-full bg-volt-400 text-2xl font-bold text-ink hover:bg-volt-300"
           >
             +
           </button>
         </div>
+        {sideGoals.length > 0 && (
+          <p className="max-w-full text-center text-[12px] leading-snug font-semibold text-white/75">
+            <span aria-hidden>⚽ </span>
+            {scorersLine(sideGoals)}
+          </p>
+        )}
       </div>
     );
   };
@@ -166,19 +227,30 @@ export function ScoresStep({
           </h3>
           <ol className="mt-1.5 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
             {lineup.games.map((g, i) => (
-              <li key={g.id} className="flex items-center gap-2 pl-3.5 pr-1 min-h-12 animate-rise" style={stagger(Math.min(i, 10), 25, 0)}>
-                <span className="w-5 text-[11px] font-extrabold text-gray-500 tabular-nums">{i + 1}</span>
-                <span className="flex-1 min-w-0 flex items-center justify-end gap-1.5 text-[14px] font-bold text-ink">
-                  <span className="truncate">{name(g.teamA)}</span>
-                  <Swatch team={g.teamA} />
-                </span>
-                <span className="font-display text-[17px] font-extrabold text-ink tabular-nums px-1">
-                  {g.scoreA}–{g.scoreB}
-                </span>
-                <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[14px] font-bold text-ink">
-                  <Swatch team={g.teamB} />
-                  <span className="truncate">{name(g.teamB)}</span>
-                </span>
+              <li key={g.id} className="flex items-center gap-1 pl-1.5 pr-1 animate-rise" style={stagger(Math.min(i, 10), 25, 0)}>
+                <button
+                  onClick={() => setEditing(g.id)}
+                  aria-label={`Game ${i + 1}: ${name(g.teamA)} ${g.scoreA}, ${name(g.teamB)} ${g.scoreB}. Scorers`}
+                  className="press flex-1 min-w-0 min-h-12 py-2 px-2 rounded-2xl text-left hover:bg-chalk/70"
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="w-5 text-[11px] font-extrabold text-gray-500 tabular-nums">{i + 1}</span>
+                    <span className="flex-1 min-w-0 flex items-center justify-end gap-1.5 text-[14px] font-bold text-ink">
+                      <span className="truncate">{name(g.teamA)}</span>
+                      <Swatch team={g.teamA} />
+                    </span>
+                    <span className="font-display text-[17px] font-extrabold text-ink tabular-nums px-1">
+                      {g.scoreA}–{g.scoreB}
+                    </span>
+                    <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[14px] font-bold text-ink">
+                      <Swatch team={g.teamB} />
+                      <span className="truncate">{name(g.teamB)}</span>
+                    </span>
+                  </span>
+                  <span className="mt-0.5 block pl-7 text-[12px] leading-snug text-gray-600 truncate">
+                    {g.goals.length ? `⚽ ${scorersLine(g.goals)}` : g.scoreA + g.scoreB ? 'Tap to name the scorers' : 'No goals'}
+                  </span>
+                </button>
                 <button
                   onClick={() => setRemoving(g)}
                   disabled={!!busy}
@@ -237,6 +309,120 @@ export function ScoresStep({
         </>
       )}
 
+      {lineup.games.some((g) => g.goals.length) && (() => {
+        // Today's scorers: goals, then assists, from every game so far.
+        const tally = new Map<string, { goals: number; assists: number }>();
+        for (const g of lineup.games)
+          for (const goal of g.goals) {
+            const s = tally.get(goal.scorerId) ?? { goals: 0, assists: 0 };
+            s.goals++;
+            tally.set(goal.scorerId, s);
+            if (goal.assistId) {
+              const a = tally.get(goal.assistId) ?? { goals: 0, assists: 0 };
+              a.assists++;
+              tally.set(goal.assistId, a);
+            }
+          }
+        const rows = [...tally.entries()].sort((a, b) => b[1].goals - a[1].goals || b[1].assists - a[1].assists || who(a[0]).localeCompare(who(b[0])));
+        return (
+          <>
+            <h3 className="mt-5 px-1 text-[13px] font-extrabold text-ink">Scorers today</h3>
+            <div className="mt-1.5 bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
+              <div className="grid grid-cols-[1fr_52px_52px] gap-1 px-3.5 py-2 bg-gray-50 text-[11px] font-extrabold text-gray-500">
+                <span>Player</span>
+                <span className="text-center">Goals</span>
+                <span className="text-center">Assists</span>
+              </div>
+              {rows.map(([id, r]) => (
+                <div key={id} className="grid grid-cols-[1fr_52px_52px] gap-1 items-center px-3.5 min-h-11 border-t border-gray-100 text-[14px]">
+                  <span className="min-w-0 truncate font-bold text-ink">{who(id)}</span>
+                  <span className="text-center font-display font-extrabold text-ink tabular-nums">{r.goals}</span>
+                  <span className="text-center text-gray-600 tabular-nums">{r.assists}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        );
+      })()}
+
+      {scoring && (
+        <ScorerSheet
+          team={scoring.team}
+          lineup={lineup}
+          allowUnnamed={!scoring.gameId}
+          onClose={() => setScoring(null)}
+          onPick={(goal) => {
+            const s = scoring;
+            setScoring(null);
+            if (s.side) goalFor(s.side, goal);
+            else if (s.gameId && goal.scorerId) nameScorer(s.gameId, { team: s.team, scorerId: goal.scorerId, assistId: goal.assistId });
+          }}
+        />
+      )}
+
+      {editing && !scoring && (() => {
+        const g = lineup.games.find((x) => x.id === editing);
+        if (!g) return null;
+        const n = lineup.games.indexOf(g) + 1;
+        return (
+          <Sheet titleId={gamesTitle} onClose={() => setEditing(null)} align="left">
+            <SheetTitle id={gamesTitle} title={`Game ${n}: ${name(g.teamA)} ${g.scoreA}–${g.scoreB} ${name(g.teamB)}`} sub="Who scored, and who set it up." onClose={() => setEditing(null)} />
+            {([
+              [g.teamA, g.scoreA],
+              [g.teamB, g.scoreB],
+            ] as [TeamKey, number][]).map(([t, score]) => {
+              const goals = g.goals.filter((x) => x.team === t);
+              return (
+                <div key={t} className="mt-4">
+                  <p className="flex items-center gap-1.5 text-[13px] font-extrabold text-ink">
+                    <Swatch team={t} />
+                    {name(t)} · {score} goal{score === 1 ? '' : 's'}
+                  </p>
+                  <ul className="mt-1">
+                    {goals.map((goal) => (
+                      <li key={goal.id} className="flex items-center gap-2 min-h-12 border-b border-gray-100">
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-[15px] font-bold text-ink truncate">
+                            ⚽ {who(goal.scorerId)}
+                            {goal.assistId && <span className="font-semibold text-gray-600"> · set up by {who(goal.assistId)}</span>}
+                          </span>
+                          {goal.recordedBy && <span className="block text-[12px] text-gray-500">Added by {goal.recordedBy}</span>}
+                        </span>
+                        <button
+                          onClick={() => unnameScorer(goal.id)}
+                          disabled={!!busy}
+                          aria-label={`Remove ${who(goal.scorerId)}'s goal`}
+                          className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-gray-400 hover:text-kit-600"
+                        >
+                          {busy === goal.id ? (
+                            <BallSpinner className="w-4 h-4" />
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                            </svg>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {goals.length < score ? (
+                    <button
+                      onClick={() => setScoring({ team: t, gameId: g.id })}
+                      disabled={!!busy}
+                      className="press mt-2 w-full min-h-11 rounded-2xl border border-dashed border-gray-300 text-[14px] font-bold text-ink hover:border-ink"
+                    >
+                      {busy === `goal-${g.id}` ? 'Saving…' : `Name a scorer · ${score - goals.length} not named`}
+                    </button>
+                  ) : (
+                    score === 0 && <p className="mt-1 text-[13px] text-gray-500">No goals</p>
+                  )}
+                </div>
+              );
+            })}
+          </Sheet>
+        );
+      })()}
+
       {choosing && (
         <Sheet titleId={sideTitle} onClose={() => setChoosing(null)} align="left">
           <SheetTitle id={sideTitle} title="Who’s playing?" sub={choosing === 'teamA' ? 'The team on the left' : 'The team on the right'} onClose={() => setChoosing(null)} />
@@ -249,7 +435,8 @@ export function ScoresStep({
                   key={t}
                   disabled={taken}
                   onClick={() => {
-                    setDraft((d) => ({ ...d, [choosing]: t }));
+                    // A different team on that side: its goals so far weren't theirs.
+                    setDraft((d) => ({ ...d, [choosing]: t, goals: d.goals.filter((x) => x.team !== d[choosing]) }));
                     setChoosing(null);
                   }}
                   className={`press animate-rise flex items-center gap-2.5 min-h-14 px-3 rounded-2xl border text-left disabled:opacity-40 ${

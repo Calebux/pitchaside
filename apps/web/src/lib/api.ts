@@ -652,12 +652,27 @@ export function setRsvpForPlayer(sessionId: string, playerId: string, status: 'i
 
 export type TeamKey = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
 
+/** A goal as it's recorded: the side, the scorer, and the teammate who set it up (if anyone). */
+export interface GoalInput {
+  team: TeamKey;
+  scorerId: string;
+  assistId?: string | null;
+}
+
+export interface MatchGoal extends GoalInput {
+  id: string;
+  /** "Tunde (organiser)", "Ada (captain)". */
+  recordedBy: string | null;
+}
+
 export interface MatchGame {
   id: string;
   teamA: TeamKey;
   teamB: TeamKey;
   scoreA: number;
   scoreB: number;
+  /** Named scorers; can be fewer than the score. */
+  goals: MatchGoal[];
 }
 
 export interface TeamStanding {
@@ -703,9 +718,18 @@ export function balanceLineup(sessionId: string, teamCount?: number): Promise<Li
 
 export function addMatchGame(
   sessionId: string,
-  game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number },
+  game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] },
 ): Promise<Lineup> {
   return http.post(`/sessions/${sessionId}/games`, game);
+}
+
+/** Names the scorer of a goal in a game already saved. */
+export function addGoal(sessionId: string, gameId: string, goal: GoalInput): Promise<Lineup> {
+  return http.post(`/sessions/${sessionId}/games/${gameId}/goals`, goal);
+}
+
+export function deleteGoal(sessionId: string, goalId: string): Promise<Lineup> {
+  return http.delete(`/sessions/${sessionId}/goals/${goalId}`);
 }
 
 export function deleteMatchGame(sessionId: string, gameId: string): Promise<Lineup> {

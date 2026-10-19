@@ -12,6 +12,7 @@ import { Group } from '../groups/entities/group.entity';
 import { Player } from '../players/entities/player.entity';
 import { Vote, VoteCategory } from './entities/vote.entity';
 import { SessionGame } from './entities/session-game.entity';
+import { MatchGoal } from './entities/match-goal.entity';
 import { GamePaid, paidForGames } from '../payments/game-dues';
 import { localDate } from '../common/time.util';
 import { pitchName, sheetName } from '../players/player-name';
@@ -26,6 +27,14 @@ type TeamKey = (typeof TEAM_KEYS)[number];
 const VOTE_HOURS = 48;
 /** Games ended before the vote was tied to full time keep their old window: match day plus a week. */
 const LEGACY_WINDOW_DAYS = 7;
+
+
+/** One goal as it's recorded: the side, the scorer, and the teammate who set it up (if anyone). */
+export interface GoalInput {
+  team: string;
+  scorerId: string;
+  assistId?: string | null;
+}
 
 export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK' }[] = [
   { key: VoteCategory.POTM, title: 'Player of the Match' },
@@ -123,6 +132,7 @@ export class RatingsService {
   constructor(
     @InjectRepository(Vote) private votesRepo: Repository<Vote>,
     @InjectRepository(SessionGame) private gamesRepo: Repository<SessionGame>,
+    @InjectRepository(MatchGoal) private goalsRepo: Repository<MatchGoal>,
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
   ) {}
@@ -459,10 +469,11 @@ export class RatingsService {
 
   async getLineup(sessionId: string, organizationId: string) {
     const session = await this.loadSession(sessionId, organizationId);
-    const [{ ovr, skills }, games, paid] = await Promise.all([
+    const [{ ovr, skills }, games, paid, goals] = await Promise.all([
       this.ovrMap(organizationId),
       this.gamesRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
       this.paidFor(session),
+      this.goalsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
     ]);
     const table = this.standings(session.teamCount, games);
     return {
@@ -486,7 +497,16 @@ export class RatingsService {
           // Organisers always see who's paid for this game (or the period it falls in).
           paid: paid.get(p.playerId) ?? 'unpaid',
         })),
-      games: games.map((g) => ({ id: g.id, teamA: g.teamA, teamB: g.teamB, scoreA: g.scoreA, scoreB: g.scoreB })),
+      games: games.map((g) => ({
+        id: g.id,
+        teamA: g.teamA,
+        teamB: g.teamB,
+        scoreA: g.scoreA,
+        scoreB: g.scoreB,
+        goals: goals
+          .filter((x) => x.gameId === g.id)
+          .map((x) => ({ id: x.id, team: x.team, scorerId: x.scorerId, assistId: x.assistId, recordedBy: x.recordedBy })),
+      })),
       standings: table.rows,
       teamOfTheDay: table.teamOfTheDay,
     };
@@ -681,7 +701,8 @@ export class RatingsService {
   async addGame(
     sessionId: string,
     organizationId: string,
-    input: { teamA: string; teamB: string; scoreA: number; scoreB: number },
+    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[] },
+    recordedBy?: string,
   ) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
@@ -691,16 +712,59 @@ export class RatingsService {
       throw new BadRequestException('Pick two different teams');
     }
     const clean = (n: number) => Math.max(0, Math.min(99, Math.round(Number(n) || 0)));
-    await this.gamesRepo.save(
-      this.gamesRepo.create({
-        sessionId: session.id,
-        teamA: input.teamA,
-        teamB: input.teamB,
-        scoreA: clean(input.scoreA),
-        scoreB: clean(input.scoreB),
-      }),
-    );
+    const game = this.gamesRepo.create({
+      sessionId: session.id,
+      teamA: input.teamA,
+      teamB: input.teamB,
+      scoreA: clean(input.scoreA),
+      scoreB: clean(input.scoreB),
+    });
+    const goals = input.goals ?? [];
+    this.checkGoals(session, game, [], goals);
+    await this.gamesRepo.manager.transaction(async (tx) => {
+      const saved = await tx.save(game);
+      if (goals.length) await tx.save(goals.map((g) => this.goalsRepo.create({ ...g, assistId: g.assistId ?? null, sessionId: session.id, gameId: saved.id, recordedBy: recordedBy ?? null })));
+    });
     return this.getLineup(sessionId, organizationId);
+  }
+
+  /**
+   * Names a scorer (and maybe who set it up) for a goal in a game already saved. The score is
+   * what counts: a side can't have more named scorers than goals.
+   */
+  async addGoal(sessionId: string, gameId: string, organizationId: string, input: GoalInput, recordedBy?: string) {
+    const session = await this.loadSession(sessionId, organizationId);
+    const game = await this.gamesRepo.findOne({ where: { id: gameId, sessionId } });
+    if (!game) throw new NotFoundException('Game not found');
+    const existing = await this.goalsRepo.find({ where: { gameId } });
+    this.checkGoals(session, game, existing, [input]);
+    await this.goalsRepo.save(this.goalsRepo.create({ ...input, assistId: input.assistId ?? null, sessionId, gameId, recordedBy: recordedBy ?? null }));
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  async deleteGoal(sessionId: string, goalId: string, organizationId: string) {
+    await this.loadSession(sessionId, organizationId);
+    await this.goalsRepo.delete({ id: goalId, sessionId });
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  /**
+   * Goals must make sense: scored for one of the game's two sides, by a player on that side, set
+   * up (if at all) by a teammate who isn't the scorer, and no more named than the side scored.
+   */
+  private checkGoals(session: Session, game: Pick<SessionGame, 'teamA' | 'teamB' | 'scoreA' | 'scoreB'>, existing: Pick<MatchGoal, 'team'>[], added: GoalInput[]) {
+    const sideOf = new Map((session.payments ?? []).filter((p) => p.attendance !== 'no_show').map((p) => [p.playerId, this.teamOf(session, p.team)]));
+    for (const g of added) {
+      if (g.team !== game.teamA && g.team !== game.teamB) throw new BadRequestException("That team isn't in this game");
+      if (sideOf.get(g.scorerId) !== g.team) throw new BadRequestException("The scorer isn't on that team");
+      if (g.assistId && (g.assistId === g.scorerId || sideOf.get(g.assistId) !== g.team)) {
+        throw new BadRequestException('The assist has to come from a teammate');
+      }
+    }
+    for (const [team, score] of [[game.teamA, game.scoreA], [game.teamB, game.scoreB]] as const) {
+      const named = [...existing, ...added].filter((g) => g.team === team).length;
+      if (named > score) throw new BadRequestException(`More scorers than goals for ${team === game.teamA ? 'the first' : 'the second'} team`);
+    }
   }
 
   async deleteGame(sessionId: string, gameId: string, organizationId: string) {

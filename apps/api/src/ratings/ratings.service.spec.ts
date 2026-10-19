@@ -60,7 +60,8 @@ function setup(
   const votesRepo = { find: async () => votes, count: async () => votes.length, manager };
   const gamesRepo = { count: async () => opts.scores ?? games.length, find: async () => games, save: async (g: unknown) => g, create: (g: unknown) => g };
   const groupsRepo = { findOne: async () => session.group };
-  const service = new RatingsService(votesRepo as never, gamesRepo as never, sessionsRepo as never, groupsRepo as never);
+  const goalsRepo = { find: async () => [], save: async (g: unknown) => g, create: (g: unknown) => g, delete: async () => undefined };
+  const service = new RatingsService(votesRepo as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, groupsRepo as never);
   return { service, saved };
 }
 
