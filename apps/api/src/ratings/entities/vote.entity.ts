@@ -13,7 +13,7 @@ import { Player } from '../../players/entities/player.entity';
 export enum VoteCategory {
   /** Player of the match. */
   POTM = 'potm',
-  /** Fastest → PAC */
+  /** Fastest on the pitch: no longer asked; earlier votes count towards The Engine. */
   PACE = 'pace',
   /** Best finisher → SHO */
   SHOOTING = 'shooting',

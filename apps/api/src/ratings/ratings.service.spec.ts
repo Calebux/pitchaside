@@ -203,7 +203,8 @@ describe('the one-question ballot', () => {
     ];
     const { rows } = await setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) }), { votes }).service.getGroupTable('grp', 'org');
     for (const r of rows) {
-      const a = Object.values(r.attributes);
+      // GK stays empty until someone's nominated in goal.
+      const a = Object.values(r.attributes).filter((v) => v !== null);
       expect(new Set(a).size).toBe(1);
       expect(a[0]).toBe(cardRating(DEFAULT_START));
     }
@@ -249,7 +250,7 @@ describe('best on your team', () => {
     const { rows } = await setup({ ...four(), voteOpensAt: new Date(Date.now() - 49 * HOUR) } as never, { votes }).service.getGroupTable('grp', 'org');
     for (const r of rows) {
       expect(r.points).toBe(0);
-      expect(Object.values(r.attributes).every((a) => a === cardRating(DEFAULT_START))).toBe(true);
+      expect(Object.values(r.attributes).every((a) => a === null || a === cardRating(DEFAULT_START))).toBe(true);
     }
   });
 });
@@ -332,5 +333,48 @@ describe('the new ballot', () => {
     expect(best.standings.slice(0, 2).map((s) => s.playerId).sort()).toEqual(['a2', 'a3']);
     const passing = r.categories.find((c) => c.key === VoteCategory.PASSING)!;
     expect(passing).toMatchObject({ voters: 2, inconclusive: true, standings: [] });
+  });
+});
+
+describe('award evidence', () => {
+  // Ten played and the vote has closed.
+  const ten = () =>
+    game({
+      voteOpensAt: new Date(Date.now() - 100 * HOUR),
+      payments: ['ada', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'].map((id) => pay(id, { team: id < 'f' ? 'A' : 'B' })),
+    });
+  const passing = (voterId: string, nomineeId = 'ada') => ({ voterId, nomineeId, category: VoteCategory.PASSING });
+  const table = async (votes: { voterId: string; nomineeId: string; category: VoteCategory }[], sessions = [ten()]) => {
+    // The in-memory repos hold one game: this one.
+    const { service } = setup(sessions[0], { votes });
+    return (await service.getGroupTable('grp', 'org')).rows;
+  };
+
+  it('lifts the abilities an award is evidence of, and counts how many people said so', async () => {
+    const rows = await table([passing('b'), passing('c'), passing('d'), passing('e')]);
+    const ada = rows.find((r) => r.player.id === 'ada')!;
+    expect(ada.attributes.PAS!).toBeGreaterThan(ada.attributes.SHO!);
+    expect(ada.evidence.passing).toMatchObject({ nominations: 4, voters: 4, games: 1, enough: true });
+  });
+
+  it('needs three different people before it counts as evidence', async () => {
+    const rows = await table([passing('b'), passing('c')]);
+    expect(rows.find((r) => r.player.id === 'ada')!.evidence.passing).toMatchObject({ voters: 2, enough: false });
+  });
+
+  it('splits a Playmaker nomination across passing and smartness, not twice', async () => {
+    const pm = ['b', 'c', 'd', 'e'].map((voterId) => ({ voterId, nomineeId: 'ada', category: VoteCategory.PLAYMAKER }));
+    const ps = ['b', 'c', 'd', 'e'].map((voterId) => passing(voterId));
+    const playmaker = (await table(pm)).find((r) => r.player.id === 'ada')!;
+    const passer = (await table(ps)).find((r) => r.player.id === 'ada')!;
+    expect(playmaker.attributes.PAS!).toBeLessThan(passer.attributes.PAS!);
+    expect(playmaker.attributes.IQ!).toBeGreaterThan(passer.attributes.IQ!);
+  });
+
+  it('counts old Fastest votes as The Engine', async () => {
+    const pace = ['b', 'c', 'd'].map((voterId) => ({ voterId, nomineeId: 'ada', category: VoteCategory.PACE }));
+    const ada = (await table(pace)).find((r) => r.player.id === 'ada')!;
+    expect(ada.evidence.engine).toMatchObject({ nominations: 3, enough: true });
+    expect(ada.attributes.PHY!).toBeGreaterThan(ada.attributes.SHO!);
   });
 });

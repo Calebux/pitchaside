@@ -18,11 +18,12 @@ import {
   type TeamKey,
   type VoteCategory,
   type VoteResults,
+  type Attribute,
 } from '@/lib/api';
 
 export const categoryMeta: Record<VoteCategory, { short: string; tone: string; chip: string; attr?: string }> = {
   potm: { short: '★', tone: 'bg-sun-400 text-ink', chip: 'bg-sun-400' },
-  pace: { short: 'PAC', tone: 'bg-sky-300 text-ink', chip: 'bg-sky-300', attr: 'PAC' },
+  pace: { short: 'PAC', tone: 'bg-sky-300 text-ink', chip: 'bg-sky-300' },
   shooting: { short: 'SHO', tone: 'bg-kit-500 text-white', chip: 'bg-kit-500', attr: 'SHO' },
   passing: { short: 'PAS', tone: 'bg-volt-400 text-ink', chip: 'bg-volt-400', attr: 'PAS' },
   defending: { short: 'DEF', tone: 'bg-ink text-volt-300', chip: 'bg-ink', attr: 'DEF' },
@@ -364,18 +365,34 @@ export function VotePrompt() {
   );
 }
 
-/** PAC / SHO / PAS / DEF row for the player card. */
+/** What each card ability means, in a few words (said to screen readers and on long-press). */
+export const ATTRIBUTE_NAMES: Record<Attribute, string> = {
+  SHO: 'Shooting',
+  PAS: 'Passing',
+  TEC: 'Dribbling and control',
+  DEF: 'Defending',
+  IQ: 'Reading the game',
+  PHY: 'Work rate',
+  MOV: 'Movement',
+  GK: 'Goalkeeping',
+};
+
+/** The card's abilities: seven outfield, plus GK once they've been nominated in goal. */
 export function AttributeRow({ ratings, dark = false }: { ratings: PlayerRatings; dark?: boolean }) {
+  const shown = (Object.keys(ATTRIBUTE_NAMES) as Attribute[]).filter((a) => a !== 'GK' || ratings.attributes.GK != null);
   return (
-    <div className="grid grid-cols-5 gap-1">
-      {(['PAC', 'SHO', 'PAS', 'DEF', 'GK'] as const).map((a) => {
+    <div className="grid grid-cols-4 gap-1">
+      {shown.map((a) => {
         const v = ratings.attributes[a];
         return (
-          <div key={a} className={`rounded-xl px-1 py-1.5 text-center ${dark ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}>
+          <div key={a} title={ATTRIBUTE_NAMES[a]} className={`rounded-xl px-1 py-1.5 text-center ${dark ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}>
             <p className={`font-display text-lg font-extrabold tabular-nums leading-none ${dark ? 'text-white' : 'text-ink'}`}>
               {v ?? '–'}
+              <span className="sr-only"> {ATTRIBUTE_NAMES[a]}</span>
             </p>
-            <p className={`text-[9px] font-extrabold tracking-[0.14em] mt-1 ${dark ? 'text-volt-300' : 'text-gray-500'}`}>{a}</p>
+            <p className={`text-[9px] font-extrabold tracking-[0.14em] mt-1 ${dark ? 'text-volt-300' : 'text-gray-500'}`} aria-hidden>
+              {a}
+            </p>
           </div>
         );
       })}

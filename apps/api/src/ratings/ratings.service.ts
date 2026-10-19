@@ -42,23 +42,22 @@ export type Ability = 'SHO' | 'PAS' | 'TEC' | 'DEF' | 'IQ' | 'PHY' | 'MOV' | 'GK
 /**
  * Every vote category. `hint` is the one line the ballot shows. `abilities` is what an award is
  * evidence of; one nomination is one observation, split across them (never counted twice).
- * `attr` is the older card attribute, kept so games voted on before still build the same cards.
  */
-export const CATEGORIES: { key: VoteCategory; title: string; hint?: string; abilities?: Ability[]; attr?: 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK' }[] = [
+export const CATEGORIES: { key: VoteCategory; title: string; hint?: string; abilities?: Ability[] }[] = [
   { key: VoteCategory.POTM, title: 'Player of the Match' },
   { key: VoteCategory.TEAMMATE, title: 'Best on your team' },
   { key: VoteCategory.VII, title: 'Best VII of the Day' },
-  { key: VoteCategory.SHOOTING, title: 'Best Finisher', hint: 'Clinical: took their chances', abilities: ['SHO'], attr: 'SHO' },
-  { key: VoteCategory.PASSING, title: 'Best Passer', hint: 'Accurate, well-timed, useful passes', abilities: ['PAS'], attr: 'PAS' },
+  { key: VoteCategory.SHOOTING, title: 'Best Finisher', hint: 'Clinical: took their chances', abilities: ['SHO'] },
+  { key: VoteCategory.PASSING, title: 'Best Passer', hint: 'Accurate, well-timed, useful passes', abilities: ['PAS'] },
   { key: VoteCategory.DRIBBLING, title: 'Best Dribbler', hint: 'Close control, beat their player, kept the ball', abilities: ['TEC'] },
-  { key: VoteCategory.DEFENDING, title: 'Best Defender', hint: 'Tackles, marking, interceptions and blocks', abilities: ['DEF'], attr: 'DEF' },
+  { key: VoteCategory.DEFENDING, title: 'Best Defender', hint: 'Tackles, marking, interceptions and blocks', abilities: ['DEF'] },
   { key: VoteCategory.SMARTEST, title: 'Smartest Player', hint: 'Good decisions and positioning, read the game', abilities: ['IQ'] },
   { key: VoteCategory.ENGINE, title: 'The Engine', hint: 'Never stopped: recovery runs, pressing, work rate', abilities: ['PHY', 'MOV'] },
   { key: VoteCategory.PLAYMAKER, title: 'Best Playmaker', hint: 'Made chances for teammates', abilities: ['PAS', 'IQ'] },
   { key: VoteCategory.MOVEMENT, title: 'Best Off-Ball Movement', hint: 'Found space, timed runs, always an option', abilities: ['MOV', 'IQ'] },
-  { key: VoteCategory.KEEPER, title: 'Best Goalkeeper', hint: 'Only if someone kept goal: saves, positioning, distribution', abilities: ['GK'], attr: 'GK' },
+  { key: VoteCategory.KEEPER, title: 'Best Goalkeeper', hint: 'Only if someone kept goal: saves, positioning, distribution', abilities: ['GK'] },
   // No longer asked; earlier votes count towards The Engine.
-  { key: VoteCategory.PACE, title: 'Fastest on the pitch', abilities: ['PHY', 'MOV'], attr: 'PAC' },
+  { key: VoteCategory.PACE, title: 'Fastest on the pitch', abilities: ['PHY', 'MOV'] },
 ];
 
 /** The awards a voter can nominate for, up to MAX_AWARDS of them, each optional. */
@@ -82,18 +81,13 @@ export const VII_MIN_OTHER_TEAMS = 2;
 /** An award needs nominations from this many different voters before it names a winner. */
 export const AWARD_MIN_VOTERS = 3;
 
-/** The older card attributes (PAC, SHO…), from games voted on with the five-award ballot. */
-const AWARDS = new Set(CATEGORIES.filter((c) => c.attr).map((c) => c.key));
-/** Categories only the new ballot asks: a game with any of these was voted on with it. */
-const NEW_BALLOT = new Set<VoteCategory>([VoteCategory.VII, VoteCategory.VII_SUB, VoteCategory.DRIBBLING, VoteCategory.SMARTEST, VoteCategory.ENGINE, VoteCategory.PLAYMAKER, VoteCategory.MOVEMENT]);
 const titleOf = (key: VoteCategory) => CATEGORIES.find((c) => c.key === key)?.title ?? key;
 
 /** Ratings need a few games of votes before they reach the extremes. */
 const RATING_PRIOR = 6;
-/** How far votes move a card attribute away from the player's skill: up to +20, down to −6. */
+/** How far nominations lift a card attribute above the player's skill: up to +20, never down. */
 const VOTE_WEIGHT = 8;
 const VOTE_UP_MAX = 20;
-const VOTE_DOWN_MAX = 6;
 
 /**
  * League points: results first, then the day's honours. Every short game on match day counts
@@ -107,6 +101,22 @@ export function tablePoints(r: Pick<PlayerRatings, 'record' | 'teamOfDay' | 'pot
 }
 
 type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName' | 'nickname'>;
+
+/** The abilities on the card, outfield first; GK only for players nominated in goal. */
+export const ABILITIES: Ability[] = ['SHO', 'PAS', 'TEC', 'DEF', 'IQ', 'PHY', 'MOV', 'GK'];
+
+/**
+ * What teammates' nominations say about one award for one player: how many, from how many
+ * different people, and what share of the votes they could have had. `enough` once at least
+ * AWARD_MIN_VOTERS different people nominated them: below that it's not evidence yet.
+ */
+export interface AwardEvidence {
+  nominations: number;
+  voters: number;
+  games: number;
+  share: number;
+  enough: boolean;
+}
 
 export interface PlayerRatings {
   games: number;
@@ -123,35 +133,75 @@ export interface PlayerRatings {
   /** Fewer than PROVISIONAL_UNDER scored games so far: the card is still settling. */
   provisional: boolean;
   ovr: number | null;
-  attributes: { PAC: number | null; SHO: number | null; PAS: number | null; DEF: number | null; GK: number | null };
+  attributes: Record<Ability, number | null>;
+  goals: number;
+  assists: number;
+  /** Times someone put them in their Best VII (starter or sub). */
+  viiPicks: number;
+  /** Times they made the Best VII of the Day. */
+  viiOfDay: number;
+  /** Times they won Best on their team. */
+  bestOnTeam: number;
+  /** Per award (Fastest counts as The Engine): the evidence behind the attributes. */
+  evidence: Partial<Record<VoteCategory, AwardEvidence>>;
+  /** Games where awards were voted on: how much the attributes rest on. */
+  evidenceGames: number;
 }
 
 export function emptyVotes(): Record<VoteCategory, number> {
   return Object.fromEntries(Object.values(VoteCategory).map((k) => [k, 0])) as Record<VoteCategory, number>;
 }
 
+/** Ratings for someone who hasn't played: zeros, and no card yet. */
+export function blankRatings(): PlayerRatings {
+  return {
+    games: 0,
+    ballotsSeen: 0,
+    votes: emptyVotes(),
+    potmWins: 0,
+    record: { w: 0, d: 0, l: 0 },
+    teamOfDay: 0,
+    points: 0,
+    skill: DEFAULT_START,
+    provisional: true,
+    ovr: null,
+    attributes: Object.fromEntries(ABILITIES.map((a) => [a, null])) as Record<Ability, number | null>,
+    goals: 0,
+    assists: 0,
+    viiPicks: 0,
+    viiOfDay: 0,
+    bestOnTeam: 0,
+    evidence: {},
+    evidenceGames: 0,
+  };
+}
+
+/** Nominations an ability got (`n`) and what a random pick would have given (`e`). */
+export type AbilityEvidence = Record<Ability, { n: number; e: number }>;
+export const noEvidence = (): AbilityEvidence => Object.fromEntries(ABILITIES.map((a) => [a, { n: 0, e: 0 }])) as AbilityEvidence;
+
 /**
- * The player card. Every attribute starts from the skill rating (on the card's scale), and
- * votes move it relative to what a random pick would give: more votes than expected lift
- * it, none nudges it down a little, and PRIOR keeps a low-turnout week from swinging it.
- * OVR is the best four attributes plus a Player of the Match bonus.
+ * The player card. Every attribute starts from the skill rating (on the card's scale), and award
+ * nominations lift it when they come more often than a random pick would give. Never down: not
+ * being nominated isn't evidence of anything (they may have had a quiet game, or played a
+ * supporting role). PRIOR keeps a low-turnout week from swinging it. GK shows only for players
+ * nominated in goal. OVR is the best four attributes plus a Player of the Match bonus.
  */
-export function playerCard(skill: Skill | undefined, votes: Record<VoteCategory, number>, expectedPerCategory: number, ballotsSeen: number) {
+export function playerCard(skill: Skill | undefined, abilities: AbilityEvidence, potmVotes: number, ballotsSeen: number) {
   const base = cardRating(skill?.rating ?? DEFAULT_START);
-  const rate = (n: number) => {
-    const lift = Math.round((VOTE_WEIGHT * (n - expectedPerCategory)) / (expectedPerCategory + RATING_PRIOR));
-    return Math.max(40, Math.min(99, base + Math.max(-VOTE_DOWN_MAX, Math.min(VOTE_UP_MAX, lift))));
+  const rate = ({ n, e }: { n: number; e: number }) => {
+    const lift = Math.round((VOTE_WEIGHT * (n - e)) / (e + RATING_PRIOR));
+    return Math.max(40, Math.min(99, base + Math.max(0, Math.min(VOTE_UP_MAX, lift))));
   };
-  const attributes = {
-    PAC: rate(votes.pace),
-    SHO: rate(votes.shooting),
-    PAS: rate(votes.passing),
-    DEF: rate(votes.defending),
-    GK: rate(votes.keeper),
-  };
+  const attributes = Object.fromEntries(
+    ABILITIES.map((a) => [a, a === 'GK' && abilities.GK.n === 0 ? null : rate(abilities[a])]),
+  ) as Record<Ability, number | null>;
   // OVR uses a player's best four attributes, so keepers aren't dragged down by SHO and vice versa.
-  const best = Object.values(attributes).sort((x, y) => y - x).slice(0, 4);
-  const potmBoost = ballotsSeen > 0 ? Math.min(6, Math.round((votes.potm / ballotsSeen) * 12)) : 0;
+  const best = Object.values(attributes)
+    .filter((v): v is number => v !== null)
+    .sort((x, y) => y - x)
+    .slice(0, 4);
+  const potmBoost = ballotsSeen > 0 ? Math.min(6, Math.round((potmVotes / ballotsSeen) * 12)) : 0;
   return {
     skill: Math.round(skill?.rating ?? DEFAULT_START),
     provisional: (skill?.games ?? 0) < PROVISIONAL_UNDER,
@@ -974,40 +1024,81 @@ export class RatingsService {
 
   // ── Ratings & league table ──
 
-  /** Aggregates every vote across the given games into per-player ratings. */
+  /**
+   * Aggregates every game into per-player ratings: results, Player of the Match, Best VII, best
+   * on their team, goals and assists, and the award evidence behind the card's attributes.
+   *
+   * Award evidence is fair across ballots: in each game, what a player could expect from a random
+   * pick is the category's voters (not counting them) over everyone else who played, so an
+   * optional award nobody voted in expects nothing. The same voter nominating the same player in
+   * the same award again counts for less each time (1, ½, ⅓…), so one friend can't make a card.
+   */
   private async aggregate(sessions: Session[], skills: Map<string, Skill>) {
     const stats = new Map<string, PlayerRatings & { player: SquadMember }>();
     if (!sessions.length) return stats;
-    /** Votes a player would get per category if teammates picked at random. */
-    const expectedVotes = new Map<string, number>();
+    const ordered = [...sessions].sort((x, y) => String(x.date).localeCompare(String(y.date)));
+    const ids = ordered.map((s) => s.id);
 
-    const votes = await this.votesRepo.find({ where: { sessionId: In(sessions.map((s) => s.id)) } });
-    const allGames = await this.gamesRepo.find({ where: { sessionId: In(sessions.map((s) => s.id)) } });
-    const gamesBySession = new Map<string, SessionGame[]>();
-    for (const g of allGames) gamesBySession.set(g.sessionId, [...(gamesBySession.get(g.sessionId) ?? []), g]);
-    const dayWinner = new Map(
-      sessions.map((s) => [s.id, this.standings(s.teamCount, gamesBySession.get(s.id) ?? []).teamOfTheDay] as const),
-    );
-    const votesBySession = new Map<string, Vote[]>();
-    for (const v of votes) votesBySession.set(v.sessionId, [...(votesBySession.get(v.sessionId) ?? []), v]);
+    const [votes, allGames, goals] = await Promise.all([
+      this.votesRepo.find({ where: { sessionId: In(ids) } }),
+      this.gamesRepo.find({ where: { sessionId: In(ids) } }),
+      this.goalsRepo.find({ where: { sessionId: In(ids) } }),
+    ]);
+    const group = <T extends { sessionId: string }>(rows: T[]) => {
+      const m = new Map<string, T[]>();
+      for (const r of rows) m.set(r.sessionId, [...(m.get(r.sessionId) ?? []), r]);
+      return m;
+    };
+    const gamesBySession = group(allGames);
+    const votesBySession = group(votes);
+    const goalsBySession = group(goals);
+    const dayWinner = new Map(ordered.map((s) => [s.id, this.standings(s.teamCount, gamesBySession.get(s.id) ?? []).teamOfTheDay] as const));
+    const abilitiesOf = new Map(CATEGORIES.filter((c) => c.abilities).map((c) => [c.key, c.abilities!]));
+    /** Fastest on the pitch is kept as The Engine. */
+    const evidenceKey = (c: VoteCategory) => (c === VoteCategory.PACE ? VoteCategory.ENGINE : c);
 
-    for (const session of sessions) {
-      // Votes count towards cards and the table once the vote closes, like the results.
+    const ability = new Map<string, AbilityEvidence>();
+    const evidence = new Map<string, Map<VoteCategory, { nominations: number; voters: Set<string>; games: number; chances: number }>>();
+    const repeats = new Map<string, number>();
+
+    for (const session of ordered) {
+      // Votes count once the vote closes, like the results.
       const sv = this.window(session).open ? [] : (votesBySession.get(session.id) ?? []);
       const voters = new Set(sv.map((v) => v.voterId));
-      // Award votes (pace, shooting…) only move a card where the ballot asked for them; games
-      // voted on with the one-question ballot don't count against anyone's attributes.
-      // The new ballot's awards are optional and become evidence on the player's profile, not
-      // card attributes, so they neither lift nor count against the older card.
-      const newBallot = sv.some((v) => NEW_BALLOT.has(v.category));
-      const askedAwards = !newBallot && sv.some((v) => AWARDS.has(v.category));
-
-      // Player of the match = most POTM votes (ties share it).
-      const potmCounts = new Map<string, number>();
-      for (const v of sv) if (v.category === VoteCategory.POTM) potmCounts.set(v.nomineeId, (potmCounts.get(v.nomineeId) ?? 0) + 1);
-      const top = Math.max(0, ...potmCounts.values());
-
       const squad = this.squad(session);
+      const sideOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
+
+      const countsIn = (category: VoteCategory) => {
+        const m = new Map<string, number>();
+        for (const v of sv) if (v.category === category) m.set(v.nomineeId, (m.get(v.nomineeId) ?? 0) + 1);
+        return m;
+      };
+      // Player of the Match = most POTM votes (ties share it).
+      const potm = countsIn(VoteCategory.POTM);
+      const potmTop = Math.max(0, ...potm.values());
+      // Best on each team (ties share it).
+      const mate = countsIn(VoteCategory.TEAMMATE);
+      const mateTop = new Map<string, number>();
+      for (const [id, n] of mate) {
+        const t = sideOf(id);
+        if (t) mateTop.set(t, Math.max(mateTop.get(t) ?? 0, n));
+      }
+      // Best VII of the Day: the seven most picked, a sub pick counting half.
+      const viiScore = new Map<string, number>();
+      for (const v of sv) {
+        if (v.category === VoteCategory.VII || v.category === VoteCategory.VII_SUB) {
+          viiScore.set(v.nomineeId, (viiScore.get(v.nomineeId) ?? 0) + (v.category === VoteCategory.VII ? 1 : 0.5));
+        }
+      }
+      const viiOfDay = new Set([...viiScore.entries()].sort((x, y) => y[1] - x[1]).slice(0, VII_STARTERS + 1).map(([id]) => id));
+      // Who voted in each award this game.
+      const awardVoters = new Map<VoteCategory, Set<string>>();
+      for (const v of sv) {
+        if (!abilitiesOf.has(v.category)) continue;
+        awardVoters.set(v.category, (awardVoters.get(v.category) ?? new Set()).add(v.voterId));
+      }
+      const sessionGoals = goalsBySession.get(session.id) ?? [];
+
       for (const member of squad) {
         const s = stats.get(member.id) ?? {
           player: member,
@@ -1021,25 +1112,68 @@ export class RatingsService {
           skill: DEFAULT_START,
           provisional: true,
           ovr: null,
-          attributes: { PAC: null, SHO: null, PAS: null, DEF: null, GK: null },
+          attributes: Object.fromEntries(ABILITIES.map((a) => [a, null])) as Record<Ability, number | null>,
+          goals: 0,
+          assists: 0,
+          viiPicks: 0,
+          viiOfDay: 0,
+          bestOnTeam: 0,
+          evidence: {},
+          evidenceGames: 0,
         };
         s.games += 1;
-        const othersVoting = voters.size - (voters.has(member.id) ? 1 : 0);
-        s.ballotsSeen += othersVoting;
-        if (askedAwards) expectedVotes.set(member.id, (expectedVotes.get(member.id) ?? 0) + othersVoting / Math.max(1, squad.length - 1));
-        for (const v of sv) if (v.nomineeId === member.id && !(newBallot && AWARDS.has(v.category))) s.votes[v.category] += 1;
-        if (top > 0 && potmCounts.get(member.id) === top) s.potmWins += 1;
-        const team = session.payments?.find((p) => p.playerId === member.id)?.team;
-        if (team) {
+        s.ballotsSeen += voters.size - (voters.has(member.id) ? 1 : 0);
+        for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
+        if (potmTop > 0 && potm.get(member.id) === potmTop) s.potmWins += 1;
+        const side = sideOf(member.id);
+        if (side && mateTop.get(side) && mate.get(member.id) === mateTop.get(side)) s.bestOnTeam += 1;
+        s.viiPicks += sv.filter((v) => v.nomineeId === member.id && (v.category === VoteCategory.VII || v.category === VoteCategory.VII_SUB)).length;
+        if (viiOfDay.has(member.id)) s.viiOfDay += 1;
+        s.goals += sessionGoals.filter((g) => g.scorerId === member.id).length;
+        s.assists += sessionGoals.filter((g) => g.assistId === member.id).length;
+
+        // Award evidence, split evenly across what each award says about them.
+        if (awardVoters.size) s.evidenceGames += 1;
+        const ab = ability.get(member.id) ?? noEvidence();
+        const ev = evidence.get(member.id) ?? new Map();
+        for (const [category, who] of awardVoters) {
+          const chances = who.size - (who.has(member.id) ? 1 : 0);
+          const expected = chances / Math.max(1, squad.length - 1);
+          let got = 0;
+          let raw = 0;
+          for (const v of sv) {
+            if (v.category !== category || v.nomineeId !== member.id) continue;
+            const key = `${v.voterId}:${member.id}:${evidenceKey(category)}`;
+            const k = (repeats.get(key) ?? 0) + 1;
+            repeats.set(key, k);
+            got += 1 / k;
+            raw += 1;
+          }
+          const parts = abilitiesOf.get(category)!;
+          for (const a of parts) {
+            ab[a].n += got / parts.length;
+            ab[a].e += expected / parts.length;
+          }
+          const e = ev.get(evidenceKey(category)) ?? { nominations: 0, voters: new Set<string>(), games: 0, chances: 0 };
+          e.nominations += raw;
+          e.chances += chances;
+          if (raw) e.games += 1;
+          for (const v of sv) if (v.category === category && v.nomineeId === member.id) e.voters.add(v.voterId);
+          ev.set(evidenceKey(category), e);
+        }
+        ability.set(member.id, ab);
+        evidence.set(member.id, ev);
+
+        if (side) {
           for (const g of gamesBySession.get(session.id) ?? []) {
-            if (g.teamA !== team && g.teamB !== team) continue;
-            const mine = g.teamA === team ? g.scoreA : g.scoreB;
-            const theirs = g.teamA === team ? g.scoreB : g.scoreA;
+            if (g.teamA !== side && g.teamB !== side) continue;
+            const mine = g.teamA === side ? g.scoreA : g.scoreB;
+            const theirs = g.teamA === side ? g.scoreB : g.scoreA;
             if (mine > theirs) s.record.w += 1;
             else if (mine === theirs) s.record.d += 1;
             else s.record.l += 1;
           }
-          if (dayWinner.get(session.id) === team) s.teamOfDay += 1;
+          if (dayWinner.get(session.id) === side) s.teamOfDay += 1;
         }
         stats.set(member.id, s);
       }
@@ -1047,7 +1181,13 @@ export class RatingsService {
 
     for (const [id, s] of stats) {
       s.points = tablePoints(s);
-      Object.assign(s, playerCard(skills.get(id), s.votes, expectedVotes.get(id) ?? 0, s.ballotsSeen));
+      s.evidence = Object.fromEntries(
+        [...(evidence.get(id) ?? new Map()).entries()].map(([k, e]) => [
+          k,
+          { nominations: e.nominations, voters: e.voters.size, games: e.games, share: e.chances ? e.nominations / e.chances : 0, enough: e.voters.size >= AWARD_MIN_VOTERS },
+        ]),
+      );
+      Object.assign(s, playerCard(skills.get(id), ability.get(id) ?? noEvidence(), s.votes.potm, s.ballotsSeen));
     }
     return stats;
   }
@@ -1137,25 +1277,22 @@ export class RatingsService {
     return { games: sessions.length, points: POINTS, rows };
   }
 
-  async getPlayerRatings(playerId: string, organizationId: string): Promise<PlayerRatings> {
+  /** A player's ratings across the club, all time, with this calendar year's alongside. */
+  async getPlayerRatings(playerId: string, organizationId: string): Promise<PlayerRatings & { season: PlayerRatings }> {
     const sessions = await this.gamesQuery(organizationId).getMany();
     const mine = sessions.filter((s) => s.payments?.some((p) => p.playerId === playerId));
     const skills = await this.skills(organizationId);
-    const s = (await this.aggregate(mine, skills)).get(playerId);
-    if (s) {
-      const { player: _player, ...ratings } = s;
-      return ratings;
-    }
-    // Not played yet: the card starts from their level.
-    return {
-      games: 0,
-      ballotsSeen: 0,
-      votes: emptyVotes(),
-      potmWins: 0,
-      record: { w: 0, d: 0, l: 0 },
-      teamOfDay: 0,
-      points: 0,
-      ...playerCard(skills.get(playerId), emptyVotes(), 0, 0),
+    const year = String(new Date().getFullYear());
+    const of = async (list: Session[]): Promise<PlayerRatings> => {
+      const s = (await this.aggregate(list, skills)).get(playerId);
+      if (s) {
+        const { player: _player, ...ratings } = s;
+        return ratings;
+      }
+      // Not played yet: the card starts from their level.
+      return { ...blankRatings(), ...playerCard(skills.get(playerId), noEvidence(), 0, 0) };
     };
+    return { ...(await of(mine)), season: await of(mine.filter((s) => String(s.date).startsWith(year))) };
   }
+
 }
