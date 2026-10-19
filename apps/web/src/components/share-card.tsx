@@ -93,7 +93,7 @@ function ShareSheet({ token, caption, onClose }: { token: string; caption: strin
       onClick={onClose}
     >
       <div
-        className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-4 pb-[max(env(safe-area-inset-bottom),1rem)] sm:pb-4 animate-slide-up sm:animate-fade-in-up max-h-[92dvh] overflow-y-auto"
+        className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-3xl p-4 pb-[max(env(safe-area-inset-bottom),1rem)] sm:pb-4 animate-slide-up sm:animate-fade-in-up max-h-sheet overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

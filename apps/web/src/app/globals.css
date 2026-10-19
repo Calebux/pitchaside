@@ -101,8 +101,24 @@
     -webkit-tap-highlight-color: transparent;
   }
 
+  /* The app runs edge to edge on phones (viewport-fit=cover, translucent status bar). Keep every
+     screen clear of the notch / Dynamic Island and the rounded sides, and put a dark band behind the
+     white status-bar text so it stays readable and nothing scrolls underneath it. */
   body {
     @apply bg-white text-ink antialiased;
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: env(safe-area-inset-top);
+    background: var(--color-ink);
+    z-index: 90;
+    pointer-events: none;
   }
 
   h1,
@@ -384,4 +400,14 @@
 }
 @keyframes fade-out {
   to { opacity: 0; }
+}
+
+/* Sticky bars stop just below the notch / Dynamic Island instead of sliding under it. */
+@utility top-safe {
+  top: env(safe-area-inset-top);
+}
+
+/* Bottom sheets never grow up into the notch / Dynamic Island, so their top stays tappable. */
+@utility max-h-sheet {
+  max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
 }

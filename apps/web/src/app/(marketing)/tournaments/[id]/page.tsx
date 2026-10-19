@@ -75,7 +75,7 @@ export default function PublicCompetitionPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-ink/5">
+      <header className="sticky top-safe z-50 bg-white/80 backdrop-blur-lg border-b border-ink/5">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <Logo href="/" />
           <Link href="/tournaments" className="text-xs font-bold text-gray-500 hover:text-ink transition-colors">
