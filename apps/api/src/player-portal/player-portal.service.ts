@@ -14,6 +14,7 @@ import { AuthService } from '../auth/auth.service';
 import { localDate } from '../common/time.util';
 import { sheetName } from '../players/player-name';
 import { Person, PlayerAuthService } from './player-auth.service';
+import type { GoalInput } from '../ratings/ratings.service';
 
 /** The player app: everything is scoped to a person (phone), across every club they play for. */
 @Injectable()
@@ -403,6 +404,27 @@ export class PlayerPortalService {
 
   gameLineup(person: Person, sessionId: string) {
     return this.ratings.playerLineup(sessionId, this.ids(person));
+  }
+
+  // Match day for the day's captains: they keep the score (see RatingsService.captainToday).
+  matchDay(person: Person, sessionId: string) {
+    return this.ratings.captainLineup(sessionId, this.ids(person));
+  }
+
+  addMatchGame(person: Person, sessionId: string, input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[] }) {
+    return this.ratings.captainAddGame(sessionId, this.ids(person), input);
+  }
+
+  addGoal(person: Person, sessionId: string, gameId: string, input: GoalInput) {
+    return this.ratings.captainAddGoal(sessionId, gameId, this.ids(person), input);
+  }
+
+  deleteMatchGame(person: Person, sessionId: string, gameId: string) {
+    return this.ratings.captainDeleteGame(sessionId, gameId, this.ids(person));
+  }
+
+  deleteGoal(person: Person, sessionId: string, goalId: string) {
+    return this.ratings.captainDeleteGoal(sessionId, goalId, this.ids(person));
   }
 
   pickTeam(person: Person, sessionId: string, team: string | null) {

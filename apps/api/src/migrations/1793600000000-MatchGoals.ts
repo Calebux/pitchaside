@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-/** Goals and assists on match day: one row per goal, tied to the short game it was scored in. */
+/** Goals and assists on match day: one row per goal, tied to the short game it was scored in; and who saved each score. */
 export class MatchGoals1793600000000 implements MigrationInterface {
   name = 'MatchGoals1793600000000';
 
@@ -19,9 +19,11 @@ export class MatchGoals1793600000000 implements MigrationInterface {
         CONSTRAINT "FK_match_goals_game" FOREIGN KEY ("game_id") REFERENCES "session_games"("id") ON DELETE CASCADE
       )`);
     await q.query(`CREATE INDEX IF NOT EXISTS "IDX_match_goals_session" ON "match_goals" ("session_id")`);
+    await q.query(`ALTER TABLE "session_games" ADD COLUMN IF NOT EXISTS "recorded_by" varchar`);
   }
 
   public async down(q: QueryRunner): Promise<void> {
     await q.query(`DROP TABLE IF EXISTS "match_goals"`);
+    await q.query(`ALTER TABLE "session_games" DROP COLUMN IF EXISTS "recorded_by"`);
   }
 }

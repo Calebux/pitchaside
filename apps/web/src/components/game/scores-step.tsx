@@ -13,6 +13,15 @@ import { ScorerSheet } from './scorer-sheet';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
+export interface ScoresApi {
+  addGame: (sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] }) => Promise<Lineup>;
+  deleteGame: (sessionId: string, gameId: string) => Promise<Lineup>;
+  addGoal: (sessionId: string, gameId: string, goal: GoalInput) => Promise<Lineup>;
+  deleteGoal: (sessionId: string, goalId: string) => Promise<Lineup>;
+}
+
+const ORGANISER: ScoresApi = { addGame: addMatchGame, deleteGame: deleteMatchGame, addGoal, deleteGoal };
+
 /**
  * Step 3 of match day: each short game's score. A scoreboard with big − and + for each side
  * (two teams are fixed; with more, tap a side's name to pick who's playing), then the games so
@@ -27,6 +36,8 @@ export function ScoresStep({
   onLineup,
   onError,
   onPickTeams,
+  api = ORGANISER,
+  canRemove = () => true,
 }: {
   sessionId: string;
   lineup: Lineup;
@@ -35,6 +46,10 @@ export function ScoresStep({
   onLineup: (l: Lineup) => void;
   onError: (message: string) => void;
   onPickTeams: () => void;
+  /** Where scores are saved: the organiser's routes, or a captain's from the player app. */
+  api?: ScoresApi;
+  /** Whether this person can delete a score or a scorer someone recorded ("Ada (captain)"). */
+  canRemove?: (recordedBy: string | null | undefined) => boolean;
 }) {
   const sideTitle = useId();
   const teams = KEYS.slice(0, lineup.teamCount);
@@ -81,7 +96,7 @@ export function ScoresStep({
   async function save() {
     setBusy('save');
     try {
-      onLineup(await addMatchGame(sessionId, draft));
+      onLineup(await api.addGame(sessionId, draft));
       buzz([12, 40, 18]);
       setDraft((d) => ({ ...d, scoreA: 0, scoreB: 0, goals: [] }));
     } catch (err) {
@@ -105,7 +120,7 @@ export function ScoresStep({
   async function nameScorer(gameId: string, goal: GoalInput) {
     setBusy(`goal-${gameId}`);
     try {
-      onLineup(await addGoal(sessionId, gameId, goal));
+      onLineup(await api.addGoal(sessionId, gameId, goal));
     } catch (err) {
       onError(err instanceof Error ? err.message : 'That didn’t save. Try again.');
     } finally {
@@ -116,7 +131,7 @@ export function ScoresStep({
   async function unnameScorer(goalId: string) {
     setBusy(goalId);
     try {
-      onLineup(await deleteGoal(sessionId, goalId));
+      onLineup(await api.deleteGoal(sessionId, goalId));
     } catch (err) {
       onError(err instanceof Error ? err.message : 'That didn’t save. Try again.');
     } finally {
@@ -128,7 +143,7 @@ export function ScoresStep({
     setRemoving(null);
     setBusy(g.id);
     try {
-      onLineup(await deleteMatchGame(sessionId, g.id));
+      onLineup(await api.deleteGame(sessionId, g.id));
     } catch (err) {
       onError(err instanceof Error ? err.message : 'That didn’t delete. Try again.');
     } finally {
@@ -251,6 +266,7 @@ export function ScoresStep({
                     {g.goals.length ? `⚽ ${scorersLine(g.goals)}` : g.scoreA + g.scoreB ? 'Tap to name the scorers' : 'No goals'}
                   </span>
                 </button>
+                {canRemove(g.recordedBy) ? (
                 <button
                   onClick={() => setRemoving(g)}
                   disabled={!!busy}
@@ -265,6 +281,9 @@ export function ScoresStep({
                     </svg>
                   )}
                 </button>
+                ) : (
+                  <span className="w-11 shrink-0" aria-hidden />
+                )}
               </li>
             ))}
           </ol>
@@ -388,6 +407,7 @@ export function ScoresStep({
                           </span>
                           {goal.recordedBy && <span className="block text-[12px] text-gray-500">Added by {goal.recordedBy}</span>}
                         </span>
+                        {canRemove(goal.recordedBy) && (
                         <button
                           onClick={() => unnameScorer(goal.id)}
                           disabled={!!busy}
@@ -402,6 +422,7 @@ export function ScoresStep({
                             </svg>
                           )}
                         </button>
+                        )}
                       </li>
                     ))}
                   </ul>

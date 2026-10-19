@@ -8,6 +8,7 @@ import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
 import { TEAMS, teamName } from '@/lib/teams';
 import { MatchDayBibs } from '@/components/match-day-bibs';
+import { KeepScoreLink } from '@/components/keep-score-link';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ShareCardButton } from '@/components/share-card';
@@ -250,6 +251,7 @@ export function GameCard({
         )}
 
         {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
+        {daysFrom(game.date) === 0 && game.status !== 'cancelled' && <KeepScoreLink sessionId={game.id} />}
 
         {!played && (
         <div className="grid grid-cols-2 gap-2 mt-4">

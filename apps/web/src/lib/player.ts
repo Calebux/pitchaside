@@ -3,7 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
-import type { PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import type { GoalInput, Lineup, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -346,10 +346,34 @@ export interface GameLineup {
   showPaid: boolean;
   /** `paid` is null for others when the group keeps that private. */
   squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; paid: GamePaid | null }[];
+  /** They captain a side today, so they can keep the score from their phone. */
+  canKeepScore?: boolean;
 }
 
 export function getGameLineup(sessionId: string) {
   return request<GameLineup>('GET', `/me/games/${sessionId}/lineup`);
+}
+
+// ── Keeping the score: the day's captains ──
+
+export function getMatchDay(sessionId: string) {
+  return request<Lineup>('GET', `/me/games/${sessionId}/match-day`);
+}
+
+export function addCaptainGame(sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] }) {
+  return request<Lineup>('POST', `/me/games/${sessionId}/match-day/games`, game);
+}
+
+export function addCaptainGoal(sessionId: string, gameId: string, goal: GoalInput) {
+  return request<Lineup>('POST', `/me/games/${sessionId}/match-day/games/${gameId}/goals`, goal);
+}
+
+export function deleteCaptainGame(sessionId: string, gameId: string) {
+  return request<Lineup>('DELETE', `/me/games/${sessionId}/match-day/games/${gameId}`);
+}
+
+export function deleteCaptainGoal(sessionId: string, goalId: string) {
+  return request<Lineup>('DELETE', `/me/games/${sessionId}/match-day/goals/${goalId}`);
 }
 
 export function pickBib(sessionId: string, team: TeamKey | null) {

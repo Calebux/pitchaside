@@ -673,6 +673,8 @@ export interface MatchGame {
   scoreB: number;
   /** Named scorers; can be fewer than the score. */
   goals: MatchGoal[];
+  /** "Tunde (organiser)", "Ada (captain)": who saved the score. */
+  recordedBy?: string | null;
 }
 
 export interface TeamStanding {
