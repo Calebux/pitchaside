@@ -22,6 +22,7 @@ import {
   type SessionVoting,
 } from '@/lib/api';
 import { openWhatsApp } from '@/lib/whatsapp';
+import { isVotingOpen } from '@/lib/game-status';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
 import { CountUp, CountUpNaira, LiveDot, stagger } from '@/components/motion';
 import { Collapse, CollapseButton, useRemembered } from '@/components/collapse';
@@ -64,10 +65,12 @@ export function phaseOf(game: ISessionWithDetails): GamePhase {
 }
 
 /**
- * The game the home card is about. A game on today wins. Otherwise last game stays while it needs
- * the organiser: not ended yet (up to a week back), or ended in the last two days while its vote is
- * on. Once it's ended and that's passed, or the next game is tomorrow, the card moves on to the
- * next game.
+ * The game the home card is about, by these rules, in order:
+ * 1. A game on today, or the next game when it's tomorrow.
+ * 2. The last game while it still needs the organiser: played but not ended (up to a week back),
+ *    or ended with its vote still open.
+ * 3. Otherwise the next game. Once the last game is ended and its vote has closed, it's done:
+ *    it moves to Games › Played and the card moves on.
  */
 export function featuredGame(sessions: ISessionWithDetails[], groupId: string) {
   const games = sessions.filter((s) => s.groupId === groupId && s.kind !== 'dues' && s.status !== 'cancelled');
@@ -78,7 +81,7 @@ export function featuredGame(sessions: ISessionWithDetails[], groupId: string) {
   const recent = games
     .filter((s) => {
       const d = daysFromToday(s.date);
-      return d < 0 && (s.status !== 'completed' ? d >= -VOTE_DAYS : d >= -2);
+      return d < 0 && (s.status !== 'completed' ? d >= -VOTE_DAYS : isVotingOpen(s));
     })
     .sort((a, b) => gameDay(b.date).getTime() - gameDay(a.date).getTime())[0];
   return recent ?? next;
@@ -559,6 +562,18 @@ export function AccountStrip({
   const today = localToday();
   const todayIn = received.filter((t) => localDay(t.receivedAt) === today).reduce((sum, t) => sum + Number(t.amount), 0);
   const unnamed = billing?.unmatchedTransfers ?? received.filter((t) => t.status === 'unmatched').length;
+  const toast = useToast();
+  const [copied, setCopied] = useState(false);
+  const account = billing?.account ?? null;
+  const copyNumber = (n: string) =>
+    navigator.clipboard.writeText(n).then(
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1800);
+        toast.success('Account number copied');
+      },
+      () => toast.error('Could not copy. Press and hold the number to copy it instead.'),
+    );
 
   return (
     <section aria-label={`${group.name} account`} className="relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
@@ -580,9 +595,8 @@ export function AccountStrip({
         ) : (
           <>
             <div className="flex items-center gap-1">
-              <Link href={moneyHref(group.id)} className="text-xs font-semibold text-white/70 hover:text-white">
-                Account balance
-              </Link>
+              {/* The balance below is the link; one is enough */}
+              <span className="text-xs font-semibold text-white/70">Account balance</span>
               <button
                 onClick={toggleHidden}
                 aria-pressed={hidden}
@@ -600,7 +614,11 @@ export function AccountStrip({
                 </button>
               </div>
             ) : (
-              <Link href={moneyHref(group.id)} className="block mt-0.5 font-display text-[36px] leading-none font-extrabold text-volt-300 tabular-nums" aria-hidden tabIndex={-1}>
+              <Link
+                href={moneyHref(group.id)}
+                className="group mt-0.5 flex items-center justify-between gap-2 font-display text-[36px] leading-none font-extrabold text-volt-300 tabular-nums"
+                aria-label="Open Money: payments in and withdrawals"
+              >
                 {balance == null ? (
                   <span className="inline-block h-9 w-40 rounded-xl bg-white/10 animate-pulse align-middle" />
                 ) : hidden ? (
@@ -608,6 +626,12 @@ export function AccountStrip({
                 ) : (
                   <CountUpNaira value={Number(balance.available)} />
                 )}
+                {/* Says the card opens Money, without another button */}
+                <span className="shrink-0 w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white/80 group-hover:bg-white/15" aria-hidden>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                </span>
               </Link>
             )}
             <p className="sr-only" aria-live="polite" aria-atomic="true">
@@ -627,6 +651,33 @@ export function AccountStrip({
                 </Link>
               )}
             </div>
+            {/* The account players pay into: bank, number, copy */}
+            {account && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 pl-3 pr-1 min-h-11">
+                <span className="min-w-0 flex-1 truncate text-[13px] text-white/70">
+                  {account.bankName.replace(/ Microfinance Bank$/, ' MFB')}
+                  <span className="mx-1.5 text-white/30" aria-hidden>
+                    ·
+                  </span>
+                  <span className="font-bold text-white tabular-nums tracking-wide">{formatAccountNumber(account.accountNumber)}</span>
+                </span>
+                <button
+                  onClick={() => copyNumber(account.accountNumber)}
+                  aria-label={copied ? 'Account number copied' : `Copy account number ${account.accountNumber}`}
+                  className="press shrink-0 w-11 h-11 -my-0.5 flex items-center justify-center rounded-lg text-white/80 hover:text-white hover:bg-white/10"
+                >
+                  {copied ? (
+                    <svg className="w-4 h-4 text-volt-300 animate-pop-in" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            )}
           </>
         )}
         {unnamed > 0 && (
