@@ -207,7 +207,7 @@ function Card({ card }: { card: MatchCard }) {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 28 }}>
           {others.map((a, i) => (
             <div
-              key={a.key}
+              key={`${a.key}-${a.team ?? ''}`}
               style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -220,7 +220,10 @@ function Card({ card }: { card: MatchCard }) {
               }}
             >
               <div style={{ display: 'flex', fontSize: 21, fontWeight: 700, letterSpacing: 3, color: C.volt300 }}>
-                {a.title.toUpperCase()}
+                {(a.key === 'teammate' && a.team
+                  ? `Best on ${a.captain ? `Team ${a.captain}` : (TEAM_COLOURS[a.team]?.name ?? 'their team')}`
+                  : a.title
+                ).toUpperCase()}
               </div>
               <div style={{ display: 'flex', fontSize: fit(a.name, 36, 18), fontWeight: 700, marginTop: 6 }}>{a.name}</div>
             </div>

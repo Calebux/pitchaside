@@ -740,7 +740,7 @@ export function subscribeOrganiserPush(sub: PushSubscriptionJSON) {
 
 // ── Post-match voting, ratings & league table ──
 
-export type VoteCategory = 'potm' | 'pace' | 'shooting' | 'passing' | 'defending' | 'keeper';
+export type VoteCategory = 'potm' | 'pace' | 'shooting' | 'passing' | 'defending' | 'keeper' | 'teammate';
 export type Attribute = 'PAC' | 'SHO' | 'PAS' | 'DEF' | 'GK';
 
 export interface SquadMember {
@@ -758,6 +758,8 @@ export interface VoteResults {
   categories: {
     key: VoteCategory;
     title: string;
+    /** For "Best on your team": whose team this result is for. */
+    team?: TeamKey | null;
     standings: { playerId: string; count: number; player: SquadMember }[];
   }[];
 }

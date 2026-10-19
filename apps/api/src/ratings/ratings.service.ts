@@ -34,13 +34,17 @@ export const CATEGORIES: { key: VoteCategory; title: string; attr?: 'PAC' | 'SHO
   { key: VoteCategory.PASSING, title: 'Best passer', attr: 'PAS' },
   { key: VoteCategory.DEFENDING, title: 'Rock at the back', attr: 'DEF' },
   { key: VoteCategory.KEEPER, title: 'Best goalkeeper', attr: 'GK' },
+  { key: VoteCategory.TEAMMATE, title: 'Best on your team' },
 ];
 
 /**
- * What the ballot asks: one question that fits on one screen. The other categories stay for
- * games voted on before, so their results and the cards built from them still show.
+ * What the ballot asks: Player of the Match, and (optionally, when teams were set) the best on
+ * your own team. The award categories stay for games voted on before, so their results and the
+ * cards built from them still show.
  */
-const BALLOT = CATEGORIES.filter((c) => c.key === VoteCategory.POTM);
+const BALLOT = CATEGORIES.filter((c) => c.key === VoteCategory.POTM || c.key === VoteCategory.TEAMMATE);
+/** The categories that move a card attribute (PAC, SHO…). */
+const AWARDS = new Set(CATEGORIES.filter((c) => c.attr).map((c) => c.key));
 
 /** Ratings need a few games of votes before they reach the extremes. */
 const RATING_PRIOR = 6;
@@ -81,7 +85,7 @@ export interface PlayerRatings {
 }
 
 function emptyVotes(): Record<VoteCategory, number> {
-  return { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0 };
+  return { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0, teammate: 0 };
 }
 
 /**
@@ -138,12 +142,12 @@ export class RatingsService {
     if (session.voteOpensAt) {
       opensAt = new Date(session.voteOpensAt);
       closesAt = new Date(opensAt.getTime() + VOTE_HOURS * 3_600_000);
-      // Everyone who came has voted: no need to wait out the 48 hours.
-      if (session.voteClosedAt && new Date(session.voteClosedAt) < closesAt) closesAt = new Date(session.voteClosedAt);
     } else if (ended) {
       opensAt = new Date(`${session.date}T00:00:00`);
       closesAt = new Date(opensAt.getTime() + (LEGACY_WINDOW_DAYS + 1) * 86_400_000);
     }
+    // Everyone who came has voted: no need to wait out the rest of the window.
+    if (closesAt && session.voteClosedAt && new Date(session.voteClosedAt) < closesAt) closesAt = new Date(session.voteClosedAt);
     const now = Date.now();
     const open = eligible && ended && !!opensAt && !!closesAt && now >= opensAt.getTime() && now < closesAt.getTime();
     return {
@@ -208,16 +212,23 @@ export class RatingsService {
 
     // Player of the Match, plus any other category this game was voted on (games before the one-question ballot).
     const asked = CATEGORIES.filter((c) => c.key === VoteCategory.POTM || votes.some((v) => v.category === c.key));
-    const categories = asked.map((c) => {
+    const tally = (category: VoteCategory, team?: string) => {
       const counts = new Map<string, number>();
       for (const v of votes) {
-        if (v.category === c.key) counts.set(v.nomineeId, (counts.get(v.nomineeId) ?? 0) + 1);
+        if (v.category === category) counts.set(v.nomineeId, (counts.get(v.nomineeId) ?? 0) + 1);
       }
-      const standings = [...counts.entries()]
+      return [...counts.entries()]
         .map(([playerId, count]) => ({ player: byId.get(playerId) ?? null, playerId, count }))
-        .filter((s) => s.player)
+        .filter((s) => s.player && (!team || this.teamOf(session, session.payments?.find((p) => p.playerId === s.playerId)?.team ?? null) === team))
         .sort((a, b) => b.count - a.count);
-      return { key: c.key, title: c.title, standings: hidden ? [] : standings };
+    };
+    const categories = asked.flatMap((c) => {
+      if (c.key !== VoteCategory.TEAMMATE) return [{ key: c.key, title: c.title, team: null as string | null, standings: hidden ? [] : tally(c.key) }];
+      // Best on your team is a result per side: "Best on Orange: Ada".
+      return TEAM_KEYS.slice(0, session.teamCount)
+        .map((team) => ({ key: c.key, title: c.title, team: team as string | null, standings: tally(c.key, team) }))
+        .filter((t) => t.standings.length > 0)
+        .map((t) => ({ ...t, standings: hidden ? [] : t.standings }));
     });
     return { ballots, squadSize: squad.length, hidden, categories };
   }
@@ -275,7 +286,7 @@ export class RatingsService {
       open: w.open,
       notYet: w.notYet,
       closesAt: w.closesAt,
-      categories: BALLOT.map(({ key, title }) => ({ key, title })),
+      categories: BALLOT.filter((c) => c.key !== VoteCategory.TEAMMATE || this.hasTeams(session)).map(({ key, title }) => ({ key, title })),
       // Each player's side, so the ballot can group them by team (own team first).
       squad: this.squad(session).map((p) => ({
         ...p,
@@ -286,6 +297,11 @@ export class RatingsService {
       ballots: r.ballots,
       squadSize: r.squadSize,
     };
+  }
+
+  /** At least two sides were picked, so "best on your team" means something. */
+  private hasTeams(session: Session) {
+    return new Set(this.squad(session).map((p) => this.teamOf(session, session.payments?.find((x) => x.playerId === p.id)?.team ?? null)).filter(Boolean)).size >= 2;
   }
 
   /** On the game's list and not marked as didn't come. */
@@ -328,6 +344,10 @@ export class RatingsService {
       if (!valid.has(category)) throw new BadRequestException(`Unknown category "${category}"`);
       if (!squadIds.has(nomineeId)) throw new BadRequestException('You can only vote for players in this game');
       if (nomineeId === voter.id) throw new BadRequestException("Nice try — you can't vote for yourself");
+      if (category === VoteCategory.TEAMMATE) {
+        const teamOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
+        if (!teamOf(voter.id) || teamOf(nomineeId) !== teamOf(voter.id)) throw new BadRequestException('Pick the best player from your own team');
+      }
       rows.push({ sessionId: session.id, voterId: voter.id, category: category as VoteCategory, nomineeId });
     }
 
@@ -369,7 +389,16 @@ export class RatingsService {
         if (!top?.player) return null;
         // A tie at the top is shared: "Chidi & Tunde".
         const tied = c.standings.filter((s) => s.count === top.count && s.player).map((s) => name(s.player!));
-        return { key: c.key, title: c.title, name: tied.join(' & '), votes: top.count, shared: tied.length > 1 };
+        return {
+          key: c.key,
+          title: c.title,
+          // Best on your team is one award per side.
+          team: c.team,
+          captain: c.team ? (this.captainsOf(session)[c.team as TeamKey] ?? null) : null,
+          name: tied.join(' & '),
+          votes: top.count,
+          shared: tied.length > 1,
+        };
       })
       .filter((a): a is NonNullable<typeof a> => !!a);
 
@@ -740,7 +769,7 @@ export class RatingsService {
       const voters = new Set(sv.map((v) => v.voterId));
       // Award votes (pace, shooting…) only move a card where the ballot asked for them; games
       // voted on with the one-question ballot don't count against anyone's attributes.
-      const askedAwards = sv.some((v) => v.category !== VoteCategory.POTM);
+      const askedAwards = sv.some((v) => AWARDS.has(v.category));
 
       // Player of the match = most POTM votes (ties share it).
       const potmCounts = new Map<string, number>();

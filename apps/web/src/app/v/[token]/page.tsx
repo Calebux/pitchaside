@@ -115,6 +115,40 @@ export default function VotePage() {
     players: others.filter((p) => p.team === key),
   }));
   const picked = others.find((p) => p.id === picks.potm);
+  // The optional second question: the best on your own team, from your teammates.
+  const mates = myTeam && ballot.categories.some((c) => c.key === 'teammate') ? others.filter((p) => p.team === myTeam) : [];
+  const pickedMate = mates.find((p) => p.id === picks.teammate);
+  const short = (p: { firstName: string; nickname?: string | null }) => p.nickname || p.firstName;
+
+  /** One player to pick: Player of the Match is one of everyone; best on your team can be cleared. */
+  const chip = (p: (typeof others)[number], category: 'potm' | 'teammate') => {
+    const selected = picks[category] === p.id;
+    const name = `${p.firstName} ${p.lastName}`;
+    return (
+      <li key={p.id} className="min-w-0">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={selected}
+          aria-label={p.nickname ? `${name}, “${p.nickname}”` : name}
+          onClick={() => setPicks({ ...picks, [category]: category === 'teammate' && selected ? undefined : p.id })}
+          className={`press w-full flex items-center gap-2 h-12 pl-1.5 pr-2.5 rounded-2xl border-2 text-left transition-colors ${
+            selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
+          }`}
+        >
+          <Avatar name={name} className="w-8 h-8 text-[10px]" />
+          <span className="flex-1 min-w-0 truncate text-[14px] font-bold text-ink">
+            {short(p)} {p.lastName.charAt(0)}.
+          </span>
+          {selected && (
+            <svg className="w-4 h-4 shrink-0 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+            </svg>
+          )}
+        </button>
+      </li>
+    );
+  };
   const input =
     'w-full px-3.5 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600';
 
@@ -203,39 +237,26 @@ export default function VotePage() {
                     {side.mine && <span className="text-[11px] font-semibold text-gray-500">· your team</span>}
                   </h3>
                   <ul className="grid grid-cols-2 gap-2">
-                    {side.players.map((p) => {
-                      const selected = picks.potm === p.id;
-                      const name = `${p.firstName} ${p.lastName}`;
-                      return (
-                        <li key={p.id} className="min-w-0">
-                          <button
-                            type="button"
-                            role="radio"
-                            aria-checked={selected}
-                            aria-label={p.nickname ? `${name}, “${p.nickname}”` : name}
-                            onClick={() => setPicks({ ...picks, potm: p.id })}
-                            className={`press w-full flex items-center gap-2 h-12 pl-1.5 pr-2.5 rounded-2xl border-2 text-left transition-colors ${
-                              selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
-                            }`}
-                          >
-                            <Avatar name={name} className="w-8 h-8 text-[10px]" />
-                            <span className="flex-1 min-w-0 truncate text-[14px] font-bold text-ink">
-                              {p.nickname || p.firstName} {p.lastName.charAt(0)}.
-                            </span>
-                            {selected && (
-                              <svg className="w-4 h-4 shrink-0 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor" aria-hidden>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                              </svg>
-                            )}
-                          </button>
-                        </li>
-                      );
-                    })}
+                    {side.players.map((p) => chip(p, 'potm'))}
                   </ul>
                 </section>
               ))}
             </div>
-            <p className="mt-3 text-xs text-gray-500">You can&apos;t pick yourself. The winner shows when the vote closes.</p>
+            {mates.length > 0 && myTeam && (
+              <section className="mt-6" aria-labelledby="best-mate">
+                <h2 id="best-mate" className="font-display text-xl font-extrabold text-ink">
+                  Best on your team <span className="text-sm font-semibold text-gray-500">· optional</span>
+                </h2>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  One of your {TEAMS[myTeam].name}
+                  {ballot.captains[myTeam] ? ` (Team ${ballot.captains[myTeam]})` : ''} teammates. Tap again to clear it.
+                </p>
+                <ul className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby="best-mate">
+                  {mates.map((p) => chip(p, 'teammate'))}
+                </ul>
+              </section>
+            )}
+            <p className="mt-3 text-xs text-gray-500">You can&apos;t pick yourself. The winners show when the vote closes.</p>
             {error && <div className="mt-3 bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
             <div className="fixed bottom-0 inset-x-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-white via-white to-transparent">
               <button
@@ -244,7 +265,7 @@ export default function VotePage() {
                 className="w-full max-w-md mx-auto flex items-center justify-center gap-2 h-14 bg-ink text-volt-300 text-[15px] font-bold rounded-2xl shadow-lift hover:bg-pitch-900 transition-colors disabled:opacity-50"
               >
                 {busy && <BallSpinner />}
-                {picked ? `Vote for ${picked.nickname || picked.firstName}` : 'Pick a player'}
+                {picked ? `Vote for ${short(picked)}${pickedMate ? ` and ${short(pickedMate)}` : ''}` : 'Pick Player of the Match'}
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { TEAMS } from '@/lib/teams';
 import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
@@ -14,6 +15,7 @@ import {
   type LeagueTable,
   type PlayerRatings,
   type SessionVoting,
+  type TeamKey,
   type VoteCategory,
   type VoteResults,
 } from '@/lib/api';
@@ -25,7 +27,13 @@ export const categoryMeta: Record<VoteCategory, { short: string; tone: string; c
   passing: { short: 'PAS', tone: 'bg-volt-400 text-ink', chip: 'bg-volt-400', attr: 'PAS' },
   defending: { short: 'DEF', tone: 'bg-ink text-volt-300', chip: 'bg-ink', attr: 'DEF' },
   keeper: { short: 'GK', tone: 'bg-pitch-600 text-white', chip: 'bg-pitch-600', attr: 'GK' },
+  teammate: { short: 'TEAM', tone: 'bg-pitch-600 text-white', chip: 'bg-pitch-600' },
 };
+
+/** A result's heading: "Best on Orange" for the per-team pick, else the category's own title. */
+export function resultTitle(c: { key: VoteCategory; title: string; team?: TeamKey | null }) {
+  return c.key === 'teammate' && c.team ? `Best on ${TEAMS[c.team].name}` : c.title;
+}
 
 export function Avatar({ name, className = 'w-9 h-9 text-xs' }: { name: string; className?: string }) {
   const k = kitFor(name);
@@ -51,7 +59,7 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
         const winnerName = winner ? `${winner.player.firstName} ${winner.player.lastName}` : '';
         return (
           <div
-            key={c.key}
+            key={`${c.key}-${c.team ?? ''}`}
             className={`rounded-2xl border p-3.5 ${
               c.key === 'potm' && !compact ? 'bg-ink text-white border-ink' : 'bg-white border-gray-100 shadow-card'
             }`}
@@ -61,7 +69,7 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
                 {meta.short}
               </span>
               <span className={`text-[11px] font-semibold ${c.key === 'potm' && !compact ? 'text-white/50' : 'text-gray-500'}`}>
-                {c.title}
+                {resultTitle(c)}
               </span>
             </div>
             {winner ? (
