@@ -153,8 +153,8 @@ export default function PlayersPage() {
 
       {/* Header */}
       <PageHeader
-        eyebrow="The squad"
-        title="Players"
+        eyebrow="Every group"
+        title="All players"
         subtitle={meta.total > 0 ? `${meta.total} registered` : undefined}
         actions={
         <>

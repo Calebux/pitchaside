@@ -107,7 +107,7 @@ export default function MoneyPage() {
               const fresh = await getGroup(group.id);
               setGroups((list) => (list ?? []).map((g) => (g.id === fresh.id ? fresh : g)));
             }}
-            onAddPlayers={() => router.push(`/groups/${group.id}?tab=members`)}
+            onAddPlayers={() => router.push(`/squad?group=${group.id}`)}
             onOpenAccount={() => setShowAccount(true)}
           />
         </>

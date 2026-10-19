@@ -16,7 +16,7 @@ import { GroupSquad } from '@/components/squad/group-squad';
 import { GroupTable } from '@/components/squad/group-table';
 import { AccountDetailsSheet, daysFromToday, gameDay, useGroupMoney } from '@/components/money-card';
 import { InviteSheet } from '@/components/home/invite-sheet';
-import { InviteIcon, ICON_PATHS, icon } from '@/components/home/quick-actions';
+import { InviteIcon, ICON_PATHS, icon } from '@/components/icons';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { Sheet } from '@/components/sheet';
 import { GamesBrowser } from '@/components/group/games-list';

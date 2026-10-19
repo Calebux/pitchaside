@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/brand';
 import { EmptyState } from '@/components/empty-state';
 import { GroupSwitch } from '@/components/group-switch';
 import { InviteSheet } from '@/components/home/invite-sheet';
-import { InviteIcon } from '@/components/home/quick-actions';
+import { InviteIcon } from '@/components/icons';
 import { GroupSquad } from '@/components/squad/group-squad';
 import { GroupTable } from '@/components/squad/group-table';
 import { getGroupBilling, getGroups, getSessionsPaginated, type GroupBilling, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';

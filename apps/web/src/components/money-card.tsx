@@ -131,7 +131,6 @@ export function gameMoney(game: ISessionWithDetails) {
 /**
  * The group's balance, latest transfers and this week's game, refreshed every 20s while
  * the page is on screen, so an organiser at the pitch sees money land without pulling.
- * `fresh` holds transfers that arrived since the page opened (they slide into the ticker).
  */
 export function useGroupMoney(groupId: string | null, gameId: string | null) {
   const [balance, setBalance] = useState<GroupBalance | null>(null);
@@ -144,8 +143,6 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
   const [balanceFailed, setBalanceFailed] = useState(false);
   // The payments list failed and there's nothing true to show yet.
   const [transfersFailed, setTransfersFailed] = useState(false);
-  const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const seen = useRef<Set<string> | null>(null);
   // Which group/game the screen is on now; answers for an earlier one are dropped.
   const current = useRef('');
   current.current = `${groupId}|${gameId}`;
@@ -167,22 +164,13 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
     if (bill.status === 'fulfilled') setBilling(bill.value);
     if (g.status === 'fulfilled') setGame(g.value);
     if (r.status === 'fulfilled') setRsvp(r.value);
-    if (t.status === 'fulfilled') {
-      const list = t.value;
-      if (seen.current) {
-        const landed = list.filter((x) => !seen.current!.has(x.id)).map((x) => x.id);
-        if (landed.length) setFresh((prev) => new Set([...prev, ...landed]));
-      }
-      seen.current = new Set(list.map((x) => x.id));
-      setTransfers(list);
-    }
+    if (t.status === 'fulfilled') setTransfers(t.value);
     // Only claim "updated" when the money itself came back.
     if (b.status === 'fulfilled') setUpdatedAt(Date.now());
   }, [groupId, gameId]);
 
   // New group or game: start clean so the last group's money never shows under this one's name.
   useEffect(() => {
-    seen.current = null;
     setBalance(null);
     setBilling(null);
     setTransfers(null);
@@ -191,7 +179,6 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
     setUpdatedAt(null);
     setBalanceFailed(false);
     setTransfersFailed(false);
-    setFresh(new Set());
   }, [groupId, gameId]);
 
   useEffect(() => {
@@ -208,7 +195,7 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
     };
   }, [groupId, load]);
 
-  return { balance, billing, transfers, game, rsvp, updatedAt, balanceFailed, transfersFailed, fresh, reload: load, setBilling };
+  return { balance, billing, transfers, game, rsvp, updatedAt, balanceFailed, transfersFailed, reload: load, setBilling };
 }
 
 // ── Pieces ──
@@ -304,54 +291,31 @@ function useHiddenBalance() {
 // ── The card ──
 
 /**
- * "The gate": the group's money first, and what it means for this week's game.
- * Balance ticks over when a transfer lands; the latest transfers run underneath like a
- * TV ticker; then the game's collection, squad and the one thing to do next.
+ * The group's account, at the top of Money: the balance (it ticks over when a transfer lands),
+ * money in today, in all and how many transfers, and the account number to share.
  */
 export function MoneyCard({
   group,
   money,
-  gameFallback,
-  canManage,
-  onScheduleGame,
   onOpenAccount,
-  onGameEnded,
-  vote,
-  showGame = true,
-  showTicker = true,
 }: {
   group: IGroupWithMembers;
   money: ReturnType<typeof useGroupMoney>;
-  /** The game as the list endpoint returned it, shown until the live copy arrives. */
-  gameFallback: ISessionWithDetails | null;
-  canManage: boolean;
-  onScheduleGame: () => void;
   /** Opens the full account details: share text, QR, group link. */
   onOpenAccount: () => void;
-  /** Called once a game is ended from the card, so the page can update its copy. */
-  onGameEnded?: (gameId: string) => void;
-  /** The featured game's vote, if it has one. */
-  vote?: SessionVoting | null;
-  /** False shows the account card alone (the group page lists every game in its own tab). */
-  showGame?: boolean;
-  /** False drops the latest-payments preview (the group's Money tab lists every transfer right below). */
-  showTicker?: boolean;
 }) {
   const toast = useToast();
   const now = useNow();
   const [hidden, toggleHidden] = useHiddenBalance();
-  const { balance, billing, transfers, updatedAt, balanceFailed, fresh } = money;
+  const { balance, billing, transfers, updatedAt, balanceFailed } = money;
 
-  // Two rows at most: an unknown payment first (it needs them), then the newest. The rest are a tap away.
   const recent = (transfers ?? [])
     .filter((t) => t.status !== 'ignored')
     .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
   const unknown = recent.filter((t) => t.status === 'unmatched');
-  const ticker = [...unknown.slice(0, 1), ...recent.filter((t) => t.status !== 'unmatched')].slice(0, 2);
   const [sheet, setSheet] = useState<{ id: string | null } | null>(null);
   // Payments with no name are sorted out on the group's Money tab: the list of them, or one in the picker.
   const unnamedHref = moneyHref(group.id, { unnamed: true });
-  const chooseHref = (id: string) => moneyHref(group.id, { transfer: id });
   const account = billing?.account ?? null;
   const [accountOpen, toggleAccount] = useRemembered('pitchaside_home_account_open', true);
   const accountId = useId();
@@ -562,99 +526,6 @@ export function MoneyCard({
           </div>
         )}
 
-        {/* The ticker: what's come in lately, newest on top */}
-        {showTicker && ticker.length > 0 && (
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <p className="text-xs font-bold text-white/70">Money in</p>
-            <div className="flex items-center gap-3">
-              {unknown.length > 1 && (
-                <Link
-                  href={unnamedHref}
-                  className="press -my-2 h-11 px-1 inline-flex items-center gap-1.5 text-xs font-bold text-sun-400 hover:opacity-80"
-                >
-                  <LiveDot className="bg-sun-400" />
-                  {unknown.length} with no name
-                </Link>
-              )}
-              <button
-                onClick={() => setSheet({ id: null })}
-                className="press -my-2 h-11 px-1 inline-flex items-center gap-1 text-xs font-bold text-volt-300 hover:text-volt-200"
-              >
-                See all
-                <Chevron />
-              </button>
-            </div>
-          </div>
-        )}
-        {showTicker && ticker.length > 0 && (
-          <ul className="mt-1 rounded-2xl bg-white/[0.06] divide-y divide-white/[0.07] overflow-hidden" aria-label="Latest transfers">
-            {ticker.map((t, i) => {
-              const landed = fresh.has(t.id);
-              const unmatched = t.status === 'unmatched';
-              const name = transferName(t);
-              const row = (
-                <>
-                  <span
-                    className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-xs font-extrabold ${
-                      unmatched ? 'bg-sun-400/15 text-sun-400 ring-1 ring-sun-400/40' : 'bg-volt-400/15 text-volt-300'
-                    }`}
-                    aria-hidden
-                  >
-                    {unmatched ? '?' : name.charAt(0)}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className={`block truncate text-[13px] font-bold ${unmatched ? 'text-white/75' : 'text-white'}`}>{name}</span>
-                    {unmatched ? (
-                      <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-bold text-sun-400">
-                        <LiveDot className="bg-sun-400" />
-                        Who sent this?
-                      </span>
-                    ) : (
-                      <span className="block text-[11px] font-semibold text-white/65 tabular-nums">{ago(t.receivedAt, now)}</span>
-                    )}
-                  </span>
-                  <span className={`font-display text-[15px] font-extrabold tabular-nums shrink-0 ${unmatched ? 'text-sun-400' : 'text-volt-300'}`}>
-                    {hidden ? '+₦•••' : `+${formatCurrency(t.amount)}`}
-                  </span>
-                  <svg className={`w-3.5 h-3.5 shrink-0 ${unmatched ? 'text-sun-400 animate-nudge' : 'text-white/50'}`} fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                  </svg>
-                </>
-              );
-              // Two animations can't share one element: the row slides in, its slot washes volt.
-              const cls = `flex items-center gap-3 px-3 py-2 min-h-[52px] ${landed ? 'animate-land' : 'animate-rise'}`;
-              return (
-                <li key={t.id} className={landed ? 'animate-glow' : undefined}>
-                  {unmatched ? (
-                    // No name: straight to choosing who sent it.
-                    <Link
-                      href={chooseHref(t.id)}
-                      aria-label={`${hidden ? 'Payment' : formatCurrency(t.amount)} with no name. Choose who sent it`}
-                      className={`${cls} w-full text-left press hover:bg-white/5`}
-                      style={landed ? undefined : stagger(i, 70, 120)}
-                    >
-                      {row}
-                    </Link>
-                  ) : (
-                    <button
-                      onClick={() => setSheet({ id: t.id })}
-                      aria-label={`${name}, ${hidden ? 'amount hidden' : formatCurrency(t.amount)}. Details`}
-                      className={`${cls} w-full text-left press hover:bg-white/5`}
-                      style={landed ? undefined : stagger(i, 70, 120)}
-                    >
-                      {row}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {showTicker && transfers && transfers.length === 0 && hasAccount && (
-          <p className="mt-4 rounded-2xl bg-white/[0.06] px-3.5 py-3 text-[13px] text-white/60">
-            No transfers yet. Share the account details and they&apos;ll show up here as they land.
-          </p>
-        )}
         </Collapse>
         )}
         {sheet && transfers && (
@@ -664,18 +535,6 @@ export function MoneyCard({
       </div>
     </section>
 
-    {showGame && (
-      <GameCard
-        className="mt-3"
-        group={group}
-        money={money}
-        gameFallback={gameFallback}
-        canManage={canManage}
-        onScheduleGame={onScheduleGame}
-        onGameEnded={onGameEnded}
-        vote={vote}
-      />
-    )}
     </>
   );
 }
@@ -1384,13 +1243,6 @@ export function AccountDetailsSheet({
         </div>
       )}
 
-      <Link
-        href={`/groups/${group.id}?tab=money`}
-        className="h-11 w-full flex items-center justify-between text-sm font-bold text-ink border-t border-gray-100"
-      >
-        Manage account and link
-        <Chevron />
-      </Link>
     </Sheet>
   );
 }

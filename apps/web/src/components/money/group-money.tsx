@@ -97,16 +97,7 @@ export function GroupMoney({
             />
           ) : (
             <div className="mb-3">
-              <MoneyCard
-                group={group}
-                money={money}
-                gameFallback={null}
-                canManage={canManage}
-                showGame={false}
-                showTicker={false}
-                onScheduleGame={() => {}}
-                onOpenAccount={onOpenAccount}
-              />
+              <MoneyCard group={group} money={money} onOpenAccount={onOpenAccount} />
             </div>
           )}
           {money.transfers === null ? (

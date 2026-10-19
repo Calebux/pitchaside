@@ -267,7 +267,7 @@ export default function PlayerDetailPage() {
             {playerGroups.map((g) => (
               <Link
                 key={g.id}
-                href={`/groups/${g.id}`}
+                href={`/squad?group=${g.id}`}
                 className="flex items-center justify-between bg-white p-3 rounded-2xl border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
               >
                 <div className="flex items-center gap-3">
