@@ -93,8 +93,8 @@ export function GameHero({
         </g>
       </svg>
 
-      <div className="relative p-5">
-        {/* Which game: group, then the date as the title, then time and place */}
+      <div className="relative px-5 pt-4 pb-4">
+        {/* Which game: group, then the date as the title with the headline number beside it */}
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 pt-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-volt-300 truncate">{session.group?.name || 'Game'}</p>
           <span className={`shrink-0 inline-flex items-center gap-1.5 text-[12px] font-bold px-2.5 py-1 rounded-full ${toneOnDark[chip.tone]}`}>
@@ -102,69 +102,79 @@ export function GameHero({
             {chip.text}
           </span>
         </div>
-        <h1 className="mt-1 font-display text-[32px] leading-none font-extrabold tabular-nums">{title}</h1>
-        {where && <p className="mt-1.5 text-[14px] font-semibold text-white/70 truncate">{where}</p>}
+        <div className="mt-1 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-[28px] leading-none font-extrabold tabular-nums">{title}</h1>
+            {where && <p className="mt-1.5 text-[13px] font-semibold text-white/70 truncate">{where}</p>}
+          </div>
+          {/* The headline: one number, said in words underneath */}
+          <div className="shrink-0 text-right">
+            {squadFirst ? (
+              <p className="leading-none">
+                <span className="font-display text-[36px] font-extrabold tabular-nums">{tally.playing}</span>
+                {places > 0 && <span className="text-[15px] font-bold text-white/60 tabular-nums">/{places}</span>}
+                <span className="block mt-0.5 text-[12px] font-bold text-white/65">in</span>
+              </p>
+            ) : coveredByDues ? (
+              <p className="leading-none">
+                <span className="font-display text-[36px] font-extrabold tabular-nums">{tally.paid}</span>
+                <span className="text-[15px] font-bold text-white/60 tabular-nums">/{tally.playing}</span>
+                <span className="block mt-0.5 text-[12px] font-bold text-white/65">dues paid</span>
+              </p>
+            ) : (
+              <p className="leading-none">
+                <CountUpNaira value={collected} className="font-display text-[26px] font-extrabold tabular-nums" />
+                <span className="block mt-1 text-[12px] font-bold text-white/65">collected</span>
+              </p>
+            )}
+          </div>
+        </div>
 
-        {/* The headline: one number, said in words underneath */}
-        <div className="mt-5 rounded-2xl bg-black/20 ring-1 ring-white/10 p-4">
+        <div className="mt-3">
           {squadFirst ? (
             <>
-              <p className="flex items-baseline gap-2">
-                <span className="font-display text-[44px] leading-none font-extrabold tabular-nums">{tally.playing}</span>
-                <span className="text-[15px] font-bold text-white/65">{places ? `of ${places} in` : 'in'}</span>
-              </p>
-              <p className="mt-1 text-[14px] font-semibold text-white/80">
+              {places > 0 && (
+                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={tally.playing} aria-valuemin={0} aria-valuemax={places} aria-label="Places taken">
+                  <div className="h-full rounded-full bg-volt-300 animate-fill-grow" style={{ width: `${Math.min(100, Math.round((tally.playing / places) * 100))}%` }} />
+                </div>
+              )}
+              <p className="mt-1.5 text-[13px] font-semibold text-white/80">
                 {!tally.playing
                   ? 'No one’s in yet'
                   : places > tally.playing
                     ? `${places - tally.playing} place${places - tally.playing === 1 ? '' : 's'} left`
                     : places
                       ? 'Full'
-                      : 'Said they’re in'}
+                      : `${tally.playing} said they’re in`}
               </p>
-              {places > 0 && (
-                <div className="mt-3 h-2 w-full rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={tally.playing} aria-valuemin={0} aria-valuemax={places} aria-label="Places taken">
-                  <div className="h-full rounded-full bg-volt-300 animate-fill-grow" style={{ width: `${Math.min(100, Math.round((tally.playing / places) * 100))}%` }} />
-                </div>
-              )}
             </>
           ) : coveredByDues ? (
-            <>
-              <p className="flex items-baseline gap-2">
-                <span className="font-display text-[44px] leading-none font-extrabold tabular-nums">{tally.paid}</span>
-                <span className="text-[15px] font-bold text-white/65">of {tally.playing} paid their dues</span>
-              </p>
-              <p className="mt-1 text-[14px] font-semibold text-white/80">The game is covered by dues</p>
-            </>
+            <p className="text-[13px] font-semibold text-white/80">The game is covered by dues</p>
           ) : (
             <>
-              <p className="flex items-baseline gap-2 flex-wrap">
-                <CountUpNaira value={collected} className="font-display text-[40px] leading-none font-extrabold tabular-nums" />
-                <span className="text-[15px] font-bold text-white/65">collected</span>
-              </p>
-              <p className={`mt-1 text-[14px] font-semibold ${tally.toPay ? 'text-sun-400' : 'text-volt-300'}`}>
+              {due > 0 && (
+                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Paid so far">
+                  <div className={`h-full rounded-full animate-fill-grow ${pct === 100 ? 'bg-volt-400' : 'bg-sun-400'}`} style={{ width: `${pct}%` }} />
+                </div>
+              )}
+              <p className={`mt-1.5 text-[13px] font-semibold ${tally.toPay ? 'text-sun-400' : 'text-volt-300'}`}>
                 {!onPitch.length
                   ? 'No one played'
                   : tally.toPay
                     ? `${formatCurrency(tally.toPayAmount)} still to collect from ${tally.toPay}`
                     : 'Everyone who came has paid'}
               </p>
-              {due > 0 && (
-                <div className="mt-3 h-2 w-full rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Paid so far">
-                  <div className={`h-full rounded-full animate-fill-grow ${pct === 100 ? 'bg-volt-400' : 'bg-sun-400'}`} style={{ width: `${pct}%` }} />
-                </div>
-              )}
             </>
           )}
 
           {onPitch.length > 0 && (
-            <div className="mt-4 flex flex-wrap items-center gap-1" aria-label="Who has paid">
+            <div className="mt-3 flex flex-wrap items-center gap-0.5" aria-label="Who has paid">
               {onPitch.slice(0, SHIRTS).map((p: IPayment, i) => {
                 const s = playerState(p, coveredByDues, before);
                 const paid = s.key === 'paid' || s.key === 'dues_paid';
                 const free = s.key === 'free';
                 return (
-                  <svg key={p.id} viewBox="0 0 48 48" className="w-[26px] h-[26px] animate-kit-on" style={{ animationDelay: `${Math.min(i, 20) * 25}ms` }} aria-label={`${p.player?.firstName ?? 'Player'}: ${s.label}`}>
+                  <svg key={p.id} viewBox="0 0 48 48" className="w-[22px] h-[22px] animate-kit-on" style={{ animationDelay: `${Math.min(i, 20) * 25}ms` }} aria-label={`${p.player?.firstName ?? 'Player'}: ${s.label}`}>
                     <path
                       d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z"
                       fill={paid ? '#d4f53c' : free ? 'rgba(255,255,255,0.25)' : 'transparent'}
