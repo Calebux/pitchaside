@@ -856,9 +856,13 @@ export function TransfersPanel({
                 </div>
                 <div className="mt-2.5 flex items-center gap-2">
                   {members.length === 0 ? (
-                    <button onClick={onAddPlayers} className={`${btnPrimary} flex-1 min-h-10 text-sm`}>
-                      Add players first
-                    </button>
+                    onAddPlayers ? (
+                      <button onClick={onAddPlayers} className={`${btnPrimary} flex-1 min-h-10 text-sm`}>
+                        Add players first
+                      </button>
+                    ) : (
+                      <p className="flex-1 text-[13px] leading-snug text-gray-600">The organiser needs to add players before this can be matched.</p>
+                    )
                   ) : (
                     <button disabled={workingId === t.id} onClick={() => setMatching(t)} className={`${btnPrimary} flex-1 min-h-10 text-sm`}>
                       Choose the player
