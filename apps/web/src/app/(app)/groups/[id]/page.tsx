@@ -13,6 +13,8 @@ import { PayoutsPanel } from '@/components/group-payouts';
 import { NewSessionSheet } from '@/components/new-session-sheet';
 import { frequencyLabel } from '@/lib/billing';
 import { openWhatsApp, paymentDetailsMessage } from '@/lib/whatsapp';
+import { GroupSwitch } from '@/components/group-switch';
+import { useCurrentGroup } from '@/lib/current-group';
 import { QuickAddPlayers } from '@/components/group/quick-add-players';
 import { LeagueTableView } from '@/components/ratings';
 import { AccountDetailsSheet, MoneyCard, PlusIcon, daysFromToday, gameDay, gameStatusOf, useGroupMoney } from '@/components/money-card';
@@ -26,6 +28,7 @@ import { GroupEditSheet, type GroupEditData } from '@/components/group/group-edi
 import { useAuth } from '@/lib/auth';
 import {
   getGroup,
+  getGroups,
   getSessionsPaginated,
   getPlayers,
   addMember,
@@ -59,6 +62,13 @@ export default function GroupDetailPage() {
   const toast = useToast();
   const { user } = useAuth();
   const [group, setGroup] = useState<IGroupWithMembers | null>(null);
+  // For the group switch at the top; opening a group makes it the current one everywhere.
+  const [allGroups, setAllGroups] = useState<IGroupWithMembers[]>([]);
+  const { setGroupId: setCurrentGroup } = useCurrentGroup();
+  useEffect(() => {
+    setCurrentGroup(id);
+    getGroups().then(setAllGroups).catch(() => setAllGroups([]));
+  }, [id, setCurrentGroup]);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   // The API sends the newest games first, 20 at a time (100 at most per call); "Show older games" asks for more.
   const [allPlayers, setAllPlayers] = useState<IPlayer[]>([]);
@@ -374,15 +384,14 @@ export default function GroupDetailPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-      <Link
-        href="/groups"
-        className="inline-flex items-center gap-1.5 pl-2 pr-3 py-1.5 -ml-1 text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-full hover:text-ink hover:border-gray-300 transition-colors mb-4"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-        </svg>
-        All groups
-      </Link>
+      {/* Switch to another group's page, keeping the tab; All groups and New group are in the sheet */}
+      <div className="mb-4">
+        <GroupSwitch
+          groups={allGroups.length ? allGroups : [group]}
+          currentId={group.id}
+          onPick={(next) => next !== group.id && router.push(`/groups/${next}?tab=${tab}`)}
+        />
+      </div>
 
       <ConfirmDialog
         open={!!confirm}
@@ -857,7 +866,7 @@ export default function GroupDetailPage() {
                       isNew(m.joinedAt) && 'New this week',
                       m.player.nickname && `“${m.player.nickname}”`,
                       m.role !== 'player' && sentence(m.role),
-                      credit > 0 && `${formatCurrency(credit)} kept for next game`,
+                      credit > 0 && `${formatCurrency(credit)} paid ahead`,
                     ].filter(Boolean) as string[];
                     return (
                       <li key={m.id}>

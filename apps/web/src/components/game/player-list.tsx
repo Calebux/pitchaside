@@ -31,7 +31,7 @@ const tone: Record<PlayerStateKey, string> = {
 function actionsFor(p: IPayment, key: PlayerStateKey, before: boolean): { action: Action; title: string; detail: string }[] {
   const amount = formatCurrency(Number(p.amount));
   const byTransfer = p.source === 'transfer';
-  const kept = byTransfer ? ' What they paid by transfer is kept for their next game.' : '';
+  const kept = byTransfer ? ' What they paid by transfer becomes paid ahead for their next game.' : '';
   // Taking someone off keeps money paid by transfer as credit; cash marked paid has to be undone first.
   const takeOff = { action: 'out' as const, title: 'Take off this game', detail: `Frees their place. Nothing to pay.${kept}` };
   if (before) {
