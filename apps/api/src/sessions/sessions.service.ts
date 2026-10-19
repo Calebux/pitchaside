@@ -17,6 +17,18 @@ import { BillingService } from '../billing/billing.service';
 import { PaymentsService } from '../payments/payments.service';
 import { gameTarget, paidForGames, squadEntry } from '../payments/game-dues';
 
+export type GameList = 'ahead' | 'collect' | 'past';
+
+/** Still to be played: not ended or cancelled, and today or later. */
+const AHEAD = `(session.status = 'upcoming' AND session.date >= CURRENT_DATE)`;
+/** The Games screens' lists, as conditions on `session`. */
+const GAME_LISTS: Record<GameList, string> = {
+  ahead: AHEAD,
+  past: `NOT ${AHEAD}`,
+  // Played (or past its day) and someone who came hasn't paid.
+  collect: `NOT ${AHEAD} AND session.status <> 'cancelled' AND EXISTS (SELECT 1 FROM payments p WHERE p.session_id = session.id AND p.status = 'pending' AND (p.attendance IS NULL OR p.attendance <> 'no_show'))`,
+};
+
 @Injectable()
 export class SessionsService {
   constructor(
@@ -137,13 +149,31 @@ export class SessionsService {
     return this.markGamePaid(await qb.getMany());
   }
 
+  /**
+   * A page of games, newest first, optionally one group's and one of the lists the Games screens
+   * show: coming up (soonest first), to collect (played, someone who came still owes), played.
+   * `meta.counts` gives each list's size for the filter labels.
+   */
   async findAllPaginated(
     organizationId: string,
     query: PaginationDto,
     groupId?: string,
-  ): Promise<PaginatedResult<Session>> {
+    when?: GameList,
+  ): Promise<PaginatedResult<Session> & { meta: { counts: Record<GameList, number> } }> {
     const page = query.page || 1;
     const limit = query.limit || 20;
+
+    const base = () => {
+      const qb = this.sessionsRepo
+        .createQueryBuilder('session')
+        .innerJoin('session.group', 'group')
+        .where('group.organizationId = :organizationId', { organizationId });
+      if (groupId) qb.andWhere('session.groupId = :groupId', { groupId });
+      return qb;
+    };
+    const [ahead, collect, past] = await Promise.all(
+      (['ahead', 'collect', 'past'] as GameList[]).map((w) => base().andWhere(GAME_LISTS[w]).getCount()),
+    );
 
     const qb = this.sessionsRepo
       .createQueryBuilder('session')
@@ -151,20 +181,21 @@ export class SessionsService {
       .leftJoinAndSelect('session.payments', 'payment')
       .leftJoinAndSelect('payment.player', 'player')
       .where('group.organizationId = :organizationId', { organizationId })
-      .orderBy('session.date', 'DESC')
+      .orderBy('session.date', when === 'ahead' ? 'ASC' : 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
 
     if (groupId) {
       qb.andWhere('session.groupId = :groupId', { groupId });
     }
+    if (when) qb.andWhere(GAME_LISTS[when]);
 
     const [data, total] = await qb.getManyAndCount();
     await this.markGamePaid(data);
 
     return {
       data,
-      meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      meta: { page, limit, total, totalPages: Math.ceil(total / limit), counts: { ahead, collect, past } },
     };
   }
 

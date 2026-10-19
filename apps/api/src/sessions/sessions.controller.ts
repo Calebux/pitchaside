@@ -24,9 +24,11 @@ export class SessionsController {
   findAll(
     @Query() query: PaginationDto,
     @Query('groupId') groupId: string | undefined,
+    @Query('when') when: string | undefined,
     @CurrentUser() user: User,
   ) {
-    return this.sessionsService.findAllPaginated(user.organizationId, query, groupId);
+    const list = when === 'ahead' || when === 'collect' || when === 'past' ? when : undefined;
+    return this.sessionsService.findAllPaginated(user.organizationId, query, groupId, list);
   }
 
   @Get(':id/export')

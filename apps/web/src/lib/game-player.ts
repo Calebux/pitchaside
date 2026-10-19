@@ -24,26 +24,35 @@ export interface PlayerState {
   owes: boolean;
 }
 
-export function playerState(p: IPayment, coveredByDues: boolean): PlayerState {
+export function playerState(p: IPayment, coveredByDues: boolean, before = false): PlayerState {
+  const s = stateNow(p, coveredByDues, before);
+  // Before the game, everyone listed has said they're in: say so first ("In · paid by transfer").
+  return before && s.key !== 'no_show' ? { ...s, label: `In · ${s.label.charAt(0).toLowerCase()}${s.label.slice(1)}` } : s;
+}
+
+function stateNow(p: IPayment, coveredByDues: boolean, before: boolean): PlayerState {
   if (p.attendance === 'no_show') return { key: 'no_show', label: 'Didn’t come', owes: false };
   if (coveredByDues) {
     return p.gamePaid === 'paid'
       ? { key: 'dues_paid', label: 'Dues paid', owes: false }
       : p.gamePaid === 'waived'
-        ? { key: 'free', label: 'Played free', owes: false }
+        ? { key: 'free', label: before ? 'Plays free' : 'Played free', owes: false }
         : { key: 'dues_unpaid', label: 'Dues not paid yet', owes: false };
   }
   if (p.status === PaymentStatus.PAID) {
     // Marked paid by hand: we can't tell cash from anything else, so we don't say cash.
     return { key: 'paid', label: p.source === 'transfer' ? 'Paid by transfer' : 'Marked paid', owes: false };
   }
-  if (p.status === PaymentStatus.WAIVED) return { key: 'free', label: 'Played free', owes: false };
-  return { key: 'to_pay', label: `${formatCurrency(Number(p.amount))} to pay`, owes: true };
+  if (p.status === PaymentStatus.WAIVED) return { key: 'free', label: before ? 'Plays free' : 'Played free', owes: false };
+  // Before the game they've only said they're in: they pay once they've played (or ahead).
+  return before
+    ? { key: 'to_pay', label: 'Not paid yet', owes: true }
+    : { key: 'to_pay', label: `${formatCurrency(Number(p.amount))} to pay`, owes: true };
 }
 
 /** The game's money in one place: who's in (no-shows aside), who's paid, who still owes. */
-export function gameTally(payments: IPayment[], coveredByDues: boolean) {
-  const states = payments.map((p) => ({ p, s: playerState(p, coveredByDues) }));
+export function gameTally(payments: IPayment[], coveredByDues: boolean, before = false) {
+  const states = payments.map((p) => ({ p, s: playerState(p, coveredByDues, before) }));
   const playing = states.filter(({ s }) => s.key !== 'no_show');
   const paid = states.filter(({ s }) => s.key === 'paid' || s.key === 'dues_paid');
   const toPay = states.filter(({ s }) => s.owes);
@@ -58,4 +67,23 @@ export function gameTally(payments: IPayment[], coveredByDues: boolean) {
     toPayAmount: sum(toPay),
     noShows: noShows.length,
   };
+}
+
+/**
+ * Where a game is in its week, which decides what the page leads with and what can be done:
+ * before (players saying they're in), today (match day, before kick-off), after (played, not
+ * ended), ended, cancelled.
+ */
+export type GamePhase = 'before' | 'today' | 'after' | 'ended' | 'cancelled';
+
+export function gamePhase(s: { status: string; date: string | Date; kickoffTime?: string | null }, days: number, groupKickoff?: string | null): GamePhase {
+  if (s.status === 'cancelled') return 'cancelled';
+  if (s.status === 'completed') return 'ended';
+  if (days > 0) return 'before';
+  if (days < 0) return 'after';
+  const ko = (s.kickoffTime || groupKickoff || '').slice(0, 5);
+  if (!ko) return 'today';
+  const [h, m] = ko.split(':').map(Number);
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes() >= h * 60 + m ? 'after' : 'today';
 }

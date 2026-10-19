@@ -22,6 +22,7 @@ import {
   updateSessionStatus,
   exportSessionPaymentsCsv,
   sendReminders,
+  setRsvpForPlayer,
   type BankTransfer,
   type OwedItem,
   type ISessionWithDetails,
@@ -33,13 +34,19 @@ import { TeamSheet } from '@/components/team-sheet';
 import { HowPaidSheet } from '@/components/group/how-paid-sheet';
 import { daysFromToday, gameDay } from '@/components/money-card';
 import { GameHero } from '@/components/game/game-hero';
-import { GameActions } from '@/components/game/game-actions';
+import { GameMenu } from '@/components/game/game-actions';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
-import { coveredByDues as coversByDues, gameTally } from '@/lib/game-player';
+import { coveredByDues as coversByDues, gamePhase, gameTally } from '@/lib/game-player';
+import { btnPrimary } from '@/components/buttons';
 
 type Tab = 'players' | 'teams' | 'stars';
 const TABS: Tab[] = ['players', 'teams', 'stars'];
+const TAB_ICONS: Record<Tab, string> = {
+  players: 'M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z',
+  teams: 'M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z',
+  stars: 'M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z',
+};
 
 /** Today as YYYY-MM-DD in the browser's time zone. */
 function localToday() {
@@ -128,6 +135,25 @@ export default function GamePage() {
     }
   }
 
+  const phase = session ? gamePhase(session, daysFromToday(session.date), session.group?.kickoffTime) : 'before';
+  const before = phase === 'before' || phase === 'today';
+
+  async function remind() {
+    setReminding(true);
+    try {
+      const result = await sendReminders(id);
+      toast.success(
+        result.missed
+          ? `Reminder sent to ${result.sent}. ${result.missed} haven’t turned on notifications yet.`
+          : `Reminder sent to ${result.sent} player${result.sent === 1 ? '' : 's'}`,
+      );
+    } catch {
+      toast.error('The reminder didn’t send. Try again.');
+    } finally {
+      setReminding(false);
+    }
+  }
+
   function onPlayerAction(p: IPayment, action: PlayerAction) {
     const first = nameOfPayment(p).split(' ')[0];
     if (action === 'paid') {
@@ -139,9 +165,11 @@ export default function GamePage() {
     } else if (action === 'came') {
       act(p, () => markCame(p.id), `${first} came after all`);
     } else if (action === 'free') {
-      act(p, () => waivePayment(p.id), `${first} played free`);
+      act(p, () => waivePayment(p.id), before ? `${first} plays free` : `${first} played free`);
+    } else if (action === 'out') {
+      act(p, () => setRsvpForPlayer(id, p.playerId, 'out'), `${first} is off this game`);
     } else {
-      act(p, () => markUnpaid(p.id), `${first} is back to to pay`);
+      act(p, () => markUnpaid(p.id), before ? `${first} hasn’t paid yet` : `${first} is back to to pay`);
     }
   }
 
@@ -188,11 +216,9 @@ export default function GamePage() {
   // for that period are paid, and that's where they're collected.
   const coveredByDues = coversByDues(session);
   const isGame = session.kind !== 'dues';
-  const days = daysFromToday(session.date);
-  const ended = session.status === SessionStatus.COMPLETED;
-  const cancelled = session.status === SessionStatus.CANCELLED;
-  const played = ended || days < 0;
-  const tally = gameTally(payments, coveredByDues);
+  const cancelled = phase === 'cancelled';
+  const played = !before && !cancelled;
+  const tally = gameTally(payments, coveredByDues, before);
   const gameLabel =
     session.kind === 'dues' && session.label
       ? `${session.label} dues`
@@ -200,7 +226,25 @@ export default function GamePage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-      <BackButton label="Games" />
+      <div className="flex items-start justify-between gap-3">
+        <BackButton label="Back" />
+        <GameMenu
+          phase={phase}
+          onEnd={() => setEnding(true)}
+          onReopen={() => setStatus('upcoming', cancelled ? 'Game is back on' : 'Game reopened')}
+          onDownload={() => exportSessionPaymentsCsv(id).catch(() => toast.error('The download didn’t start. Try again.'))}
+          onCancel={() => setStatus('cancelled', 'Game cancelled')}
+          onDelete={async () => {
+            try {
+              await deleteSession(id);
+              toast.success('Game deleted');
+              router.push('/sessions');
+            } catch {
+              toast.error('The game wasn’t deleted. Try again.');
+            }
+          }}
+        />
+      </div>
 
       {howPaid && (() => {
         const p = payments.find((x) => x.id === howPaid);
@@ -237,66 +281,48 @@ export default function GamePage() {
         />
       )}
 
-      <div className="mt-3">
-        <GameHero session={session} coveredByDues={coveredByDues} played={played} />
-      </div>
+      <GameHero session={session} coveredByDues={coveredByDues} phase={phase} reminding={reminding} onRemind={remind} />
 
-      <div className="mt-4">
-        <GameActions
-          canEnd={isGame && days <= 0}
-          ended={ended}
-          cancelled={cancelled}
-          toPay={tally.toPay}
-          reminding={reminding}
-          onEnd={() => setEnding(true)}
-          onRemind={async () => {
-            setReminding(true);
-            try {
-              const result = await sendReminders(id);
-              toast.success(
-                result.missed
-                  ? `Reminder sent to ${result.sent}. ${result.missed} haven’t turned on notifications yet.`
-                  : `Reminder sent to ${result.sent} player${result.sent === 1 ? '' : 's'}`,
-              );
-            } catch {
-              toast.error('The reminder didn’t send. Try again.');
-            } finally {
-              setReminding(false);
-            }
-          }}
-          onReopen={() => setStatus('upcoming', cancelled ? 'Game is back on' : 'Game reopened')}
-          onDownload={() => exportSessionPaymentsCsv(id).catch(() => toast.error('The download didn’t start. Try again.'))}
-          onCancel={() => setStatus('cancelled', 'Game cancelled')}
-          onDelete={async () => {
-            try {
-              await deleteSession(id);
-              toast.success('Game deleted');
-              router.push('/sessions');
-            } catch {
-              toast.error('The game wasn’t deleted. Try again.');
-            }
-          }}
-        />
-      </div>
+      {/* The one thing to do next, when there is one */}
+      {isGame && phase === 'after' && (
+        <button onClick={() => setEnding(true)} className={`${btnPrimary} w-full mt-4 animate-rise`}>
+          End game · say who came
+        </button>
+      )}
+      {isGame && phase === 'today' && tab !== 'teams' && (
+        <button onClick={() => chooseTab('teams')} className={`${btnPrimary} w-full mt-4 animate-rise`}>
+          Pick today’s teams
+        </button>
+      )}
 
       {/* Tabs: players / teams / stars */}
       {isGame && (
-        <div className="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mt-5 mb-3 bg-chalk/95 backdrop-blur">
-          <div className="flex p-1 bg-white border border-gray-200 rounded-2xl" role="tablist">
+        <div className="sticky top-0 z-20 -mx-4 sm:mx-0 px-4 sm:px-0 py-2 mt-4 mb-3 bg-chalk/95 backdrop-blur">
+          <div className="grid grid-cols-3 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="This game">
             {([
-              ['players', 'Players', tally.toPay ? `${tally.toPay} to pay` : null],
-              ['teams', 'Teams', null],
-              ['stars', 'Stars', null],
-            ] as [Tab, string, string | null][]).map(([t, label, note]) => (
+              ['players', 'Players', TAB_ICONS.players, played && tally.toPay ? tally.toPay : null],
+              ['teams', 'Teams', TAB_ICONS.teams, null],
+              ['stars', 'Stars', TAB_ICONS.stars, null],
+            ] as [Tab, string, string, number | null][]).map(([t, label, icon, badge]) => (
               <button
                 key={t}
                 role="tab"
                 aria-selected={tab === t}
                 onClick={() => chooseTab(t)}
-                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-colors ${tab === t ? 'bg-ink text-volt-300' : 'text-gray-500 hover:text-ink'}`}
+                className={`press flex items-center justify-center gap-1.5 h-11 rounded-xl text-[14px] font-bold transition-colors ${
+                  tab === t ? 'bg-ink text-volt-300' : 'text-ink hover:bg-chalk'
+                }`}
               >
+                <svg className="w-[18px] h-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+                </svg>
                 {label}
-                {note && <span className={`block text-[11px] font-semibold ${tab === t ? 'text-white/60' : 'text-amber-700'}`}>{note}</span>}
+                {badge !== null && (
+                  <span className={`min-w-5 h-5 px-1.5 rounded-full text-[11px] font-extrabold leading-5 tabular-nums ${tab === t ? 'bg-sun-400 text-ink' : 'bg-sun-400/30 text-amber-800'}`}>
+                    {badge}
+                    <span className="sr-only"> to pay</span>
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -340,6 +366,7 @@ export default function GamePage() {
             <PlayerList
               payments={payments}
               coveredByDues={coveredByDues}
+              before={before}
               busyId={busyId}
               onAction={onPlayerAction}
               onBulkPaid={async (ids) => {
