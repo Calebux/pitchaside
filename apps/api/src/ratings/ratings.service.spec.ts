@@ -161,9 +161,9 @@ describe('the table', () => {
 });
 
 describe('the one-question ballot', () => {
-  it('asks only for Player of the Match, with each player\'s team', async () => {
+  it('asks Player of the Match, with each player\'s team', async () => {
     const b = await setup(game({ payments: [pay('ada', { team: 'A', captain: true }), pay('bisi', { team: 'B' }), pay('lanre', { attendance: 'no_show' })] })).service.getBallot('tok');
-    expect(b.categories.map((c) => c.key)).toEqual([VoteCategory.POTM]);
+    expect(b.categories[0].key).toBe(VoteCategory.POTM);
     expect(b.squad.map((p) => [p.id, p.team])).toEqual([
       ['ada', 'A'],
       ['bisi', 'B'],
@@ -180,6 +180,12 @@ describe('the one-question ballot', () => {
     const res = await setup(session, { votes: ballots }).service.submitVotes('tok', ['ada'], { potm: 'bisi' });
     expect(session.voteClosedAt).toBeInstanceOf(Date);
     expect(res.hidden).toBe(false);
+  });
+
+  it('also closes early on a game with the older week-long window', async () => {
+    const legacy = game({ voteOpensAt: null, voteClosedAt: new Date(Date.now() - 1000) });
+    const r = await setup(legacy, { votes: [{ voterId: 'ada', nomineeId: 'bisi', category: VoteCategory.POTM }] }).service.getPublicResults('tok');
+    expect(r.hidden).toBe(false);
   });
 
   it('stays open while someone who came still has to vote', async () => {
@@ -199,6 +205,50 @@ describe('the one-question ballot', () => {
       const a = Object.values(r.attributes);
       expect(new Set(a).size).toBe(1);
       expect(a[0]).toBe(cardRating(DEFAULT_START));
+    }
+  });
+});
+
+describe('best on your team', () => {
+  const four = () =>
+    game({
+      payments: [pay('ada', { team: 'A' }), pay('seyi', { team: 'A' }), pay('bisi', { team: 'B' }), pay('kemi', { team: 'B' })],
+    });
+
+  it('is asked only when teams were set', async () => {
+    expect((await setup(four()).service.getBallot('tok')).categories.map((c) => c.key)).toEqual([VoteCategory.POTM, VoteCategory.TEAMMATE]);
+    const noTeams = game({ payments: [pay('ada'), pay('bisi')] });
+    expect((await setup(noTeams).service.getBallot('tok')).categories.map((c) => c.key)).toEqual([VoteCategory.POTM]);
+  });
+
+  it('takes a pick from your own team only', async () => {
+    const { service } = setup(four());
+    await expect(service.submitVotes('tok', ['ada'], { potm: 'bisi', teammate: 'kemi' })).rejects.toThrow('your own team');
+    await expect(service.submitVotes('tok', ['ada'], { potm: 'bisi', teammate: 'seyi' })).resolves.toBeDefined();
+  });
+
+  it('shows a winner per team once the vote closes', async () => {
+    const votes = [
+      { voterId: 'ada', nomineeId: 'seyi', category: VoteCategory.TEAMMATE },
+      { voterId: 'bisi', nomineeId: 'kemi', category: VoteCategory.TEAMMATE },
+      { voterId: 'kemi', nomineeId: 'bisi', category: VoteCategory.TEAMMATE },
+    ];
+    const r = await setup(four() as never, { votes }).service.getPublicResults('tok');
+    expect(r.categories.filter((c) => c.key === VoteCategory.TEAMMATE).map((c) => c.team)).toEqual(['A', 'B']);
+    const closed = await setup({ ...four(), voteOpensAt: new Date(Date.now() - 49 * HOUR) } as never, { votes }).service.getPublicResults('tok');
+    const best = closed.categories.filter((c) => c.key === VoteCategory.TEAMMATE);
+    expect(best.find((c) => c.team === 'A')!.standings[0].playerId).toBe('seyi');
+  });
+
+  it("doesn't move cards or table points", async () => {
+    const votes = [
+      { voterId: 'ada', nomineeId: 'seyi', category: VoteCategory.TEAMMATE },
+      { voterId: 'bisi', nomineeId: 'kemi', category: VoteCategory.TEAMMATE },
+    ];
+    const { rows } = await setup({ ...four(), voteOpensAt: new Date(Date.now() - 49 * HOUR) } as never, { votes }).service.getGroupTable('grp', 'org');
+    for (const r of rows) {
+      expect(r.points).toBe(0);
+      expect(Object.values(r.attributes).every((a) => a === cardRating(DEFAULT_START))).toBe(true);
     }
   });
 });

@@ -1,7 +1,7 @@
 import { playerCard } from './ratings.service';
 import type { VoteCategory } from './entities/vote.entity';
 
-const votes = (v: Partial<Record<VoteCategory, number>> = {}) => ({ potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0, ...v });
+const votes = (v: Partial<Record<VoteCategory, number>> = {}) => ({ potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0, teammate: 0, ...v });
 const skill = (rating: number, games = 10) => ({ rating, games });
 
 describe('player card', () => {

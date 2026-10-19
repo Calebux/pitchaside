@@ -456,7 +456,7 @@ function emptyRatings(): PlayerRatings {
   return {
     games: 0,
     ballotsSeen: 0,
-    votes: { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0 },
+    votes: { potm: 0, pace: 0, shooting: 0, passing: 0, defending: 0, keeper: 0, teammate: 0 },
     potmWins: 0,
     record: { w: 0, d: 0, l: 0 },
     teamOfDay: 0,

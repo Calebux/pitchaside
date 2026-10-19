@@ -23,6 +23,8 @@ export enum VoteCategory {
   DEFENDING = 'defending',
   /** Best goalkeeper → GK */
   KEEPER = 'keeper',
+  /** Best on the voter's own team (optional, picked from their teammates). */
+  TEAMMATE = 'teammate',
 }
 
 /** One player's pick for one category in one game. */
