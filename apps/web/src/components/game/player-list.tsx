@@ -1,0 +1,289 @@
+'use client';
+
+import { useId, useState } from 'react';
+import type { IPayment } from '@pitchaside/shared';
+import { Sheet } from '@/components/sheet';
+import { SheetTitle } from '@/components/home/sheet-title';
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { kitFor } from '@/components/illustrations';
+import { stagger } from '@/components/motion';
+import { formatCurrency } from '@/lib/api';
+import { playerState, type PlayerStateKey } from '@/lib/game-player';
+
+type Filter = 'to_pay' | 'paid' | 'no_show' | 'all';
+type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid';
+
+const name = (p: IPayment) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
+const tone: Record<PlayerStateKey, string> = {
+  to_pay: 'text-amber-700 font-semibold',
+  paid: 'text-pitch-600 font-semibold',
+  dues_paid: 'text-pitch-600 font-semibold',
+  dues_unpaid: 'text-amber-700',
+  free: 'text-gray-500',
+  no_show: 'text-gray-500',
+};
+
+/** What can be done for a player, by where they stand, each said in plain words. */
+function actionsFor(p: IPayment, key: PlayerStateKey): { action: Action; title: string; detail: string; danger?: boolean }[] {
+  const amount = formatCurrency(Number(p.amount));
+  const kept = p.source === 'transfer' ? ' What they paid by transfer is kept for their next game.' : '';
+  switch (key) {
+    case 'to_pay':
+      return [
+        { action: 'paid', title: 'Mark paid', detail: 'They paid in cash, or by a transfer with no name on it.' },
+        { action: 'no_show', title: 'Didn’t come', detail: 'Said they were in and didn’t show. Nothing to pay.' },
+        { action: 'free', title: 'Played free', detail: 'They came. Don’t charge them for this game.' },
+      ];
+    case 'paid':
+      return [
+        { action: 'unpaid', title: 'Undo payment', detail: `Back to ${amount} to pay.${kept}` },
+        { action: 'no_show', title: 'Didn’t come', detail: `Nothing to pay.${kept}` },
+      ];
+    case 'free':
+      return [
+        { action: 'unpaid', title: 'Charge them after all', detail: `Back to ${amount} to pay.` },
+        { action: 'no_show', title: 'Didn’t come', detail: 'Nothing to pay.' },
+      ];
+    case 'no_show':
+      return [{ action: 'came', title: 'Came after all', detail: Number(p.amount) > 0 ? `Back to ${amount} to pay.` : 'Counts as played.' }];
+    default:
+      // Dues groups: the game itself costs nothing; only whether they came.
+      return [{ action: 'no_show', title: 'Didn’t come', detail: 'Leaves them out of the vote and the team sheet.' }];
+  }
+}
+
+/**
+ * Everyone in a game, with where they stand. Unpaid first while anyone owes. Each row has its one
+ * likely action (Mark paid) and the rest behind ⋯, each explained before it's done. "Select" marks
+ * several paid at once, after a confirm that names them.
+ */
+export function PlayerList({
+  payments,
+  coveredByDues,
+  busyId,
+  onAction,
+  onBulkPaid,
+}: {
+  payments: IPayment[];
+  coveredByDues: boolean;
+  busyId: string | null;
+  onAction: (p: IPayment, action: Action) => void;
+  onBulkPaid: (ids: string[]) => Promise<void>;
+}) {
+  const sheetTitle = useId();
+  const rows = payments.map((p) => ({ p, s: playerState(p, coveredByDues) }));
+  const count = (k: Filter) =>
+    k === 'all' ? rows.length : rows.filter(({ s }) => (k === 'paid' ? s.key === 'paid' || s.key === 'dues_paid' : s.key === k)).length;
+  const [filter, setFilter] = useState<Filter | null>(null);
+  const shown: Filter = filter ?? (count('to_pay') ? 'to_pay' : 'all');
+  const [search, setSearch] = useState('');
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [menuFor, setMenuFor] = useState<IPayment | null>(null);
+
+  const needle = search.trim().toLowerCase();
+  const visible = rows.filter(({ p, s }) => {
+    if (shown === 'to_pay' && s.key !== 'to_pay') return false;
+    if (shown === 'paid' && s.key !== 'paid' && s.key !== 'dues_paid') return false;
+    if (shown === 'no_show' && s.key !== 'no_show') return false;
+    return !needle || `${name(p)} ${p.player?.nickname ?? ''}`.toLowerCase().includes(needle);
+  });
+  const selectable = visible.filter(({ s }) => s.key === 'to_pay');
+  const pickedRows = rows.filter(({ p }) => picked.has(p.id));
+
+  const filters = (
+    [
+      { key: 'to_pay', label: 'To pay' },
+      { key: 'paid', label: 'Paid' },
+      { key: 'no_show', label: 'Didn’t come' },
+      { key: 'all', label: 'All' },
+    ] as { key: Filter; label: string }[]
+  ).filter((f) => (f.key === 'to_pay' ? !coveredByDues : f.key === 'no_show' ? count('no_show') > 0 : true));
+
+  function togglePick(id: string) {
+    setPicked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <section aria-labelledby="players-title">
+      <div className="flex items-center justify-between gap-3">
+        <h2 id="players-title" className="text-base font-bold text-ink">
+          Players
+        </h2>
+        {!coveredByDues && count('to_pay') > 1 && (
+          <button
+            onClick={() => {
+              setSelecting(!selecting);
+              setPicked(new Set());
+            }}
+            className="h-10 px-1 text-[13px] font-bold text-pitch-700 hover:text-ink"
+          >
+            {selecting ? 'Cancel' : 'Select'}
+          </button>
+        )}
+      </div>
+
+      <div className="mt-2 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Show players">
+        {filters.map((f) => (
+          <button
+            key={f.key}
+            role="radio"
+            aria-checked={shown === f.key}
+            onClick={() => setFilter(f.key)}
+            className={`shrink-0 h-10 px-4 rounded-full border text-[13px] font-bold whitespace-nowrap tabular-nums transition-colors ${
+              shown === f.key ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
+            }`}
+          >
+            {f.label} {count(f.key)}
+          </button>
+        ))}
+      </div>
+
+      {rows.length > 10 && (
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Find a player"
+          aria-label="Find a player"
+          className="mt-2.5 w-full h-11 px-3.5 bg-white border border-gray-200 rounded-xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+        />
+      )}
+
+      {selecting && selectable.length > 0 && (
+        <button
+          onClick={() => setPicked(picked.size === selectable.length ? new Set() : new Set(selectable.map(({ p }) => p.id)))}
+          className="mt-2 h-9 px-1 text-[13px] font-bold text-ink"
+        >
+          {picked.size === selectable.length ? 'Clear' : `Select all ${selectable.length} shown`}
+        </button>
+      )}
+
+      {visible.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500">
+          {needle ? `No one called “${search.trim()}”.` : shown === 'to_pay' ? 'Everyone who came has paid.' : 'No one here.'}
+        </p>
+      ) : (
+        <ul className="mt-3 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
+          {visible.map(({ p, s }, i) => {
+            const kit = kitFor(name(p));
+            const busy = busyId === p.id;
+            const canPick = selecting && s.key === 'to_pay';
+            return (
+              <li key={p.id} className="animate-rise" style={stagger(Math.min(i, 12), 22, 0)}>
+                <div className={`flex items-center gap-3 px-3.5 min-h-16 py-2.5 transition-colors ${picked.has(p.id) ? 'bg-volt-300/35' : ''}`}>
+                  {canPick && (
+                    <button
+                      role="checkbox"
+                      aria-checked={picked.has(p.id)}
+                      aria-label={`Select ${name(p)}`}
+                      onClick={() => togglePick(p.id)}
+                      className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${picked.has(p.id) ? 'bg-ink text-volt-300' : 'border-2 border-gray-300'}`}
+                    >
+                      {picked.has(p.id) && (
+                        <svg className="w-3.5 h-3.5 animate-pop-in" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                        </svg>
+                      )}
+                    </button>
+                  )}
+                  <span
+                    className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display ${s.key === 'no_show' ? 'grayscale opacity-50' : ''}`}
+                    aria-hidden
+                  >
+                    {name(p).charAt(0)}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className={`block text-[15px] font-bold leading-snug ${s.key === 'no_show' ? 'text-gray-500' : 'text-ink'}`}>{name(p)}</span>
+                    <span className={`block text-[13px] ${tone[s.key]}`}>{s.label}</span>
+                  </span>
+                  {s.key === 'to_pay' && !selecting && (
+                    <button
+                      onClick={() => onAction(p, 'paid')}
+                      disabled={busy}
+                      className="press shrink-0 h-9 px-3.5 rounded-xl bg-ink text-volt-300 text-[13px] font-bold hover:bg-pitch-900 disabled:opacity-50"
+                    >
+                      {busy ? '…' : 'Mark paid'}
+                    </button>
+                  )}
+                  {!selecting && (
+                    <button
+                      onClick={() => setMenuFor(p)}
+                      disabled={busy}
+                      aria-label={`More for ${name(p)}`}
+                      className="press shrink-0 w-10 h-10 -mr-1.5 rounded-full flex items-center justify-center text-gray-500 hover:bg-chalk hover:text-ink disabled:opacity-50"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden>
+                        <circle cx="5" cy="12" r="1.8" />
+                        <circle cx="12" cy="12" r="1.8" />
+                        <circle cx="19" cy="12" r="1.8" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {selecting && picked.size > 0 && (
+        <div className="sticky bottom-24 z-10 mt-3 animate-rise">
+          <button
+            onClick={() => setConfirmBulk(true)}
+            className="press w-full h-12 rounded-2xl bg-ink text-volt-300 text-[15px] font-bold shadow-lift"
+          >
+            Mark {picked.size} paid
+          </button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={confirmBulk}
+        title={`Mark ${picked.size} player${picked.size === 1 ? '' : 's'} paid?`}
+        message={`${pickedRows.map(({ p }) => name(p)).join(', ')}. Use this for cash or transfers with no name on them.`}
+        confirmLabel={`Mark ${picked.size} paid`}
+        onConfirm={async () => {
+          setConfirmBulk(false);
+          await onBulkPaid([...picked]);
+          setPicked(new Set());
+          setSelecting(false);
+        }}
+        onCancel={() => setConfirmBulk(false)}
+      />
+
+      {menuFor && (() => {
+        const s = playerState(menuFor, coveredByDues);
+        return (
+          <Sheet titleId={sheetTitle} onClose={() => setMenuFor(null)} align="left">
+            <SheetTitle id={sheetTitle} title={name(menuFor)} sub={s.label} onClose={() => setMenuFor(null)} />
+            <ul className="mt-4 -mx-2">
+              {actionsFor(menuFor, s.key).map((a, i) => (
+                <li key={a.action} className="animate-rise" style={stagger(i, 50, 40)}>
+                  <button
+                    onClick={() => {
+                      onAction(menuFor, a.action);
+                      setMenuFor(null);
+                    }}
+                    className="press w-full text-left px-2 py-3 rounded-2xl hover:bg-chalk"
+                  >
+                    <span className="block text-[15px] font-bold text-ink">{a.title}</span>
+                    <span className="block text-[13px] leading-snug text-gray-600">{a.detail}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Sheet>
+        );
+      })()}
+    </section>
+  );
+}
+
+export type { Action as PlayerAction };

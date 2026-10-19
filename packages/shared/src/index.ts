@@ -96,6 +96,8 @@ export interface IPayment {
   source?: 'manual' | 'transfer' | 'dues' | null;
   /** On games: paid for this game — their own due, or the period's dues that cover it. */
   gamePaid?: 'paid' | 'unpaid' | 'waived';
+  /** Whether they turned up: not set until the game is ended (counts as came), 'came', or 'no_show'. */
+  attendance?: 'came' | 'no_show' | null;
   player?: IPlayer;
 }
 

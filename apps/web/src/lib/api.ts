@@ -235,6 +235,21 @@ export function waivePayment(paymentId: string): Promise<IPayment> {
   return http.patch<IPayment>(`/payments/${paymentId}/waive`);
 }
 
+/** Said they were in and didn't come: nothing to pay; transfer money is kept for their next game. */
+export function markNoShow(paymentId: string): Promise<IPayment> {
+  return http.patch<IPayment>(`/payments/${paymentId}/no-show`);
+}
+
+/** They came after all: back to owing. */
+export function markCame(paymentId: string): Promise<IPayment> {
+  return http.patch<IPayment>(`/payments/${paymentId}/came`);
+}
+
+/** Full time: the players who didn't come owe nothing; the game ends and the rest get the vote link. */
+export function endGame(sessionId: string, noShows: string[]): Promise<ISessionWithDetails> {
+  return http.post<ISessionWithDetails>(`/sessions/${sessionId}/end`, { noShows });
+}
+
 export function bulkMarkPaid(paymentIds: string[]): Promise<IPayment[]> {
   return http.patch<IPayment[]>('/payments/bulk-mark-paid', { paymentIds });
 }
