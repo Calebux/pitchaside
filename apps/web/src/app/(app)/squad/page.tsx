@@ -84,7 +84,7 @@ export default function SquadPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-      <PageHeader title="Squad" />
+      <PageHeader title="Squad" subtitle="Your players: who’s coming, and how the squad is made up." />
       {!group ? (
         <EmptyState icon="users" title="No groups yet" description="Create a group, then invite your players to it." actionLabel="Create a group" actionHref="/groups/new" />
       ) : (
