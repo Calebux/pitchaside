@@ -43,7 +43,7 @@ export default function RatingTrialPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Squad" />
-      <PageHeader eyebrow="Trial · only organisers see this" title="New rating" subtitle="How the 40/40/20 rating compares with today’s card rating." />
+      <PageHeader eyebrow="Only organisers see this" title="How ratings are made" subtitle="Each player’s rating, what it’s made of, and what the old way gave." />
 
       <div className="rounded-3xl bg-chalk px-4 py-3.5 text-[13px] leading-snug text-gray-700">
         {data ? (
@@ -54,30 +54,30 @@ export default function RatingTrialPage() {
           </>
         ) : null}
         Each part is where the player stands in the club, from 40 to 99, pulled toward the middle until there are a few games of evidence. No votes yet counts as the
-        middle, never as a penalty. Cards, teams and the table still use today’s rating.
+        middle, never as a penalty. It’s the big number on every card, and fair teams use half this, half results.
       </div>
 
       {failed !== null ? (
         <div className="py-10 text-center" role="alert">
-          <p className="text-sm text-gray-600">The trial didn&apos;t load.</p>
+          <p className="text-sm text-gray-600">Ratings didn&apos;t load.</p>
           {failed && <p className="mt-1 text-[12px] text-gray-500">The server said: “{failed}”</p>}
           <button onClick={load} className="mt-2 h-11 px-3 text-sm font-bold text-pitch-700">
             Try again
           </button>
         </div>
       ) : !data ? (
-        <div className="mt-4 space-y-2" aria-busy aria-label="Loading the trial">
+        <div className="mt-4 space-y-2" aria-busy aria-label="Loading ratings">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-28 rounded-3xl bg-gray-100 animate-pulse" />
           ))}
         </div>
       ) : data.rows.length === 0 ? (
-        <EmptyState icon="box" title="No one has played yet" description="The trial rating shows once players have games with scores." />
+        <EmptyState icon="box" title="No one has played yet" description="Ratings show once players have games with scores." />
       ) : (
         <ol className="mt-4 space-y-2">
           {data.rows.map((r, i) => {
             const name = r.player.nickname || `${r.player.firstName} ${r.player.lastName}`.trim();
-            const diff = r.ovr === null ? null : r.trial - r.ovr;
+            const diff = r.oldOvr === null ? null : r.trial - r.oldOvr;
             return (
               <li key={r.player.id} className="rounded-3xl bg-white border border-gray-100 shadow-card px-4 py-3">
                 <div className="flex items-center gap-3">
@@ -94,7 +94,7 @@ export default function RatingTrialPage() {
                     <span
                       className={`block mt-1 text-[11px] font-bold tabular-nums ${diff === null || diff === 0 ? 'text-gray-500' : diff > 0 ? 'text-pitch-700' : 'text-kit-600'}`}
                     >
-                      {r.ovr === null ? 'No card yet' : `now ${r.ovr}${diff ? ` · ${diff > 0 ? '+' : ''}${diff}` : ' · same'}`}
+                      {r.oldOvr === null ? '' : `old way ${r.oldOvr}${diff ? ` · ${diff > 0 ? '+' : ''}${diff}` : ' · same'}`}
                     </span>
                   </span>
                 </div>

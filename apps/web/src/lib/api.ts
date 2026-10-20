@@ -1006,7 +1006,7 @@ export function getSessionVoting(sessionId: string): Promise<SessionVoting> {
   return http.get(`/sessions/${sessionId}/voting`);
 }
 
-/** The trial 40/40/20 rating beside the card's, for the organiser to compare. */
+/** Each player's 40/40/20 rating and its three parts, beside the old way's number, for the organiser. */
 export interface RatingTrial {
   weights: { stats: number; votes: number; results: number };
   rows: {
@@ -1015,8 +1015,8 @@ export interface RatingTrial {
     ballotsSeen: number;
     goals: number;
     assists: number;
-    /** The card's rating today. */
-    ovr: number | null;
+    /** What the card showed the old way (results, lifted by awards), for comparing. */
+    oldOvr: number | null;
     trial: number;
     parts: { stats: number; votes: number; results: number };
   }[];

@@ -431,3 +431,20 @@ describe('trialRatings (40 stats / 40 votes / 20 results)', () => {
     expect(t.get('new')!.parts.stats).toBeLessThan(85);
   });
 });
+
+describe('balanceTeams (half results, half the 40/40/20 card)', () => {
+  it('counts the card as well as results when picking the best first', async () => {
+    const service = new RatingsService({} as any, {} as any, {} as any, {} as any, {} as any);
+    const p = (id: string, skill: number, ovr: number | null) => ({ id, firstName: id, skill, ovr, captain: false, team: null });
+    // Same results rating; the scorers' cards are higher. Sorted strongest first, then snake: A, B, B, A.
+    jest.spyOn(service, 'getLineup').mockResolvedValue({
+      teamCount: 2,
+      squad: [p('quiet1', 1500, 60), p('star', 1500, 90), p('quiet2', 1500, 62), p('good', 1500, 80)],
+    } as any);
+    const set = jest.spyOn(service, 'setLineup').mockResolvedValue({} as any);
+    await service.balanceTeams('s1', 'org1');
+    const teams = (set.mock.calls[0][2] as any).teams;
+    expect(teams.star).not.toBe(teams.good);
+    expect(teams.quiet1).not.toBe(teams.quiet2);
+  });
+});
