@@ -64,3 +64,29 @@ export function payableNow<T extends { session: { date: string | Date } }>(pendi
     return true;
   });
 }
+
+/**
+ * What a member owes, the way money is actually used: `now` is what a transfer would pay today
+ * (played games and the one next game, see payableNow), `later` is games further ahead that
+ * can't be paid yet. What they've already sent towards a due (`credit`, a part payment) comes off
+ * their oldest due, which is always in `now`. Pending dues only, oldest first, one group;
+ * cancelled games and ₦0 dues left out by the caller. The player's Pay tab and the organiser's
+ * player page both use this, so the two never show different amounts for the same person.
+ */
+export function owedSplit<T extends { id: string; amount: number | string; session: { date: string | Date } }>(
+  pending: T[],
+  credit: number,
+  today: string,
+): { now: (T & { left: number; paidSoFar: number })[]; later: (T & { left: number; paidSoFar: number })[]; nowTotal: number; laterTotal: number } {
+  const nowIds = new Set(payableNow(pending, today).map((p) => p.id));
+  let pool = Math.max(0, credit);
+  const items = pending.map((p) => {
+    const paidSoFar = Math.min(pool, Number(p.amount));
+    pool -= paidSoFar;
+    return Object.assign(p, { left: Number(p.amount) - paidSoFar, paidSoFar });
+  });
+  const now = items.filter((p) => nowIds.has(p.id));
+  const later = items.filter((p) => !nowIds.has(p.id));
+  const sum = (list: { left: number }[]) => list.reduce((s, p) => s + p.left, 0);
+  return { now, later, nowTotal: sum(now), laterTotal: sum(later) };
+}

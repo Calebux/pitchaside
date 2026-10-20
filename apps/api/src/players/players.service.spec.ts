@@ -7,7 +7,7 @@ import { Payment } from '../payments/entities/payment.entity';
 describe('PlayersService', () => {
   let service: PlayersService;
   let playersRepo: Record<string, jest.Mock>;
-  let paymentsRepo: Record<string, jest.Mock>;
+  let paymentsRepo: { createQueryBuilder: jest.Mock; manager: { find: jest.Mock } };
 
   const mockPlayer = {
     id: 'player-1',
@@ -26,6 +26,7 @@ describe('PlayersService', () => {
     innerJoinAndSelect: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
+    orderBy: jest.fn().mockReturnThis(),
     getMany: jest.fn(),
   };
 
@@ -39,6 +40,7 @@ describe('PlayersService', () => {
     };
     paymentsRepo = {
       createQueryBuilder: jest.fn().mockReturnValue({ ...mockQueryBuilder }),
+      manager: { find: jest.fn().mockResolvedValue([]) },
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -81,19 +83,36 @@ describe('PlayersService', () => {
         { id: 'p4', status: 'paid', amount: 500 },
         { id: 'p5', status: 'pending', amount: 500 },
       ];
-
-      const qb = {
-        ...mockQueryBuilder,
-        getMany: jest.fn().mockResolvedValue(payments),
-      };
-      paymentsRepo.createQueryBuilder.mockReturnValue(qb);
+      // What's owed, as the second query returns it: a played game, then their next game.
+      const pending = [
+        { id: 'p3', amount: '1000.00', session: { date: '2026-01-03', groupId: 'g1' } },
+        { id: 'p5', amount: '500.00', session: { date: '2099-01-03', groupId: 'g1' } },
+      ];
+      paymentsRepo.createQueryBuilder
+        .mockReturnValueOnce({ ...mockQueryBuilder, getMany: jest.fn().mockResolvedValue(payments) })
+        .mockReturnValueOnce({ ...mockQueryBuilder, getMany: jest.fn().mockResolvedValue(pending) });
+      // ₦200 already sent towards the oldest game.
+      paymentsRepo.manager.find.mockResolvedValue([{ groupId: 'g1', credit: '200.00' }]);
 
       const result = await service.getStats('player-1', 'org-1');
 
       expect(result.totalSessions).toBe(5);
       expect(result.totalPaid).toBe(2500); // 1000+1000+500
-      expect(result.totalOwed).toBe(1500); // 1000+500
+      expect(result.totalOwed).toBe(1300); // 1000+500, less the ₦200 part payment
       expect(result.paymentRate).toBe(60); // 3/5 = 60%
+    });
+
+    it('leaves games further ahead than the next one out of what is owed now', async () => {
+      playersRepo.findOne.mockResolvedValue(mockPlayer);
+      const pending = [
+        { id: 'a', amount: '1500.00', session: { date: '2099-01-03', groupId: 'g1' } },
+        { id: 'b', amount: '1500.00', session: { date: '2099-01-10', groupId: 'g1' } },
+      ];
+      paymentsRepo.createQueryBuilder
+        .mockReturnValueOnce({ ...mockQueryBuilder, getMany: jest.fn().mockResolvedValue([]) })
+        .mockReturnValueOnce({ ...mockQueryBuilder, getMany: jest.fn().mockResolvedValue(pending) });
+
+      expect((await service.getStats('player-1', 'org-1')).totalOwed).toBe(1500);
     });
 
     it('should return zeros when player has no payments', async () => {

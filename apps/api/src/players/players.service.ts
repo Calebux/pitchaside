@@ -2,7 +2,10 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Repository } from 'typeorm';
 import { Player } from './entities/player.entity';
-import { Payment } from '../payments/entities/payment.entity';
+import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
+import { SessionStatus } from '../sessions/entities/session.entity';
+import { owedSplit } from '../payments/credit';
+import { localDate } from '../common/time.util';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { CreatePlayerDto, UpdatePlayerDto } from './dto/create-player.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
@@ -108,9 +111,30 @@ export class PlayersService {
     const totalPaid = payments
       .filter((p) => p.status === 'paid')
       .reduce((sum, p) => sum + Number(p.amount), 0);
-    const totalOwed = payments
-      .filter((p) => p.status === 'pending')
-      .reduce((sum, p) => sum + Number(p.amount), 0);
+    // Owed the same way the player's own Pay tab counts it (owedSplit): what a transfer would pay
+    // today, after part payments, leaving out called-off games and ₦0 dues.
+    const pending = await this.paymentsRepo
+      .createQueryBuilder('payment')
+      .innerJoinAndSelect('payment.session', 'session')
+      .innerJoin('session.group', 'group')
+      .where('payment.playerId = :playerId', { playerId })
+      .andWhere('group.organizationId = :organizationId', { organizationId })
+      .andWhere('payment.status = :pending', { pending: PaymentStatus.PENDING })
+      .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
+      .andWhere('payment.amount > 0')
+      .orderBy('session.date', 'ASC')
+      .getMany();
+    const credits = await this.paymentsRepo.manager.find(GroupMembership, { where: { playerId } });
+    const today = localDate();
+    let totalOwed = 0;
+    for (const groupId of new Set(pending.map((p) => p.session.groupId))) {
+      const credit = Number(credits.find((m) => m.groupId === groupId)?.credit ?? 0);
+      totalOwed += owedSplit(
+        pending.filter((p) => p.session.groupId === groupId),
+        credit,
+        today,
+      ).nowTotal;
+    }
     const paidCount = payments.filter((p) => p.status === 'paid').length;
     const paymentRate = totalSessions > 0 ? Math.round((paidCount / totalSessions) * 100) : 0;
 

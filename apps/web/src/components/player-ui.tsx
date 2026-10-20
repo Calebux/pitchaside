@@ -276,7 +276,8 @@ export function GameCard({
           </div>
         )}
 
-        {game.myStatus === 'in' && game.payment?.status === 'pending' && (
+        {/* On match day the bib picker below says it instead, so it isn't said twice. ₦0 games owe nothing. */}
+        {game.myStatus === 'in' && game.payment?.status === 'pending' && game.payment.amount > 0 && !game.bibsOpen && (
           <Link href="/me/pay" className="mt-3 block text-xs font-semibold text-amber-800 bg-sun-400/20 rounded-xl px-3 py-2">
             {formatCurrency(game.payment.amount)} to pay for this game — tap for the account details ›
           </Link>

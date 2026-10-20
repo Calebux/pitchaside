@@ -40,7 +40,10 @@ export default function PlayerHomePage() {
   ]
     .filter(Boolean)
     .join(' · ');
-  const totalOwed = home.owed.reduce((sum, o) => sum + o.amount, 0);
+  // What to send now, from the server (played games and each group's next one, after part payments).
+  const totalOwed = home.groups.reduce((sum, g) => sum + g.toPay, 0);
+  const owedNow = home.owed.filter((o) => o.now).length;
+  const extra = home.groups.reduce((sum, g) => sum + g.extra, 0);
   const pendingVotes = home.openVotes.filter((v) => !v.voted);
 
   return (
@@ -126,14 +129,19 @@ export default function PlayerHomePage() {
       >
         <span>
           <span className={`block text-[11px] font-extrabold uppercase tracking-[0.12em] ${totalOwed > 0 ? 'text-white/50' : 'text-ink/50'}`}>
-            To pay
+            {totalOwed > 0 ? 'To pay now' : 'Money'}
           </span>
           <span className="font-display text-2xl font-extrabold tabular-nums">
             {totalOwed > 0 ? formatCurrency(totalOwed) : 'All square ✅'}
           </span>
+          {extra > 0 && (
+            <span className={`block mt-0.5 text-xs font-semibold ${totalOwed > 0 ? 'text-white/70' : 'text-ink/70'}`}>
+              {formatCurrency(extra)} of yours is with your organiser to sort
+            </span>
+          )}
         </span>
-        <span className={`text-xs font-bold ${totalOwed > 0 ? 'text-volt-300' : 'text-ink'}`}>
-          {totalOwed > 0 ? `${home.owed.length} item${home.owed.length === 1 ? '' : 's'} ›` : 'History ›'}
+        <span className={`shrink-0 text-xs font-bold ${totalOwed > 0 ? 'text-volt-300' : 'text-ink'}`}>
+          {totalOwed > 0 ? `${owedNow} item${owedNow === 1 ? '' : 's'} ›` : 'History ›'}
         </span>
       </Link>
 
