@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { TEAMS, teamName } from '@/lib/teams';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
@@ -13,9 +12,9 @@ const KEYS = Object.keys(TEAMS) as TeamKey[];
 
 function PaidTag({ paid }: { paid: GamePaid | null }) {
   if (!paid) return null;
-  if (paid === 'paid') return <span className="text-[10px] font-extrabold text-pitch-600">✓ Paid</span>;
-  if (paid === 'waived') return <span className="text-[10px] font-bold text-gray-500">Free</span>;
-  return <span className="text-[10px] font-extrabold text-kit-600">To pay</span>;
+  if (paid === 'paid') return <span className="text-[10px] font-extrabold text-volt-300">✓ Paid</span>;
+  if (paid === 'waived') return <span className="text-[10px] font-bold text-white/60">Free</span>;
+  return <span className="text-[10px] font-extrabold text-sun-400">To pay</span>;
 }
 
 /**
@@ -66,7 +65,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
 
   const myTeam = lineup.myTeam;
   return (
-    <div className="mt-4 rounded-2xl bg-chalk p-3.5 space-y-3">
+    <div className="mt-4 rounded-2xl bg-white/[0.07] p-3.5 space-y-3 text-white">
       <ConfirmDialog
         open={!!switching}
         variant="danger"
@@ -81,7 +80,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
       />
       {lineup.bibsOpen ? (
         <div>
-          <p className="text-xs font-bold text-ink mb-2">{Object.keys(lineup.captains).length ? 'Which team are you in?' : 'Which bib are you in?'}</p>
+          <p className="text-[13px] font-bold text-white mb-2">{Object.keys(lineup.captains).length ? 'Which team are you in?' : 'Which bib are you in?'}</p>
           <div className="flex flex-wrap gap-2">
             {teams.map((t) => {
               const mine = lineup.myTeam === t;
@@ -92,7 +91,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
                   disabled={!!saving}
                   aria-pressed={mine}
                   className={`flex items-center gap-2 min-h-11 pl-2 pr-3.5 rounded-full text-[13px] font-bold transition-colors disabled:opacity-60 ${
-                    mine ? 'bg-ink text-white' : 'bg-white text-ink border border-gray-200 hover:border-ink'
+                    mine ? 'bg-volt-400 text-ink' : 'bg-white/10 text-white border border-white/15 hover:border-white/40'
                   }`}
                 >
                   {saving === t ? <BallSpinner /> : <span className={`w-5 h-5 rounded-full ${TEAMS[t].swatch}`} aria-hidden />}
@@ -103,18 +102,11 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
           </div>
         </div>
       ) : (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-white/70">
           {lineup.bibsClosed ? 'Teams are set: the scores are in.' : 'Picking your team opens on match day.'}
         </p>
       )}
 
-      {lineup.myPaid === 'unpaid' ? (
-        <Link href="/me/pay" className="block text-xs font-semibold text-kit-600">
-          You haven&apos;t paid for this game yet — tap for the account details ›
-        </Link>
-      ) : lineup.myPaid === 'paid' ? (
-        <p className="text-xs font-semibold text-pitch-600">✓ You&apos;ve paid for this game</p>
-      ) : null}
 
       {lineup.squad.some((p) => p.team) && (
         <div className="space-y-2">
@@ -122,15 +114,15 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
             .filter((t) => byTeam(t).length)
             .map((t) => (
               <div key={t}>
-                <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">
+                <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-white/60 mb-1">
                   <span className={`w-2.5 h-2.5 rounded-sm ${TEAMS[t].swatch}`} aria-hidden />
                   {teamName(t, lineup.captains)} · {byTeam(t).length}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {byTeam(t).map((p) => (
-                    <span key={p.name} className="inline-flex items-center gap-1.5 bg-white rounded-full border border-gray-200 px-2.5 py-1">
-                      <span className={`text-xs ${p.me ? 'font-extrabold text-ink' : 'font-semibold text-ink'}`}>{p.me ? 'You' : p.name}</span>
-                      {p.captain && <span className="text-[10px] font-extrabold text-pitch-600">(C)</span>}
+                    <span key={p.name} className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1">
+                      <span className={`text-xs ${p.me ? 'font-extrabold text-volt-300' : 'font-semibold text-white'}`}>{p.me ? 'You' : p.name}</span>
+                      {p.captain && <span className="text-[10px] font-extrabold text-volt-300">(C)</span>}
                       <PaidTag paid={p.paid} />
                     </span>
                   ))}
@@ -138,7 +130,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
               </div>
             ))}
           {noBib.length > 0 && (
-            <p className="text-[11px] text-gray-500">
+            <p className="text-[11px] text-white/60">
               No team yet: {noBib.map((p) => (p.me ? 'you' : p.name.split(' ')[0])).join(', ')}
             </p>
           )}

@@ -13,6 +13,7 @@ import { KeepScoreLink } from '@/components/keep-score-link';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ShareCardButton } from '@/components/share-card';
+import { CountUp, LiveDot } from '@/components/motion';
 import { formatCurrency, type PlayerRatings } from '@/lib/api';
 import { setRsvp, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
@@ -147,8 +148,7 @@ export function PlayerCardHero({
           )}
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Your card</p>
-          <h1 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h1>
+                    <h1 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h1>
           <div className="mt-3">
             <AttributeRow ratings={ratings} dark />
           </div>
@@ -232,110 +232,150 @@ export function GameCard({
     }
   }
 
-  const statusChip =
-    played
-      ? game.myStatus === 'in'
-        ? { text: 'You played', cls: 'bg-gray-100 text-gray-700' }
-        : null
-      : game.myStatus === 'in'
-      ? { text: "You're in ✅", cls: 'bg-volt-400 text-ink' }
+  const days = daysFrom(game.date);
+  const owes = game.myStatus === 'in' && game.payment?.status === 'pending' && game.payment.amount > 0;
+  // Same pill as the organiser's match-day card: where the game is in time.
+  const pill = played
+    ? { text: 'Played', live: false }
+    : days === 0
+      ? { text: 'Today', live: true }
+      : { text: days === 1 ? 'Tomorrow' : `In ${days} days`, live: false };
+  // Where the player stands, in words and colour both.
+  const me = played
+    ? game.myStatus === 'in'
+      ? { text: 'You played', cls: 'bg-white/[0.08] text-white/80' }
+      : null
+    : game.myStatus === 'in'
+      ? { text: "You're in ✓", cls: 'bg-volt-400 text-ink' }
       : game.myStatus === 'waitlist'
         ? { text: `Waitlist #${game.waitlistPosition ?? '–'}`, cls: 'bg-sun-400 text-ink' }
         : game.myStatus === 'out'
-          ? { text: "You're out", cls: 'bg-gray-100 text-gray-600' }
-          : null;
+          ? { text: "You're out", cls: 'bg-white/[0.08] text-white/80' }
+          : game.requireRsvp
+            ? { text: 'Not replied', cls: 'bg-white/[0.08] text-white/80' }
+            : null;
+  const chevron = (
+    <svg className="w-3.5 h-3.5 shrink-0 text-white/45" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+    </svg>
+  );
+  const primary =
+    'press w-full h-12 inline-flex items-center justify-center gap-2 rounded-2xl bg-volt-400 text-ink text-[15px] font-extrabold hover:bg-volt-300 disabled:opacity-60 transition-colors';
+  const secondary =
+    'press w-full h-12 inline-flex items-center justify-center gap-2 rounded-2xl border border-white/20 text-[15px] font-bold text-white hover:bg-white/10 disabled:opacity-50 transition-colors';
 
   return (
     <Ticket
-      tone="light"
       aria-label={`${game.groupName}, ${niceDate(game.date)}`}
-      bodyClassName="bg-white rounded-3xl"
-      stubHeight={48}
+      bodyClassName="rounded-[28px] text-white bg-[linear-gradient(160deg,#134927_0%,#10301d_42%,#0f1a14_100%)]"
       stub={
         showDetails ? (
-          <Link href={`/me/games/${game.id}`} className="flex items-center justify-center h-12 text-[13px] font-bold text-pitch-600 hover:text-ink">
-            See who&apos;s playing ›
+          <Link href={`/me/games/${game.id}`} className="press flex items-center gap-3 h-[52px] px-5 hover:bg-white/[0.04] transition-colors">
+            <span className="flex-1 min-w-0 truncate text-[13px] font-semibold text-white/85">See who&apos;s playing</span>
+            {chevron}
           </Link>
         ) : null
       }
     >
-      <div className="p-4">
+      <div className="absolute inset-0 turf-stripes-soft" aria-hidden />
+      <div className="relative p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-pitch-600">
-              {daysUntil(game.date)}
-              {time ? ` · ${time}` : ''}
-            </p>
-            <p className="font-display text-xl font-extrabold text-ink leading-tight truncate">{game.groupName}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{niceDate(game.date)}</p>
+            <span className="block text-[11px] font-bold uppercase tracking-[0.12em] text-white/65">{days === 0 ? 'Match day' : played ? 'Last game' : 'Next game'}</span>
+            <span className="mt-1 block font-display text-[22px] leading-tight font-extrabold truncate">{game.groupName}</span>
+            <span className="mt-1 flex items-center gap-2 min-w-0">
+              <span className="text-sm font-semibold text-white/85 truncate">
+                {niceDate(game.date, { weekday: 'short', day: 'numeric', month: 'short' })}
+                {time ? ` · ${time}` : ''}
+              </span>
+              <span
+                className={`shrink-0 inline-flex items-center gap-1.5 h-6 px-2 rounded-md text-[11px] font-bold whitespace-nowrap ${
+                  pill.live ? 'bg-volt-400/15 text-volt-300' : 'bg-white/[0.08] text-white/75'
+                }`}
+              >
+                {pill.live && <LiveDot className="bg-volt-400" />}
+                {pill.text}
+              </span>
+            </span>
           </div>
-          {statusChip && (
-            <span className={`text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${statusChip.cls}`}>{statusChip.text}</span>
-          )}
+          {me && <span className={`shrink-0 text-[11px] font-extrabold px-2.5 py-1 rounded-full whitespace-nowrap ${me.cls}`}>{me.text}</span>}
         </div>
 
         {game.requireRsvp && !played && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 mb-1">
-              <span className="tabular-nums">
-                {game.confirmed}/{game.capacity} confirmed
+          <>
+            <div className="mt-4 flex items-baseline gap-1.5 flex-wrap">
+              <CountUp value={game.confirmed} className="font-display text-[28px] font-extrabold leading-none" />
+              <span className="text-sm text-white/70 tabular-nums">
+                of {game.capacity} in{game.waitlist > 0 ? ` · ${game.waitlist} waiting` : full ? ' · full' : ''}
               </span>
-              {game.waitlist > 0 && <span className="tabular-nums">{game.waitlist} waiting</span>}
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2">
-              <div className={`h-2 rounded-full ${full ? 'bg-kit-500' : 'bg-pitch-500'}`} style={{ width: `${pct}%` }} />
+            <div
+              className="mt-2.5 h-2.5 w-full rounded-full bg-white/12 overflow-hidden"
+              role="img"
+              aria-label={`${game.confirmed} of ${game.capacity} places taken`}
+            >
+              <div className={`h-full rounded-full origin-left animate-fill-grow ${full ? 'bg-kit-500' : 'bg-volt-400'}`} style={{ width: `${pct}%` }} />
             </div>
-          </div>
+          </>
         )}
 
-        {/* On match day the bib picker below says it instead, so it isn't said twice. ₦0 games owe nothing. */}
-        {game.myStatus === 'in' && game.payment?.status === 'pending' && game.payment.amount > 0 && !game.bibsOpen && (
-          <Link href="/me/pay" className="mt-3 block text-xs font-semibold text-amber-800 bg-sun-400/20 rounded-xl px-3 py-2">
-            {formatCurrency(game.payment.amount)} to pay for this game — tap for the account details ›
-          </Link>
+        {/* Their money for this game, as a row like the organiser's */}
+        {game.myStatus === 'in' && game.payment && game.payment.amount > 0 && (
+          <ul className="mt-2.5 -mx-1.5">
+            <li>
+              {owes ? (
+                <Link href="/me/pay" className="press flex items-center gap-2.5 min-h-10 px-1.5 rounded-xl text-[13px] font-semibold text-white/85 hover:bg-white/[0.06] transition-colors">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-sun-400" aria-hidden />
+                  <span className="flex-1 min-w-0 truncate tabular-nums">{formatCurrency(game.payment.amount)} to pay for this game</span>
+                  {chevron}
+                </Link>
+              ) : (
+                <p className="flex items-center gap-2.5 min-h-10 px-1.5 text-[13px] font-semibold text-white/85">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-volt-400" aria-hidden />
+                  {game.payment.status === 'waived' ? 'Free for you this time' : `Paid ${formatCurrency(game.payment.amount)} ✓`}
+                </p>
+              )}
+            </li>
+          </ul>
         )}
 
         {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
-        {daysFrom(game.date) === 0 && game.status !== 'cancelled' && <KeepScoreLink sessionId={game.id} />}
+        {days === 0 && game.status !== 'cancelled' && <KeepScoreLink sessionId={game.id} />}
 
         {!played && (
-        <div className="grid grid-cols-2 gap-2 mt-4">
-          {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (
-            <button
-              onClick={() => (paid ? setConfirmOut(true) : reply('out'))}
-              disabled={!!busy}
-              className="col-span-2 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {busy === 'out' && <BallSpinner />}
-              {game.myStatus === 'waitlist' ? 'Leave the waitlist' : "I'm out"}
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={() => reply('in')}
-                disabled={!!busy}
-                className="py-3 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {busy === 'in' && <BallSpinner />}
-                {full && game.requireRsvp ? 'Join waitlist' : "I'm in"}
-              </button>
-              <button
-                onClick={() => reply('out')}
-                disabled={!!busy || game.myStatus === 'out'}
-                className="py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {busy === 'out' && <BallSpinner />}
-                I&apos;m out
-              </button>
-            </>
-          )}
-        </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            {game.myStatus === 'in' || game.myStatus === 'waitlist' ? (
+              <>
+                {owes && (
+                  <Link href="/me/pay" className={`${primary} col-span-2`}>
+                    Pay {formatCurrency(game.payment!.amount)}
+                  </Link>
+                )}
+                <button onClick={() => (paid ? setConfirmOut(true) : reply('out'))} disabled={!!busy} className={`${secondary} col-span-2`}>
+                  {busy === 'out' && <BallSpinner />}
+                  {game.myStatus === 'waitlist' ? 'Leave the waitlist' : "I'm out"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => reply('in')} disabled={!!busy} className={primary}>
+                  {busy === 'in' && <BallSpinner />}
+                  {full && game.requireRsvp ? 'Join waitlist' : "I'm in"}
+                </button>
+                <button onClick={() => reply('out')} disabled={!!busy || game.myStatus === 'out'} className={secondary}>
+                  {busy === 'out' && <BallSpinner />}
+                  I&apos;m out
+                </button>
+              </>
+            )}
+          </div>
         )}
 
         <ConfirmDialog
           open={confirmOut}
+          variant="danger"
           title="Drop out of this game?"
-          message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. Your organiser at ${game.groupName} decides what happens to it: your next game, or sent back.`}
+          message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. It goes to your organiser at ${game.groupName} to sort: kept for a later game, or sent back to you.`}
           confirmLabel="I'm out"
           cancelLabel="Stay in"
           onConfirm={() => {
@@ -344,7 +384,6 @@ export function GameCard({
           }}
           onCancel={() => setConfirmOut(false)}
         />
-
       </div>
     </Ticket>
   );
