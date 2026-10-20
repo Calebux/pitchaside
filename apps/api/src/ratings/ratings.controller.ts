@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsUUID, Max, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MATCH_EVENT_KINDS, type MatchEventKind } from './entities/match-event.entity';
 import { ConfigService } from '@nestjs/config';
@@ -46,6 +46,12 @@ export class GoalDto {
   @IsOptional()
   @IsUUID()
   assistId?: string | null;
+
+  /** Sent again unchanged when the phone retries the same tap, so it's saved once. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  clientKey?: string;
 }
 
 export class EventDto {
@@ -54,6 +60,12 @@ export class EventDto {
 
   @IsIn(MATCH_EVENT_KINDS)
   kind: MatchEventKind;
+
+  /** Sent again unchanged when the phone retries the same tap, so it's saved once. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  clientKey?: string;
 }
 
 export class GameDto {
@@ -80,6 +92,12 @@ export class GameDto {
   @ValidateNested({ each: true })
   @Type(() => GoalDto)
   goals?: GoalDto[];
+
+  /** Sent again unchanged when the phone retries the same tap, so it's saved once. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  clientKey?: string;
 }
 
 /** Organiser views: vote link + results per game, league table, player ratings. */

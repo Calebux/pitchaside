@@ -879,9 +879,17 @@ export class RatingsService {
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
     if (!this.isCaptain(session, mine)) throw new BadRequestException('Only the captains can keep the score');
+    if (mine.attendance === 'no_show') throw new BadRequestException("You're marked as not here today, so you can't keep the score");
     if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    // After full time the vote is on: scores feed it, so only the organiser changes them now.
+    if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('Full time: only the organiser can change the scores now');
     if (localDate(0) !== String(session.date).slice(0, 10)) throw new BadRequestException('Captains can keep the score on match day only');
-    return { session, organizationId: session.group.organizationId, signedAs: `${pitchName(mine.player)} (captain)` };
+    return {
+      session,
+      organizationId: session.group.organizationId,
+      team: this.teamOf(session, mine.team)!,
+      signedAs: `${pitchName(mine.player)} (captain)`,
+    };
   }
 
   /** The match day as a captain sees it: like the organiser's, without ratings or who's paid. */
@@ -894,43 +902,84 @@ export class RatingsService {
     return { ...lineup, squad: lineup.squad.map((m) => ({ ...m, ovr: null, skill: 0, paid: undefined })) };
   }
 
-  async captainAddGame(sessionId: string, playerIds: string[], input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[] }) {
-    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
+  /** A captain records games their own side played, never a game between two other sides. */
+  async captainAddGame(
+    sessionId: string,
+    playerIds: string[],
+    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string },
+  ) {
+    const { organizationId, signedAs, team } = await this.captainToday(sessionId, playerIds);
+    if (input.teamA !== team && input.teamB !== team) throw new BadRequestException('You can only add games your team played');
     return this.forCaptain(await this.addGame(sessionId, organizationId, input, signedAs));
   }
 
-  async captainAddGoal(sessionId: string, gameId: string, playerIds: string[], input: GoalInput) {
-    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
+  async captainAddGoal(sessionId: string, gameId: string, playerIds: string[], input: GoalInput & { clientKey?: string }) {
+    const { organizationId, signedAs, team } = await this.captainToday(sessionId, playerIds);
+    const game = await this.gamesRepo.findOne({ where: { id: gameId, sessionId } });
+    if (game && game.teamA !== team && game.teamB !== team) throw new BadRequestException('You can only name scorers in games your team played');
     return this.forCaptain(await this.addGoal(sessionId, gameId, organizationId, input, signedAs));
   }
 
+  /**
+   * A captain takes back a game they saved themselves: not the organiser's, not the other
+   * captain's, and not one the organiser has since named scorers in (those would go with it).
+   */
   async captainDeleteGame(sessionId: string, gameId: string, playerIds: string[]) {
-    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
     const game = await this.gamesRepo.findOne({ where: { id: gameId, sessionId } });
     if (!game) throw new NotFoundException('Game not found');
-    if (!game.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser saved this score: only they can delete it');
+    if (game.recordedBy !== signedAs) throw new BadRequestException(this.notYours(game.recordedBy, 'saved this score', 'delete it'));
+    const goals = await this.goalsRepo.find({ where: { gameId } });
+    if (goals.some((g) => g.recordedBy !== signedAs)) {
+      throw new BadRequestException('Someone else named scorers in this game: ask the organiser to delete it');
+    }
     return this.forCaptain(await this.deleteGame(sessionId, gameId, organizationId));
   }
 
   async captainDeleteGoal(sessionId: string, goalId: string, playerIds: string[]) {
-    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
     const goal = await this.goalsRepo.findOne({ where: { id: goalId, sessionId } });
     if (!goal) throw new NotFoundException('Goal not found');
-    if (!goal.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser added this scorer: only they can remove it');
+    if (goal.recordedBy !== signedAs) throw new BadRequestException(this.notYours(goal.recordedBy, 'added this scorer', 'remove it'));
     return this.forCaptain(await this.deleteGoal(sessionId, goalId, organizationId));
   }
 
-  async captainAddEvent(sessionId: string, playerIds: string[], input: { playerId: string; kind: MatchEventKind }) {
-    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
+  /** Cards and saves, for a captain's own players only: a card costs rating, so not on the other side's. */
+  async captainAddEvent(sessionId: string, playerIds: string[], input: { playerId: string; kind: MatchEventKind; clientKey?: string }) {
+    const { session, organizationId, signedAs, team } = await this.captainToday(sessionId, playerIds);
+    const theirs = session.payments?.find((p) => p.playerId === input.playerId);
+    if (!theirs || this.teamOf(session, theirs.team) !== team) {
+      throw new BadRequestException('You can add cards and saves for your own team only. The organiser adds the rest');
+    }
     return this.forCaptain(await this.addEvent(sessionId, organizationId, input, signedAs));
   }
 
   async captainDeleteEvent(sessionId: string, eventId: string, playerIds: string[]) {
-    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
     const event = await this.eventsRepo.findOne({ where: { id: eventId, sessionId } });
     if (!event) throw new NotFoundException('Not found');
-    if (!event.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser added this: only they can remove it');
+    if (event.recordedBy !== signedAs) throw new BadRequestException(this.notYours(event.recordedBy, 'added this', 'remove it'));
     return this.forCaptain(await this.deleteEvent(sessionId, eventId, organizationId));
+  }
+
+  /** "The organiser saved this score: only they can delete it" / "Ada (captain) added this: ask them or the organiser". */
+  private notYours(by: string | null, did: string, undo: string) {
+    return by?.endsWith('(captain)') ? `${by} ${did}: ask them or the organiser to ${undo}` : `The organiser ${did}: only they can ${undo}`;
+  }
+
+  /**
+   * Saves a match-day entry once per `clientKey`: the phone sends the same key again when it
+   * retries the same tap, and a row with that key already saved means it's done.
+   */
+  private async onceByKey(repo: Repository<{ sessionId: string; clientKey?: string | null }>, sessionId: string, clientKey: string | undefined, save: () => Promise<unknown>) {
+    if (clientKey && (await repo.exists({ where: { sessionId, clientKey } }))) return;
+    try {
+      await save();
+    } catch (err) {
+      // Two copies of the same tap racing: the unique index lets one in, and that one counts.
+      if (clientKey && (err as { code?: string }).code === '23505') return;
+      throw err;
+    }
   }
 
   // ── Bibs, from the player's side ──
@@ -1048,7 +1097,7 @@ export class RatingsService {
   async addGame(
     sessionId: string,
     organizationId: string,
-    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[] },
+    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string },
     recordedBy?: string,
   ) {
     const session = await this.loadSession(sessionId, organizationId);
@@ -1066,13 +1115,18 @@ export class RatingsService {
       scoreA: clean(input.scoreA),
       scoreB: clean(input.scoreB),
       recordedBy: recordedBy ?? null,
+      clientKey: input.clientKey ?? null,
     });
     const goals = input.goals ?? [];
     this.checkGoals(session, game, [], goals);
-    await this.gamesRepo.manager.transaction(async (tx) => {
-      const saved = await tx.save(game);
-      if (goals.length) await tx.save(goals.map((g) => this.goalsRepo.create({ ...g, assistId: g.assistId ?? null, sessionId: session.id, gameId: saved.id, recordedBy: recordedBy ?? null })));
-    });
+    await this.onceByKey(this.gamesRepo, session.id, input.clientKey, () =>
+      this.gamesRepo.manager.transaction(async (tx) => {
+        const saved = await tx.save(game);
+        if (goals.length) {
+          await tx.save(goals.map((g) => this.goalsRepo.create({ team: g.team, scorerId: g.scorerId, assistId: g.assistId ?? null, sessionId: session.id, gameId: saved.id, recordedBy: recordedBy ?? null })));
+        }
+      }),
+    );
     return this.getLineup(sessionId, organizationId);
   }
 
@@ -1080,25 +1134,34 @@ export class RatingsService {
    * Names a scorer (and maybe who set it up) for a goal in a game already saved. The score is
    * what counts: a side can't have more named scorers than goals.
    */
-  async addGoal(sessionId: string, gameId: string, organizationId: string, input: GoalInput, recordedBy?: string) {
+  async addGoal(sessionId: string, gameId: string, organizationId: string, input: GoalInput & { clientKey?: string }, recordedBy?: string) {
     const session = await this.loadSession(sessionId, organizationId);
-    const game = await this.gamesRepo.findOne({ where: { id: gameId, sessionId } });
-    if (!game) throw new NotFoundException('Game not found');
-    const existing = await this.goalsRepo.find({ where: { gameId } });
-    this.checkGoals(session, game, existing, [input]);
-    await this.goalsRepo.save(this.goalsRepo.create({ ...input, assistId: input.assistId ?? null, sessionId, gameId, recordedBy: recordedBy ?? null }));
+    const { clientKey, ...goal } = input;
+    await this.onceByKey(this.goalsRepo, sessionId, clientKey, () =>
+      // The game row stays locked while its scorers are counted, so the organiser and a captain
+      // naming scorers at the same moment can't name more than the score between them.
+      this.gamesRepo.manager.transaction(async (tx) => {
+        const game = await tx.findOne(SessionGame, { where: { id: gameId, sessionId }, lock: { mode: 'pessimistic_write' } });
+        if (!game) throw new NotFoundException('Game not found');
+        const existing = await tx.find(MatchGoal, { where: { gameId } });
+        this.checkGoals(session, game, existing, [goal]);
+        await tx.save(this.goalsRepo.create({ ...goal, assistId: goal.assistId ?? null, sessionId, gameId, recordedBy: recordedBy ?? null, clientKey: clientKey ?? null }));
+      }),
+    );
     return this.getLineup(sessionId, organizationId);
   }
 
   /** A yellow card, red card or save on match day, for a player who's in today's game. */
-  async addEvent(sessionId: string, organizationId: string, input: { playerId: string; kind: MatchEventKind }, recordedBy?: string) {
+  async addEvent(sessionId: string, organizationId: string, input: { playerId: string; kind: MatchEventKind; clientKey?: string }, recordedBy?: string) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
     if (localDate(0) < String(session.date).slice(0, 10)) throw new BadRequestException('Cards and saves open on match day');
     if (!(session.payments ?? []).some((p) => p.playerId === input.playerId && p.attendance !== 'no_show')) {
       throw new BadRequestException("That player isn't in this game");
     }
-    await this.eventsRepo.save(this.eventsRepo.create({ sessionId, playerId: input.playerId, kind: input.kind, recordedBy: recordedBy ?? null }));
+    await this.onceByKey(this.eventsRepo, sessionId, input.clientKey, () =>
+      this.eventsRepo.save(this.eventsRepo.create({ sessionId, playerId: input.playerId, kind: input.kind, recordedBy: recordedBy ?? null, clientKey: input.clientKey ?? null })),
+    );
     return this.getLineup(sessionId, organizationId);
   }
 

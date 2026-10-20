@@ -1,5 +1,6 @@
 'use client';
 
+import { retryKeys } from '@/lib/retry-keys';
 import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
@@ -23,7 +24,10 @@ export interface ScoresApi {
   deleteEvent: (sessionId: string, eventId: string) => Promise<Lineup>;
 }
 
-const ORGANISER: ScoresApi = { addGame: addMatchGame, deleteGame: deleteMatchGame, addGoal, deleteGoal, addEvent: addMatchEvent, deleteEvent: deleteMatchEvent };
+const ORGANISER: ScoresApi = retryKeys(
+  { addGame: addMatchGame, deleteGame: deleteMatchGame, addGoal, deleteGoal, addEvent: addMatchEvent, deleteEvent: deleteMatchEvent },
+  ['addGame', 'addGoal', 'addEvent'],
+);
 
 /**
  * Step 3 of match day: each short game's score. A scoreboard with big − and + for each side

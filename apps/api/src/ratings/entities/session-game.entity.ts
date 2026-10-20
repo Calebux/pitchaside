@@ -33,6 +33,10 @@ export class SessionGame {
   @Column({ name: 'recorded_by', type: 'varchar', nullable: true })
   recordedBy: string | null;
 
+  /** Sent by the phone with each save, so a retry of the same tap is saved once (see MatchDayKeys). */
+  @Column({ name: 'client_key', type: 'varchar', length: 40, nullable: true, select: false })
+  clientKey?: string | null;
+
   @CreateDateColumn()
   createdAt: Date;
 }
