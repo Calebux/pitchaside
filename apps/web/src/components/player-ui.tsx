@@ -72,15 +72,6 @@ export function Section({ title, children, action }: { title: string; children: 
   );
 }
 
-export function PageTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
-  return (
-    <div className="mb-4">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-pitch-600">{eyebrow}</p>
-      <h1 className="text-[28px] leading-none font-extrabold text-ink mt-1">{title}</h1>
-    </div>
-  );
-}
-
 /** Trading-card portrait + name + attributes. */
 export function PlayerCardHero({
   firstName,
@@ -156,7 +147,7 @@ export function PlayerCardHero({
           )}
         </div>
         <div className="min-w-0">
-          <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Hi {firstName} 👋</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Your card</p>
           <h1 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h1>
           <div className="mt-3">
             <AttributeRow ratings={ratings} dark />

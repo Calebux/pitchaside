@@ -7,7 +7,7 @@ import { InstallCard, PushToggle } from '@/components/pwa';
 import { GameCard, LoadError, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerHome, getPlayerRatingBreakdown, subscribePlayerPush, type PlayerHome } from '@/lib/player';
-import { usePlayerProfile } from '@/components/player-shell';
+import { ModeSwitch, usePlayerProfile } from '@/components/player-shell';
 import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
 
 export default function PlayerHomePage() {
@@ -70,7 +70,25 @@ export default function PlayerHomePage() {
   const extra = home.groups.reduce((sum, g) => sum + g.extra, 0);
   const pendingVotes = home.openVotes.filter((v) => !v.voted);
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
   return (
+    <>
+    {/* The same top as the organiser's home: today's date, a greeting, and the mode switch */}
+    <div className="mb-3.5 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-pitch-600">
+          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+        <h1 className="text-[26px] leading-tight font-extrabold text-ink mt-0.5">
+          {greeting}, {home.player.nickname || home.player.firstName}
+        </h1>
+      </div>
+      <div className="md:hidden shrink-0 pt-1">
+        <ModeSwitch organiser={profile?.organiser ?? null} />
+      </div>
+    </div>
     <div className="md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:gap-8 md:items-start">
       <div>
       <PlayerCardHero
@@ -203,5 +221,6 @@ export default function PlayerHomePage() {
       )}
       </div>
     </div>
+    </>
   );
 }

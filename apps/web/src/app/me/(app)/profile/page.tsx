@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/brand';
 import Link from 'next/link';
 import { useState } from 'react';
 import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
@@ -22,6 +23,7 @@ export default function PlayerProfilePage() {
 
   return (
     <>
+      <PageHeader title="Me" subtitle="Your card, your clubs and your account." />
       <PlayerCardHero
         firstName={profile.player.firstName}
         lastName={profile.player.lastName}

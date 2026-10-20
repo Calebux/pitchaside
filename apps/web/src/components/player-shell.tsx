@@ -176,14 +176,9 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="min-h-screen pb-28 md:pb-12 md:pl-60">
-        {/* Phone header */}
-        <header className="md:hidden sticky top-safe z-40 bg-white/85 backdrop-blur-lg border-b border-ink/5">
-          <div className="max-w-md mx-auto px-4 py-3 flex items-center justify-between gap-3">
-            <Logo href="/me" size="sm" />
-            <ModeSwitch organiser={profile.organiser} />
-          </div>
-        </header>
-        <main className="max-w-md md:max-w-5xl mx-auto px-4 md:px-8 pt-5 md:pt-10">{children}</main>
+        {/* No phone header bar, like the organiser app: each screen opens on its own title. The
+            Playing ⇄ Organising switch sits in Home's header (and the desktop sidebar). */}
+        <main className="max-w-md md:max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-10">{children}</main>
       </div>
 
       {/* Phone tab bar */}
