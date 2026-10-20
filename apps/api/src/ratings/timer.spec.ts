@@ -26,3 +26,11 @@ describe('game timer', () => {
     expect(() => timerChange({ minutes: 70 })).toThrow('A game lasts 1 to 60 minutes');
   });
 });
+
+describe('timer switch', () => {
+  it('is on unless the group turned it off', () => {
+    expect(timerOf({ group: { gameMinutes: 8 } }).on).toBe(true);
+    expect(timerOf({ group: { gameMinutes: 8, timerOn: true } }).on).toBe(true);
+    expect(timerOf({ group: { gameMinutes: 8, timerOn: false } }).on).toBe(false);
+  });
+});

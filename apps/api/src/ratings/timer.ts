@@ -5,6 +5,8 @@ export const DEFAULT_GAME_MINUTES = 7;
 export const MAX_GAME_MINUTES = 60;
 
 export interface GameTimer {
+  /** Whether the group uses the timer; off, match day doesn't show it. */
+  on: boolean;
   /** Today's game length in minutes: the day's own, else the group's, else 7. */
   minutes: number;
   /** When the running game's clock started; null while it isn't running. */
@@ -16,9 +18,10 @@ export interface GameTimer {
 export function timerOf(session: {
   timerMinutes?: number | null;
   timerStartedAt?: Date | null;
-  group?: { gameMinutes?: number | null } | null;
+  group?: { gameMinutes?: number | null; timerOn?: boolean | null } | null;
 }): GameTimer {
   return {
+    on: session.group?.timerOn !== false,
     minutes: session.timerMinutes ?? session.group?.gameMinutes ?? DEFAULT_GAME_MINUTES,
     startedAt: session.timerStartedAt ? new Date(session.timerStartedAt).toISOString() : null,
     now: new Date().toISOString(),

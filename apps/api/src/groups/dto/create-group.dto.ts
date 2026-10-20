@@ -43,6 +43,23 @@ export class CreateGroupDto {
   @IsOptional()
   @IsIn(CONTRIBUTIONS_VISIBILITY)
   contributionsVisibility?: ContributionsVisibility;
+
+  /** How long each game usually lasts on match day, in minutes; null for the usual 7. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  gameMinutes?: number | null;
+
+  /** Show the match-day timer; off hides it for everyone in the group. */
+  @IsOptional()
+  @IsBoolean()
+  timerOn?: boolean;
+
+  /** Each side's bib colour and optional name; left out for the default colours. Checked by cleanBibs. */
+  @IsOptional()
+  @IsObject()
+  bibs?: Bibs | null;
 }
 
 /**
@@ -101,6 +118,11 @@ export class UpdateGroupDto {
   @Min(1)
   @Max(60)
   gameMinutes?: number | null;
+
+  /** Show the match-day timer; off hides it for everyone in the group. */
+  @IsOptional()
+  @IsBoolean()
+  timerOn?: boolean;
 
   /** Each side's bib colour and optional name; null goes back to the default colours. Checked by cleanBibs. */
   @IsOptional()

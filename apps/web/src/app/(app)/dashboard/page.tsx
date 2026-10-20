@@ -32,6 +32,8 @@ import { UpdatesBell, type Update } from '@/components/home/updates-bell';
 import { transferName } from '@/components/home/transfers-sheet';
 import { closeTime } from '@/components/ratings';
 import { GroupSwitch } from '@/components/group-switch';
+import { MatchDayNews } from '@/components/home/match-day-news';
+import { GroupSettingsSheet } from '@/components/group/group-settings';
 import { useCurrentGroup } from '@/lib/current-group';
 import { moneyHref } from '@/lib/money-href';
 
@@ -79,6 +81,7 @@ export default function Dashboard() {
   // Groups didn't load: say so, rather than greeting an organiser as if they had none.
   const [failed, setFailed] = useState(false);
   const [showNewGame, setShowNewGame] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
   // Several groups: the one picked in the switch (remembered across the app); until then, the one playing soonest.
   const { groupId: picked, setGroupId: setPicked } = useCurrentGroup();
   const [voting, setVoting] = useState<{ sessionId: string; data: SessionVoting } | null>(null);
@@ -402,6 +405,17 @@ export default function Dashboard() {
             onGameEnded={(id) => setSessions((all) => all.map((s) => (s.id === id ? { ...s, status: SessionStatus.COMPLETED } : s)))}
           />
         </>
+      )}
+
+      {/* Once, for groups made before match-day settings: where to set bibs and the timer */}
+      {group && canManage && <MatchDayNews group={group} onSetUp={() => setSettingUp(true)} />}
+      {settingUp && group && (
+        <GroupSettingsSheet
+          group={group}
+          onClose={() => setSettingUp(false)}
+          onSaved={() => getGroups().then(setGroups).catch(() => {})}
+          onDeleted={() => getGroups().then(setGroups).catch(() => {})}
+        />
       )}
 
       {/* Only what the two cards above don't already show; the bell keeps the full list */}

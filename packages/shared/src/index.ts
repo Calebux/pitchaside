@@ -46,6 +46,8 @@ export interface IGroup {
   contributionsVisibility?: ContributionsVisibility;
   /** How long each game usually lasts on match day, in minutes; null for the usual 7. */
   gameMinutes?: number | null;
+  /** Whether match day shows the game timer; on unless turned off. */
+  timerOn?: boolean;
 
   /** What each side wears and is called; null for the default colours. */
   bibs?: Bibs | null;
@@ -340,6 +342,8 @@ export const DEFAULT_GAME_MINUTES = 7;
 
 /** The match-day clock as every phone gets it. */
 export interface GameTimer {
+  /** Whether the group uses the timer; off (false), match day doesn't show it. Missing: on. */
+  on?: boolean;
   /** Today's game length in minutes: the day's own, else the group's, else 7. */
   minutes: number;
   /** When the running game's clock started; null while it isn't running. */
