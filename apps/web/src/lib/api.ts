@@ -576,6 +576,15 @@ export function keepExtra(groupId: string, playerId: string): Promise<{ kept: nu
   return http.post(`/groups/${groupId}/extra/${playerId}/keep`);
 }
 
+/** The organiser adds or changes a player's photo (a small square data URL from resizePhoto). */
+export function setPlayerPhoto(playerId: string, image: string): Promise<{ photoKey: string }> {
+  return http.post(`/players/${playerId}/photo`, { image });
+}
+
+export function removePlayerPhoto(playerId: string): Promise<{ photoKey: null }> {
+  return http.delete(`/players/${playerId}/photo`);
+}
+
 export function getNotPlayerPreview(transferId: string): Promise<NotPlayerPreview> {
   return http.get(`/transfers/${transferId}/not-player`);
 }
@@ -878,6 +887,7 @@ export interface SquadMember {
   firstName: string;
   lastName: string;
   nickname?: string | null;
+  photoKey?: string | null;
 }
 
 export interface VoteResults {

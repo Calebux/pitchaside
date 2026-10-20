@@ -9,7 +9,9 @@ import { Collapse } from '@/components/collapse';
 import { kitFor } from '@/components/illustrations';
 import { PlayerLevelPicker } from '@/components/player-level';
 import { useToast } from '@/components/toast';
-import { formatCurrency, updatePlayer } from '@/lib/api';
+import { formatCurrency, removePlayerPhoto, setPlayerPhoto, updatePlayer } from '@/lib/api';
+import { Avatar } from '@/components/ratings';
+import { PhotoPicker } from '@/components/photo-picker';
 import type { IPlayer, PlayerLevel } from '@pitchaside/shared';
 
 export type MemberDue = { label: string; state: 'paid' | 'owes' | 'waived' | 'out'; amount: number; paidSoFar?: number } | null;
@@ -137,13 +139,36 @@ export function PlayerSheet({
   return (
     <Sheet titleId={titleId} onClose={onClose} align="left">
       <div className="flex items-start gap-3">
-        <span className={`w-12 h-12 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-base font-extrabold font-display`} aria-hidden>
-          {player.firstName.charAt(0)}
-        </span>
+        {player.photoKey ? (
+          <Avatar name={name} photoKey={player.photoKey} className="w-12 h-12" />
+        ) : (
+          <span className={`w-12 h-12 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-base font-extrabold font-display`} aria-hidden>
+            {player.firstName.charAt(0)}
+          </span>
+        )}
         <div className="flex-1 min-w-0">
           <SheetTitle id={titleId} title={name} sub={player.nickname ? `“${player.nickname}” on the team sheet` : undefined} onClose={onClose} />
         </div>
       </div>
+
+      {canEdit && (
+        <div className="mt-4">
+          <PhotoPicker
+            name={name}
+            photoKey={player.photoKey}
+            size="w-14 h-14 text-lg"
+            onUpload={async (image) => {
+              const { photoKey } = await setPlayerPhoto(player.id, image);
+              onSaved({ ...player, photoKey });
+              return photoKey;
+            }}
+            onRemove={async () => {
+              await removePlayerPhoto(player.id);
+              onSaved({ ...player, photoKey: null });
+            }}
+          />
+        </div>
+      )}
 
       <dl className="mt-4 rounded-2xl bg-chalk divide-y divide-gray-200/70">
         {facts.map((f) => (

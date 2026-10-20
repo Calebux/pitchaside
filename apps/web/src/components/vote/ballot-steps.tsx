@@ -108,7 +108,7 @@ export function BallotSteps({
           selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
         }`}
       >
-        <Avatar name={full(p)} className="w-8 h-8 text-[10px]" />
+        <Avatar name={full(p)} photoKey={p.photoKey} className="w-8 h-8 text-[10px]" />
         <span className="flex-1 min-w-0 truncate text-[14px] font-bold text-ink">{short(p)}</span>
         {selected &&
           (mark ? (
@@ -291,7 +291,7 @@ export function BallotSteps({
                     </span>
                     {who ? (
                       <span className="shrink-0 inline-flex items-center gap-1.5 h-8 pl-1 pr-2.5 rounded-full bg-volt-300 text-[13px] font-bold text-ink">
-                        <Avatar name={full(who)} className="w-6 h-6 text-[9px]" />
+                        <Avatar name={full(who)} photoKey={who.photoKey} className="w-6 h-6 text-[9px]" />
                         {short(who)}
                       </span>
                     ) : (

@@ -101,7 +101,7 @@ export function tablePoints(r: Pick<PlayerRatings, 'record' | 'teamOfDay' | 'pot
   return r.record.w * POINTS.win + r.record.d * POINTS.draw + r.teamOfDay * POINTS.teamOfDay + r.potmWins * POINTS.potm;
 }
 
-type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName' | 'nickname'>;
+type SquadMember = Pick<Player, 'id' | 'firstName' | 'lastName' | 'nickname'> & { photoKey?: string | null };
 
 /** The abilities on the card, outfield first; GK only for players nominated in goal. */
 export const ABILITIES: Ability[] = ['SHO', 'PAS', 'TEC', 'DEF', 'IQ', 'PHY', 'MOV', 'GK'];
@@ -270,7 +270,7 @@ export class RatingsService {
   private squad(session: Session): SquadMember[] {
     return (session.payments ?? [])
       .filter((p) => p.player && p.attendance !== 'no_show')
-      .map((p) => ({ id: p.player.id, firstName: p.player.firstName, lastName: p.player.lastName, nickname: p.player.nickname ?? null }));
+      .map((p) => ({ id: p.player.id, firstName: p.player.firstName, lastName: p.player.lastName, nickname: p.player.nickname ?? null, photoKey: p.player.photoKey ?? null }));
   }
 
   private async loadSessionByToken(token: string) {
@@ -653,6 +653,7 @@ export class RatingsService {
           firstName: p.player.firstName,
           lastName: p.player.lastName,
           nickname: p.player.nickname ?? null,
+          photoKey: p.player.photoKey ?? null,
           team: this.teamOf(session, p.team),
           captain: this.isCaptain(session, p),
           ovr: ovr.get(p.player.id) ?? cardRating(skills.get(p.player.id)?.rating ?? DEFAULT_START),

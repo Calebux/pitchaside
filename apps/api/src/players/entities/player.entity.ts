@@ -46,6 +46,10 @@ export class Player {
   @Column({ type: 'varchar', length: 16, nullable: true })
   level: PlayerLevel | null;
 
+  /** Their photo's key in player_photos (served at /api/photos/:key); null for none. */
+  @Column({ name: 'photo_key', type: 'varchar', length: 32, nullable: true })
+  photoKey: string | null;
+
   @ManyToOne(() => Organization, (org) => org.players, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organization_id' })
   organization: Organization;

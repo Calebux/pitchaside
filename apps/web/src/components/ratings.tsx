@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { photoUrl } from '@/lib/http';
 import { TEAMS } from '@/lib/teams';
 import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
@@ -43,7 +44,10 @@ export function resultTitle(c: { key: VoteCategory; title: string; team?: TeamKe
   return c.key === 'teammate' && c.team ? `Best on ${TEAMS[c.team].name}` : c.title;
 }
 
-export function Avatar({ name, className = 'w-9 h-9 text-xs' }: { name: string; className?: string }) {
+export function Avatar({ name, photoKey, className = 'w-9 h-9 text-xs' }: { name: string; photoKey?: string | null; className?: string }) {
+  const src = photoUrl(photoKey);
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt="" className={`${className} rounded-full object-cover shrink-0 bg-chalk`} loading="lazy" />;
   const k = kitFor(name);
   const initials = name
     .split(' ')
@@ -169,7 +173,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
               {i + 1}
             </span>
             <span className="flex items-center gap-2.5 min-w-0">
-              <Avatar name={name} className="w-8 h-8 text-[11px]" />
+              <Avatar name={name} photoKey={row.player.photoKey} className="w-8 h-8 text-[11px]" />
               <span className="min-w-0">
                 <span className="block text-sm font-bold text-ink truncate">{name}</span>
                 <span className="flex sm:hidden items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">

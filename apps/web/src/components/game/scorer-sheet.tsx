@@ -51,7 +51,7 @@ export function ScorerSheet({
               onClick={() => (scorer ? onPick({ scorerId: scorer.id, assistId: m.id }) : setScorer(m))}
               className="press w-full flex items-center gap-2.5 min-h-12 px-3 rounded-2xl border border-gray-200 text-left hover:border-ink"
             >
-              <Avatar name={`${m.firstName} ${m.lastName}`} className="w-8 h-8 text-[11px]" />
+              <Avatar name={`${m.firstName} ${m.lastName}`} photoKey={m.photoKey} className="w-8 h-8 text-[11px]" />
               <span className="min-w-0 text-[14px] font-bold text-ink truncate">{shortName(m)}</span>
             </button>
           </li>

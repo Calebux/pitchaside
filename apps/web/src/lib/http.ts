@@ -2,6 +2,11 @@
 // In development, NEXT_PUBLIC_API_URL can point directly at the backend
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
+/** Where a player's photo is served; null when they haven't one. */
+export function photoUrl(key?: string | null) {
+  return key ? `${BASE_URL}/photos/${key}` : null;
+}
+
 /**
  * Pages only an organiser uses. Anywhere else (landing page, invite links, the
  * player app) being signed out as an organiser is normal, so a 401 there must

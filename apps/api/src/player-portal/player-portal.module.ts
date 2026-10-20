@@ -18,6 +18,7 @@ import { PhoneOtp } from './entities/phone-otp.entity';
 import { PlayerAccount } from './entities/player-account.entity';
 import { PlayerAuthGuard, PlayerAuthService } from './player-auth.service';
 import { PlayerPortalService } from './player-portal.service';
+import { PlayersModule } from '../players/players.module';
 import { PlayerAuthController, PlayerPortalController } from './player-portal.controller';
 
 @Module({
@@ -30,6 +31,7 @@ import { PlayerAuthController, PlayerPortalController } from './player-portal.co
     RatingsModule,
     RsvpModule,
     NotificationsModule,
+    PlayersModule,
   ],
   controllers: [PlayerAuthController, PlayerPortalController],
   providers: [PlayerAuthService, PlayerAuthGuard, PlayerPortalService],

@@ -272,6 +272,7 @@ export class PlayerPortalService {
       firstName: person.firstName,
       lastName: person.lastName,
       nickname: person.players.find((p) => p.nickname)?.nickname ?? null,
+      photoKey: person.players.find((p) => p.photoKey)?.photoKey ?? null,
       email: person.email,
       phone: person.phone,
       id: person.players[0]?.id ?? person.key,
