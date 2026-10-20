@@ -303,7 +303,7 @@ export function GameCard({
         <ConfirmDialog
           open={confirmOut}
           title="Drop out of this game?"
-          message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. It’s paid ahead for your next game with ${game.groupName}.`}
+          message={`You’ve paid ${formatCurrency(game.payment?.amount ?? 0)} for it. Your organiser at ${game.groupName} decides what happens to it: your next game, or sent back.`}
           confirmLabel="I'm out"
           cancelLabel="Stay in"
           onConfirm={() => {

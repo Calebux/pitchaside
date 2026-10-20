@@ -8,7 +8,7 @@ import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, shortDate } from '../common/format.util';
-import { paidByTransfer, refundToCredit } from './credit';
+import { paidByTransfer, releaseToExtra } from './credit';
 import { usePartPaid } from './part-paid';
 
 @Injectable()
@@ -100,8 +100,8 @@ export class PaymentsService {
     if (payment.status === PaymentStatus.PENDING) return payment;
 
     // Undoing a payment that came by transfer: that money is still in the account, so it goes
-    // back to what the player has kept, rather than vanishing from the books.
-    await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
+    // to the player's extra to sort, rather than vanishing from the books or paying a game.
+    await releaseToExtra(this.paymentsRepo.manager, payment.session.groupId, [payment]);
     payment.status = PaymentStatus.PENDING;
     if (payment.attendance === 'no_show') payment.attendance = 'came';
     payment.paidAt = null as any;
@@ -146,9 +146,9 @@ export class PaymentsService {
       .getOne();
     if (!payment) throw new NotFoundException('Payment not found');
 
-    // Waiving a due they'd already paid by transfer: the money goes to their credit (and on to
-    // their next due within the hour) instead of vanishing from the books.
-    await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
+    // Waiving a due they'd already paid by transfer: the money goes to their extra to sort
+    // instead of vanishing from the books.
+    await releaseToExtra(this.paymentsRepo.manager, payment.session.groupId, [payment]);
     payment.status = PaymentStatus.WAIVED;
     // Played free: they came.
     payment.attendance = 'came';
@@ -160,12 +160,12 @@ export class PaymentsService {
   }
 
   /**
-   * Said they were in and didn't come: nothing to pay. Anything they'd paid by transfer goes back
-   * to what they've kept for their next game. Kept on the list (for the record), not chased.
+   * Said they were in and didn't come: nothing to pay. Anything they'd paid by transfer goes to
+   * their extra to sort. Kept on the list (for the record), not chased.
    */
   async markNoShow(id: string, organizationId: string, markedBy?: string) {
     const payment = await this.ownedPayment(id, organizationId);
-    await refundToCredit(this.paymentsRepo.manager, payment.session.groupId, [payment]);
+    await releaseToExtra(this.paymentsRepo.manager, payment.session.groupId, [payment]);
     payment.status = PaymentStatus.WAIVED;
     payment.attendance = 'no_show';
     payment.paidAt = null as any;
@@ -229,13 +229,14 @@ export class PaymentsService {
       if (!moved.affected || !paid.affected) throw new BadRequestException('Someone else just changed one of these payments. Try again.');
       // The transfer now pays the other game.
       await tx.update(BankTransfer, { paymentId: from.id }, { paymentId: to.id });
+      // The rest of that transfer waits as extra to sort, like any money more than a game.
       if (extra > 0) {
         const membership = await tx.findOne(GroupMembership, {
           where: { groupId: from.session.groupId, playerId: from.playerId },
           lock: { mode: 'pessimistic_write' },
         });
         if (membership) {
-          membership.credit = (Number(membership.credit) + extra).toFixed(2);
+          membership.extra = (Number(membership.extra ?? 0) + extra).toFixed(2);
           await tx.save(membership);
         }
       }

@@ -36,7 +36,7 @@ import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira } from '../common/format.util';
 import { localDate } from '../common/time.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
-import { paidByTransfer, payableNow, refundToCredit } from '../payments/credit';
+import { paidByTransfer, payableNow, releaseToExtra } from '../payments/credit';
 import { PERIODIC_TYPES, periodFor } from './periods';
 import { COVERED_BY_DUES, gameTarget, squadEntry } from '../payments/game-dues';
 import { Competition } from '../competitions/entities/competition.entity';
@@ -957,15 +957,16 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * A game being cancelled or deleted (call after the change is saved): what members paid for
-   * it by transfer goes back to their credit, then on to their next due. With `reopen` the
-   * game's dues go back to pending, so un-cancelling it settles them from credit again.
+   * it by transfer goes back to them as extra to sort; it never pays another game by itself.
+   * With `reopen` the game's dues go back to pending, so un-cancelling it can pay them again
+   * (see repayCalledOff).
    */
   async releaseTransferDues(session: Pick<Session, 'groupId' | 'payments'>, { reopen }: { reopen: boolean }) {
     const payments = session.payments ?? [];
     // Marked paid by hand on top of a part payment: the transfer part goes back too, and the due
     // reopens with the others, so bringing the game back asks for it again from what they've sent.
     const partFromTransfers = new Set(payments.filter((p) => p.status === PaymentStatus.PAID && !paidByTransfer(p) && Number(p.fromCredit ?? 0) > 0).map((p) => p.id));
-    const credited = await refundToCredit(this.paymentsRepo.manager, session.groupId, payments);
+    const credited = await releaseToExtra(this.paymentsRepo.manager, session.groupId, payments);
     if (!credited.length) return;
     if (reopen) {
       const reopened = payments.filter((p) => (paidByTransfer(p) || partFromTransfers.has(p.id)) && credited.includes(p.playerId));
@@ -981,6 +982,32 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       }
     }
     await this.applyCredits(session.groupId, credited);
+  }
+
+  /**
+   * A called-off game back on: each player's due is paid again from the extra its money went
+   * to when it was called off, if that money is still there (not sorted since). Nothing else.
+   */
+  async repayCalledOff(session: Pick<Session, 'groupId' | 'payments'>) {
+    const open = (session.payments ?? []).filter((p) => p.status === PaymentStatus.PENDING && Number(p.amount) > 0);
+    if (!open.length) return;
+    const settled = await this.membershipsRepo.manager.transaction(async (tx) => {
+      const paid: Payment[] = [];
+      for (const p of open) {
+        const m = await tx.findOne(GroupMembership, { where: { groupId: session.groupId, playerId: p.playerId }, lock: { mode: 'pessimistic_write' } });
+        if (!m || Number(m.extra ?? 0) + 0.001 < Number(p.amount)) continue;
+        m.extra = (Number(m.extra) - Number(p.amount)).toFixed(2);
+        await tx.save(m);
+        p.status = PaymentStatus.PAID;
+        p.paidAt = new Date();
+        p.source = 'transfer';
+        p.markedBy = 'pulse';
+        paid.push(p);
+      }
+      if (paid.length) await tx.save(paid);
+      return paid;
+    });
+    if (settled.length) await this.paymentsService.recalculateSessionTotal(settled[0].sessionId);
   }
 
   /** Money that has come into the club's group accounts, whether or not it has paid a due yet. */

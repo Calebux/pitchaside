@@ -244,7 +244,7 @@ export function waivePayment(paymentId: string): Promise<IPayment> {
   return http.patch<IPayment>(`/payments/${paymentId}/waive`);
 }
 
-/** Said they were in and didn't come: nothing to pay; transfer money is kept for their next game. */
+/** Said they were in and didn't come: nothing to pay; transfer money goes to extra to sort. */
 export function markNoShow(paymentId: string): Promise<IPayment> {
   return http.patch<IPayment>(`/payments/${paymentId}/no-show`);
 }
