@@ -72,9 +72,9 @@ describe('the vote', () => {
     expect((await service.getBallot('tok')).notYet).toBe(true);
   });
 
-  it('stays open for 48 hours from full time', async () => {
-    expect((await setup(game({ voteOpensAt: new Date(Date.now() - 47 * HOUR) })).service.getBallot('tok')).open).toBe(true);
-    expect((await setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) })).service.getBallot('tok')).open).toBe(false);
+  it('stays open for 36 hours from full time', async () => {
+    expect((await setup(game({ voteOpensAt: new Date(Date.now() - 35 * HOUR) })).service.getBallot('tok')).open).toBe(true);
+    expect((await setup(game({ voteOpensAt: new Date(Date.now() - 37 * HOUR) })).service.getBallot('tok')).open).toBe(false);
   });
 
   it('keeps the old week-long window for games ended before full-time votes', async () => {
