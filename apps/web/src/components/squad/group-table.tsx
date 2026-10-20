@@ -9,13 +9,13 @@ import { InfoTip } from '@/components/info-tip';
 /** A group's season table, with its own loading and "didn't load" states. */
 export function GroupTable({ groupId }: { groupId: string }) {
   const [table, setTable] = useState<LeagueTable | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | false>(false);
 
   const load = useCallback(() => {
     setFailed(false);
     getGroupTable(groupId)
       .then(setTable)
-      .catch(() => setFailed(true));
+      .catch((err) => setFailed(err instanceof Error ? err.message : ''));
   }, [groupId]);
 
   useEffect(() => {
@@ -47,9 +47,10 @@ export function GroupTable({ groupId }: { groupId: string }) {
           <LeagueTableView table={table} />
           <Leaders table={table} />
         </>
-      ) : failed ? (
+      ) : failed !== false ? (
         <div className="py-10 text-center" role="alert">
           <p className="text-sm text-gray-600">The table didn&apos;t load.</p>
+          {failed && <p className="mt-1 text-[12px] text-gray-500">The server said: “{failed}”</p>}
           <button onClick={load} className="mt-2 h-11 px-3 text-sm font-bold text-pitch-700">
             Try again
           </button>

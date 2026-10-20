@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -212,6 +213,8 @@ export function playerCard(skill: Skill | undefined, abilities: AbilityEvidence,
 
 @Injectable()
 export class RatingsService {
+  private readonly logger = new Logger(RatingsService.name);
+
   constructor(
     @InjectRepository(Vote) private votesRepo: Repository<Vote>,
     @InjectRepository(SessionGame) private gamesRepo: Repository<SessionGame>,
@@ -626,7 +629,11 @@ export class RatingsService {
   async getLineup(sessionId: string, organizationId: string) {
     const session = await this.loadSession(sessionId, organizationId);
     const [{ ovr, skills }, games, paid, goals] = await Promise.all([
-      this.ovrMap(organizationId),
+      // Ratings only decorate the teams: if they can't be worked out, the teams still load.
+      this.ovrMap(organizationId).catch((err) => {
+        this.logger.error(`Ratings for the lineup of ${sessionId} failed: ${err instanceof Error ? err.stack : err}`);
+        return { ovr: new Map<string, number | null>(), skills: new Map<string, Skill>() };
+      }),
       this.gamesRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
       this.paidFor(session),
       this.goalsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
@@ -731,8 +738,10 @@ export class RatingsService {
     return this.getLineup(sessionId, organizationId);
   }
 
+  /** The side a player is on, if it's one of this game's sides; anything else (an old name, a side beyond teamCount) is none. */
   private teamOf(session: Session, team: string | null) {
-    return team && TEAM_KEYS.indexOf(team as TeamKey) < session.teamCount ? team : null;
+    const i = team ? TEAM_KEYS.indexOf(team as TeamKey) : -1;
+    return i >= 0 && i < session.teamCount ? team : null;
   }
 
   private isCaptain(session: Session, p: Payment) {
@@ -1062,120 +1071,126 @@ export class RatingsService {
     const repeats = new Map<string, number>();
 
     for (const session of ordered) {
-      // Votes count once the vote closes, like the results.
-      const sv = this.window(session).open ? [] : (votesBySession.get(session.id) ?? []);
-      const voters = new Set(sv.map((v) => v.voterId));
-      const squad = this.squad(session);
-      const sideOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
+      // One game's odd data (an old side, a deleted player) mustn't take the whole table down:
+      // skip that game, say which, and carry on.
+      try {
+        // Votes count once the vote closes, like the results.
+        const sv = this.window(session).open ? [] : (votesBySession.get(session.id) ?? []);
+        const voters = new Set(sv.map((v) => v.voterId));
+        const squad = this.squad(session);
+        const sideOf = (id: string) => this.teamOf(session, session.payments?.find((p) => p.playerId === id)?.team ?? null);
 
-      const countsIn = (category: VoteCategory) => {
-        const m = new Map<string, number>();
-        for (const v of sv) if (v.category === category) m.set(v.nomineeId, (m.get(v.nomineeId) ?? 0) + 1);
-        return m;
-      };
-      // Player of the Match = most POTM votes (ties share it).
-      const potm = countsIn(VoteCategory.POTM);
-      const potmTop = Math.max(0, ...potm.values());
-      // Best on each team (ties share it).
-      const mate = countsIn(VoteCategory.TEAMMATE);
-      const mateTop = new Map<string, number>();
-      for (const [id, n] of mate) {
-        const t = sideOf(id);
-        if (t) mateTop.set(t, Math.max(mateTop.get(t) ?? 0, n));
-      }
-      // Best VII of the Day: the seven most picked, a sub pick counting half.
-      const viiScore = new Map<string, number>();
-      for (const v of sv) {
-        if (v.category === VoteCategory.VII || v.category === VoteCategory.VII_SUB) {
-          viiScore.set(v.nomineeId, (viiScore.get(v.nomineeId) ?? 0) + (v.category === VoteCategory.VII ? 1 : 0.5));
-        }
-      }
-      const viiOfDay = new Set([...viiScore.entries()].sort((x, y) => y[1] - x[1]).slice(0, VII_STARTERS + 1).map(([id]) => id));
-      // Who voted in each award this game.
-      const awardVoters = new Map<VoteCategory, Set<string>>();
-      for (const v of sv) {
-        if (!abilitiesOf.has(v.category)) continue;
-        awardVoters.set(v.category, (awardVoters.get(v.category) ?? new Set()).add(v.voterId));
-      }
-      const sessionGoals = goalsBySession.get(session.id) ?? [];
-
-      for (const member of squad) {
-        const s = stats.get(member.id) ?? {
-          player: member,
-          games: 0,
-          ballotsSeen: 0,
-          votes: emptyVotes(),
-          potmWins: 0,
-          record: { w: 0, d: 0, l: 0 },
-          teamOfDay: 0,
-          points: 0,
-          skill: DEFAULT_START,
-          provisional: true,
-          ovr: null,
-          attributes: Object.fromEntries(ABILITIES.map((a) => [a, null])) as Record<Ability, number | null>,
-          goals: 0,
-          assists: 0,
-          viiPicks: 0,
-          viiOfDay: 0,
-          bestOnTeam: 0,
-          evidence: {},
-          evidenceGames: 0,
+        const countsIn = (category: VoteCategory) => {
+          const m = new Map<string, number>();
+          for (const v of sv) if (v.category === category) m.set(v.nomineeId, (m.get(v.nomineeId) ?? 0) + 1);
+          return m;
         };
-        s.games += 1;
-        s.ballotsSeen += voters.size - (voters.has(member.id) ? 1 : 0);
-        for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
-        if (potmTop > 0 && potm.get(member.id) === potmTop) s.potmWins += 1;
-        const side = sideOf(member.id);
-        if (side && mateTop.get(side) && mate.get(member.id) === mateTop.get(side)) s.bestOnTeam += 1;
-        s.viiPicks += sv.filter((v) => v.nomineeId === member.id && (v.category === VoteCategory.VII || v.category === VoteCategory.VII_SUB)).length;
-        if (viiOfDay.has(member.id)) s.viiOfDay += 1;
-        s.goals += sessionGoals.filter((g) => g.scorerId === member.id).length;
-        s.assists += sessionGoals.filter((g) => g.assistId === member.id).length;
-
-        // Award evidence, split evenly across what each award says about them.
-        if (awardVoters.size) s.evidenceGames += 1;
-        const ab = ability.get(member.id) ?? noEvidence();
-        const ev = evidence.get(member.id) ?? new Map();
-        for (const [category, who] of awardVoters) {
-          const chances = who.size - (who.has(member.id) ? 1 : 0);
-          const expected = chances / Math.max(1, squad.length - 1);
-          let got = 0;
-          let raw = 0;
-          for (const v of sv) {
-            if (v.category !== category || v.nomineeId !== member.id) continue;
-            const key = `${v.voterId}:${member.id}:${evidenceKey(category)}`;
-            const k = (repeats.get(key) ?? 0) + 1;
-            repeats.set(key, k);
-            got += 1 / k;
-            raw += 1;
-          }
-          const parts = abilitiesOf.get(category)!;
-          for (const a of parts) {
-            ab[a].n += got / parts.length;
-            ab[a].e += expected / parts.length;
-          }
-          const e = ev.get(evidenceKey(category)) ?? { nominations: 0, voters: new Set<string>(), games: 0, chances: 0 };
-          e.nominations += raw;
-          e.chances += chances;
-          if (raw) e.games += 1;
-          for (const v of sv) if (v.category === category && v.nomineeId === member.id) e.voters.add(v.voterId);
-          ev.set(evidenceKey(category), e);
+        // Player of the Match = most POTM votes (ties share it).
+        const potm = countsIn(VoteCategory.POTM);
+        const potmTop = Math.max(0, ...potm.values());
+        // Best on each team (ties share it).
+        const mate = countsIn(VoteCategory.TEAMMATE);
+        const mateTop = new Map<string, number>();
+        for (const [id, n] of mate) {
+          const t = sideOf(id);
+          if (t) mateTop.set(t, Math.max(mateTop.get(t) ?? 0, n));
         }
-        ability.set(member.id, ab);
-        evidence.set(member.id, ev);
-
-        if (side) {
-          for (const g of gamesBySession.get(session.id) ?? []) {
-            if (g.teamA !== side && g.teamB !== side) continue;
-            const mine = g.teamA === side ? g.scoreA : g.scoreB;
-            const theirs = g.teamA === side ? g.scoreB : g.scoreA;
-            if (mine > theirs) s.record.w += 1;
-            else if (mine === theirs) s.record.d += 1;
-            else s.record.l += 1;
+        // Best VII of the Day: the seven most picked, a sub pick counting half.
+        const viiScore = new Map<string, number>();
+        for (const v of sv) {
+          if (v.category === VoteCategory.VII || v.category === VoteCategory.VII_SUB) {
+            viiScore.set(v.nomineeId, (viiScore.get(v.nomineeId) ?? 0) + (v.category === VoteCategory.VII ? 1 : 0.5));
           }
-          if (dayWinner.get(session.id) === side) s.teamOfDay += 1;
         }
-        stats.set(member.id, s);
+        const viiOfDay = new Set([...viiScore.entries()].sort((x, y) => y[1] - x[1]).slice(0, VII_STARTERS + 1).map(([id]) => id));
+        // Who voted in each award this game.
+        const awardVoters = new Map<VoteCategory, Set<string>>();
+        for (const v of sv) {
+          if (!abilitiesOf.has(v.category)) continue;
+          awardVoters.set(v.category, (awardVoters.get(v.category) ?? new Set()).add(v.voterId));
+        }
+        const sessionGoals = goalsBySession.get(session.id) ?? [];
+
+        for (const member of squad) {
+          const s = stats.get(member.id) ?? {
+            player: member,
+            games: 0,
+            ballotsSeen: 0,
+            votes: emptyVotes(),
+            potmWins: 0,
+            record: { w: 0, d: 0, l: 0 },
+            teamOfDay: 0,
+            points: 0,
+            skill: DEFAULT_START,
+            provisional: true,
+            ovr: null,
+            attributes: Object.fromEntries(ABILITIES.map((a) => [a, null])) as Record<Ability, number | null>,
+            goals: 0,
+            assists: 0,
+            viiPicks: 0,
+            viiOfDay: 0,
+            bestOnTeam: 0,
+            evidence: {},
+            evidenceGames: 0,
+          };
+          s.games += 1;
+          s.ballotsSeen += voters.size - (voters.has(member.id) ? 1 : 0);
+          for (const v of sv) if (v.nomineeId === member.id) s.votes[v.category] += 1;
+          if (potmTop > 0 && potm.get(member.id) === potmTop) s.potmWins += 1;
+          const side = sideOf(member.id);
+          if (side && mateTop.get(side) && mate.get(member.id) === mateTop.get(side)) s.bestOnTeam += 1;
+          s.viiPicks += sv.filter((v) => v.nomineeId === member.id && (v.category === VoteCategory.VII || v.category === VoteCategory.VII_SUB)).length;
+          if (viiOfDay.has(member.id)) s.viiOfDay += 1;
+          s.goals += sessionGoals.filter((g) => g.scorerId === member.id).length;
+          s.assists += sessionGoals.filter((g) => g.assistId === member.id).length;
+
+          // Award evidence, split evenly across what each award says about them.
+          if (awardVoters.size) s.evidenceGames += 1;
+          const ab = ability.get(member.id) ?? noEvidence();
+          const ev = evidence.get(member.id) ?? new Map();
+          for (const [category, who] of awardVoters) {
+            const chances = who.size - (who.has(member.id) ? 1 : 0);
+            const expected = chances / Math.max(1, squad.length - 1);
+            let got = 0;
+            let raw = 0;
+            for (const v of sv) {
+              if (v.category !== category || v.nomineeId !== member.id) continue;
+              const key = `${v.voterId}:${member.id}:${evidenceKey(category)}`;
+              const k = (repeats.get(key) ?? 0) + 1;
+              repeats.set(key, k);
+              got += 1 / k;
+              raw += 1;
+            }
+            const parts = abilitiesOf.get(category)!;
+            for (const a of parts) {
+              ab[a].n += got / parts.length;
+              ab[a].e += expected / parts.length;
+            }
+            const e = ev.get(evidenceKey(category)) ?? { nominations: 0, voters: new Set<string>(), games: 0, chances: 0 };
+            e.nominations += raw;
+            e.chances += chances;
+            if (raw) e.games += 1;
+            for (const v of sv) if (v.category === category && v.nomineeId === member.id) e.voters.add(v.voterId);
+            ev.set(evidenceKey(category), e);
+          }
+          ability.set(member.id, ab);
+          evidence.set(member.id, ev);
+
+          if (side) {
+            for (const g of gamesBySession.get(session.id) ?? []) {
+              if (g.teamA !== side && g.teamB !== side) continue;
+              const mine = g.teamA === side ? g.scoreA : g.scoreB;
+              const theirs = g.teamA === side ? g.scoreB : g.scoreA;
+              if (mine > theirs) s.record.w += 1;
+              else if (mine === theirs) s.record.d += 1;
+              else s.record.l += 1;
+            }
+            if (dayWinner.get(session.id) === side) s.teamOfDay += 1;
+          }
+          stats.set(member.id, s);
+        }
+      } catch (err) {
+        this.logger.error(`Ratings: skipped game ${session.id} (${String(session.date)}): ${err instanceof Error ? err.stack : err}`);
       }
     }
 

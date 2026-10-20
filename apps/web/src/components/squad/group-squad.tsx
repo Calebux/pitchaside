@@ -60,8 +60,13 @@ export function GroupSquad({
   const [sort, setSort] = useState<'name' | 'rating' | 'games'>('name');
   // Ratings and games played, from the season table: how the squad is made up.
   const [table, setTable] = useState<LeagueTable | null>(null);
+  const [tableFailed, setTableFailed] = useState(false);
   useEffect(() => {
-    getGroupTable(group.id).then(setTable, () => setTable(null));
+    setTableFailed(false);
+    getGroupTable(group.id).then(setTable, () => {
+      setTable(null);
+      setTableFailed(true);
+    });
   }, [group.id]);
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
@@ -388,6 +393,11 @@ export function GroupSquad({
               }
             />
           </FilterBar>
+          {tableFailed && sort !== 'name' && (
+            <p className="mt-2 px-1 text-[13px] text-amber-800" role="status">
+              Ratings and games didn’t load, so the list is A–Z for now.
+            </p>
+          )}
 
           <div className="mt-3 flex items-center gap-2">
             <div role="radiogroup" aria-label="Show" className="flex-1 min-w-0 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
