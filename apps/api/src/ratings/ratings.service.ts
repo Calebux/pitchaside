@@ -14,6 +14,7 @@ import { Player } from '../players/entities/player.entity';
 import { Vote, VoteCategory } from './entities/vote.entity';
 import { SessionGame } from './entities/session-game.entity';
 import { MatchGoal } from './entities/match-goal.entity';
+import { MatchEvent, type MatchEventKind } from './entities/match-event.entity';
 import { GamePaid, paidForGames } from '../payments/game-dues';
 import { localDate } from '../common/time.util';
 import { pitchName, sheetName } from '../players/player-name';
@@ -137,6 +138,10 @@ export interface PlayerRatings {
   attributes: Record<Ability, number | null>;
   goals: number;
   assists: number;
+  /** Cards and saves recorded on match day. */
+  yellowCards: number;
+  redCards: number;
+  saves: number;
   /** Times someone put them in their Best VII (starter or sub). */
   viiPicks: number;
   /** Times they made the Best VII of the Day. */
@@ -153,14 +158,14 @@ export function emptyVotes(): Record<VoteCategory, number> {
   return Object.fromEntries(Object.values(VoteCategory).map((k) => [k, 0])) as Record<VoteCategory, number>;
 }
 
-/** Ratings for someone who hasn't played: zeros, and no card yet. */
 /**
  * The trial rating (decided 19 Oct: 40 individual stats, 40 votes, 20 team results), worked out
  * beside the card's rating so the organiser can compare before it replaces anything.
  *
  * Each part is where the player stands in the club on one measure (a percentile), pulled toward
  * the middle while there's little evidence, then put on the card's 40–99 scale:
- * - stats: goals plus three quarters of an assist, per game;
+ * - stats: goals plus three quarters of an assist, per game, with a little for each save and a
+ *   little off for each card (Matt, 20 Oct: cards cost a small amount);
  * - votes: how often the ballots they could be on named them Player of the Match (40%) or put
  *   them in a Best VII (40%), plus their average share of the awards with enough evidence (20%).
  *   Shares, not raw counts, so a big group's votes don't outweigh a small one's;
@@ -168,6 +173,10 @@ export function emptyVotes(): Record<VoteCategory, number> {
  * No evidence on a measure counts as the middle, never as a penalty.
  */
 export const TRIAL_WEIGHTS = { stats: 0.4, votes: 0.4, results: 0.2 } as const;
+/** In goals: a save is worth a tenth of one; a yellow card costs a quarter, a red a whole goal. */
+export const SAVE_WORTH = 0.1;
+export const YELLOW_COST = 0.25;
+export const RED_COST = 1;
 /** How much evidence it takes before a part can move far from the middle: half way at this many. */
 const TRIAL_PRIOR = { stats: 3, votes: 6, results: 3 } as const;
 
@@ -183,7 +192,8 @@ export function trialRatings(rows: (PlayerRatings & { player: { id: string } })[
     return shares.length ? shares.reduce((a, b) => a + b, 0) / shares.length : 0;
   };
   const measure = {
-    stats: (r: PlayerRatings) => (r.games ? (r.goals + 0.75 * r.assists) / r.games : null),
+    stats: (r: PlayerRatings) =>
+      r.games ? (r.goals + 0.75 * r.assists + SAVE_WORTH * (r.saves ?? 0) - YELLOW_COST * (r.yellowCards ?? 0) - RED_COST * (r.redCards ?? 0)) / r.games : null,
     votes: (r: PlayerRatings) =>
       r.ballotsSeen ? 0.4 * (r.votes.potm ?? 0) / r.ballotsSeen + 0.4 * Math.min(1, r.viiPicks / r.ballotsSeen) + 0.2 * awardShare(r) : null,
     results: (r: PlayerRatings) => (r.games ? r.skill : null),
@@ -210,7 +220,7 @@ export function trialRatings(rows: (PlayerRatings & { player: { id: string } })[
 }
 
 /** The numbers a player's stats compare with everyone else's. */
-export const COMPARED = ['goals', 'assists', 'potmWins', 'viiOfDay', 'wins', 'points', 'games', 'bestOnTeam', 'teamOfDay'] as const;
+export const COMPARED = ['goals', 'assists', 'potmWins', 'viiOfDay', 'wins', 'points', 'games', 'bestOnTeam', 'teamOfDay', 'saves', 'yellowCards', 'redCards'] as const;
 export type ComparedStat = (typeof COMPARED)[number];
 /** Per number: the average in total and per game, this player's rank (ties share it; 0 if not played) and out of how many. */
 export type StatCompare = Record<ComparedStat, { avg: number; avgPerGame: number; rank: number; of: number }>;
@@ -240,6 +250,7 @@ export function compareStats(rows: (PlayerRatings & { player: { id: string } })[
   ) as StatCompare;
 }
 
+/** Ratings for someone who hasn't played: zeros, and no card yet. */
 export function blankRatings(): PlayerRatings {
   return {
     games: 0,
@@ -255,6 +266,9 @@ export function blankRatings(): PlayerRatings {
     attributes: Object.fromEntries(ABILITIES.map((a) => [a, null])) as Record<Ability, number | null>,
     goals: 0,
     assists: 0,
+    yellowCards: 0,
+    redCards: 0,
+    saves: 0,
     viiPicks: 0,
     viiOfDay: 0,
     bestOnTeam: 0,
@@ -307,6 +321,7 @@ export class RatingsService {
     @InjectRepository(MatchGoal) private goalsRepo: Repository<MatchGoal>,
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
+    @InjectRepository(MatchEvent) private eventsRepo: Repository<MatchEvent>,
   ) {}
 
   // ── Voting window & squad ──
@@ -714,7 +729,7 @@ export class RatingsService {
 
   async getLineup(sessionId: string, organizationId: string) {
     const session = await this.loadSession(sessionId, organizationId);
-    const [{ ovr, skills }, games, paid, goals] = await Promise.all([
+    const [{ ovr, skills }, games, paid, goals, events] = await Promise.all([
       // Ratings only decorate the teams: if they can't be worked out, the teams still load.
       this.ovrMap(organizationId).catch((err) => {
         this.logger.error(`Ratings for the lineup of ${sessionId} failed: ${err instanceof Error ? err.stack : err}`);
@@ -723,6 +738,7 @@ export class RatingsService {
       this.gamesRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
       this.paidFor(session),
       this.goalsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
+      this.eventsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
     ]);
     const table = this.standings(session.teamCount, games);
     return {
@@ -758,6 +774,8 @@ export class RatingsService {
           .filter((x) => x.gameId === g.id)
           .map((x) => ({ id: x.id, team: x.team, scorerId: x.scorerId, assistId: x.assistId, recordedBy: x.recordedBy })),
       })),
+      /** Cards and saves recorded today, oldest first. */
+      events: events.map((e) => ({ id: e.id, playerId: e.playerId, kind: e.kind, recordedBy: e.recordedBy })),
       standings: table.rows,
       teamOfTheDay: table.teamOfTheDay,
     };
@@ -900,6 +918,19 @@ export class RatingsService {
     if (!goal) throw new NotFoundException('Goal not found');
     if (!goal.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser added this scorer: only they can remove it');
     return this.forCaptain(await this.deleteGoal(sessionId, goalId, organizationId));
+  }
+
+  async captainAddEvent(sessionId: string, playerIds: string[], input: { playerId: string; kind: MatchEventKind }) {
+    const { organizationId, signedAs } = await this.captainToday(sessionId, playerIds);
+    return this.forCaptain(await this.addEvent(sessionId, organizationId, input, signedAs));
+  }
+
+  async captainDeleteEvent(sessionId: string, eventId: string, playerIds: string[]) {
+    const { organizationId } = await this.captainToday(sessionId, playerIds);
+    const event = await this.eventsRepo.findOne({ where: { id: eventId, sessionId } });
+    if (!event) throw new NotFoundException('Not found');
+    if (!event.recordedBy?.endsWith('(captain)')) throw new BadRequestException('The organiser added this: only they can remove it');
+    return this.forCaptain(await this.deleteEvent(sessionId, eventId, organizationId));
   }
 
   // ── Bibs, from the player's side ──
@@ -1059,6 +1090,24 @@ export class RatingsService {
     return this.getLineup(sessionId, organizationId);
   }
 
+  /** A yellow card, red card or save on match day, for a player who's in today's game. */
+  async addEvent(sessionId: string, organizationId: string, input: { playerId: string; kind: MatchEventKind }, recordedBy?: string) {
+    const session = await this.loadSession(sessionId, organizationId);
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    if (localDate(0) < String(session.date).slice(0, 10)) throw new BadRequestException('Cards and saves open on match day');
+    if (!(session.payments ?? []).some((p) => p.playerId === input.playerId && p.attendance !== 'no_show')) {
+      throw new BadRequestException("That player isn't in this game");
+    }
+    await this.eventsRepo.save(this.eventsRepo.create({ sessionId, playerId: input.playerId, kind: input.kind, recordedBy: recordedBy ?? null }));
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  async deleteEvent(sessionId: string, eventId: string, organizationId: string) {
+    await this.loadSession(sessionId, organizationId);
+    await this.eventsRepo.delete({ id: eventId, sessionId });
+    return this.getLineup(sessionId, organizationId);
+  }
+
   async deleteGoal(sessionId: string, goalId: string, organizationId: string) {
     await this.loadSession(sessionId, organizationId);
     await this.goalsRepo.delete({ id: goalId, sessionId });
@@ -1155,10 +1204,11 @@ export class RatingsService {
     const ordered = [...sessions].sort((x, y) => String(x.date).localeCompare(String(y.date)));
     const ids = ordered.map((s) => s.id);
 
-    const [votes, allGames, goals] = await Promise.all([
+    const [votes, allGames, goals, events] = await Promise.all([
       this.votesRepo.find({ where: { sessionId: In(ids) } }),
       this.gamesRepo.find({ where: { sessionId: In(ids) } }),
       this.goalsRepo.find({ where: { sessionId: In(ids) } }),
+      this.eventsRepo.find({ where: { sessionId: In(ids) } }),
     ]);
     const group = <T extends { sessionId: string }>(rows: T[]) => {
       const m = new Map<string, T[]>();
@@ -1168,6 +1218,7 @@ export class RatingsService {
     const gamesBySession = group(allGames);
     const votesBySession = group(votes);
     const goalsBySession = group(goals);
+    const eventsBySession = group(events);
     const dayWinner = new Map(ordered.map((s) => [s.id, this.standings(s.teamCount, gamesBySession.get(s.id) ?? []).teamOfTheDay] as const));
     const abilitiesOf = new Map(CATEGORIES.filter((c) => c.abilities).map((c) => [c.key, c.abilities!]));
     /** Fastest on the pitch is kept as The Engine. */
@@ -1234,6 +1285,9 @@ export class RatingsService {
             attributes: Object.fromEntries(ABILITIES.map((a) => [a, null])) as Record<Ability, number | null>,
             goals: 0,
             assists: 0,
+            yellowCards: 0,
+            redCards: 0,
+            saves: 0,
             viiPicks: 0,
             viiOfDay: 0,
             bestOnTeam: 0,
@@ -1250,6 +1304,12 @@ export class RatingsService {
           if (viiOfDay.has(member.id)) s.viiOfDay += 1;
           s.goals += sessionGoals.filter((g) => g.scorerId === member.id).length;
           s.assists += sessionGoals.filter((g) => g.assistId === member.id).length;
+          for (const e of eventsBySession.get(session.id) ?? []) {
+            if (e.playerId !== member.id) continue;
+            if (e.kind === 'yellow') s.yellowCards += 1;
+            else if (e.kind === 'red') s.redCards += 1;
+            else if (e.kind === 'save') s.saves += 1;
+          }
 
           // Award evidence, split evenly across what each award says about them.
           if (awardVoters.size) s.evidenceGames += 1;

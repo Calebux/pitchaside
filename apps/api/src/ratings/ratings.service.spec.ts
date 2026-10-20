@@ -61,7 +61,7 @@ function setup(
   const gamesRepo = { count: async () => opts.scores ?? games.length, find: async () => games, save: async (g: unknown) => g, create: (g: unknown) => g };
   const groupsRepo = { findOne: async () => session.group };
   const goalsRepo = { find: async () => [], save: async (g: unknown) => g, create: (g: unknown) => g, delete: async () => undefined };
-  const service = new RatingsService(votesRepo as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, groupsRepo as never);
+  const service = new RatingsService(votesRepo as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, groupsRepo as never, { find: async () => [] } as never);
   return { service, saved };
 }
 
@@ -434,7 +434,7 @@ describe('trialRatings (40 stats / 40 votes / 20 results)', () => {
 
 describe('balanceTeams (half results, half the 40/40/20 card)', () => {
   it('counts the card as well as results when picking the best first', async () => {
-    const service = new RatingsService({} as any, {} as any, {} as any, {} as any, {} as any);
+    const service = new RatingsService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
     const p = (id: string, skill: number, ovr: number | null) => ({ id, firstName: id, skill, ovr, captain: false, team: null });
     // Same results rating; the scorers' cards are higher. Sorted strongest first, then snake: A, B, B, A.
     jest.spyOn(service, 'getLineup').mockResolvedValue({
@@ -446,5 +446,38 @@ describe('balanceTeams (half results, half the 40/40/20 card)', () => {
     const teams = (set.mock.calls[0][2] as any).teams;
     expect(teams.star).not.toBe(teams.good);
     expect(teams.quiet1).not.toBe(teams.quiet2);
+  });
+});
+
+describe('cards and saves in the rating', () => {
+  const row = (id: string, o: { goals?: number; yellow?: number; red?: number; saves?: number }) =>
+    ({ ...blankRatings(), player: { id }, games: 10, ballotsSeen: 60, skill: 1500, goals: o.goals ?? 2, yellowCards: o.yellow ?? 0, redCards: o.red ?? 0, saves: o.saves ?? 0 }) as any;
+  it('a card costs a little: the same scorer with a red card rates lower', () => {
+    const t = trialRatings([row('clean', {}), row('sentOff', { red: 2 }), row('x', { goals: 5 }), row('y', { goals: 0 })]);
+    expect(t.get('sentOff')!.parts.stats).toBeLessThan(t.get('clean')!.parts.stats);
+  });
+  it('saves count for a keeper', () => {
+    const t = trialRatings([row('keeper', { goals: 0, saves: 40 }), row('outfield', { goals: 0 }), row('x', { goals: 3 })]);
+    expect(t.get('keeper')!.parts.stats).toBeGreaterThan(t.get('outfield')!.parts.stats);
+  });
+});
+
+describe('recording cards and saves', () => {
+  function setup(today = true) {
+    const session: any = { id: 's1', status: 'completed', date: today ? new Date().toISOString().slice(0, 10) : '2099-01-01', payments: [{ playerId: 'ada', attendance: 'came' }, { playerId: 'off', attendance: 'no_show' }] };
+    const events = { saved: [] as any[], create: (e: unknown) => e, save: async function (e: any) { this.saved.push(e); return e; }, findOne: async () => ({ id: 'e1', recordedBy: 'Tunde (organiser)' }) };
+    const service = new RatingsService({} as never, {} as never, {} as never, {} as never, {} as never, events as never);
+    jest.spyOn(service as any, 'loadSession').mockResolvedValue(session);
+    jest.spyOn(service, 'getLineup').mockResolvedValue({} as never);
+    return { service, events };
+  }
+  it('records a yellow for a player in the game', async () => {
+    const { service, events } = setup();
+    await service.addEvent('s1', 'org', { playerId: 'ada', kind: 'yellow' }, 'Tunde (organiser)');
+    expect(events.saved[0]).toMatchObject({ playerId: 'ada', kind: 'yellow', recordedBy: 'Tunde (organiser)' });
+  });
+  it("refuses someone who didn't play, and before match day", async () => {
+    await expect(setup().service.addEvent('s1', 'org', { playerId: 'off', kind: 'save' })).rejects.toThrow("isn't in this game");
+    await expect(setup(false).service.addEvent('s1', 'org', { playerId: 'ada', kind: 'red' })).rejects.toThrow('match day');
   });
 });

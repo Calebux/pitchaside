@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsUUID, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { MATCH_EVENT_KINDS, type MatchEventKind } from './entities/match-event.entity';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { RatingsService } from './ratings.service';
@@ -45,6 +46,14 @@ export class GoalDto {
   @IsOptional()
   @IsUUID()
   assistId?: string | null;
+}
+
+export class EventDto {
+  @IsUUID()
+  playerId: string;
+
+  @IsIn(MATCH_EVENT_KINDS)
+  kind: MatchEventKind;
 }
 
 export class GameDto {
@@ -116,6 +125,17 @@ export class RatingsController {
   @Delete('sessions/:id/goals/:goalId')
   deleteGoal(@Param('id') id: string, @Param('goalId') goalId: string, @CurrentUser() user: User) {
     return this.ratings.deleteGoal(id, goalId, user.organizationId);
+  }
+
+  /** A yellow card, red card or save on match day. */
+  @Post('sessions/:id/events')
+  addEvent(@Param('id') id: string, @Body() dto: EventDto, @CurrentUser() user: User) {
+    return this.ratings.addEvent(id, user.organizationId, dto, `${user.firstName} (organiser)`);
+  }
+
+  @Delete('sessions/:id/events/:eventId')
+  deleteEvent(@Param('id') id: string, @Param('eventId') eventId: string, @CurrentUser() user: User) {
+    return this.ratings.deleteEvent(id, eventId, user.organizationId);
   }
 
   @Delete('sessions/:id/games/:gameId')

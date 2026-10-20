@@ -18,7 +18,7 @@ import { PhotoDto } from '../players/dto/photo.dto';
 import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
-import { GameDto, GoalDto } from '../ratings/ratings.controller';
+import { EventDto, GameDto, GoalDto } from '../ratings/ratings.controller';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
 
@@ -322,6 +322,16 @@ export class PlayerPortalController {
   @Delete('games/:id/match-day/games/:gameId')
   deleteMatchGame(@Param('id') id: string, @Param('gameId') gameId: string, @CurrentPerson() person: Person) {
     return this.portal.deleteMatchGame(person, id, gameId);
+  }
+
+  @Post('games/:id/match-day/events')
+  addEvent(@Param('id') id: string, @Body() dto: EventDto, @CurrentPerson() person: Person) {
+    return this.portal.addEvent(person, id, dto);
+  }
+
+  @Delete('games/:id/match-day/events/:eventId')
+  deleteEvent(@Param('id') id: string, @Param('eventId') eventId: string, @CurrentPerson() person: Person) {
+    return this.portal.deleteEvent(person, id, eventId);
   }
 
   @Delete('games/:id/match-day/goals/:goalId')
