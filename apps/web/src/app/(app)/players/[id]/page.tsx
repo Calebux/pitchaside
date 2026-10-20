@@ -20,7 +20,11 @@ import {
   deletePlayer,
   formatCurrency,
   type IGroupWithMembers,
+  removePlayerPhoto,
+  setPlayerPhoto,
 } from '@/lib/api';
+import { photoUrl } from '@/lib/http';
+import { PhotoPicker } from '@/components/photo-picker';
 import { StatCard } from '@/components/stat-card';
 import { AttributeRow } from '@/components/ratings';
 import { PlayerStats } from '@/components/player-stats';
@@ -142,10 +146,17 @@ export default function PlayerDetailPage() {
           <div className="relative grid grid-cols-[auto_1fr] gap-4 sm:gap-6 p-5 sm:p-6">
             {/* Trading-card style portrait */}
             <div className="relative w-28 sm:w-32 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
-              <div className="absolute top-2 left-2.5 leading-none">
+              <div className="absolute z-10 top-2 left-2.5 leading-none">
                 <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings?.ovr ?? '–'}</p>
                 <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
               </div>
+              {player.photoKey ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photoUrl(player.photoKey)!} alt="" className="w-full aspect-[2/3] object-cover" />
+                  <span className="absolute inset-0 bg-gradient-to-b from-ink/60 via-transparent to-ink/50" aria-hidden />
+                </>
+              ) : (
               <svg viewBox="0 0 100 150" className="w-full h-auto mt-3" aria-hidden>
                 <Player
                   x={50}
@@ -160,8 +171,9 @@ export default function PlayerDetailPage() {
                 />
                 <Ball x={84} y={138} r={8} />
               </svg>
+              )}
               {ratings?.provisional && (
-                <p className="absolute bottom-1.5 inset-x-1.5 text-center rounded-md bg-black/45 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
+                <p className="absolute z-10 bottom-1.5 inset-x-1.5 text-center rounded-md bg-black/45 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
                   Provisional
                 </p>
               )}
@@ -241,6 +253,25 @@ export default function PlayerDetailPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {canManage && (
+        <div className="-mt-3 mb-6 rounded-3xl bg-white border border-gray-100 shadow-card px-4 py-3">
+          <PhotoPicker
+            name={`${player.firstName} ${player.lastName}`}
+            photoKey={player.photoKey}
+            size="w-14 h-14 text-lg"
+            onUpload={async (image) => {
+              const { photoKey } = await setPlayerPhoto(player.id, image);
+              setPlayer({ ...player, photoKey });
+              return photoKey;
+            }}
+            onRemove={async () => {
+              await removePlayerPhoto(player.id);
+              setPlayer({ ...player, photoKey: null });
+            }}
+          />
         </div>
       )}
 

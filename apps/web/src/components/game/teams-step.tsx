@@ -93,7 +93,7 @@ export function TeamsStep({
         title={`${m.firstName} ${m.lastName}`}
         className="press w-full flex items-center gap-2 min-h-11 px-2 py-1 text-left rounded-xl hover:bg-white/70 disabled:hover:bg-transparent disabled:cursor-default"
       >
-        <Avatar name={`${m.firstName} ${m.lastName}`} className="w-7 h-7 text-[10px]" />
+        <Avatar name={`${m.firstName} ${m.lastName}`} photoKey={m.photoKey} className="w-7 h-7 text-[10px]" />
         <span className="flex-1 min-w-0" aria-hidden>
           <span className="flex items-center gap-1">
             <span className="text-[14px] font-bold text-ink truncate">{shortName(m)}</span>

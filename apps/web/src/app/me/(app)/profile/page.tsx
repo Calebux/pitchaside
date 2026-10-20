@@ -8,7 +8,8 @@ import { PlayerStats } from '@/components/player-stats';
 import { usePlayerProfile } from '@/components/player-shell';
 import { PlayerAccountSettings } from '@/components/player-account';
 import { KitLine } from '@/components/illustrations';
-import { logoutPlayer, subscribePlayerPush } from '@/lib/player';
+import { logoutPlayer, removeMyPhoto, setMyPhoto, subscribePlayerPush } from '@/lib/player';
+import { PhotoPicker } from '@/components/photo-picker';
 
 export default function PlayerProfilePage() {
   const router = useRouter();
@@ -23,7 +24,27 @@ export default function PlayerProfilePage() {
         lastName={profile.player.lastName}
         ratings={r}
         caption={profile.player.email}
+        photoKey={profile.player.photoKey}
       />
+
+      {/* Their own photo: on their card and wherever their name shows, in every club */}
+      <div className="mt-4 rounded-3xl bg-white border border-gray-100 shadow-card px-4 py-3">
+        <PhotoPicker
+          you
+          name={`${profile.player.firstName} ${profile.player.lastName}`}
+          photoKey={profile.player.photoKey}
+          size="w-14 h-14 text-lg"
+          onUpload={async (image) => {
+            const { photoKey } = await setMyPhoto(image);
+            refresh();
+            return photoKey;
+          }}
+          onRemove={async () => {
+            await removeMyPhoto();
+            refresh();
+          }}
+        />
+      </div>
 
       <div className="mt-5">
         <PlayerStats ratings={r} you />

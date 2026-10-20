@@ -29,6 +29,7 @@ import { PaymentStatus, PaymentType } from '@pitchaside/shared';
 import type { IPlayer } from '@pitchaside/shared';
 import { InfoTip } from '@/components/info-tip';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
+import { Avatar } from '@/components/ratings';
 
 /**
  * A group's squad, about the players: how many, who's coming to the next game, how it's made up
@@ -475,9 +476,13 @@ export function GroupSquad({
                       onClick={() => setOpenMember(m.player.id)}
                       className="w-full flex items-center gap-3 px-4 min-h-16 py-3 text-left hover:bg-chalk transition-colors"
                     >
-                      <span className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display`} aria-hidden>
-                        {m.player.firstName.charAt(0)}
-                      </span>
+                      {m.player.photoKey ? (
+                        <Avatar name={name} photoKey={m.player.photoKey} className="w-10 h-10" />
+                      ) : (
+                        <span className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display`} aria-hidden>
+                          {m.player.firstName.charAt(0)}
+                        </span>
+                      )}
                       <span className="flex-1 min-w-0">
                         <span className="flex items-center gap-1.5 min-w-0">
                           <span className="text-[15px] font-bold text-ink leading-snug truncate">{name}</span>

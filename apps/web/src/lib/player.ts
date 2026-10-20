@@ -151,6 +151,15 @@ export function joinClubAsPlayer(code: string) {
   return request<ClubJoinResult>('POST', `/me/clubs/${code}/join`);
 }
 
+/** Their own photo, on their record in every club they play for. */
+export function setMyPhoto(image: string) {
+  return request<{ photoKey: string }>('POST', '/me/photo', { image });
+}
+
+export function removeMyPhoto() {
+  return request<{ photoKey: null }>('DELETE', '/me/photo');
+}
+
 export function updateMyName(firstName: string, lastName: string, nickname: string) {
   return request<{ firstName: string; lastName: string; nickname: string | null }>('PATCH', '/me/account', { firstName, lastName, nickname });
 }
@@ -189,7 +198,7 @@ export type PlayerGroup = {
 export type Organiser = { clubName: string; email: string } | null;
 
 export interface PlayerHome {
-  player: { id: string; firstName: string; lastName: string; nickname: string | null; email: string; phone: string | null };
+  player: { id: string; firstName: string; lastName: string; nickname: string | null; photoKey?: string | null; email: string; phone: string | null };
   organiser: Organiser;
   groups: {
     id: string;

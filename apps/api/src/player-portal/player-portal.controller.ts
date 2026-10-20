@@ -13,6 +13,8 @@ import { SkipCsrf } from '../auth/decorators/skip-csrf.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
 import { PlayerPortalService } from './player-portal.service';
+import { PhotosService } from '../players/photos.service';
+import { PhotoDto } from '../players/dto/photo.dto';
 import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
@@ -256,7 +258,19 @@ export class PlayerPortalController {
     private readonly notifications: NotificationsService,
     private readonly playerAuth: PlayerAuthService,
     private readonly configService: ConfigService,
+    private readonly photos: PhotosService,
   ) {}
+
+  /** Their own photo, on their record in every club they play for. */
+  @Post('photo')
+  setPhoto(@Body() dto: PhotoDto, @CurrentPerson() person: Person) {
+    return this.photos.set(person.players.map((p) => p.id), dto.image);
+  }
+
+  @Delete('photo')
+  removePhoto(@CurrentPerson() person: Person) {
+    return this.photos.remove(person.players.map((p) => p.id));
+  }
 
   @Get()
   home(@CurrentPerson() person: Person) {

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { Ticket } from '@/components/ticket';
+import { photoUrl } from '@/lib/http';
 import { Ball, Player, kitFor, skins } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
@@ -65,23 +66,34 @@ export function PlayerCardHero({
   lastName,
   ratings,
   caption,
+  photoKey,
 }: {
   firstName: string;
   lastName: string;
   ratings: PlayerRatings;
   caption?: string;
+  /** Their photo takes the drawn player's place on the card. */
+  photoKey?: string | null;
 }) {
   const fullName = `${firstName} ${lastName}`;
+  const photo = photoUrl(photoKey);
   const kit = kitFor(fullName);
   return (
     <div className="relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
       <div className="absolute inset-0 turf-stripes" />
       <div className="relative grid grid-cols-[auto_1fr] gap-4 p-5">
         <div className="relative w-24 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
-          <div className="absolute top-2 left-2 leading-none">
+          <div className="absolute z-10 top-2 left-2 leading-none">
             <p className="font-display text-xl font-extrabold text-volt-300 tabular-nums">{ratings.ovr ?? '–'}</p>
             <p className="text-[7px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
           </div>
+          {photo ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photo} alt="" className="w-full aspect-[2/3] object-cover" />
+              <span className="absolute inset-0 bg-gradient-to-b from-ink/60 via-transparent to-ink/50" aria-hidden />
+            </>
+          ) : (
           <svg viewBox="0 0 100 150" className="w-full h-auto mt-3" aria-hidden>
             <Player
               x={50}
@@ -96,8 +108,9 @@ export function PlayerCardHero({
             />
             <Ball x={84} y={138} r={8} />
           </svg>
+          )}
           {ratings.provisional && (
-            <p className="absolute bottom-1.5 inset-x-1.5 text-center rounded-md bg-black/45 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
+            <p className="absolute z-10 bottom-1.5 inset-x-1.5 text-center rounded-md bg-black/45 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
               Provisional
             </p>
           )}

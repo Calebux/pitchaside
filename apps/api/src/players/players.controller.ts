@@ -7,11 +7,16 @@ import { toCsv } from '../common/csv.util';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { PhotosService } from './photos.service';
+import { PhotoDto } from './dto/photo.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('players')
 export class PlayersController {
-  constructor(private readonly playersService: PlayersService) {}
+  constructor(
+    private readonly playersService: PlayersService,
+    private readonly photos: PhotosService,
+  ) {}
 
   @Post()
   create(@Body() dto: CreatePlayerDto, @CurrentUser() user: User) {
@@ -58,6 +63,19 @@ export class PlayersController {
     @CurrentUser() user: User,
   ) {
     return this.playersService.update(id, dto, user.organizationId);
+  }
+
+  /** The organiser adds or changes a player's photo (one of their club's players). */
+  @Post(':id/photo')
+  async setPhoto(@Param('id') id: string, @Body() dto: PhotoDto, @CurrentUser() user: User) {
+    await this.playersService.findOne(id, user.organizationId);
+    return this.photos.set([id], dto.image);
+  }
+
+  @Delete(':id/photo')
+  async removePhoto(@Param('id') id: string, @CurrentUser() user: User) {
+    await this.playersService.findOne(id, user.organizationId);
+    return this.photos.remove([id]);
   }
 
   @Delete(':id')

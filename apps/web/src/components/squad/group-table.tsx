@@ -78,7 +78,7 @@ function Leaders({ table }: { table: LeagueTable }) {
         .filter((r) => (of(r) ?? 0) > 0)
         .sort((a, b) => of(b) - of(a))
         .slice(0, 3)
-        .map((r) => ({ id: r.player.id, name: r.player.nickname || `${r.player.firstName} ${r.player.lastName}`, value: of(r) })),
+        .map((r) => ({ id: r.player.id, name: r.player.nickname || `${r.player.firstName} ${r.player.lastName}`, photoKey: r.player.photoKey, value: of(r) })),
     }))
     .filter((b) => b.top.length > 0);
   if (!boards.length) return null;
@@ -95,7 +95,7 @@ function Leaders({ table }: { table: LeagueTable }) {
               {b.top.map((p, i) => (
                 <li key={p.id} className="flex items-center gap-2 min-w-0">
                   <span className="w-3 text-[11px] font-extrabold text-gray-400 tabular-nums">{i + 1}</span>
-                  <Avatar name={p.name} className="w-6 h-6 text-[9px]" />
+                  <Avatar name={p.name} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
                   <span className="flex-1 min-w-0 truncate text-[13px] font-bold text-ink">{p.name}</span>
                   <span className="font-display text-[15px] font-extrabold text-ink tabular-nums">{p.value}</span>
                 </li>
