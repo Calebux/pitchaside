@@ -105,13 +105,35 @@ describe('releaseTransferDues', () => {
 });
 
 describe('GroupsService money guards', () => {
-  function setup({ credit = '0.00', available = 0 } = {}) {
+  function setup({ credit = '0.00', available = 0, byTransfer = 0 } = {}) {
+    const order: string[] = [];
     const groupsRepo = { findOne: async () => ({ id: 'g1' }), remove: jest.fn() };
-    const membershipsRepo = { findOne: async () => ({ groupId: 'g1', playerId: 'p1', credit }), delete: jest.fn() };
+    const membershipsRepo = {
+      findOne: async () => ({ groupId: 'g1', playerId: 'p1', credit }),
+      delete: jest.fn(async () => order.push('delete')),
+    };
     const billing = { getGroupBalance: async () => ({ available }) };
-    const service = new GroupsService(groupsRepo as any, membershipsRepo as any, billing as any);
-    return { service, groupsRepo, membershipsRepo };
+    const rsvp = {
+      leavingPreview: async () => ({ games: 2, byTransfer, cash: [] }),
+      takeOffGamesAhead: jest.fn(async () => order.push('off games')),
+    };
+    const service = new GroupsService(groupsRepo as any, membershipsRepo as any, billing as any, rsvp as any);
+    return { service, groupsRepo, membershipsRepo, rsvp, order };
   }
+
+  it('takes them off games still to come before they leave, so transfer money can still be put back', async () => {
+    const { service, order } = setup();
+    await service.removeMember('g1', 'p1', 'org1');
+    expect(order).toEqual(['off games', 'delete']);
+  });
+
+  it('counts what they paid by transfer for games to come as money that goes with them', async () => {
+    const { service, membershipsRepo, rsvp } = setup({ byTransfer: 1500 });
+    await expect(service.removeMember('g1', 'p1', 'org1')).rejects.toThrow('₦1,500');
+    expect(rsvp.takeOffGamesAhead).not.toHaveBeenCalled();
+    expect(membershipsRepo.delete).not.toHaveBeenCalled();
+    await expect(service.leavingPreview('g1', 'p1', 'org1')).resolves.toMatchObject({ games: 2, byTransfer: 1500, held: 0, dropped: 1500 });
+  });
 
   it("won't remove a member holding credit unless forced", async () => {
     const { service, membershipsRepo } = setup({ credit: '300.00' });

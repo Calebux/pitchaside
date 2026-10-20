@@ -21,6 +21,8 @@ import {
   getPlayers,
   type LeagueTable,
   removeMember,
+  getLeavingPreview,
+  type LeavingPreview,
   type GroupBilling,
   type IGroupWithMembers,
   type ISessionWithDetails,
@@ -117,19 +119,38 @@ export function GroupSquad({
     }
   }
 
-  function handleRemoveMember(playerId: string, playerName: string, credit = 0) {
+  async function handleRemoveMember(playerId: string, playerName: string) {
+    const first = playerName.split(' ')[0];
+    // Said before it happens, from the server: the games still to come they come off, and money that goes with them.
+    let ahead: LeavingPreview;
+    try {
+      ahead = await getLeavingPreview(id, playerId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Couldn’t check their games and money. Try again.');
+      return;
+    }
+    const day = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
+    const lines = [
+      ahead.games > 0
+        ? `${first} comes off this group and the ${ahead.games === 1 ? 'game' : `${ahead.games} games`} still to come. Games already played stay in the table and history.`
+        : `${first} comes off this group’s list. Games already played stay in the table and history.`,
+      ahead.held > 0.001 ? `${first} has ${formatCurrency(ahead.held)} with the group.` : null,
+      ahead.byTransfer > 0.001 ? `${first} paid ${formatCurrency(ahead.byTransfer)} by transfer for games still to come.` : null,
+      ahead.dropped > 0.001
+        ? `Removing ${first} drops ${formatCurrency(ahead.dropped)} from the group’s books. To give it back, ${
+            ahead.byTransfer > 0.001 ? `first take ${first} off those games, then ` : ''
+          }send it with Send money.`
+        : null,
+      ...ahead.cash.map((c) => `${first} paid ${formatCurrency(c.amount)} in cash for ${day(c.date)}. Give it back yourself.`),
+    ].filter(Boolean);
     setConfirm({
       title: `Remove ${playerName}?`,
-      // Their credit is dropped with them, so say how much before it goes.
-      message:
-        credit > 0
-          ? `${playerName} has ${formatCurrency(credit)} in the group that hasn't paid a game. Removing them drops it from the group's books, so sort it or send it back first. Remove anyway?`
-          : `${playerName} comes off this group's list.`,
-      confirmLabel: credit > 0 ? 'Remove anyway' : 'Remove',
+      message: lines.join(' '),
+      confirmLabel: ahead.dropped > 0.001 ? 'Remove anyway' : 'Remove',
       onConfirm: async () => {
         setConfirm(null);
         try {
-          await removeMember(id, playerId, credit > 0);
+          await removeMember(id, playerId, ahead.dropped > 0.001);
           onGroupChanged(await getGroup(id));
           toast.success(`${playerName} removed`);
         } catch (err) {
@@ -138,6 +159,7 @@ export function GroupSquad({
       },
     });
   }
+
 
   const memberIds = new Set(group.memberships?.map((m) => m.player.id) || []);
   const availablePlayers = allPlayers.filter((p) => !memberIds.has(p.id));
@@ -257,7 +279,7 @@ export function GroupSquad({
           }
           onRemove={() => {
             setOpenMember(null);
-            handleRemoveMember(opened.player.id, `${opened.player.firstName} ${opened.player.lastName}`, Number(opened.credit ?? 0) + Number(opened.extra ?? 0) + Number(opened.waiting ?? 0));
+            handleRemoveMember(opened.player.id, `${opened.player.firstName} ${opened.player.lastName}`);
           }}
         />
       )}

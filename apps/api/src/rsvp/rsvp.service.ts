@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, MoreThanOrEqual, Repository } from 'typeorm';
 import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/entities/session.entity';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
@@ -13,7 +13,7 @@ import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { shortDate } from '../common/format.util';
-import { prettyTime } from '../common/time.util';
+import { localDate, prettyTime, zonedInstant } from '../common/time.util';
 import { coveredByDues, squadEntry } from '../payments/game-dues';
 import { Rsvp, RsvpStatus } from './entities/rsvp.entity';
 import { BillingService } from '../billing/billing.service';
@@ -172,6 +172,73 @@ export class RsvpService {
       await this.paymentsRepo.remove(payment);
     }
     await this.payments.recalculateSessionTotal(session.id);
+  }
+
+  // ── A player leaving the group ──
+
+  /**
+   * The group's games and dues periods that haven't started: a later day, or today before kick-off.
+   * Ones under way or played are history (and still owed), so leaving never touches them.
+   */
+  private async notStarted(groupId: string) {
+    const today = localDate(0);
+    const sessions = await this.sessionsRepo.find({
+      where: { groupId, status: SessionStatus.UPCOMING, date: MoreThanOrEqual(today) },
+      relations: ['group'],
+    });
+    const now = Date.now();
+    return sessions.filter((s) => {
+      const ko = kickoffFor(s);
+      return String(s.date).slice(0, 10) > today || !ko || zonedInstant(String(s.date), ko.slice(0, 5)).getTime() > now;
+    });
+  }
+
+  /**
+   * What taking a player off the group's games to come would do, said before the organiser
+   * removes them: how many games, what they paid by transfer for those (it would go back to
+   * their money in the group), and what they paid in cash (the organiser gives that back).
+   */
+  async leavingPreview(groupId: string, playerId: string) {
+    const sessions = await this.notStarted(groupId);
+    const ids = sessions.map((s) => s.id);
+    const [pays, replies] = ids.length
+      ? await Promise.all([
+          this.paymentsRepo.find({ where: { sessionId: In(ids), playerId } }),
+          this.rsvpRepo.find({ where: { sessionId: In(ids), playerId } }),
+        ])
+      : [[], []];
+    const dateOf = (id: string) => String(sessions.find((s) => s.id === id)?.date ?? '').slice(0, 10);
+    const on = new Set([...pays.map((p) => p.sessionId), ...replies.filter((r) => r.status !== RsvpStatus.OUT).map((r) => r.sessionId)]);
+    return {
+      games: on.size,
+      byTransfer: pays.filter(paidByTransfer).reduce((n, p) => n + Number(p.amount), 0),
+      cash: pays
+        .filter((p) => p.status === PaymentStatus.PAID && !paidByTransfer(p) && !coveredByDues(p) && Number(p.amount) > 0)
+        .map((p) => ({ date: dateOf(p.sessionId), amount: Number(p.amount) }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    };
+  }
+
+  /**
+   * Off every game that hasn't started, before their membership goes (what they paid by transfer
+   * moves to their extra, which needs the membership). Their reply goes too, waitlist included,
+   * and a place they held passes to the first person waiting.
+   */
+  async takeOffGamesAhead(groupId: string, playerId: string) {
+    for (const session of await this.notStarted(groupId)) {
+      const [payment, reply] = await Promise.all([
+        this.paymentsRepo.findOne({ where: { sessionId: session.id, playerId } }),
+        this.rsvpRepo.findOne({ where: { sessionId: session.id, playerId } }),
+      ]);
+      if (!payment && !reply) continue;
+      if (payment) {
+        await releaseToExtra(this.paymentsRepo.manager, groupId, [payment]);
+        await this.paymentsRepo.remove(payment);
+      }
+      if (reply) await this.rsvpRepo.remove(reply);
+      if (reply?.status === RsvpStatus.IN && session.kind === SessionKind.GAME) await this.promoteFromWaitlist(session);
+      await this.payments.recalculateSessionTotal(session.id);
+    }
   }
 
   /** New game in an RSVP group: ask everyone who's in. */

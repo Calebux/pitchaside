@@ -131,7 +131,24 @@ export function addMeToGroup(groupId: string): Promise<void> {
   return http.post<void>(`/groups/${groupId}/members/me`);
 }
 
-/** `force` removes a member who still has credit, which goes with them. */
+/** What removing a member would do: games still to come they come off, and money that goes with them. */
+export interface LeavingPreview {
+  games: number;
+  /** Paid by transfer for those games. */
+  byTransfer: number;
+  /** Paid in cash for those games: the organiser gives it back themselves. */
+  cash: { date: string; amount: number }[];
+  /** Kept, extra and waiting money they have in the group. */
+  held: number;
+  /** All the money that goes with them: `held` plus `byTransfer`. */
+  dropped: number;
+}
+
+export function getLeavingPreview(groupId: string, playerId: string): Promise<LeavingPreview> {
+  return http.get(`/groups/${groupId}/members/${playerId}/leaving`);
+}
+
+/** `force` removes a member who still has money in the group, which goes with them. */
 export function removeMember(groupId: string, playerId: string, force = false): Promise<void> {
   return http.delete<void>(`/groups/${groupId}/members/${playerId}${force ? '?force=true' : ''}`);
 }
