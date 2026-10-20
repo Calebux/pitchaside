@@ -9,12 +9,13 @@ import { InviteSheet } from '@/components/home/invite-sheet';
 import { InviteIcon } from '@/components/icons';
 import { GroupSquad } from '@/components/squad/group-squad';
 import { GroupTable } from '@/components/squad/group-table';
+import { GroupStats, type StatSort } from '@/components/squad/group-stats';
 import { getGroupBilling, getGroups, getSessionsPaginated, type GroupBilling, type IGroupWithMembers, type ISessionWithDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useCurrentGroup } from '@/lib/current-group';
 import { UserRole } from '@pitchaside/shared';
 
-type View = 'players' | 'table';
+type View = 'players' | 'table' | 'stats';
 
 /**
  * The current group's people: the squad (with each player's card) and the season's table, plus
@@ -28,7 +29,9 @@ export default function SquadPage() {
   const [groups, setGroups] = useState<IGroupWithMembers[] | null>(null);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [billing, setBilling] = useState<GroupBilling | null>(null);
-  const [view, setView] = useState<View>(params.get('view') === 'table' ? 'table' : 'players');
+  const asView = (v: string | null): View => (v === 'table' || v === 'stats' ? v : 'players');
+  const [view, setView] = useState<View>(asView(params.get('view')));
+  const [sort, setSort] = useState<StatSort>((params.get('sort') as StatSort) || 'rating');
   const [showInvite, setShowInvite] = useState(false);
 
   // A link naming a group switches to it, for the whole app, until another group is picked here.
@@ -59,12 +62,17 @@ export default function SquadPage() {
     if (groupId) getGroupBilling(groupId).then(setBilling).catch(() => {});
   }, [groupId]);
 
-  function pickView(v: View) {
+  // The tab (and the Stats ranking) live in the address, so refresh, Back and shared links keep them.
+  function pickView(v: View, rankBy?: StatSort) {
     setView(v);
+    if (rankBy) setSort(rankBy);
     const q = new URLSearchParams(window.location.search);
-    if (v === 'table') q.set('view', 'table');
-    else q.delete('view');
+    if (v === 'players') q.delete('view');
+    else q.set('view', v);
+    if (v === 'stats') q.set('sort', rankBy ?? sort);
+    else q.delete('sort');
     window.history.replaceState(window.history.state, '', `/squad${q.size ? `?${q}` : ''}`);
+    if (rankBy) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   if (!groups) {
@@ -99,7 +107,7 @@ export default function SquadPage() {
                 onPick={(id) => {
                   setGroupId(id);
                   setAsked(null);
-                  window.history.replaceState(window.history.state, '', `/squad${view === 'table' ? '?view=table' : ''}`);
+                  window.history.replaceState(window.history.state, '', `/squad${view !== 'players' ? `?view=${view}` : ''}`);
                 }}
               />
             </div>
@@ -120,11 +128,12 @@ export default function SquadPage() {
             <InviteSheet group={group} billing={billing} canManage={canManage} onBilling={setBilling} onClose={() => setShowInvite(false)} />
           )}
 
-          <div role="radiogroup" aria-label="Show" className="mb-4 grid grid-cols-2 p-1 bg-white border border-gray-200 rounded-2xl">
+          <div role="radiogroup" aria-label="Show" className="mb-4 grid grid-cols-3 p-1 bg-white border border-gray-200 rounded-2xl">
             {(
               [
                 { key: 'players', label: `Players ${memberCount}` },
                 { key: 'table', label: 'Table' },
+                { key: 'stats', label: 'Stats' },
               ] as const
             ).map((v) => (
               <button
@@ -151,8 +160,14 @@ export default function SquadPage() {
               onGroupChanged={(fresh) => setGroups((list) => (list ?? []).map((g) => (g.id === fresh.id ? fresh : g)))}
               onPaymentsChanged={() => loadSessions().catch(() => {})}
             />
+          ) : view === 'table' ? (
+            <GroupTable groupId={group.id} onSeeAll={(s) => pickView('stats', s)} />
           ) : (
-            <GroupTable groupId={group.id} />
+            <GroupStats
+              groupId={group.id}
+              sort={sort}
+              onSort={(s) => pickView('stats', s)}
+            />
           )}
         </>
       )}

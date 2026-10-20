@@ -5,17 +5,12 @@ import { LeagueTableView } from '@/components/ratings';
 import { getGroupTable, type LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
-import Link from 'next/link';
-import { useAuth } from '@/lib/auth';
-import { UserRole } from '@pitchaside/shared';
+import type { StatSort } from './group-stats';
 
 const RECENT_DAYS = 5;
 
 /** A group's season table, with its own loading and "didn't load" states. */
-export function GroupTable({ groupId }: { groupId: string }) {
-  const { user } = useAuth();
-  // How ratings are made is the organiser's to check, not a treasurer's.
-  const organiser = !!user && user.role !== UserRole.TREASURER;
+export function GroupTable({ groupId, onSeeAll }: { groupId: string; onSeeAll?: (sort: StatSort) => void }) {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [failed, setFailed] = useState<string | false>(false);
   // The whole season, or only the latest match days.
@@ -78,21 +73,7 @@ export function GroupTable({ groupId }: { groupId: string }) {
       {table ? (
         <>
           <LeagueTableView table={table} />
-          {organiser && (
-            <Link
-              href={`/squad/rating-trial?group=${groupId}`}
-              className="press mt-3 flex items-center gap-3 min-h-14 px-4 rounded-2xl border border-dashed border-gray-300 bg-white hover:border-ink"
-            >
-              <span className="flex-1 min-w-0">
-                <span className="block text-[14px] font-bold text-ink">How ratings are made</span>
-                <span className="block text-[12px] text-gray-500">Each player’s 40% stats, 40% votes, 20% results. Only organisers see it.</span>
-              </span>
-              <span className="text-gray-400" aria-hidden>
-                ›
-              </span>
-            </Link>
-          )}
-          <Leaders table={table} />
+          <Leaders table={table} onSeeAll={onSeeAll} />
         </>
       ) : failed !== false ? (
         <div className="py-10 text-center" role="alert">
@@ -109,26 +90,29 @@ export function GroupTable({ groupId }: { groupId: string }) {
   );
 }
 
-/** The season's leaders: the top three in goals, assists, Player of the Match and Best VII of the Day. */
-function Leaders({ table }: { table: LeagueTable }) {
+/**
+ * The season's leaders: the top three in goals, assists, Player of the Match and Best VII of the
+ * Day. All four boards always show, so goals and assists are there before anyone has one; each
+ * opens the full ranked list in Stats.
+ */
+function Leaders({ table, onSeeAll }: { table: LeagueTable; onSeeAll?: (sort: StatSort) => void }) {
   const boards = (
     [
-      ['Goals', (r) => r.goals],
-      ['Assists', (r) => r.assists],
-      ['Player of the Match', (r) => r.potmWins],
-      ['Best VII of the Day', (r) => r.viiOfDay],
-    ] as [string, (r: LeagueTable['rows'][number]) => number][]
-  )
-    .map(([title, of]) => ({
-      title,
-      top: [...table.rows]
-        .filter((r) => (of(r) ?? 0) > 0)
-        .sort((a, b) => of(b) - of(a))
-        .slice(0, 3)
-        .map((r) => ({ id: r.player.id, name: r.player.nickname || `${r.player.firstName} ${r.player.lastName}`, photoKey: r.player.photoKey, value: of(r) })),
-    }))
-    .filter((b) => b.top.length > 0);
-  if (!boards.length) return null;
+      ['goals', 'Goals', 'No goals recorded yet. Add scorers on match day.', (r) => r.goals],
+      ['assists', 'Assists', 'No assists recorded yet.', (r) => r.assists],
+      ['potm', 'Player of the Match', 'Comes from the vote after each game.', (r) => r.potmWins],
+      ['vii', 'Best VII of the Day', 'Comes from the vote after each game.', (r) => r.viiOfDay],
+    ] as [StatSort, string, string, (r: LeagueTable['rows'][number]) => number][]
+  ).map(([key, title, none, of]) => ({
+    key,
+    title,
+    none,
+    top: [...table.rows]
+      .filter((r) => (of(r) ?? 0) > 0)
+      .sort((a, b) => of(b) - of(a))
+      .slice(0, 3)
+      .map((r) => ({ id: r.player.id, name: r.player.nickname || `${r.player.firstName} ${r.player.lastName}`, photoKey: r.player.photoKey, value: of(r) })),
+  }));
   return (
     <section aria-labelledby="leaders-title" className="mt-6">
       <h2 id="leaders-title" className="text-base font-bold text-ink">
@@ -136,18 +120,27 @@ function Leaders({ table }: { table: LeagueTable }) {
       </h2>
       <div className="mt-2 grid grid-cols-2 gap-2">
         {boards.map((b) => (
-          <div key={b.title} className="min-w-0 rounded-3xl bg-white border border-gray-100 shadow-card p-3">
+          <div key={b.key} className="min-w-0 flex flex-col rounded-3xl bg-white border border-gray-100 shadow-card p-3">
             <h3 className="text-[12px] font-extrabold text-gray-600">{b.title}</h3>
-            <ol className="mt-1.5 space-y-1.5">
-              {b.top.map((p, i) => (
-                <li key={p.id} className="flex items-center gap-2 min-w-0">
-                  <span className="w-3 text-[11px] font-extrabold text-gray-400 tabular-nums">{i + 1}</span>
-                  <Avatar name={p.name} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
-                  <span className="flex-1 min-w-0 truncate text-[13px] font-bold text-ink">{p.name}</span>
-                  <span className="font-display text-[15px] font-extrabold text-ink tabular-nums">{p.value}</span>
-                </li>
-              ))}
-            </ol>
+            {b.top.length ? (
+              <ol className="mt-1.5 space-y-1.5">
+                {b.top.map((p, i) => (
+                  <li key={p.id} className="flex items-center gap-2 min-w-0">
+                    <span className="w-3 text-[11px] font-extrabold text-gray-400 tabular-nums">{i + 1}</span>
+                    <Avatar name={p.name} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
+                    <span className="flex-1 min-w-0 truncate text-[13px] font-bold text-ink">{p.name}</span>
+                    <span className="font-display text-[15px] font-extrabold text-ink tabular-nums">{p.value}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-1.5 text-[12px] leading-snug text-gray-500">{b.none}</p>
+            )}
+            {onSeeAll && (
+              <button onClick={() => onSeeAll(b.key)} className="press mt-auto pt-1.5 -mb-1 min-h-11 text-left text-[12px] font-bold text-pitch-700">
+                See all ›
+              </button>
+            )}
           </div>
         ))}
       </div>
