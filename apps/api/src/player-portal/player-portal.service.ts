@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
 import { Player } from '../players/entities/player.entity';
@@ -20,6 +20,8 @@ import { blankRatings } from '../ratings/ratings.service';
 /** The player app: everything is scoped to a person (phone), across every club they play for. */
 @Injectable()
 export class PlayerPortalService {
+  private readonly logger = new Logger(PlayerPortalService.name);
+
   constructor(
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
@@ -371,7 +373,14 @@ export class PlayerPortalService {
 
   async profile(person: Person) {
     const memberships = await this.memberships(person);
-    const [organiser, ratings] = await Promise.all([this.organiser(person), this.ratingsByClub(person)]);
+    const [organiser, ratings] = await Promise.all([
+      this.organiser(person),
+      // Ratings only decorate the profile: if they can't be worked out, the player app still opens.
+      this.ratingsByClub(person).catch((err) => {
+        this.logger.error(`Ratings for ${person.key}'s profile failed: ${err instanceof Error ? err.stack : err}`);
+        return { primary: null, clubs: [] as Awaited<ReturnType<PlayerPortalService['ratingsByClub']>>['clubs'] };
+      }),
+    ]);
     return {
       player: this.personInfo(person),
       organiser,

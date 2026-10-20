@@ -75,12 +75,15 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
       setProfile(await getPlayerProfile());
+      setFailed(null);
     } catch (err) {
       if (err instanceof PlayerAuthError) router.replace('/me/login');
+      else setFailed(err instanceof Error ? err.message : 'Something went wrong');
     }
   };
 
@@ -91,8 +94,24 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
 
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <BallLoader label="Loading your season…" />
+      <div className="min-h-screen flex items-center justify-center px-6">
+        {failed ? (
+          <div className="text-center" role="alert">
+            <p className="text-[15px] font-bold text-ink">Your season didn’t load.</p>
+            <p className="mt-1 text-[13px] text-gray-500">The server said: “{failed}”</p>
+            <button
+              onClick={() => {
+                setFailed(null);
+                refresh();
+              }}
+              className="mt-3 min-h-11 px-4 text-sm font-bold text-pitch-700"
+            >
+              Try again
+            </button>
+          </div>
+        ) : (
+          <BallLoader label="Loading your season…" />
+        )}
       </div>
     );
   }
