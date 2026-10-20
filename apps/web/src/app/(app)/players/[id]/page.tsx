@@ -219,7 +219,7 @@ export default function PlayerDetailPage() {
                   <AttributeRow ratings={ratings} dark />
                   <p className="text-[10px] text-white/40 mt-1.5">
                     {ratings.games > 0
-                      ? `From results over ${ratings.games} game${ratings.games === 1 ? '' : 's'}, lifted by teammates' awards${ratings.evidenceGames ? ` in ${ratings.evidenceGames}` : ''}`
+                      ? `Rating: 40% goals and assists, 40% votes, 20% results, over ${ratings.games} game${ratings.games === 1 ? '' : 's'}. Skills lifted by teammates' awards`
                       : 'Based on their level until they’ve played; results and votes take over'}
                   </p>
                 </div>

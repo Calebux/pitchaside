@@ -1006,6 +1006,26 @@ export function getSessionVoting(sessionId: string): Promise<SessionVoting> {
   return http.get(`/sessions/${sessionId}/voting`);
 }
 
+/** Each player's 40/40/20 rating and its three parts, beside the old way's number, for the organiser. */
+export interface RatingTrial {
+  weights: { stats: number; votes: number; results: number };
+  rows: {
+    player: SquadMember;
+    games: number;
+    ballotsSeen: number;
+    goals: number;
+    assists: number;
+    /** What the card showed the old way (results, lifted by awards), for comparing. */
+    oldOvr: number | null;
+    trial: number;
+    parts: { stats: number; votes: number; results: number };
+  }[];
+}
+
+export function getRatingTrial(groupId: string): Promise<RatingTrial> {
+  return http.get(`/groups/${groupId}/rating-trial`);
+}
+
 /** The group's table; `lastDays` limits it to the latest match days. */
 export function getGroupTable(groupId: string, lastDays?: number): Promise<LeagueTable> {
   return http.get(`/groups/${groupId}/table${lastDays ? `?last=${lastDays}` : ''}`);

@@ -5,11 +5,17 @@ import { LeagueTableView } from '@/components/ratings';
 import { getGroupTable, type LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
+import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
+import { UserRole } from '@pitchaside/shared';
 
 const RECENT_DAYS = 5;
 
 /** A group's season table, with its own loading and "didn't load" states. */
 export function GroupTable({ groupId }: { groupId: string }) {
+  const { user } = useAuth();
+  // How ratings are made is the organiser's to check, not a treasurer's.
+  const organiser = !!user && user.role !== UserRole.TREASURER;
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [failed, setFailed] = useState<string | false>(false);
   // The whole season, or only the latest match days.
@@ -72,6 +78,20 @@ export function GroupTable({ groupId }: { groupId: string }) {
       {table ? (
         <>
           <LeagueTableView table={table} />
+          {organiser && (
+            <Link
+              href={`/squad/rating-trial?group=${groupId}`}
+              className="press mt-3 flex items-center gap-3 min-h-14 px-4 rounded-2xl border border-dashed border-gray-300 bg-white hover:border-ink"
+            >
+              <span className="flex-1 min-w-0">
+                <span className="block text-[14px] font-bold text-ink">How ratings are made</span>
+                <span className="block text-[12px] text-gray-500">Each player’s 40% stats, 40% votes, 20% results. Only organisers see it.</span>
+              </span>
+              <span className="text-gray-400" aria-hidden>
+                ›
+              </span>
+            </Link>
+          )}
           <Leaders table={table} />
         </>
       ) : failed !== false ? (

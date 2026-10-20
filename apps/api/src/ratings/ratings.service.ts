@@ -154,6 +154,61 @@ export function emptyVotes(): Record<VoteCategory, number> {
 }
 
 /** Ratings for someone who hasn't played: zeros, and no card yet. */
+/**
+ * The trial rating (decided 19 Oct: 40 individual stats, 40 votes, 20 team results), worked out
+ * beside the card's rating so the organiser can compare before it replaces anything.
+ *
+ * Each part is where the player stands in the club on one measure (a percentile), pulled toward
+ * the middle while there's little evidence, then put on the card's 40–99 scale:
+ * - stats: goals plus three quarters of an assist, per game;
+ * - votes: how often the ballots they could be on named them Player of the Match (40%) or put
+ *   them in a Best VII (40%), plus their average share of the awards with enough evidence (20%).
+ *   Shares, not raw counts, so a big group's votes don't outweigh a small one's;
+ * - results: the results rating that balances teams.
+ * No evidence on a measure counts as the middle, never as a penalty.
+ */
+export const TRIAL_WEIGHTS = { stats: 0.4, votes: 0.4, results: 0.2 } as const;
+/** How much evidence it takes before a part can move far from the middle: half way at this many. */
+const TRIAL_PRIOR = { stats: 3, votes: 6, results: 3 } as const;
+
+export interface TrialRating {
+  trial: number;
+  parts: { stats: number; votes: number; results: number };
+}
+
+export function trialRatings(rows: (PlayerRatings & { player: { id: string } })[]): Map<string, TrialRating> {
+  const played = rows.filter((r) => r.games > 0);
+  const awardShare = (r: PlayerRatings) => {
+    const shares = Object.values(r.evidence ?? {}).filter((e): e is AwardEvidence => !!e && e.enough).map((e) => e.share);
+    return shares.length ? shares.reduce((a, b) => a + b, 0) / shares.length : 0;
+  };
+  const measure = {
+    stats: (r: PlayerRatings) => (r.games ? (r.goals + 0.75 * r.assists) / r.games : null),
+    votes: (r: PlayerRatings) =>
+      r.ballotsSeen ? 0.4 * (r.votes.potm ?? 0) / r.ballotsSeen + 0.4 * Math.min(1, r.viiPicks / r.ballotsSeen) + 0.2 * awardShare(r) : null,
+    results: (r: PlayerRatings) => (r.games ? r.skill : null),
+  };
+  const evidence = { stats: (r: PlayerRatings) => r.games, votes: (r: PlayerRatings) => r.ballotsSeen, results: (r: PlayerRatings) => r.games };
+  const out = new Map<string, TrialRating>();
+  const parts = (Object.keys(TRIAL_WEIGHTS) as (keyof typeof TRIAL_WEIGHTS)[]).map((k) => {
+    const values = played.map((r) => measure[k](r)).filter((v): v is number => v !== null);
+    return { k, values };
+  });
+  for (const r of rows) {
+    const p = {} as TrialRating['parts'];
+    for (const { k, values } of parts) {
+      const v = r.games ? measure[k](r) : null;
+      // Percentile: share below, plus half of those level (so a tie in the middle sits at the middle).
+      const pct = v === null || values.length < 2 ? 0.5 : (values.filter((x) => x < v).length + 0.5 * (values.filter((x) => x === v).length - 1)) / (values.length - 1);
+      const n = evidence[k](r);
+      const pulled = 0.5 + (pct - 0.5) * (n / (n + TRIAL_PRIOR[k]));
+      p[k] = Math.round(40 + 59 * pulled);
+    }
+    out.set(r.player.id, { parts: p, trial: Math.round(TRIAL_WEIGHTS.stats * p.stats + TRIAL_WEIGHTS.votes * p.votes + TRIAL_WEIGHTS.results * p.results) });
+  }
+  return out;
+}
+
 /** The numbers a player's stats compare with everyone else's. */
 export const COMPARED = ['goals', 'assists', 'potmWins', 'viiOfDay', 'wins', 'points', 'games', 'bestOnTeam', 'teamOfDay'] as const;
 export type ComparedStat = (typeof COMPARED)[number];
@@ -928,26 +983,33 @@ export class RatingsService {
    * Splits the squad across N sides so each gets a fair share of the best players. Captains stay
    * on the side they lead; everyone else goes, best first, to the side with the fewest players
    * (then the lowest total rating) — a snake draft when there are no captains.
+   *
+   * "Best" is half the results rating and half the card's 40/40/20 rating (decided 20 Oct), so
+   * goals, assists and votes count as well as results. Both on the card's scale.
    */
   async balanceTeams(sessionId: string, organizationId: string, teamCount?: number) {
     if (teamCount) await this.setLineup(sessionId, organizationId, { teamCount });
     const lineup = await this.getLineup(sessionId, organizationId);
     const sides = TEAM_KEYS.slice(0, lineup.teamCount).map((key) => ({ key: key as string, size: 0, total: 0 }));
     const teams: Record<string, string> = {};
+    const strength = (p: (typeof lineup.squad)[number]) => {
+      const results = cardRating(p.skill);
+      return (results + (p.ovr ?? results)) / 2;
+    };
     for (const p of lineup.squad) {
       const side = p.captain && sides.find((x) => x.key === p.team);
       if (!side) continue;
       side.size++;
-      side.total += p.skill;
+      side.total += strength(p);
     }
     const rest = lineup.squad
       .filter((p) => !p.captain)
-      .sort((a, b) => b.skill - a.skill || a.firstName.localeCompare(b.firstName));
+      .sort((a, b) => strength(b) - strength(a) || a.firstName.localeCompare(b.firstName));
     for (const p of rest) {
       const side = sides.reduce((best, x) => (x.size < best.size || (x.size === best.size && x.total < best.total) ? x : best));
       teams[p.id] = side.key;
       side.size++;
-      side.total += p.skill;
+      side.total += strength(p);
     }
     return this.setLineup(sessionId, organizationId, { teams });
   }
@@ -1029,10 +1091,23 @@ export class RatingsService {
   }
 
   private async ovrMap(organizationId: string) {
+    const { skills, card } = await this.clubCard(organizationId);
+    return { ovr: card, skills };
+  }
+
+  /**
+   * The card's big number for everyone in the club: the 40/40/20 rating (decided 20 Oct), worked
+   * out once across the whole club, all time, so it's the same on every screen. Players who
+   * haven't played aren't in it: their card shows the level their organiser gave them.
+   * `everyone` is the club's all-time ratings, with the old way's number still in `ovr`.
+   */
+  private async clubCard(organizationId: string) {
     const skills = await this.skills(organizationId);
-    const stats = await this.aggregate(await this.gamesQuery(organizationId).getMany(), skills);
-    const ovr = new Map([...stats.entries()].map(([id, s]) => [id, s.ovr]));
-    return { ovr, skills };
+    const everyone = [...(await this.aggregate(await this.gamesQuery(organizationId).getMany(), skills)).values()];
+    const trial = trialRatings(everyone);
+    const card = new Map<string, number>();
+    for (const r of everyone) if (r.games > 0) card.set(r.player.id, trial.get(r.player.id)!.trial);
+    return { skills, everyone, trial, card };
   }
 
   /**
@@ -1336,6 +1411,8 @@ export class RatingsService {
     const placeBefore = new Map(before.map((r, i) => [r.player.id, i]));
     // Each of the latest six match days on its own, oldest first: form is a player's last three of them.
     const days = await Promise.all(sessions.slice(-6).map((s) => this.aggregate([s], skills)));
+    // The card's number is the club's, all time, whatever period the table covers.
+    const { card } = await this.clubCard(organizationId);
     return {
       games: sessions.length,
       points: POINTS,
@@ -1346,9 +1423,34 @@ export class RatingsService {
           .filter((rec): rec is { w: number; d: number; l: number } => !!rec && rec.w + rec.d + rec.l > 0)
           .map((rec) => (rec.w > rec.l ? 'W' : rec.w < rec.l ? 'L' : 'D') as 'W' | 'D' | 'L')
           .slice(-3);
-        return { ...r, form, move: was === undefined || !before.length ? null : was - i };
+        return { ...r, ovr: card.get(r.player.id) ?? r.ovr, form, move: was === undefined || !before.length ? null : was - i };
       }),
     };
+  }
+
+  /**
+   * The trial 40/40/20 rating for a group's players, beside the card's rating, for the organiser
+   * only. Worked out across the club, all time, like the card. Changes nothing anyone else sees.
+   */
+  async getRatingTrial(groupId: string, organizationId: string) {
+    const group = await this.groupsRepo.findOne({ where: { id: groupId, organizationId }, relations: ['memberships'] });
+    if (!group) throw new NotFoundException('Group not found');
+    const members = new Set((group.memberships ?? []).map((m) => m.playerId));
+    const { everyone, trial } = await this.clubCard(organizationId);
+    const rows = everyone
+      .filter((r) => members.has(r.player.id) && r.games > 0)
+      .map((r) => ({
+        player: r.player,
+        games: r.games,
+        ballotsSeen: r.ballotsSeen,
+        goals: r.goals,
+        assists: r.assists,
+        // What the card showed before 20 Oct, for comparing.
+        oldOvr: r.ovr,
+        ...trial.get(r.player.id)!,
+      }))
+      .sort((a, b) => b.trial - a.trial || (b.oldOvr ?? 0) - (a.oldOvr ?? 0));
+    return { weights: TRIAL_WEIGHTS, rows };
   }
 
   /**
@@ -1358,7 +1460,7 @@ export class RatingsService {
    */
   async getPlayerRatings(playerId: string, organizationId: string): Promise<PlayerRatings & { compare: StatCompare; season: PlayerRatings & { compare: StatCompare } }> {
     const sessions = await this.gamesQuery(organizationId).getMany();
-    const skills = await this.skills(organizationId);
+    const { skills, card } = await this.clubCard(organizationId);
     const year = String(new Date().getFullYear());
     const of = async (list: Session[]): Promise<PlayerRatings & { compare: StatCompare }> => {
       const everyone = await this.aggregate(list, skills);
@@ -1366,7 +1468,8 @@ export class RatingsService {
       const s = everyone.get(playerId);
       if (s) {
         const { player: _player, ...ratings } = s;
-        return { ...ratings, compare };
+        // One card number, the club's all-time rating, for this season's view too.
+        return { ...ratings, ovr: card.get(playerId) ?? ratings.ovr, compare };
       }
       // Not played yet: the card starts from their level.
       return { ...blankRatings(), ...playerCard(skills.get(playerId), noEvidence(), 0, 0), compare };

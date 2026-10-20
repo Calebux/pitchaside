@@ -123,6 +123,12 @@ export class RatingsController {
     return this.ratings.deleteGame(id, gameId, user.organizationId);
   }
 
+  /** The trial 40/40/20 rating beside the card's, for the organiser to compare. */
+  @Get('groups/:id/rating-trial')
+  ratingTrial(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ratings.getRatingTrial(id, user.organizationId);
+  }
+
   @Get('groups/:id/table')
   groupTable(@Param('id') id: string, @Query('last') last: string | undefined, @CurrentUser() user: User) {
     // "Last 5 match days": any whole number from 1 to 52; anything else means the whole season.
