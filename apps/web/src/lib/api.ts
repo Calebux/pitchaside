@@ -592,6 +592,21 @@ export function releaseWaiting(groupId: string, playerId: string): Promise<{ ext
 }
 
 /** The extra really was for their own next game. */
+/** Why a group keeps a member's extra (the player sees this). */
+export type KeptReason = 'player_agreed' | 'unreachable' | 'sorted_in_person' | 'other';
+export const KEPT_REASON_WORDS: Record<KeptReason | 'player_gave', string> = {
+  player_agreed: 'They said the group can keep it',
+  player_gave: 'They gave it to the group',
+  unreachable: 'Couldn’t reach them',
+  sorted_in_person: 'Sorted out in person',
+  other: 'Another reason',
+};
+
+/** The group keeps a member's extra: nobody is owed it any more. Organisers only. */
+export function keepExtraForGroup(groupId: string, playerId: string, reason: KeptReason, note?: string): Promise<{ kept: number }> {
+  return http.post(`/groups/${groupId}/extra/${playerId}/keep-for-group`, { reason, ...(note ? { note } : {}) });
+}
+
 export function keepExtra(groupId: string, playerId: string): Promise<{ kept: number }> {
   return http.post(`/groups/${groupId}/extra/${playerId}/keep`);
 }

@@ -289,6 +289,8 @@ export interface PlayerPayments {
   groups: PlayerGroup[];
   /** Only groups whose organiser shares contributions with players. */
   contributions: GroupKitty[];
+  /** Money of theirs a group kept (nobody owes anybody for it now), newest first, with why. */
+  keptByGroup?: { id: string; groupName: string; amount: number; reason: string; note: string | null; date: string }[];
 }
 
 export interface GroupKitty {

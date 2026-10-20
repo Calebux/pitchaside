@@ -24,6 +24,7 @@ import {
   GiveTransferDto,
   GiveExtraDto,
   HoldExtraDto,
+  KeepForGroupDto,
   EXTRA_SOURCES,
   type ExtraSource,
   ChangeTransferPinDto,
@@ -210,6 +211,12 @@ export class BillingController {
   @Post('groups/:id/extra/:playerId/release')
   releaseWaiting(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @CurrentUser() user: User) {
     return this.billing.releaseWaiting(id, playerId, user.organizationId);
+  }
+
+  /** The group keeps it: nobody is owed it any more. Organisers only, with a reason the player sees. */
+  @Post('groups/:id/extra/:playerId/keep-for-group')
+  keepForGroup(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Body() dto: KeepForGroupDto, @CurrentUser() user: User) {
+    return this.billing.keepForGroup(id, playerId, user.organizationId, { reason: dto.reason, note: dto.note, recordedBy: user.id });
   }
 
   @AllowTreasurer()

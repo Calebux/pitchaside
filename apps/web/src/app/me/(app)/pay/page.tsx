@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/brand';
 import { useEffect, useState } from 'react';
 import { SendCard } from '@/components/account-card';
 import { LoadError, Section, niceDate } from '@/components/player-ui';
-import { formatCurrency } from '@/lib/api';
+import { KEPT_REASON_WORDS, formatCurrency } from '@/lib/api';
 import { getPlayerPayments, type GroupKitty, type PlayerPayments } from '@/lib/player';
 
 export default function PlayerPayPage() {
@@ -145,6 +145,30 @@ export default function PlayerPayPage() {
             </span>
           </span>
         </div>
+      )}
+
+      {(data.keptByGroup?.length ?? 0) > 0 && (
+        <Section title="Kept by the group">
+          <p className="-mt-1 mb-2.5 text-[13px] text-gray-600">Money of yours your organiser kept for the group. Nobody owes anybody for it now.</p>
+          <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100">
+            {data.keptByGroup!.map((k) => (
+              <li key={k.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <span className="min-w-0">
+                  <span className="block text-[15px] font-bold text-ink truncate">
+                    {k.reason === 'other' && k.note ? k.note : KEPT_REASON_WORDS[k.reason as keyof typeof KEPT_REASON_WORDS] ?? 'Kept by the group'}
+                  </span>
+                  <span className="block text-[13px] text-gray-600 truncate">
+                    {k.groupName} · {niceDate(k.date, { day: 'numeric', month: 'short' })}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-display text-[15px] font-extrabold text-ink tabular-nums">{formatCurrency(k.amount)}</span>
+                  <span className="block text-[11px] font-bold text-gray-500">Kept by group</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
       )}
 
       {data.contributions.length > 0 && (

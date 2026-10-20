@@ -22,6 +22,17 @@ export class GiveExtraDto extends GiveTransferDto {
   from?: ExtraSource;
 }
 
+/** Why the group keeps a member's extra; `note` is needed for "other". */
+export class KeepForGroupDto {
+  @IsIn(['player_agreed', 'unreachable', 'sorted_in_person', 'other'])
+  reason: 'player_agreed' | 'unreachable' | 'sorted_in_person' | 'other';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  note?: string;
+}
+
 export class HoldExtraDto {
   /** Anything known about who it's for, e.g. "Kunle's friend". */
   @IsOptional()
