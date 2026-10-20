@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { PaymentType } from '@pitchaside/shared';
 import { Sheet } from '@/components/sheet';
+import { SheetTitle } from '@/components/home/sheet-title';
+import { btnPrimary, btnSecondary } from '@/components/buttons';
 import { formatCurrency, type GroupAccount } from '@/lib/api';
 import { formatAccountNumber, frequencyShort } from '@/lib/billing';
 import { claimPayment } from '@/lib/player';
@@ -34,15 +36,14 @@ function PaidSheet({
   groupId,
   account,
   amount,
-  copied,
+  reference,
   onClose,
   onClaimed,
 }: {
   groupId: string;
   account: GroupAccount;
   amount: number;
-  /** Whether the account number made it to the clipboard on the way here. */
-  copied: boolean;
+  reference?: string;
   onClose: () => void;
   onClaimed?: (status: 'matched' | 'waiting') => void;
 }) {
@@ -67,65 +68,67 @@ function PaidSheet({
 
   if (result) {
     return (
-      <Sheet titleId="paid-title" onClose={onClose}>
+      <Sheet titleId="paid-title" onClose={onClose} footer={<button onClick={onClose} className={`${btnPrimary} w-full`}>Done</button>}>
         <p className="text-4xl" aria-hidden>
           {result === 'matched' ? '✅' : '👍'}
         </p>
         <h2 id="paid-title" className="font-display text-xl font-extrabold text-ink mt-2">
           {result === 'matched' ? 'Got it, you’re marked as paid' : 'Thanks, your organiser can see it'}
         </h2>
-        <p className="text-sm text-gray-600 mt-2">
+        <p className="text-sm text-gray-600 mt-2" role="status">
           {result === 'matched'
             ? 'We found your transfer and matched it to you.'
             : `If your payment code or your name is on the transfer, it’s matched to you as soon as it lands. If not, your organiser sees that you said you sent ₦${Number(sent).toLocaleString('en-NG')} and confirms it.`}
         </p>
-        <button onClick={onClose} className="mt-5 w-full py-3 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 transition-colors">
-          Done
-        </button>
       </Sheet>
     );
   }
 
   return (
-    <Sheet titleId="paid-title" onClose={onClose}>
-      <h2 id="paid-title" className="font-display text-xl font-extrabold text-ink">
-        Have you made the transfer?
-      </h2>
-      <p className="text-sm text-gray-600 mt-2">
-        {copied ? 'Account number copied. ' : ''}Send it to <span className="font-bold text-ink">{account.bankName}</span>{' '}
-        <span className="font-bold text-ink tabular-nums">{formatAccountNumber(account.accountNumber)}</span>, then tell us
-        here so your organiser knows it’s yours.
-      </p>
-      <label className="block text-left mt-4">
+    <Sheet
+      titleId="paid-title"
+      onClose={onClose}
+      align="left"
+      footer={
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={onClose} className={btnSecondary}>
+            Not yet
+          </button>
+          <button onClick={confirm} disabled={busy || !(Number(sent) > 0)} className={btnPrimary}>
+            {busy ? 'Sending…' : 'Yes, I’ve sent it'}
+          </button>
+        </div>
+      }
+    >
+      <SheetTitle
+        id="paid-title"
+        title="Have you sent it?"
+        sub={`To ${account.bankName} ${formatAccountNumber(account.accountNumber)}. Tell us here so your organiser knows it’s yours.`}
+        onClose={onClose}
+      />
+      <label className="block text-left mt-4" htmlFor="paid-amount">
         <span className="text-xs font-bold text-gray-500">Amount you sent</span>
-        <span className="mt-1 flex items-center rounded-xl border border-gray-200 focus-within:ring-4 focus-within:ring-volt-300/70 focus-within:border-pitch-600">
-          <span className="pl-3 text-sm font-bold text-gray-500">₦</span>
+        <span className="mt-1 flex items-center min-h-12 rounded-xl border border-gray-200 focus-within:ring-4 focus-within:ring-volt-300/70 focus-within:border-pitch-600">
+          <span className="pl-3.5 text-[15px] font-bold text-gray-500">₦</span>
           <input
-            type="number"
+            id="paid-amount"
             inputMode="numeric"
-            min={1}
-            value={sent}
-            onChange={(e) => setSent(e.target.value)}
-            className="w-full px-2 py-2.5 text-sm font-bold tabular-nums bg-transparent focus:outline-none"
+            value={sent ? Number(sent.replace(/\D/g, '')).toLocaleString('en-NG') : ''}
+            onChange={(e) => setSent(e.target.value.replace(/\D/g, ''))}
+            className="w-full px-2 py-3 text-[15px] font-bold tabular-nums bg-transparent focus:outline-none"
           />
         </span>
       </label>
-      {error && <p className="text-xs font-semibold text-kit-600 mt-2 text-left">{error}</p>}
-      <div className="grid grid-cols-2 gap-2 mt-5">
-        <button
-          onClick={onClose}
-          className="py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
-        >
-          Not yet
-        </button>
-        <button
-          onClick={confirm}
-          disabled={busy || !(Number(sent) > 0)}
-          className="py-3 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
-        >
-          {busy ? 'Sending…' : 'Yes, I’ve paid'}
-        </button>
-      </div>
+      {reference && (
+        <p className="mt-3 rounded-2xl bg-chalk px-3.5 py-2.5 text-[13px] text-gray-700">
+          Did you put <b className="font-mono text-ink">{reference}</b> in the description? Then it’s matched as soon as it lands.
+        </p>
+      )}
+      {error && (
+        <p className="text-[13px] font-semibold text-kit-600 mt-2 text-left" role="alert">
+          {error}
+        </p>
+      )}
     </Sheet>
   );
 }
@@ -145,12 +148,12 @@ export function PayIntoCard({
   paymentType: PaymentType | string;
   reference?: string;
   eyebrow?: string;
-  /** For a signed-in member: copying the number asks if they've paid, so the organiser can see it. */
+  /** For a signed-in member: "I've sent it" tells the organiser, with the amount filled in. */
   claim?: { groupId: string; amount: number };
   onClaimed?: (status: 'matched' | 'waiting') => void;
 }) {
   const { copied, copy } = useCopy();
-  const [asking, setAsking] = useState<{ copied: boolean } | null>(null);
+  const [asking, setAsking] = useState(false);
   if (!account) {
     return (
       <div className="rounded-3xl bg-chalk border border-gray-200 p-5 text-sm text-gray-600">
@@ -172,18 +175,15 @@ export function PayIntoCard({
           </span>
         </div>
         <button
-          onClick={() =>
-            copy('acct', account.accountNumber).then((ok) => {
-              if (claim) setAsking({ copied: ok });
-            })
-          }
-          className="group mt-4 flex items-center gap-3 text-left w-full"
+          onClick={() => copy('acct', account.accountNumber)}
+          aria-label={`Copy account number ${account.accountNumber}`}
+          className="press group mt-4 flex items-center gap-3 text-left w-full min-w-0"
         >
-          <span className="font-display text-[30px] font-extrabold tracking-[0.06em] tabular-nums leading-none">
+          <span className="min-w-0 font-display text-[26px] font-extrabold tracking-[0.05em] tabular-nums leading-none">
             {formatAccountNumber(account.accountNumber)}
           </span>
-          <span className="ml-auto text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-white/10 group-hover:bg-volt-400 group-hover:text-ink transition-colors">
-            {copied === 'acct' ? 'Copied!' : 'Copy'}
+          <span className="ml-auto shrink-0 inline-flex items-center min-h-11 px-3.5 rounded-xl text-[13px] font-bold bg-white/10 group-hover:bg-volt-400 group-hover:text-ink transition-colors">
+            {copied === 'acct' ? 'Copied ✓' : 'Copy'}
           </span>
         </button>
         <p className="text-sm text-white/60 mt-2">{account.accountName}</p>
@@ -191,34 +191,38 @@ export function PayIntoCard({
         {reference && (
           <button
             onClick={() => copy('ref', reference)}
-            className="mt-4 w-full flex items-center justify-between gap-3 rounded-2xl bg-volt-400 text-ink px-4 py-3 text-left"
+            aria-label={`Copy payment code ${reference}`}
+            className="press mt-4 w-full flex items-center justify-between gap-3 rounded-2xl bg-volt-400 text-ink px-4 py-3 text-left"
           >
             <span>
               <span className="block text-[10px] font-extrabold uppercase tracking-[0.14em] text-ink/60">Payment code · put it in the description</span>
               <span className="font-display text-2xl font-extrabold tracking-[0.12em]">{reference}</span>
             </span>
-            <span className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-ink text-volt-300">
-              {copied === 'ref' ? 'Copied!' : 'Copy'}
+            <span className="shrink-0 inline-flex items-center min-h-11 px-3.5 rounded-xl text-[13px] font-bold bg-ink text-volt-300">
+              {copied === 'ref' ? 'Copied ✓' : 'Copy'}
             </span>
           </button>
         )}
 
         {claim && (
           <button
-            onClick={() => setAsking({ copied: false })}
-            className="mt-3 w-full py-2.5 text-sm font-bold text-white bg-white/10 rounded-xl hover:bg-white/20 transition-colors"
+            onClick={() => setAsking(true)}
+            className="press mt-3 w-full h-12 inline-flex items-center justify-center rounded-2xl border border-white/20 text-[15px] font-bold text-white hover:bg-white/10 transition-colors"
           >
-            I&apos;ve paid
+            I&apos;ve sent it
           </button>
         )}
       </div>
+      <p className="sr-only" aria-live="polite">
+        {copied === 'acct' ? 'Account number copied' : copied === 'ref' ? 'Payment code copied' : ''}
+      </p>
       {asking && claim && (
         <PaidSheet
           groupId={claim.groupId}
           account={account}
           amount={claim.amount}
-          copied={asking.copied}
-          onClose={() => setAsking(null)}
+          reference={reference}
+          onClose={() => setAsking(false)}
           onClaimed={onClaimed}
         />
       )}
