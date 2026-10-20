@@ -375,7 +375,8 @@ export function GameCard({
           </ul>
         )}
 
-        {game.bibsOpen && <MatchDayBibs sessionId={game.id} />}
+        {/* Match day: pick your bib, then follow the scores as they come in */}
+        {(game.bibsOpen || (days === 0 && game.status !== 'cancelled' && game.myStatus === 'in')) && <MatchDayBibs sessionId={game.id} live={days === 0} />}
         {days === 0 && game.status !== 'cancelled' && <KeepScoreLink sessionId={game.id} />}
 
         {!played && (

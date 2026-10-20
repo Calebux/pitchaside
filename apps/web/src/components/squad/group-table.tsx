@@ -2,15 +2,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { LeagueTableView } from '@/components/ratings';
-import { getGroupTable, type LeagueTable } from '@/lib/api';
+import type { LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
-import type { StatSort } from './group-stats';
+import { ORGANISER_CLUB, type ClubApi, type StatSort } from './group-stats';
 
 const RECENT_DAYS = 5;
 
 /** A group's season table, with its own loading and "didn't load" states. */
-export function GroupTable({ groupId, onSeeAll }: { groupId: string; onSeeAll?: (sort: StatSort) => void }) {
+export function GroupTable({ groupId, onSeeAll, api = ORGANISER_CLUB }: { groupId: string; onSeeAll?: (sort: StatSort) => void; api?: ClubApi }) {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [failed, setFailed] = useState<string | false>(false);
   // The whole season, or only the latest match days.
@@ -20,12 +20,13 @@ export function GroupTable({ groupId, onSeeAll }: { groupId: string; onSeeAll?: 
 
   const load = useCallback(() => {
     setFailed(false);
-    getGroupTable(groupId, recent ? RECENT_DAYS : undefined)
+    api.table(groupId, recent ? RECENT_DAYS : undefined)
       .then((t) => {
         setTable(t);
         if (!recent) setSeasonDays(t.games);
       })
       .catch((err) => setFailed(err instanceof Error ? err.message : ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId, recent]);
 
   useEffect(() => {

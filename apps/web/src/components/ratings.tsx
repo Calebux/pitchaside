@@ -226,7 +226,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
       <EmptyState
         icon="box"
         title="No points yet"
-        description="Points come from match day: add the scores of each game, and the vote picks Player of the Match."
+        description="Points come from match day: each game’s score, and Player of the Match from the vote after it."
       />
     );
   }

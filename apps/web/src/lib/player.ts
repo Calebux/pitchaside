@@ -4,7 +4,7 @@
  */
 import type { PaymentType } from '@pitchaside/shared';
 import type { Bibs } from '@pitchaside/shared';
-import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -344,6 +344,12 @@ export function setRsvp(sessionId: string, status: 'in' | 'out') {
 export type GamePaid = 'paid' | 'unpaid' | 'waived';
 
 export interface GameLineup {
+  /** Match day as it happens: each game's score and scorers, cards and saves, and the day's table. */
+  live?: {
+    games: { id: string; teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals: { team: TeamKey; scorer: string | null; assist: string | null; mine: boolean }[] }[];
+    events: { kind: MatchEventKind; name: string | null; mine: boolean }[];
+    table: { rows: { team: TeamKey; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }[]; teamOfTheDay: TeamKey | null };
+  };
   teamCount: number;
   bibsOpen: boolean;
   /** Scores are in (or the vote has closed): teams are set. */
@@ -424,6 +430,16 @@ export function unsubscribePlayerPush(endpoint: string) {
 }
 
 /** How a player's card number is made: theirs, or a clubmate's. Null before they've played. */
+/** The Club tab: a group's table (all season, or the last N match days), for a group they play in. */
+export function getMyGroupTable(groupId: string, lastDays?: number) {
+  return request<LeagueTable>('GET', `/me/groups/${groupId}/table${lastDays ? `?last=${lastDays}` : ''}`);
+}
+
+/** The Club tab's rating parts (stats, votes, results) for everyone in a group they play in. */
+export function getMyGroupRatings(groupId: string) {
+  return request<RatingTrial>('GET', `/me/groups/${groupId}/ratings`);
+}
+
 export function getPlayerRatingBreakdown(playerId: string) {
   return request<RatingBreakdown | null>('GET', `/me/players/${playerId}/rating-breakdown`);
 }

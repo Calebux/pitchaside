@@ -5,6 +5,7 @@ import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { LiveDot } from '@/components/motion';
 import type { TeamKey } from '@/lib/api';
 import { getGameLineup, pickBib, type GameLineup, type GamePaid } from '@/lib/player';
 
@@ -19,9 +20,10 @@ function PaidTag({ paid }: { paid: GamePaid | null }) {
 
 /**
  * Match day on the player's game card: tap the team you're in — by captain once the organiser has
- * named one, else by bib colour — and see the squad by team, with who's paid when the group shares that.
+ * named one, else by bib colour — then follow the day live: the table, each game's score and who
+ * scored, cards and saves. It checks for new scores every 30 seconds while the screen is open.
  */
-export function MatchDayBibs({ sessionId }: { sessionId: string }) {
+export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; live?: boolean }) {
   const toast = useToast();
   const [lineup, setLineup] = useState<GameLineup | null>(null);
   const [saving, setSaving] = useState<TeamKey | null>(null);
@@ -29,8 +31,18 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
   const [switching, setSwitching] = useState<TeamKey | null>(null);
 
   useEffect(() => {
-    getGameLineup(sessionId).then(setLineup).catch(() => setLineup(null));
-  }, [sessionId]);
+    const load = () => getGameLineup(sessionId).then(setLineup).catch(() => undefined);
+    load();
+    if (!live) return;
+    // Scores come in from the organiser's and captains' phones: look again while it's being watched.
+    const timer = setInterval(() => document.visibilityState === 'visible' && load(), 30_000);
+    const onShow = () => document.visibilityState === 'visible' && load();
+    document.addEventListener('visibilitychange', onShow);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onShow);
+    };
+  }, [sessionId, live]);
 
   if (!lineup) return null;
   const teams = KEYS.slice(0, lineup.teamCount);
@@ -101,11 +113,13 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
             })}
           </div>
         </div>
-      ) : (
+      ) : lineup.live?.games.length ? null : (
         <p className="text-xs text-white/70">
           {lineup.bibsClosed ? 'Teams are set: the scores are in.' : 'Picking your team opens on match day.'}
         </p>
       )}
+
+      {lineup.live && lineup.live.games.length > 0 && <Live live={lineup.live} captains={lineup.captains} bibs={lineup.bibs} myTeam={lineup.myTeam} />}
 
 
       {lineup.squad.some((p) => p.team) && (
@@ -135,6 +149,104 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
             </p>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+const KIND_LABEL: Record<string, string> = { yellow: 'Yellow card', red: 'Red card', save: 'Save' };
+
+/**
+ * The day so far: the teams' table (your side marked), then each game newest first with its
+ * score and who scored, then cards and saves. Team colour is always written beside the swatch.
+ */
+function Live({
+  live,
+  captains,
+  bibs,
+  myTeam,
+}: {
+  live: NonNullable<GameLineup['live']>;
+  captains: GameLineup['captains'];
+  bibs: GameLineup['bibs'];
+  myTeam: TeamKey | null;
+}) {
+  const played = live.table.rows.filter((r) => r.p > 0);
+  return (
+    <div className="space-y-3" aria-live="polite">
+      <p className="flex items-center gap-2 text-[13px] font-bold text-white">
+        <LiveDot className="bg-volt-400" />
+        The day so far · {live.games.length} game{live.games.length === 1 ? '' : 's'}
+      </p>
+
+      <table className="w-full text-[13px] tabular-nums">
+        <caption className="sr-only">Today’s table</caption>
+        <thead>
+          <tr className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/50">
+            <th className="text-left font-extrabold pb-1">Team</th>
+            <th className="w-7 text-center font-extrabold pb-1">P</th>
+            <th className="w-6 text-center font-extrabold pb-1">W</th>
+            <th className="w-6 text-center font-extrabold pb-1">D</th>
+            <th className="w-6 text-center font-extrabold pb-1">L</th>
+            <th className="w-8 text-right font-extrabold pb-1">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {played.map((r) => (
+            <tr key={r.team} className={r.team === myTeam ? 'text-volt-300' : 'text-white'}>
+              <td className="py-1">
+                <span className="flex items-center gap-1.5 min-w-0 font-bold">
+                  <span className="w-2.5 h-2.5 shrink-0 rounded-sm" style={bibFill(r.team, bibs)} aria-hidden />
+                  <span className="truncate">{teamName(r.team, captains, bibs)}</span>
+                  {r.team === myTeam && <span className="text-[10px] font-extrabold">· you</span>}
+                  {live.table.teamOfTheDay === r.team && <span aria-label="leading">🏆</span>}
+                </span>
+              </td>
+              <td className="text-center">{r.p}</td>
+              <td className="text-center">{r.w}</td>
+              <td className="text-center">{r.d}</td>
+              <td className="text-center">{r.l}</td>
+              <td className="text-right font-display font-extrabold">{r.pts}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <ol className="space-y-1.5">
+        {[...live.games].reverse().map((g, i) => {
+          const scorers = (team: TeamKey) =>
+            g.goals
+              .filter((x) => x.team === team && x.scorer)
+              .map((x) => `${x.mine ? 'You' : x.scorer}${x.assist ? ` (${x.assist})` : ''}`)
+              .join(', ');
+          return (
+            <li key={g.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/50">Game {live.games.length - i}</p>
+              <p className="mt-0.5 flex items-center gap-2 text-[14px] font-bold text-white">
+                <span className="flex-1 min-w-0 truncate text-right">{teamName(g.teamA, captains, bibs)}</span>
+                <span className="shrink-0 font-display text-[18px] font-extrabold tabular-nums">
+                  {g.scoreA} – {g.scoreB}
+                </span>
+                <span className="flex-1 min-w-0 truncate">{teamName(g.teamB, captains, bibs)}</span>
+              </p>
+              {g.goals.some((x) => x.scorer) && (
+                <p className="mt-1 grid grid-cols-2 gap-3 text-[11px] text-white/70">
+                  <span className="text-right">{scorers(g.teamA) && `⚽ ${scorers(g.teamA)}`}</span>
+                  <span>{scorers(g.teamB) && `⚽ ${scorers(g.teamB)}`}</span>
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+
+      {live.events.some((e) => e.name) && (
+        <p className="text-[12px] text-white/70">
+          {live.events
+            .filter((e) => e.name)
+            .map((e) => `${KIND_LABEL[e.kind]}: ${e.mine ? 'you' : e.name}`)
+            .join(' · ')}
+        </p>
       )}
     </div>
   );

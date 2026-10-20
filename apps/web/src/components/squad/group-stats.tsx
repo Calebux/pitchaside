@@ -6,7 +6,26 @@ import { Avatar } from '@/components/ratings';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { stagger } from '@/components/motion';
 import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
-import { getGroupTable, getRatingBreakdown, getRatingTrial, type LeagueTable, type RatingTrial } from '@/lib/api';
+import { getGroupTable, getRatingBreakdown, getRatingTrial, type LeagueTable, type RatingBreakdown, type RatingTrial } from '@/lib/api';
+
+/**
+ * Where the table and stats come from: the organiser's routes, or the player app's (which check the
+ * player is in the group). A player has no player page to open, so `playerHref` is null and tapping
+ * a row shows how that player's rating is made instead.
+ */
+export interface ClubApi {
+  table: (groupId: string, lastDays?: number) => Promise<LeagueTable>;
+  ratings: (groupId: string) => Promise<RatingTrial>;
+  breakdown: (playerId: string) => Promise<RatingBreakdown | null>;
+  playerHref: ((playerId: string) => string) | null;
+}
+
+export const ORGANISER_CLUB: ClubApi = {
+  table: getGroupTable,
+  ratings: getRatingTrial,
+  breakdown: getRatingBreakdown,
+  playerHref: (id) => `/players/${id}`,
+};
 
 type Row = LeagueTable['rows'][number];
 type Parts = RatingTrial['rows'][number]['parts'];
@@ -56,7 +75,17 @@ const nameOf = (r: Row) => r.player.nickname || `${r.player.firstName} ${r.playe
  * assists, Player of the Match and the rest, in totals or per game. Rating rows show what the
  * number is made of. Tapping a player opens their profile.
  */
-export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: StatSort; onSort: (s: StatSort) => void }) {
+export function GroupStats({
+  groupId,
+  sort,
+  onSort,
+  api = ORGANISER_CLUB,
+}: {
+  groupId: string;
+  sort: StatSort;
+  onSort: (s: StatSort) => void;
+  api?: ClubApi;
+}) {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [parts, setParts] = useState<Map<string, RatingTrial['rows'][number]>>(new Map());
   const [failed, setFailed] = useState<string | false>(false);
@@ -65,13 +94,16 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
 
   const load = useCallback(() => {
     setFailed(false);
-    getGroupTable(groupId)
+    api
+      .table(groupId)
       .then(setTable)
       .catch((err) => setFailed(err instanceof Error ? err.message : ''));
     // What each rating is made of; the list still works without it.
-    getRatingTrial(groupId)
+    api
+      .ratings(groupId)
       .then((t) => setParts(new Map(t.rows.map((r) => [r.player.id, r]))))
       .catch(() => setParts(new Map()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
   useEffect(() => {
     setTable(null);
@@ -166,7 +198,12 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
                 const name = nameOf(r);
                 return (
                   <li key={r.player.id} className="animate-rise" style={stagger(Math.min(i, 12), 20, 0)}>
-                    <Link href={`/players/${r.player.id}`} className="press flex items-center gap-3 min-h-16 px-3.5 py-2.5 hover:bg-chalk/60">
+                    <RowLink
+                      href={api.playerHref?.(r.player.id) ?? null}
+                      onTap={() => setExplaining(r)}
+                      label={`${name}: how their rating is made`}
+                      className="press w-full text-left flex items-center gap-3 min-h-16 px-3.5 py-2.5 hover:bg-chalk/60"
+                    >
                       <span
                         className={`w-6 shrink-0 text-center font-display text-[15px] font-extrabold tabular-nums ${place <= 3 && v > 0 ? 'text-pitch-700' : 'text-gray-400'}`}
                         aria-label={joint ? `Joint ${place}` : `${place}`}
@@ -195,7 +232,7 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
                           <span className="block mt-0.5 text-[10px] font-bold text-gray-500">{byGame ? `${stat.unit} a game` : stat.unit}</span>
                         </span>
                       )}
-                    </Link>
+                    </RowLink>
                   </li>
                 );
               })}
@@ -216,7 +253,7 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
       {explaining && (
         <RatingBreakdownSheet
           name={`${explaining.player.firstName} ${explaining.player.lastName}`}
-          load={() => getRatingBreakdown(explaining.player.id)}
+          load={() => api.breakdown(explaining.player.id)}
           onClose={() => setExplaining(null)}
         />
       )}
@@ -307,5 +344,18 @@ function RatingSpotlight({ top, parts, of, onExplain }: { top: Row[]; parts: Map
         </button>
       </div>
     </section>
+  );
+}
+
+/** A row that opens the player's page where there is one, or how their rating is made. */
+function RowLink({ href, onTap, label, className, children }: { href: string | null; onTap: () => void; label: string; className: string; children: React.ReactNode }) {
+  return href ? (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  ) : (
+    <button type="button" onClick={onTap} aria-label={label} className={className}>
+      {children}
+    </button>
   );
 }

@@ -26,6 +26,17 @@ const tabs = [
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />,
   },
   {
+    href: '/me/club',
+    label: 'Club',
+    icon: (
+      <>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18v-1.5h-9V18m9 0h1.5v2.25H6V18h1.5m9 0H7.5" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 14.25v-2.5m0 0A3.75 3.75 0 0 0 15.75 8V3.75h-7.5V8A3.75 3.75 0 0 0 12 11.75Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25H18a2.25 2.25 0 0 1 0 4.5h-.75m-9-4.5H6a2.25 2.25 0 0 0 0 4.5h.75" />
+      </>
+    ),
+  },
+  {
     href: '/me/pay',
     label: 'Pay',
     icon: <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" />,
