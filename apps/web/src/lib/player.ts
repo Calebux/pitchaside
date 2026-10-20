@@ -342,6 +342,12 @@ export function setRsvp(sessionId: string, status: 'in' | 'out') {
 export type GamePaid = 'paid' | 'unpaid' | 'waived';
 
 export interface GameLineup {
+  /** Match day as it happens: each game's score and scorers, cards and saves, and the day's table. */
+  live?: {
+    games: { id: string; teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals: { team: TeamKey; scorer: string | null; assist: string | null; mine: boolean }[] }[];
+    events: { kind: MatchEventKind; name: string | null; mine: boolean }[];
+    table: { rows: { team: TeamKey; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }[]; teamOfTheDay: TeamKey | null };
+  };
   teamCount: number;
   bibsOpen: boolean;
   /** Scores are in (or the vote has closed): teams are set. */
