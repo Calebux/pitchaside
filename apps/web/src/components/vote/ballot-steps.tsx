@@ -4,6 +4,7 @@ import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { BallSpinner } from '@/components/skeleton';
+import { BibShirt } from '@/components/bib-shirt';
 import { Avatar } from '@/components/ratings';
 import { buzz, stagger } from '@/components/motion';
 import type { Ballot, TeamKey, VoteCategory } from '@/lib/api';
@@ -14,6 +15,8 @@ type Player = Ballot['squad'][number];
 type Step = 'potm' | 'vii' | 'awards';
 
 const short = (p: Player) => `${p.nickname || p.firstName} ${p.lastName.charAt(0)}.`;
+const initials = (p: Player) => `${p.firstName.charAt(0)}${p.lastName.charAt(0)}`.toUpperCase();
+const STEP_NAME: Record<Step, string> = { potm: 'Player of the Match', vii: 'Best VII', awards: 'Awards' };
 const full = (p: Player) => `${p.firstName} ${p.lastName}`;
 
 /**
@@ -95,31 +98,26 @@ export function BallotSteps({
   const step1Done = !!picks.potm && (!mates.length || !!picks.teammate);
   const nextLabel = (to: Step) => (to === 'vii' ? 'Next: your Best VII' : 'Next: awards');
 
-  /** One player to tap. `mark` is what shows when picked: a tick, or their Best VII slot. */
+  /** One player to tap, as their bib in their side's colour. `mark` shows when picked: a tick, or their Best VII spot. */
   const chip = (p: Player, selected: boolean, onTap: () => void, mark: string | null = null, disabled = false) => (
     <li key={p.id} className="min-w-0">
       <button
         type="button"
         aria-pressed={selected}
-        aria-label={`${p.nickname ? `${full(p)}, “${p.nickname}”` : full(p)}${mark && selected ? `, ${mark}` : ''}`}
+        aria-label={`${p.nickname ? `${full(p)}, “${p.nickname}”` : full(p)}${p.team ? `, ${TEAMS[p.team].name}` : ''}${mark && selected ? `, ${mark}` : ''}`}
         onClick={onTap}
         disabled={disabled && !selected}
-        className={`press w-full flex items-center gap-2 h-12 pl-1.5 pr-2.5 rounded-2xl border-2 text-left transition-colors disabled:opacity-40 ${
+        className={`press relative w-full flex flex-col items-center gap-1 min-h-[96px] px-1.5 pt-2.5 pb-2 rounded-2xl border-2 text-center transition-colors disabled:opacity-40 ${
           selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
         }`}
       >
-        <Avatar name={full(p)} photoKey={p.photoKey} className="w-8 h-8 text-[10px]" />
-        <span className="flex-1 min-w-0 truncate text-[14px] font-bold text-ink">{short(p)}</span>
-        {selected &&
-          (mark ? (
-            <span className="shrink-0 min-w-6 h-6 px-1.5 rounded-full bg-ink text-volt-300 text-[11px] font-extrabold leading-6 text-center" aria-hidden>
-              {mark}
-            </span>
-          ) : (
-            <svg className="w-4 h-4 shrink-0 text-ink" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-          ))}
+        <BibShirt team={p.team} label={initials(p)} className="w-11 h-11" />
+        <span className="w-full truncate text-[13px] font-bold text-ink leading-tight">{short(p)}</span>
+        {selected && (
+          <span className="absolute top-1.5 right-1.5 min-w-6 h-6 px-1.5 rounded-full bg-ink text-volt-300 text-[11px] font-extrabold leading-6 text-center animate-pop-in" aria-hidden>
+            {mark ?? '✓'}
+          </span>
+        )}
       </button>
     </li>
   );
@@ -135,7 +133,7 @@ export function BallotSteps({
             {side.label}
             {side.mine && <span className="text-[11px] font-semibold text-gray-500">· your team</span>}
           </h3>
-          <ul className="grid grid-cols-2 gap-2">{players.map(render)}</ul>
+          <ul className="grid grid-cols-3 gap-2">{players.map(render)}</ul>
         </section>
       );
     });
@@ -163,7 +161,8 @@ export function BallotSteps({
   }
 
   return (
-    <div className="mt-6">
+    // Room at the bottom so the last lines never sit under the pinned button.
+    <div className="mt-6 pb-28">
       <div className="flex items-center justify-between min-h-11">
         {at > 0 ? (
           <button onClick={() => setStep(steps[at - 1])} className="press -ml-1 h-11 px-1 inline-flex items-center gap-1 text-sm font-bold text-gray-600 hover:text-ink">
@@ -179,6 +178,18 @@ export function BallotSteps({
           Step {at + 1} of {steps.length}
         </span>
       </div>
+      {/* Where they are in the vote: one segment per step, filled up to this one */}
+      <ol className="mb-4 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }} aria-label="Steps">
+        {steps.map((s, i) => (
+          <li key={s} aria-current={i === at ? 'step' : undefined}>
+            <span className={`block h-1.5 rounded-full transition-colors ${i <= at ? 'bg-ink' : 'bg-gray-200'}`} aria-hidden />
+            <span className={`mt-1 block truncate text-[11px] font-bold ${i === at ? 'text-ink' : 'text-gray-500'}`}>
+              {STEP_NAME[s]}
+              {i < at && <span className="sr-only"> (done)</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
 
       {step === 'potm' && (
         <>
@@ -198,7 +209,7 @@ export function BallotSteps({
                 One of your {TEAMS[myTeam].name}
                 {ballot.captains[myTeam] ? ` (Team ${ballot.captains[myTeam]})` : ''} teammates.
               </p>
-              <ul className="mt-2.5 grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby="best-mate">
+              <ul className="mt-2.5 grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="best-mate">
                 {mates.map((p) => chip(p, picks.teammate === p.id, () => toggleMate(p.id)))}
               </ul>
             </section>
@@ -213,38 +224,53 @@ export function BallotSteps({
             The seven best today: {ballot.vii.starters} starters, then a sub.
             {needElsewhere > 0 && ` At least ${needElsewhere} from other teams.`}
           </p>
-          {/* The seven so far, on turf: tap one to take them off */}
-          <div className="mt-3 rounded-3xl bg-pitch-800 turf-stripes p-3">
-            <ol className="grid grid-cols-3 gap-1.5" aria-label="Starters">
+          {/* The seven so far, on a pitch: tap one to take them off */}
+          <div className="relative mt-3 rounded-3xl bg-pitch-700 turf-stripes border-[3px] border-ink overflow-hidden px-2 pt-4 pb-3">
+            <span className="absolute left-1/2 top-[42%] w-20 h-20 -ml-10 -mt-10 rounded-full border-2 border-white/25" aria-hidden />
+            <span className="absolute inset-x-0 top-[42%] h-0.5 bg-white/25" aria-hidden />
+            <ol className="relative grid grid-cols-3 gap-y-3 gap-x-1" aria-label="Starters">
               {Array.from({ length: ballot.vii.starters }, (_, i) => {
                 const p = byId(starters[i]);
                 return (
-                  <li key={i}>
+                  <li key={i} className="min-w-0">
                     <button
                       onClick={() => p && toggleSeven(p.id)}
                       disabled={!p}
                       aria-label={p ? `Starter ${i + 1}: ${full(p)}. Tap to take off` : `Starter ${i + 1}: empty`}
-                      className={`press w-full h-11 rounded-xl px-1.5 text-[12px] font-bold truncate ${
-                        p ? 'bg-white text-ink' : 'border border-dashed border-white/30 text-white/40'
-                      }`}
+                      className="press w-full min-h-[76px] flex flex-col items-center gap-1 text-white"
                     >
-                      {p ? short(p) : i + 1}
+                      {p ? (
+                        <span className="animate-pop-in">
+                          <BibShirt team={p.team} label={initials(p)} className="w-12 h-12" />
+                        </span>
+                      ) : (
+                        <BibShirt empty label={String(i + 1)} className="w-12 h-12 text-white/60" />
+                      )}
+                      <span className={`max-w-full truncate px-1.5 rounded-md text-[11px] font-bold ${p ? 'bg-ink' : 'text-white/60'}`}>{p ? short(p) : 'Empty'}</span>
                     </button>
                   </li>
                 );
               })}
             </ol>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="shrink-0 text-[11px] font-extrabold text-white/70">SUB</span>
+            <div className="relative mt-3 flex items-center gap-2 rounded-2xl bg-ink/40 px-2 py-1.5">
+              <span className="shrink-0 text-[11px] font-extrabold text-white/80">SUB</span>
               <button
                 onClick={() => sub && toggleSeven(sub)}
                 disabled={!sub}
                 aria-label={sub ? `Sub: ${full(byId(sub)!)}. Tap to take off` : 'Sub: empty'}
-                className={`press flex-1 h-11 rounded-xl px-2 text-[12px] font-bold truncate ${
-                  sub ? 'bg-sun-400 text-ink' : 'border border-dashed border-white/30 text-white/40'
-                }`}
+                className="press flex-1 min-h-11 flex items-center gap-2 text-left text-white"
               >
-                {sub ? short(byId(sub)!) : starters.length < ballot.vii.starters ? 'After the starters' : 'Pick your sub'}
+                {sub ? (
+                  <>
+                    <BibShirt team={byId(sub)!.team} label={initials(byId(sub)!)} className="w-9 h-9" />
+                    <span className="truncate text-[13px] font-bold">{short(byId(sub)!)}</span>
+                  </>
+                ) : (
+                  <>
+                    <BibShirt empty label="7" className="w-9 h-9 text-white/60" />
+                    <span className="text-[12px] font-bold text-white/60">{starters.length < ballot.vii.starters ? 'After the starters' : 'Pick your sub'}</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
