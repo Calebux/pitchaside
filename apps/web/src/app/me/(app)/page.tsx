@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ratings';
-import { InstallCard, PushToggle } from '@/components/pwa';
+import { PushToggle } from '@/components/pwa';
 import { GameCard, GameRow, LoadError, Section, niceDate } from '@/components/player-ui';
 import { CountUpNaira } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
@@ -226,7 +226,6 @@ export default function PlayerHomePage() {
 
       <div>
       <div className="mt-6 space-y-2">
-        <InstallCard />
         <PushToggle save={subscribePlayerPush} />
       </div>
       </div>
