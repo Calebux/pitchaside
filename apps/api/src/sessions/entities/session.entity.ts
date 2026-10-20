@@ -73,13 +73,13 @@ export class Session {
   reminderSentAt: Date | null;
 
   /**
-   * When the vote opened: the moment the organiser ended the game. It stays open for 48 hours.
+   * When the vote opened: the moment the organiser ended the game. It stays open for 36 hours.
    * Null for games not ended yet, and for games ended before votes were tied to full time.
    */
   @Column({ name: 'vote_opens_at', type: 'timestamptz', nullable: true })
   voteOpensAt: Date | null;
 
-  /** When the vote closed early because everyone who came had voted; null runs the full 48 hours. */
+  /** When the vote closed early because everyone who came had voted; null runs the full 36 hours. */
   @Column({ name: 'vote_closed_at', type: 'timestamptz', nullable: true })
   voteClosedAt: Date | null;
 
