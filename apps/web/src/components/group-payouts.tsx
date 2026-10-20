@@ -193,7 +193,7 @@ export function PayoutsPanel({
 }: {
   groupId: string;
   groupName: string;
-  /** Members holding credit, who can be refunded. */
+  /** Members with money of theirs in the account (extra or kept), who can be refunded. */
   refundable?: RefundableMember[];
   /** Money in with no name yet: part of the balance, but nobody's payment so far. */
   unsorted?: number;
@@ -215,6 +215,20 @@ export function PayoutsPanel({
   const [filter, setFilter] = useState<PayoutFilter>('all');
   const [cat, setCat] = useState<PayoutCategory | 'all' | 'none'>('all');
   const paidAhead = refundable.reduce((sum, m) => sum + m.credit, 0);
+  const extraTotal = refundable.reduce((sum, m) => sum + m.extra, 0);
+  // From "Send it back" on an extra: open Send money with that refund ready.
+  const [refundTo, setRefundTo] = useState<string | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const who = q.get('refund');
+    if (!who) return;
+    setRefundTo(who);
+    q.delete('refund');
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${q}`);
+  }, []);
+  useEffect(() => {
+    if (refundTo && balance && hasPin && canSend) setShowForm(true);
+  }, [refundTo, balance, hasPin, canSend]);
 
   async function load() {
     const [b, p] = await Promise.all([
@@ -318,17 +332,21 @@ export function PayoutsPanel({
             {formatCurrency(balance.totalIn)} received, {formatCurrency(balance.totalOut)} sent out
           </p>
           {/* What's in the balance that isn't the group's to spend yet, so nobody pays the pitch with it by mistake. */}
-          {(paidAhead > 0 || unsorted > 0) && (
+          {(paidAhead > 0 || extraTotal > 0 || unsorted > 0) && (
             <div className="mt-3 rounded-2xl bg-sun-400/15 px-3.5 py-2.5 text-[13px] leading-snug text-amber-900">
               <p className="font-bold">
                 This includes money that isn’t the group’s to spend yet:{' '}
-                <InfoTip label="What's paid ahead?" align="right">
-                  Money a player sent beyond what they owed, like paying for two games at once. It’s still theirs: it pays their next game automatically, or
-                  you can refund it from Send money.
+                <InfoTip label="What's this money?" align="right">
+                  <b>Extra to sort:</b> players sent more than they owed, maybe for a friend. It waits on Money in until you say what it was for.
+                  <span className="block mt-1.5">
+                    <b>Kept for players:</b> part of a game they still owe, a called-off game’s money, or extra you chose to keep. It pays their next game, or you
+                    can send it back from Send money.
+                  </span>
                 </InfoTip>
               </p>
               <ul className="mt-1 space-y-0.5 tabular-nums">
-                {paidAhead > 0 && <li>{formatCurrency(paidAhead)} players have paid ahead for their next games</li>}
+                {extraTotal > 0 && <li>{formatCurrency(extraTotal)} extra players sent, still to sort</li>}
+                {paidAhead > 0 && <li>{formatCurrency(paidAhead)} kept for players’ next games</li>}
                 {unsorted > 0 && <li>{formatCurrency(unsorted)} with no name yet</li>}
               </ul>
             </div>
@@ -369,7 +387,11 @@ export function PayoutsPanel({
           banks={banks}
           available={balance.available}
           refundable={refundable}
-          onClose={() => setShowForm(false)}
+          refundTo={refundTo}
+          onClose={() => {
+            setShowForm(false);
+            setRefundTo(null);
+          }}
           onSent={async () => {
             await load();
             await onRefresh();

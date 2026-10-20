@@ -17,10 +17,15 @@ import { accountHint, from as unnamedFrom, when as whenIn } from '@/components/g
 import { btnPrimary } from '@/components/buttons';
 import { NotPlayerSheet } from '@/components/money/not-player-sheet';
 import { MonthList } from '@/components/money/month-list';
+import { ExtraSheet } from '@/components/money/extra-sheet';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { MONEY_IN } from '@/lib/money-categories';
 import {
   giveTransfer,
+  getExtraMoney,
+  giveExtra,
+  keepExtra,
+  type ExtraMoney,
   getGroupOwed,
   type OwedItem,
   formatCurrency,
@@ -426,7 +431,7 @@ const transferStatus: Record<BankTransfer['status'], { label: string; text: stri
 /** What a player's payment went on: "Sat 17 Oct", "October 2026 dues", or kept for their next game. */
 function paidFor(t: BankTransfer) {
   const s = t.payment?.session;
-  if (!s) return 'Paid ahead';
+  if (!s) return 'Not on a game yet';
   if (s.kind === 'dues' && s.label) return `${s.label} dues`;
   const [y, m, d] = String(s.date).slice(0, 10).split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
@@ -574,7 +579,7 @@ function TransferDetails({ t }: { t: BankTransfer }) {
       )}
       {who && !t.payment && t.status !== 'unmatched' && t.status !== 'other' && (
         <p>
-          From <span className="font-bold text-ink">{who}</span>. Paid ahead for their next game
+          From <span className="font-bold text-ink">{who}</span>. Not on a game yet: it’s towards a game they owe, or extra to sort above
         </p>
       )}
     </>
@@ -749,6 +754,23 @@ export function TransfersPanel({
   membersRef.current = members.length;
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
   const [classifying, setClassifying] = useState<BankTransfer | null>(null);
+  // More than someone owed: it waits here until the organiser says what it was for.
+  const panelRouter = useRouter();
+  const [extras, setExtras] = useState<ExtraMoney[]>([]);
+  const [sorting, setSorting] = useState<ExtraMoney | null>(null);
+  const loadExtras = () => getExtraMoney(groupId).then(setExtras).catch(() => {});
+  useEffect(() => {
+    loadExtras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId, transfers.length]);
+  // From the home's "extra money to sort": bring that list into view once it's there.
+  const shownExtra = useRef(false);
+  useEffect(() => {
+    if (shownExtra.current || !extras.length) return;
+    if (new URLSearchParams(window.location.search).get('show') !== 'extra') return;
+    shownExtra.current = true;
+    requestAnimationFrame(() => document.getElementById('extra-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [extras.length]);
   const [search, setSearch] = useState('');
   const [show, setShow] = useState<'all' | 'games' | 'ahead' | 'other'>('all');
   const [when, setWhen] = useState<'any' | 'week' | 'month' | 'last'>('any');
@@ -910,6 +932,74 @@ export function TransfersPanel({
         </div>
       )}
 
+      {sorting && (
+        <ExtraSheet
+          groupId={groupId}
+          item={sorting}
+          members={members}
+          owed={owed}
+          busy={workingId === `extra-${sorting.playerId}`}
+          onClose={() => setSorting(null)}
+          onGive={async (to, done) => {
+            const item = sorting;
+            setSorting(null);
+            await run(`extra-${item.playerId}`, () => giveExtra(groupId, item.playerId, to.playerId), done);
+            loadExtras();
+          }}
+          onKeep={async () => {
+            const item = sorting;
+            setSorting(null);
+            await run(`extra-${item.playerId}`, () => keepExtra(groupId, item.playerId), `${formatCurrency(item.extra)} kept for ${item.name.split(' ')[0]}’s next game`);
+            loadExtras();
+          }}
+          onSendBack={() => {
+            const item = sorting;
+            setSorting(null);
+            panelRouter.push(`/money?group=${groupId}&view=payouts&refund=${item.playerId}`);
+          }}
+        />
+      )}
+
+      {/* Sent more than they owed: waits for the organiser, never used on its own */}
+      {extras.length > 0 && (
+        <section aria-labelledby="extra-title" className="pt-3">
+          <h2 id="extra-title" className="scroll-mt-32 text-base font-bold text-ink">
+            Extra money to sort
+          </h2>
+          <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">
+            {extras.length === 1 ? 'Someone' : `${extras.length} players`} sent more than they owed. Nothing happens with it until you say what it was for.
+          </p>
+          <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
+            {extras.map((x) => {
+              // Only name the transfer when it alone explains the extra; otherwise it built up over several.
+              const one = x.lastTransfer && x.lastTransfer.amount + 0.001 >= x.extra ? x.lastTransfer : null;
+              return (
+                <li key={x.playerId}>
+                  <button
+                    disabled={workingId === `extra-${x.playerId}`}
+                    onClick={() => setSorting(x)}
+                    className="w-full flex items-center gap-3 px-4 min-h-16 py-3 text-left hover:bg-chalk transition-colors disabled:opacity-50"
+                  >
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-[15px] font-bold text-ink truncate">{x.name}</span>
+                      <span className="block text-[13px] text-gray-500 truncate">
+                        {one
+                          ? `Sent ${formatCurrency(one.amount)}, ${new Date(one.receivedAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}`
+                          : 'From earlier transfers'}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block font-display text-[15px] font-extrabold tabular-nums text-ink">{formatCurrency(x.extra)}</span>
+                      <span className="block text-[12px] font-bold text-pitch-700">What was it for? ›</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* Money no one could put a name to: the only thing here that needs the organiser */}
       {unnamed.length > 0 && (
         <section aria-labelledby="unnamed-title" className="pt-3">
@@ -986,7 +1076,7 @@ export function TransfersPanel({
                 options={[
                   { value: 'all', label: 'All money' },
                   { value: 'games', label: 'Paid for games' },
-                  { value: 'ahead', label: 'Paid ahead' },
+                  { value: 'ahead', label: 'Not on a game yet' },
                   { value: 'other', label: 'Not from players' },
                 ]}
               />

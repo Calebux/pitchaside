@@ -18,6 +18,8 @@ export type MemberDue = { label: string; state: 'paid' | 'owes' | 'waived' | 'ou
 export type Membership = {
   joinedAt: string;
   credit: number;
+  /** Sent beyond what they owed, waiting for the organiser to sort. */
+  extra?: number;
   /** Their code for transfer descriptions; null until they've opened their payment details. */
   paymentCode?: string | null;
   due: MemberDue;
@@ -117,10 +119,16 @@ export function PlayerSheet({
               : 'Not in',
       tone: due.state === 'owes' ? 'text-amber-700' : due.state === 'paid' ? 'text-pitch-600' : 'text-gray-600',
     },
+    (membership?.extra ?? 0) > 0 && {
+      k: 'Extra to sort',
+      v: formatCurrency(membership!.extra!),
+      note: 'Sent more than they owed. Say what it was for on Money.',
+      tone: 'text-amber-700',
+    },
     credit > 0 && {
       k: 'Paid ahead',
       v: formatCurrency(credit),
-      note: 'Not used yet. Goes towards their next game.',
+      note: 'Kept for them. Pays their next game once it’s the next one.',
     },
     { k: 'Phone', v: player.phone || 'Not added', tone: player.phone ? undefined : 'text-gray-500 font-semibold' },
     { k: 'Email', v: player.email || 'Not added', tone: player.email ? undefined : 'text-gray-500 font-semibold' },

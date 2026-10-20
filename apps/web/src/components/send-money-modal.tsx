@@ -40,12 +40,18 @@ function useAccountName(groupId: string, bankCode: string, account: string): Loo
   return lookup;
 }
 
-/** A member with credit (paid in, not yet against a due) who can be refunded. */
+/** A member with money of theirs in the account (extra to sort, or kept for them) who can be refunded. */
 export interface RefundableMember {
   playerId: string;
   name: string;
+  /** Kept for their games. */
   credit: number;
+  /** Sent beyond what they owed, not sorted yet: refunded first. */
+  extra: number;
 }
+
+/** What a member can be sent back: their extra and their kept money together. */
+const heldBy = (m: RefundableMember) => m.credit + m.extra;
 
 /**
  * Send money from the group's account to any Nigerian bank account — or refund a member,
@@ -57,6 +63,7 @@ export function SendMoneyModal({
   banks,
   available,
   refundable = [],
+  refundTo,
   onClose,
   onSent,
 }: {
@@ -65,6 +72,8 @@ export function SendMoneyModal({
   banks: NigerianBank[];
   available: number;
   refundable?: RefundableMember[];
+  /** Open with a refund to this member ready (from "Send it back"). */
+  refundTo?: string | null;
   onClose: () => void;
   onSent: () => Promise<void>;
 }) {
@@ -81,7 +90,7 @@ export function SendMoneyModal({
   const lookup = useAccountName(groupId, bankCode, account);
 
   const member = refundable.find((m) => m.playerId === refundFor);
-  const limit = member ? Math.min(available - SERVICE_FEE, member.credit) : available - SERVICE_FEE;
+  const limit = member ? Math.min(available - SERVICE_FEE, heldBy(member)) : available - SERVICE_FEE;
   const value = Number(amount);
   const tooMuch = value > limit;
   const ready = lookup.state === 'found' && value >= 100 && !tooMuch && pin.length === 4;
@@ -90,9 +99,15 @@ export function SendMoneyModal({
     setRefundFor(playerId);
     const m = refundable.find((x) => x.playerId === playerId);
     if (!m) return;
-    setAmount(String(Math.floor(Math.min(available, m.credit))));
+    setAmount(String(Math.floor(Math.min(available, heldBy(m)))));
     if (!narration.trim()) setNarration(`Refund from ${groupName}`);
   }
+
+  useEffect(() => {
+    if (refundTo && refundable.some((m) => m.playerId === refundTo)) chooseRefund(refundTo);
+    // Once, when it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -142,13 +157,13 @@ export function SendMoneyModal({
               <option value="">A payment (pitch, kit, anything else)</option>
               {refundable.map((m) => (
                 <option key={m.playerId} value={m.playerId}>
-                  Refund {m.name} — {formatCurrency(m.credit)} credit
+                  Refund {m.name}: {formatCurrency(heldBy(m))} of theirs
                 </option>
               ))}
             </select>
             {member && (
               <p className="text-xs text-gray-500 mt-1">
-                Comes off what {member.name} has paid ahead. Send it to their own account.
+                Comes off {member.name}’s extra first, then money kept for them. Send it to their own account.
               </p>
             )}
           </div>
@@ -225,8 +240,8 @@ export function SendMoneyModal({
           />
           {tooMuch && (
             <p className="text-xs text-kit-600 mt-1">
-              {member && member.credit < available - SERVICE_FEE
-                ? `More than ${member.name}'s ${formatCurrency(member.credit)} credit.`
+              {member && heldBy(member) < available - SERVICE_FEE
+                ? `More than the ${formatCurrency(heldBy(member))} of ${member.name}'s in the account.`
                 : `More than the ${formatCurrency(Math.max(0, available - SERVICE_FEE))} available after the ${formatCurrency(SERVICE_FEE)} service fee.`}
             </p>
           )}

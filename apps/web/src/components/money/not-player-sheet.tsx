@@ -50,7 +50,7 @@ export function NotPlayerSheet({
   }, [placed, transfer.id]);
 
   const first = playerName?.split(' ')[0] ?? 'the player';
-  const undoes = !!preview && (preview.fromKept > 0 || preview.reopen.length > 0);
+  const undoes = !!preview && (preview.fromExtra > 0 || preview.fromKept > 0 || preview.reopen.length > 0);
   const waiting = placed && !preview && !previewFailed;
   const amount = formatCurrency(Number(transfer.amount));
 
@@ -122,6 +122,7 @@ export function NotPlayerSheet({
             <>
               <p className="font-bold text-ink">This was put on {playerName}. Taking it off:</p>
               <ul className="mt-1.5 space-y-1 list-disc pl-4">
+                {preview.fromExtra > 0 && <li>{formatCurrency(preview.fromExtra)} of the extra {first} sent (not sorted yet) comes off</li>}
                 {preview.fromKept > 0 && <li>{formatCurrency(preview.fromKept)} comes off the money kept for {first}</li>}
                 {preview.reopen.map((r) => (
                   <li key={r.paymentId}>

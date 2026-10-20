@@ -43,11 +43,20 @@ export class GroupMembership {
   paymentRef: string;
 
   /**
-   * Money this member has paid that doesn't yet cover a due (e.g. ₦198 toward ₦1,000).
-   * Their oldest pending dues are paid from it as soon as it's enough.
+   * Money kept for this member's games: part of a due (e.g. ₦198 toward ₦1,000), what they paid
+   * for a game that was called off, or extra the organiser chose to keep for them. It pays their
+   * played games and their next one as soon as it covers a due, never games further ahead.
    */
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   credit: string;
+
+  /**
+   * Money this member sent beyond what they owed: for a friend, a wrong amount, or ahead. It's
+   * never used on its own. The organiser sorts it: someone else's games, kept for this member's
+   * next game (it then moves to credit), or sent back.
+   */
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  extra: string;
 
   @CreateDateColumn()
   joinedAt: Date;

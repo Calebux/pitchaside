@@ -7,6 +7,7 @@ import {
   Headers,
   HttpCode,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   RawBodyRequest,
@@ -162,6 +163,33 @@ export class BillingController {
   @Post('payouts/:id/category')
   payoutCategory(@Param('id') id: string, @Body() dto: PayoutCategoryDto, @CurrentUser() user: User) {
     return this.billing.setPayoutCategory(id, user.organizationId, dto.category);
+  }
+
+  // ── Extra money: more than a member owed, waiting to be sorted ──
+
+  @AllowTreasurer()
+  @Get('groups/:id/extra')
+  listExtra(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.billing.listExtra(id, user.organizationId);
+  }
+
+  /** What giving a member's extra to someone else would pay, before confirming. */
+  @AllowTreasurer()
+  @Get('groups/:id/extra/:playerId/give/:toPlayerId')
+  giveExtraPreview(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Param('toPlayerId', ParseUUIDPipe) to: string, @CurrentUser() user: User) {
+    return this.billing.giveExtraPreview(id, playerId, to, user.organizationId);
+  }
+
+  @AllowTreasurer()
+  @Post('groups/:id/extra/:playerId/give')
+  giveExtra(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Body() dto: GiveTransferDto, @CurrentUser() user: User) {
+    return this.billing.giveExtra(id, playerId, dto.playerId, user.organizationId);
+  }
+
+  @AllowTreasurer()
+  @Post('groups/:id/extra/:playerId/keep')
+  keepExtra(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @CurrentUser() user: User) {
+    return this.billing.keepExtra(id, playerId, user.organizationId);
   }
 
   // ── Payouts (transfer out) ──

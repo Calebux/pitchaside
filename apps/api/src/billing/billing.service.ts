@@ -35,7 +35,7 @@ import { NIGERIAN_BANKS } from './data/nigerian-banks';
 import { naira } from '../common/format.util';
 import { localDate } from '../common/time.util';
 import { ClubPerson, clubPlayerFor } from '../players/club-player';
-import { paidByTransfer, refundToCredit } from '../payments/credit';
+import { paidByTransfer, payableNow, refundToCredit } from '../payments/credit';
 import { PERIODIC_TYPES, periodFor } from './periods';
 import { COVERED_BY_DUES, gameTarget, squadEntry } from '../payments/game-dues';
 import { Competition } from '../competitions/entities/competition.entity';
@@ -880,12 +880,16 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
 
   /**
-   * Adds `amount` to the member's credit, then pays their oldest pending dues in this group
-   * from it while it covers them. What's left stays as credit for the next due — so ₦198
-   * toward a ₦1,000 due waits, and a later ₦802 completes it.
+   * Money that's come in for a member (`amount`, 0 to just use what they have kept): it pays
+   * their oldest unpaid dues while it covers a whole one. Only games already played (or today)
+   * and their one next game, never games further ahead. What's left:
+   * - while one of those dues is still unpaid, it's a part payment towards it and stays as
+   *   credit (₦198 toward ₦1,000 waits; a later ₦802 completes it);
+   * - otherwise the new money is more than they owed (for a friend, a wrong amount, or ahead)
+   *   and goes to `extra`, which is never used until the organiser sorts it.
    *
    * The member's row is locked for the duration, so two transfers arriving together can't
-   * spend the same credit twice.
+   * spend the same money twice.
    */
   async applyCredit(groupId: string, playerId: string, amount = 0): Promise<{ settled: Payment[]; credit: number }> {
     const result = await this.membershipsRepo.manager.transaction((tx) => this.creditIn(tx, groupId, playerId, amount));
@@ -893,25 +897,31 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return result;
   }
 
-  /** applyCredit's work inside a caller's transaction; the caller runs afterPaid once it commits. */
-  private async creditIn(tx: EntityManager, groupId: string, playerId: string, amount: number): Promise<{ settled: Payment[]; credit: number }> {
-    const membership = await tx.findOne(GroupMembership, {
-      where: { groupId, playerId },
-      lock: { mode: 'pessimistic_write' },
-    });
-    if (!membership) return { settled: [] as Payment[], credit: 0 };
-
-    let pool = Number(membership.credit) + amount;
+  /** A member's unpaid dues that money can pay now: played games (or today's), and their one next game. */
+  private async payableDues(tx: EntityManager, groupId: string, playerId: string) {
     const pending = await tx
       .getRepository(Payment)
       .createQueryBuilder('payment')
-      .innerJoin('payment.session', 'session')
+      .innerJoinAndSelect('payment.session', 'session')
       .where('session.groupId = :groupId', { groupId })
       .andWhere('payment.playerId = :playerId', { playerId })
       .andWhere('payment.status = :status', { status: PaymentStatus.PENDING })
       .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
       .orderBy('session.date', 'ASC')
       .getMany();
+    return payableNow(pending, localDate());
+  }
+
+  /** applyCredit's work inside a caller's transaction; the caller runs afterPaid once it commits. */
+  private async creditIn(tx: EntityManager, groupId: string, playerId: string, amount: number): Promise<{ settled: Payment[]; credit: number; extra: number }> {
+    const membership = await tx.findOne(GroupMembership, {
+      where: { groupId, playerId },
+      lock: { mode: 'pessimistic_write' },
+    });
+    if (!membership) return { settled: [] as Payment[], credit: 0, extra: 0 };
+
+    let pool = Number(membership.credit) + amount;
+    const payable = await this.payableDues(tx, groupId, playerId);
 
     const settled: Payment[] = [];
     // Money sent earlier is used first. A due paid wholly from it was paid ahead ('credit'), not
@@ -919,7 +929,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     // they paid for this game when they paid weeks ago.
     let earlier = Number(membership.credit);
     const ahead = new Set<Payment>();
-    for (const p of pending) {
+    for (const p of payable) {
       if (pool + 0.001 < Number(p.amount)) break;
       pool -= Number(p.amount);
       const fromEarlier = Math.min(earlier, Number(p.amount));
@@ -935,9 +945,13 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       p.markedBy = ahead.has(p) ? 'credit' : 'pulse';
     }
     if (settled.length) await tx.save(settled);
-    membership.credit = pool.toFixed(2);
+    // Nothing left that this money can pay now: the new money left over is extra, to sort.
+    const owesNow = settled.length < payable.length;
+    const extra = owesNow ? 0 : Math.min(amount, Math.max(0, pool));
+    membership.credit = (pool - extra).toFixed(2);
+    if (extra > 0.001) membership.extra = (Number(membership.extra ?? 0) + extra).toFixed(2);
     await tx.save(membership);
-    return { settled, credit: Number(membership.credit) };
+    return { settled, credit: Number(membership.credit), extra };
   }
 
   /**
@@ -1100,15 +1114,17 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
    */
   private async notPlayerPlan(tx: EntityManager, transfer: BankTransfer, lock = false) {
     const amount = Number(transfer.amount);
-    const plan = { playerId: transfer.playerId, fromKept: 0, reopen: [] as Payment[], backToKept: 0, membership: null as GroupMembership | null };
+    const plan = { playerId: transfer.playerId, fromExtra: 0, fromKept: 0, reopen: [] as Payment[], backToKept: 0, membership: null as GroupMembership | null };
     const placed = transfer.status === TransferStatus.MATCHED || transfer.status === TransferStatus.ASSIGNED;
     if (!placed || !transfer.playerId || !transfer.groupId) return plan;
     plan.membership = await tx.findOne(GroupMembership, {
       where: { groupId: transfer.groupId, playerId: transfer.playerId },
       ...(lock ? { lock: { mode: 'pessimistic_write' as const } } : {}),
     });
-    plan.fromKept = Math.min(Number(plan.membership?.credit ?? 0), amount);
-    let rest = amount - plan.fromKept;
+    // Extra not sorted yet goes first, then money kept for them, then the games it paid.
+    plan.fromExtra = Math.min(Number(plan.membership?.extra ?? 0), amount);
+    plan.fromKept = Math.min(Number(plan.membership?.credit ?? 0), amount - plan.fromExtra);
+    let rest = amount - plan.fromExtra - plan.fromKept;
     if (rest > 0.001) {
       const paid = await tx
         .getRepository(Payment)
@@ -1140,6 +1156,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return {
       amount: Number(transfer.amount),
       playerId: plan.playerId,
+      fromExtra: plan.fromExtra,
       fromKept: plan.fromKept,
       backToKept: plan.backToKept,
       reopen: plan.reopen.map((p) => ({ paymentId: p.id, sessionId: p.sessionId, date: p.session.date, label: p.session.label ?? null, kind: p.session.kind, amount: Number(p.amount) })),
@@ -1169,6 +1186,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       });
       if (!affected) throw new BadRequestException('Someone else just changed this payment. Try again.');
       if (plan.membership) {
+        plan.membership.extra = Math.max(0, Number(plan.membership.extra ?? 0) - plan.fromExtra).toFixed(2);
         plan.membership.credit = Math.max(0, Number(plan.membership.credit) - plan.fromKept + plan.backToKept).toFixed(2);
         await tx.save(plan.membership);
       }
@@ -1195,6 +1213,114 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     );
     if (!affected) throw new BadRequestException('This payment isn’t marked as not a player’s any more.');
     return { ...transfer, status: TransferStatus.UNMATCHED, category: null, note: null };
+  }
+
+  // ── Extra money: more than a member owed, waiting for the organiser ──
+
+  /** Members whose extra isn't sorted yet, with the transfer it last came from. */
+  async listExtra(groupId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    const members = await this.membershipsRepo
+      .createQueryBuilder('m')
+      .innerJoinAndSelect('m.player', 'player')
+      .where('m.groupId = :groupId', { groupId })
+      .andWhere('m.extra > 0')
+      .getMany();
+    return Promise.all(
+      members.map(async (m) => {
+        const last = await this.transfersRepo.findOne({
+          where: { groupId, playerId: m.playerId, status: In([TransferStatus.MATCHED, TransferStatus.ASSIGNED]) },
+          order: { receivedAt: 'DESC' },
+        });
+        return {
+          playerId: m.playerId,
+          name: `${m.player.firstName} ${m.player.lastName}`.trim(),
+          extra: Number(m.extra),
+          lastTransfer: last ? { id: last.id, amount: Number(last.amount), receivedAt: last.receivedAt } : null,
+        };
+      }),
+    );
+  }
+
+  /**
+   * What giving `fromId`'s extra to `toId` would do: as much as `toId` owes on games money can
+   * pay now (played, and their next one), whole games first, any rest a part payment towards
+   * the next. What isn't needed stays with `fromId`, still to sort.
+   */
+  private async giveExtraPlan(tx: EntityManager, groupId: string, fromId: string, toId: string, lock = false) {
+    const lockOpt = lock ? { lock: { mode: 'pessimistic_write' as const } } : {};
+    // Always lock in the same order, so two sorts at once can't deadlock.
+    const [first, second] = [fromId, toId].sort();
+    const a = await tx.findOne(GroupMembership, { where: { groupId, playerId: first }, ...lockOpt });
+    const b = await tx.findOne(GroupMembership, { where: { groupId, playerId: second }, ...lockOpt });
+    const from = first === fromId ? a : b;
+    const to = first === fromId ? b : a;
+    if (!from || !to) throw new NotFoundException("That player isn't in this group");
+    const extra = Number(from.extra ?? 0);
+    const payable = await this.payableDues(tx, groupId, toId);
+    const kept = Number(to.credit);
+    const owed = Math.max(0, payable.reduce((n, p) => n + Number(p.amount), 0) - kept);
+    const move = Math.min(extra, owed);
+    let pool = kept + move;
+    const pays: Payment[] = [];
+    for (const p of payable) {
+      if (pool + 0.001 < Number(p.amount)) break;
+      pool -= Number(p.amount);
+      pays.push(p);
+    }
+    const next = payable[pays.length];
+    return {
+      from,
+      move,
+      pays,
+      towards: next && pool > 0.001 ? { payment: next, paidSoFar: pool } : null,
+      left: extra - move,
+    };
+  }
+
+  async giveExtraPreview(groupId: string, fromId: string, toId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    const plan = await this.giveExtraPlan(this.membershipsRepo.manager, groupId, fromId, toId);
+    const due = (p: Payment) => ({ paymentId: p.id, date: p.session.date, label: p.session.label ?? null, kind: p.session.kind, amount: Number(p.amount) });
+    return {
+      move: plan.move,
+      pays: plan.pays.map(due),
+      towards: plan.towards ? { ...due(plan.towards.payment), paidSoFar: plan.towards.paidSoFar } : null,
+      left: plan.left,
+    };
+  }
+
+  /** The extra was for someone else: it pays what they owe now; anything not needed stays to sort. */
+  async giveExtra(groupId: string, fromId: string, toId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    if (fromId === toId) throw new BadRequestException('To keep it for them, choose "Keep it for their next game".');
+    const settled = await this.membershipsRepo.manager.transaction(async (tx) => {
+      const plan = await this.giveExtraPlan(tx, groupId, fromId, toId, true);
+      if (Number(plan.from.extra ?? 0) <= 0.001) throw new BadRequestException('There’s no extra left to sort.');
+      if (plan.move <= 0.001) throw new BadRequestException('They don’t owe anything that can be paid now.');
+      plan.from.extra = (Number(plan.from.extra) - plan.move).toFixed(2);
+      await tx.save(plan.from);
+      return (await this.creditIn(tx, groupId, toId, plan.move)).settled;
+    });
+    await this.afterPaid(settled);
+    return { settled: settled.length };
+  }
+
+  /** The extra really was paid ahead: kept for their next game (and paid towards it once it's next). */
+  async keepExtra(groupId: string, playerId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    const kept = await this.membershipsRepo.manager.transaction(async (tx) => {
+      const m = await tx.findOne(GroupMembership, { where: { groupId, playerId }, lock: { mode: 'pessimistic_write' } });
+      if (!m) throw new NotFoundException("That player isn't in this group");
+      const extra = Number(m.extra ?? 0);
+      if (extra <= 0.001) throw new BadRequestException('There’s no extra left to sort.');
+      m.credit = (Number(m.credit) + extra).toFixed(2);
+      m.extra = '0.00';
+      await tx.save(m);
+      return extra;
+    });
+    await this.applyCredit(groupId, playerId);
+    return { kept };
   }
 
   /** What a withdrawal was for, set or changed afterwards. */
@@ -1398,11 +1524,15 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           lock: { mode: 'pessimistic_write' },
         });
         if (!membership) throw new BadRequestException("That player isn't in this group");
+        // Extra they sent that isn't sorted yet goes back first, then money kept for them.
+        const extra = Number(membership.extra ?? 0);
         const credit = Number(membership.credit);
-        if (dto.amount > credit + 0.001) {
-          throw new BadRequestException(`They only have ${naira(credit)} paid ahead to refund`);
+        if (dto.amount > extra + credit + 0.001) {
+          throw new BadRequestException(`They only have ${naira(extra + credit)} to send back`);
         }
-        membership.credit = (credit - dto.amount).toFixed(2);
+        const fromExtra = Math.min(extra, dto.amount);
+        membership.extra = (extra - fromExtra).toFixed(2);
+        membership.credit = (credit - (dto.amount - fromExtra)).toFixed(2);
         await tx.save(membership);
       }
       return tx.save(draft);
@@ -1458,8 +1588,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Adds `delta` back to (or, negative, takes it from) the credit of the member a refund
-   * payout is for. Used when a refund fails or is cancelled, and if a failed one later completes.
+   * Gives `delta` back to (or, negative, takes it from) the member a refund payout is for. Used
+   * when a refund fails or is cancelled, and if a failed one later completes. Money given back
+   * is extra to sort, not kept for their next game: nobody chose to keep it.
    */
   private async moveRefundCredit(payout: OutgoingTransfer, delta: number) {
     if (!payout.refundPlayerId) return;
@@ -1469,10 +1600,16 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         lock: { mode: 'pessimistic_write' },
       });
       if (!membership) {
-        this.logger.warn(`Refund ${payout.id}: ${payout.refundPlayerId} is no longer in the group, so ${naira(delta)} credit wasn't moved`);
+        this.logger.warn(`Refund ${payout.id}: ${payout.refundPlayerId} is no longer in the group, so ${naira(delta)} wasn't moved`);
         return;
       }
-      membership.credit = (Number(membership.credit) + delta).toFixed(2);
+      if (delta >= 0) membership.extra = (Number(membership.extra ?? 0) + delta).toFixed(2);
+      else {
+        const take = -delta;
+        const fromExtra = Math.min(Number(membership.extra ?? 0), take);
+        membership.extra = (Number(membership.extra ?? 0) - fromExtra).toFixed(2);
+        membership.credit = (Number(membership.credit) - (take - fromExtra)).toFixed(2);
+      }
       await tx.save(membership);
     });
   }
