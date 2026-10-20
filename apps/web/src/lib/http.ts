@@ -116,7 +116,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.message || `Request failed (${res.status})`);
+    throw new Error(serverMessage(res.status, data));
   }
 
   // Handle 204 No Content
@@ -137,3 +137,17 @@ export const http = {
 // No-ops for backward compatibility — cookies handle token storage now
 export function setToken(_token: string) {}
 export function clearToken() {}
+
+/**
+ * What to tell someone when a request fails: the server's own reason, made readable. A route the
+ * server doesn't know yet ("Cannot PATCH /api/…") means the app is newer than the server, which
+ * happens for a few minutes while an update goes out, so it says that in plain words instead.
+ */
+export function serverMessage(status: number, data: { message?: unknown }): string {
+  const raw = Array.isArray(data.message) ? data.message[0] : data.message;
+  const msg = typeof raw === 'string' ? raw : '';
+  if (status === 404 && /^Cannot (GET|POST|PUT|PATCH|DELETE) \/api\//.test(msg)) {
+    return 'This isn’t ready on our side yet: an update is still going out. Try again in a few minutes.';
+  }
+  return msg || `Request failed (${status})`;
+}
