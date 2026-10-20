@@ -1,7 +1,8 @@
 'use client';
 
 import { leftToPay } from '@/lib/game-player';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
@@ -16,7 +17,9 @@ import {
   addMeToGroup,
   formatCurrency,
   getGroup,
+  getGroupTable,
   getPlayers,
+  type LeagueTable,
   removeMember,
   type GroupBilling,
   type IGroupWithMembers,
@@ -26,8 +29,9 @@ import { PaymentStatus, PaymentType } from '@pitchaside/shared';
 import type { IPlayer } from '@pitchaside/shared';
 
 /**
- * A group's squad: who's in it and where each stands for the next game (or this period's dues),
- * adding players, and one card per player. The Squad tab and a group's page both show this.
+ * A group's squad, about the players: how many, who's coming to the next game, how it's made up
+ * (rating, games played, level, who's new), searchable and sortable. Money for a game is on that
+ * game's page; each player's own (what they owe, paid ahead) is in their card.
  */
 export function GroupSquad({
   group,
@@ -50,7 +54,13 @@ export function GroupSquad({
   const { user } = useAuth();
   const id = group.id;
   const [query, setQuery] = useState('');
-  const [memberFilter, setMemberFilter] = useState<'all' | 'owes' | 'paid' | 'out'>('all');
+  const [memberFilter, setMemberFilter] = useState<'all' | 'in' | 'out' | 'new'>('all');
+  const [sort, setSort] = useState<'name' | 'rating' | 'games'>('name');
+  // Ratings and games played, from the season table: how the squad is made up.
+  const [table, setTable] = useState<LeagueTable | null>(null);
+  useEffect(() => {
+    getGroupTable(group.id).then(setTable, () => setTable(null));
+  }, [group.id]);
   const [openMember, setOpenMember] = useState<string | null>(null);
   const [showAddMember, setShowAddMember] = useState(false);
   // Players from the organiser's other groups, loaded when "Add player" opens.
@@ -158,18 +168,46 @@ export function GroupSquad({
       paidSoFar: p.paidSoFar ?? 0,
     };
   };
-  const members = (group.memberships ?? []).map((m) => ({ ...m, due: dueOf(m.player.id) }));
-  const paidCount = members.filter((m) => m.due?.state === 'paid').length;
-  const owesCount = members.filter((m) => m.due?.state === 'owes').length;
-  const outCount = members.filter((m) => m.due?.state === 'out').length;
-  // Joined in the last week: worth a word (the exact date is in their card).
-  const isNew = (joinedAt: string) => Date.now() - new Date(joinedAt).getTime() < 7 * 86_400_000;
+  // Who's coming: the next game, whatever the group pays by. Money for it lives on the game page.
+  const nextGame = sessions
+    .filter((s) => s.kind !== 'dues' && s.status === 'upcoming' && daysFromToday(s.date) >= 0)
+    .sort((a, b) => gameDay(a.date).getTime() - gameDay(b.date).getTime())[0];
+  const nextLabel = nextGame
+    ? gameDay(nextGame.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')
+    : '';
+  const inNext = new Set((nextGame?.payments ?? []).filter((p) => p.attendance !== 'no_show').map((p) => p.playerId));
+  const stats = new Map((table?.rows ?? []).map((r) => [r.player.id, r]));
+  // Joined in the last 30 days: worth a word (the exact date is in their card).
+  const isNew = (joinedAt: string) => Date.now() - new Date(joinedAt).getTime() < 30 * 86_400_000;
+  const members = (group.memberships ?? []).map((m) => ({
+    ...m,
+    due: dueOf(m.player.id),
+    coming: nextGame ? inNext.has(m.player.id) : null,
+    stat: stats.get(m.player.id),
+    fresh: isNew(m.joinedAt),
+  }));
+  // In a squad that's all new, "New" picks no one out: say it only when some are.
+  if (members.every((m) => m.fresh)) members.forEach((m) => (m.fresh = false));
+  const inCount = members.filter((m) => m.coming).length;
+  const outCount = members.filter((m) => m.coming === false).length;
+  const newCount = members.filter((m) => m.fresh).length;
   const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+  const LEVEL: Record<string, string> = { beginner: 'Beginner', average: 'Average', good: 'Good', strong: 'Strong' };
   const q = query.trim().toLowerCase();
+  const byName = (a: (typeof members)[number], b: (typeof members)[number]) =>
+    `${a.player.firstName} ${a.player.lastName}`.localeCompare(`${b.player.firstName} ${b.player.lastName}`);
   const shown = members
-    .filter((m) => memberFilter === 'all' || m.due?.state === memberFilter)
+    .filter((m) => (memberFilter === 'in' ? m.coming : memberFilter === 'out' ? m.coming === false : memberFilter === 'new' ? m.fresh : true))
     .filter((m) => !q || `${m.player.firstName} ${m.player.lastName} ${m.player.nickname ?? ''}`.toLowerCase().includes(q))
-    .sort((a, b) => `${a.player.firstName} ${a.player.lastName}`.localeCompare(`${b.player.firstName} ${b.player.lastName}`));
+    .sort((a, b) =>
+      sort === 'rating'
+        ? (b.stat?.ovr ?? -1) - (a.stat?.ovr ?? -1) || byName(a, b)
+        : sort === 'games'
+          ? (b.stat?.games ?? 0) - (a.stat?.games ?? 0) || byName(a, b)
+          : byName(a, b),
+    );
+  const rated = members.filter((m) => m.stat && !m.stat.provisional).map((m) => m.stat?.ovr).filter((x): x is number => typeof x === 'number');
+  const avgRating = rated.length >= 3 ? Math.round(rated.reduce((a, b) => a + b, 0) / rated.length) : null;
   const opened = members.find((m) => m.player.id === openMember);
 
   return (
@@ -219,7 +257,7 @@ export function GroupSquad({
       {/* Heading row like the home's sections: a plain title and one text action */}
       <div className="flex items-center justify-between">
         <h2 id="squad-title" className="text-base font-bold text-ink">
-          {nextDue ? `${perGame ? 'Payments for' : 'Dues for'} ${dueLabel}` : 'Players'}
+          Players
         </h2>
         {canManage && (
           <button onClick={toggleAdd} aria-expanded={showAddMember} className="h-11 -my-2 px-1 text-sm font-bold text-pitch-700">
@@ -280,64 +318,111 @@ export function GroupSquad({
         </div>
       ) : (
         <>
-          {memberCount > 6 && (
-            <div className="relative mt-2">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name or nickname"
-                aria-label="Search the squad"
-                className="w-full pl-10 pr-3 py-3 bg-white border border-gray-200 rounded-2xl text-sm placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-              />
+          {/* The squad at a glance: how many, who's coming, how it's made up */}
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5">
+              <p className="font-display text-[22px] leading-none font-extrabold text-ink tabular-nums">{memberCount}</p>
+              <p className="mt-1 text-[12px] leading-snug text-gray-600">player{memberCount === 1 ? '' : 's'}{newCount ? `, ${newCount} new` : ''}</p>
             </div>
-          )}
+            {nextGame ? (
+              <Link href={`/sessions/${nextGame.id}`} className="press rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5 hover:border-gray-300">
+                <p className="font-display text-[22px] leading-none font-extrabold text-ink tabular-nums">
+                  {inCount}
+                  {group.targetPlayers > 0 && <span className="text-[13px] font-bold text-gray-400"> / {group.targetPlayers}</span>}
+                </p>
+                <p className="mt-1 text-[12px] leading-snug text-gray-600">coming {nextLabel} ›</p>
+              </Link>
+            ) : (
+              <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5">
+                <p className="font-display text-[22px] leading-none font-extrabold text-gray-400">—</p>
+                <p className="mt-1 text-[12px] leading-snug text-gray-600">No game coming up</p>
+              </div>
+            )}
+            <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5">
+              <p className={`font-display text-[22px] leading-none font-extrabold tabular-nums ${avgRating ? 'text-ink' : 'text-gray-400'}`}>{avgRating ?? '—'}</p>
+              <p className="mt-1 text-[12px] leading-snug text-gray-600">{avgRating ? 'average rating' : 'Ratings settle after 3 games'}</p>
+            </div>
+          </div>
 
-          {/* Who's paid for the next game: the same filter style as the game page */}
-          {nextDue && (
-            <div className="mt-3">
-              <div
-                role="radiogroup"
-                aria-label={`Show the squad by payment for ${dueLabel}`}
-                className="grid gap-2"
-                style={{ gridTemplateColumns: `repeat(${outCount > 0 ? 4 : 3}, minmax(0, 1fr))` }}
+          {/* Search on the left, sort on the right: one row */}
+          <div className="mt-3 flex items-center gap-2">
+            {memberCount > 6 && (
+              <div className="relative flex-1 min-w-0">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search name or nickname"
+                  aria-label="Search the squad"
+                  className="w-full min-h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-2xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+                />
+              </div>
+            )}
+            {/* The sort icon opens the phone's own picker; a dot shows when it isn't A–Z */}
+            <div className={`relative shrink-0 ${memberCount > 6 ? '' : 'ml-auto'}`}>
+              <span
+                className={`w-11 h-11 rounded-2xl border flex items-center justify-center transition-colors ${
+                  sort === 'name' ? 'bg-white border-gray-200 text-ink' : 'bg-ink border-ink text-volt-300'
+                }`}
+                aria-hidden
               >
-                {(
-                  [
-                    { key: 'all', label: 'All', n: memberCount },
-                    { key: 'owes', label: 'To pay', n: owesCount },
-                    { key: 'paid', label: 'Paid', n: paidCount },
-                    ...(outCount > 0 ? [{ key: 'out', label: 'Not in', n: outCount }] : []),
-                  ] as { key: typeof memberFilter; label: string; n: number }[]
-                ).map((f) => (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+                </svg>
+              </span>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as typeof sort)}
+                aria-label={`Sort players, now by ${sort === 'name' ? 'name' : sort === 'rating' ? 'rating' : 'games played'}`}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              >
+                <option value="name">Sort by name (A–Z)</option>
+                <option value="rating">Sort by rating</option>
+                <option value="games">Sort by games played</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            <div role="radiogroup" aria-label="Show" className="flex-1 min-w-0 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {(
+                [
+                  { key: 'all', label: 'All', n: memberCount, show: true },
+                  { key: 'in', label: 'Coming', n: inCount, show: !!nextGame },
+                  { key: 'out', label: 'Not in yet', n: outCount, show: !!nextGame && outCount > 0 },
+                  { key: 'new', label: 'New', n: newCount, show: newCount > 0 },
+                ] as { key: typeof memberFilter; label: string; n: number; show: boolean }[]
+              )
+                .filter((f) => f.show)
+                .map((f) => (
                   <button
                     key={f.key}
                     role="radio"
                     aria-checked={memberFilter === f.key}
                     onClick={() => setMemberFilter(f.key)}
-                    className={`h-10 px-1.5 text-[13px] font-bold rounded-full border whitespace-nowrap tabular-nums transition-colors ${
+                    aria-label={f.key === 'in' ? `Coming to ${nextLabel}: ${f.n}` : undefined}
+                    className={`press shrink-0 min-h-11 px-3.5 text-[13px] font-bold rounded-full border whitespace-nowrap tabular-nums transition-colors ${
                       memberFilter === f.key ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
                     }`}
                   >
                     {f.label} {f.n}
                   </button>
                 ))}
-              </div>
             </div>
-          )}
+          </div>
 
           {shown.length === 0 && !(offerMe && !q && memberFilter === 'all') ? (
             <p className="mt-6 text-sm text-gray-600 text-center">
               {q
                 ? `No one called “${query.trim()}”.`
-                : memberFilter === 'owes'
-                  ? `Everyone in for ${dueLabel} has paid.`
+                : memberFilter === 'in'
+                  ? `No one’s said they’re coming to ${nextLabel} yet.`
                   : memberFilter === 'out'
-                    ? `Everyone is in for ${dueLabel}.`
-                    : 'No one has paid yet.'}
+                    ? `Everyone’s coming to ${nextLabel}.`
+                    : 'No one here.'}
             </p>
           ) : (
             <ul className="mt-2 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
@@ -363,15 +448,13 @@ export function GroupSquad({
               {shown.map((m) => {
                 const name = `${m.player.firstName} ${m.player.lastName}`;
                 const kit = kitFor(name);
-                // Kept money that's already counted as part of this due isn't also "paid ahead".
-                const credit = Number(m.credit ?? 0) - (m.due?.paidSoFar ?? 0);
-                const st = m.due?.state;
+                const st = m.stat;
+                const level = m.player.level ? LEVEL[m.player.level] : null;
                 const detail = [
-                  isNew(m.joinedAt) && 'New this week',
-                  m.player.nickname && `“${m.player.nickname}”`,
+                  st?.ovr != null && !st.provisional ? `Rating ${st.ovr}` : st && st.games > 0 ? 'Rating settling' : null,
+                  st ? `${st.games} game${st.games === 1 ? '' : 's'}` : null,
+                  level,
                   m.role !== 'player' && sentence(m.role),
-                  !!m.due?.paidSoFar && `${formatCurrency(m.due.paidSoFar)} paid so far`,
-                  credit > 0 && `${formatCurrency(credit)} paid ahead`,
                 ].filter(Boolean) as string[];
                 return (
                   <li key={m.id}>
@@ -383,22 +466,21 @@ export function GroupSquad({
                         {m.player.firstName.charAt(0)}
                       </span>
                       <span className="flex-1 min-w-0">
-                        <span className="block text-[15px] font-bold text-ink leading-snug truncate">{name}</span>
-                        {detail.length > 0 && <span className="block text-xs text-gray-500 mt-0.5 truncate">{detail.join(', ')}</span>}
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[15px] font-bold text-ink leading-snug truncate">{name}</span>
+                          {m.fresh && <span className="shrink-0 text-[10px] font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-volt-300 text-ink">New</span>}
+                        </span>
+                        <span className="block text-xs text-gray-500 mt-0.5 truncate">
+                          {m.player.nickname ? `“${m.player.nickname}”${detail.length ? ' · ' : ''}` : ''}
+                          {detail.join(' · ')}
+                        </span>
                       </span>
-                      {/* Where they stand for that game, set like an amount in a bank list */}
-                      {st && (
-                        <span className="shrink-0 text-right">
-                          {st === 'owes' ? (
-                            <>
-                              <span className="block font-display text-[15px] font-extrabold text-amber-700 tabular-nums">{formatCurrency(m.due!.amount)}</span>
-                              <span className="block text-xs text-gray-500">{m.due!.paidSoFar ? 'Left to pay' : 'To pay'}</span>
-                            </>
-                          ) : (
-                            <span className={`block text-xs font-bold ${st === 'paid' ? 'text-pitch-600' : 'text-gray-400'}`}>
-                              {st === 'paid' ? 'Paid' : st === 'waived' ? 'Free' : 'Not in'}
-                            </span>
-                          )}
+                      {/* Coming to the next game: said in words, not just colour */}
+                      {m.coming !== null && (
+                        <span
+                          className={`shrink-0 text-[11px] font-extrabold px-2 py-1 rounded-full ${m.coming ? 'bg-volt-300 text-ink' : 'bg-chalk text-gray-600'}`}
+                        >
+                          {m.coming ? 'Coming' : 'Not in yet'}
                         </span>
                       )}
                       <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
