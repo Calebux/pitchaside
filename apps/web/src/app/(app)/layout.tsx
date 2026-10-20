@@ -49,7 +49,7 @@ export default function AppLayout({
     <CurrentGroupProvider>
       {!user.emailVerified && <VerifyEmailModal email={user.email} onCheck={refreshUser} />}
       {celebrate && <EmailVerifiedModal onClose={() => setCelebrate(false)} />}
-      <main className="min-h-screen pb-28 md:pb-10 md:pl-60 md:pt-4">
+      <main className="min-h-screen pb-[calc(7rem_+_var(--install-nudge,0px))] md:pb-10 md:pl-60 md:pt-4">
         {children}
       </main>
       <div className="fixed bottom-20 left-4 right-4 z-40 md:hidden">
