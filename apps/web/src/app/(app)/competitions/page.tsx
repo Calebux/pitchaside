@@ -84,6 +84,7 @@ export default function CompetitionsPage() {
       <PageHeader
         eyebrow="Tournaments"
         title="Cups"
+        subtitle="Knockouts and leagues between teams."
         actions={
           <Link
             href="/competitions/new"

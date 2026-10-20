@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { PlayerRatings, VoteCategory } from '@/lib/api';
+import { InfoTip } from '@/components/info-tip';
 
 /** The awards voted on after games, in the ballot's order, with the old Fastest kept as The Engine. */
 const AWARDS: { key: VoteCategory; title: string }[] = [
@@ -40,8 +41,15 @@ export function PlayerStats({ ratings, you = false }: { ratings: PlayerRatings; 
   return (
     <section aria-labelledby="stats-title">
       <div className="flex items-center justify-between gap-3">
-        <h2 id="stats-title" className="text-lg font-bold text-ink">
+        <h2 id="stats-title" className="flex items-center gap-2 text-lg font-bold text-ink">
           Stats
+          <InfoTip label="What these stats mean">
+            <span className="block"><b>POTM</b> Player of the Match: most votes after the game.</span>
+            <span className="block mt-1"><b>Best VII</b> in the day’s Best VII, picked by everyone’s votes.</span>
+            <span className="block mt-1"><b>Best on team</b> voted the best on their own side.</span>
+            <span className="block mt-1"><b>Team of day</b> on the side that finished top that match day.</span>
+            <span className="block mt-1"><b>Points</b> for the table: wins, draws, Team of the Day and Player of the Match.</span>
+          </InfoTip>
         </h2>
         {hasSeason && (
           <div role="radiogroup" aria-label="Show" className="grid grid-cols-2 p-1 bg-white border border-gray-200 rounded-2xl">

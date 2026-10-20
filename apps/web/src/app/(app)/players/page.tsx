@@ -155,7 +155,7 @@ export default function PlayersPage() {
       <PageHeader
         eyebrow="Every group"
         title="All players"
-        subtitle={meta.total > 0 ? `${meta.total} registered` : undefined}
+        subtitle={meta.total > 0 ? `Everyone across your groups · ${meta.total} registered` : 'Everyone across your groups'}
         actions={
         <>
           {meta.total > 0 && (

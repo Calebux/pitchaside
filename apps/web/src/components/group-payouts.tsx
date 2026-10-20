@@ -12,6 +12,7 @@ import { SendMoneyModal, type RefundableMember } from '@/components/send-money-m
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { PAYOUT, PAYOUT_PICKS } from '@/lib/money-categories';
+import { InfoTip } from '@/components/info-tip';
 import {
   cancelPayout,
   formatCurrency,
@@ -315,7 +316,13 @@ export function PayoutsPanel({
           {/* What's in the balance that isn't the group's to spend yet, so nobody pays the pitch with it by mistake. */}
           {(paidAhead > 0 || unsorted > 0) && (
             <div className="mt-3 rounded-2xl bg-sun-400/15 px-3.5 py-2.5 text-[13px] leading-snug text-amber-900">
-              <p className="font-bold">This includes money that isn’t the group’s to spend yet:</p>
+              <p className="font-bold">
+                This includes money that isn’t the group’s to spend yet:{' '}
+                <InfoTip label="What's paid ahead?" align="right">
+                  Money a player sent beyond what they owed, like paying for two games at once. It’s still theirs: it pays their next game automatically, or
+                  you can refund it from Send money.
+                </InfoTip>
+              </p>
               <ul className="mt-1 space-y-0.5 tabular-nums">
                 {paidAhead > 0 && <li>{formatCurrency(paidAhead)} players have paid ahead for their next games</li>}
                 {unsorted > 0 && <li>{formatCurrency(unsorted)} with no name yet</li>}

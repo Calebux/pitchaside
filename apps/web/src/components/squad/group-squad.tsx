@@ -27,6 +27,7 @@ import {
 } from '@/lib/api';
 import { PaymentStatus, PaymentType } from '@pitchaside/shared';
 import type { IPlayer } from '@pitchaside/shared';
+import { InfoTip } from '@/components/info-tip';
 
 /**
  * A group's squad, about the players: how many, who's coming to the next game, how it's made up
@@ -340,7 +341,13 @@ export function GroupSquad({
             )}
             <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5">
               <p className={`font-display text-[22px] leading-none font-extrabold tabular-nums ${avgRating ? 'text-ink' : 'text-gray-400'}`}>{avgRating ?? '—'}</p>
-              <p className="mt-1 text-[12px] leading-snug text-gray-600">{avgRating ? 'average rating' : 'Ratings settle after 3 games'}</p>
+              <p className="mt-1 text-[12px] leading-snug text-gray-600">
+                {avgRating ? 'average rating' : 'Ratings settle after 3 games'}{' '}
+                <InfoTip label="What's the rating?" align="right">
+                  Each player’s rating, from 40 to 99. It starts from their game results, and teammates’ award votes can lift it, never lower it. It settles once
+                  they’ve played 3 games with scores.
+                </InfoTip>
+              </p>
             </div>
           </div>
 

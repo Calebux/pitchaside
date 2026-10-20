@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { LeagueTableView } from '@/components/ratings';
 import { getGroupTable, type LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
+import { InfoTip } from '@/components/info-tip';
 
 /** A group's season table, with its own loading and "didn't load" states. */
 export function GroupTable({ groupId }: { groupId: string }) {
@@ -25,8 +26,19 @@ export function GroupTable({ groupId }: { groupId: string }) {
   return (
     <section aria-labelledby="table-title">
       <div className="mb-2">
-        <h2 id="table-title" className="text-base font-bold text-ink">
+        <h2 id="table-title" className="flex items-center gap-2 text-base font-bold text-ink">
           Table
+          {table && (
+            <InfoTip label="How the table works">
+              <span className="block font-bold text-volt-300">How points are won</span>
+              <span className="block mt-1">
+                Win a game: {table.points.win} · Draw: {table.points.draw} · Team of the Day: {table.points.teamOfDay} · Player of the Match: {table.points.potm}
+              </span>
+              <span className="block mt-2">
+                <b>P</b> games played. <b>★</b> Player of the Match wins. <b>W D L</b> games won, drawn and lost. Team of the Day is the side that finished top on a match day.
+              </span>
+            </InfoTip>
+          )}
         </h2>
         <p className="text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
       </div>
