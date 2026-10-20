@@ -455,11 +455,11 @@ export class PlayerPortalService {
     return this.ratings.captainLineup(sessionId, this.ids(person));
   }
 
-  addMatchGame(person: Person, sessionId: string, input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[] }) {
+  addMatchGame(person: Person, sessionId: string, input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string }) {
     return this.ratings.captainAddGame(sessionId, this.ids(person), input);
   }
 
-  addGoal(person: Person, sessionId: string, gameId: string, input: GoalInput) {
+  addGoal(person: Person, sessionId: string, gameId: string, input: GoalInput & { clientKey?: string }) {
     return this.ratings.captainAddGoal(sessionId, gameId, this.ids(person), input);
   }
 
@@ -478,7 +478,7 @@ export class PlayerPortalService {
     return this.ratings.ratingBreakdown(playerId, target.organizationId);
   }
 
-  addEvent(person: Person, sessionId: string, input: { playerId: string; kind: MatchEventKind }) {
+  addEvent(person: Person, sessionId: string, input: { playerId: string; kind: MatchEventKind; clientKey?: string }) {
     return this.ratings.captainAddEvent(sessionId, this.ids(person), input);
   }
 

@@ -7,15 +7,19 @@ import { ScoresStep, type ScoresApi } from '@/components/game/scores-step';
 import { useToast } from '@/components/toast';
 import { addCaptainEvent, addCaptainGame, addCaptainGoal, deleteCaptainEvent, deleteCaptainGame, deleteCaptainGoal, getMatchDay } from '@/lib/player';
 import type { Lineup } from '@/lib/api';
+import { retryKeys } from '@/lib/retry-keys';
 
-const CAPTAIN: ScoresApi = {
-  addGame: addCaptainGame,
-  deleteGame: deleteCaptainGame,
-  addGoal: addCaptainGoal,
-  deleteGoal: deleteCaptainGoal,
-  addEvent: addCaptainEvent,
-  deleteEvent: deleteCaptainEvent,
-};
+const CAPTAIN: ScoresApi = retryKeys(
+  {
+    addGame: addCaptainGame,
+    deleteGame: deleteCaptainGame,
+    addGoal: addCaptainGoal,
+    deleteGoal: deleteCaptainGoal,
+    addEvent: addCaptainEvent,
+    deleteEvent: deleteCaptainEvent,
+  },
+  ['addGame', 'addGoal', 'addEvent'],
+);
 
 /**
  * Keeping the score from a captain's phone, on match day: the organiser's scoreboard, games and

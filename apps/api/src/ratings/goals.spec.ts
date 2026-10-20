@@ -14,17 +14,25 @@ function setup(existing: { team: string }[] = []) {
     payments: [pay('ada', 'A'), pay('chidi', 'A'), pay('bisi', 'B'), pay('dayo', 'B'), pay('lanre', 'A', 'no_show')],
   };
   const savedGoals: any[] = [];
-  const tx = { save: async (x: any) => (Array.isArray(x) ? savedGoals.push(...x) : Object.assign(x, { id: 'g1' })) };
+  const savedGames: any[] = [];
+  const theGame = { id: 'g1', sessionId: 's1', teamA: 'A', teamB: 'B', scoreA: 2, scoreB: 1 };
+  const tx = {
+    save: async (x: any) => (Array.isArray(x) ? savedGoals.push(...x) : x.scorerId ? savedGoals.push(x) : (savedGames.push(x), Object.assign(x, { id: 'g1' }))),
+    findOne: async () => theGame,
+    find: async () => existing,
+  };
+  const keys = new Set<string>();
   const gamesRepo = {
     create: (g: unknown) => g,
-    findOne: async () => ({ id: 'g1', sessionId: 's1', teamA: 'A', teamB: 'B', scoreA: 2, scoreB: 1 }),
+    findOne: async () => theGame,
+    exists: async ({ where }: any) => keys.has(where.clientKey),
     manager: { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) },
   };
-  const goalsRepo = { create: (g: unknown) => g, find: async () => existing, save: async (g: any) => savedGoals.push(g) };
+  const goalsRepo = { create: (g: unknown) => g, find: async () => existing, save: async (g: any) => savedGoals.push(g), exists: async ({ where }: any) => keys.has(where.clientKey) };
   const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, {} as never, {} as never, { find: async () => [] } as never);
   jest.spyOn(service as any, 'loadSession').mockResolvedValue(session);
   jest.spyOn(service, 'getLineup').mockResolvedValue({} as never);
-  return { service, savedGoals };
+  return { service, savedGoals, savedGames, keys };
 }
 
 const game = (goals: any[]) => ({ teamA: 'A', teamB: 'B', scoreA: 2, scoreB: 1, goals });
@@ -67,29 +75,59 @@ describe('goals and assists', () => {
     await open.service.addGoal('s1', 'g1', 'org', { team: 'A', scorerId: 'chidi' }, 'Tunde (organiser)');
     expect(open.savedGoals[0]).toMatchObject({ scorerId: 'chidi', gameId: 'g1', sessionId: 's1' });
   });
+
+  it('saves a retried tap once: the same key again is already done', async () => {
+    const { service, savedGames, savedGoals, keys } = setup();
+    await service.addGame('s1', 'org', { ...game([]), clientKey: 'k1' });
+    expect(savedGames).toHaveLength(1);
+    keys.add('k1');
+    await service.addGame('s1', 'org', { ...game([]), clientKey: 'k1' });
+    expect(savedGames).toHaveLength(1);
+    keys.add('k2');
+    await service.addGoal('s1', 'g1', 'org', { team: 'A', scorerId: 'ada', clientKey: 'k2' });
+    expect(savedGoals).toHaveLength(0);
+  });
+
+  it('counts a racing copy of the same tap as done when the database turns it away', async () => {
+    const { service, savedGames } = setup();
+    jest.spyOn((service as any).gamesRepo.manager, 'transaction').mockRejectedValueOnce(Object.assign(new Error('duplicate key'), { code: '23505' }));
+    await expect(service.addGame('s1', 'org', { ...game([]), clientKey: 'k1' })).resolves.toBeDefined();
+    expect(savedGames).toHaveLength(0);
+  });
 });
 
 describe("captains keeping the score", () => {
-  function captainSetup(over: { date?: string; captain?: boolean; recordedBy?: string } = {}) {
+  function captainSetup(
+    over: { date?: string; captain?: boolean; recordedBy?: string; status?: SessionStatus; attendance?: string | null; teamCount?: number; gameTeams?: [string, string]; goalsBy?: string[] } = {},
+  ) {
     const session: any = {
       id: 's1',
       kind: 'game',
       date: over.date ?? today,
-      status: SessionStatus.UPCOMING,
-      teamCount: 2,
+      status: over.status ?? SessionStatus.UPCOMING,
+      teamCount: over.teamCount ?? 2,
       group: { organizationId: 'org' },
       payments: [
-        { playerId: 'ada', team: 'A', captain: over.captain ?? true, attendance: null, player: { firstName: 'Ada', lastName: 'Obi', nickname: null } },
+        { playerId: 'ada', team: 'A', captain: over.captain ?? true, attendance: over.attendance ?? null, player: { firstName: 'Ada', lastName: 'Obi', nickname: null } },
+        { playerId: 'chidi', team: 'A', captain: false, attendance: null, player: { firstName: 'Chidi', lastName: 'Nwosu', nickname: null } },
         { playerId: 'bisi', team: 'B', captain: false, attendance: null, player: { firstName: 'Bisi', lastName: 'Lawal', nickname: null } },
       ],
     };
+    const [teamA, teamB] = over.gameTeams ?? ['A', 'B'];
     const sessionsRepo = { findOne: async () => session };
-    const gamesRepo = { findOne: async () => ({ id: 'g1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
-    const goalsRepo = { findOne: async () => ({ id: 'x1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
-    const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, {} as never, { find: async () => [] } as never);
+    const gamesRepo = { findOne: async () => ({ id: 'g1', teamA, teamB, recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
+    const goalsRepo = {
+      findOne: async () => ({ id: 'x1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }),
+      find: async () => (over.goalsBy ?? []).map((recordedBy) => ({ recordedBy })),
+    };
+    const eventsRepo = { findOne: async () => ({ id: 'e1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
+    const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, {} as never, eventsRepo as never);
     const addGame = jest.spyOn(service, 'addGame').mockResolvedValue({ squad: [] } as never);
+    const addGoal = jest.spyOn(service, 'addGoal').mockResolvedValue({ squad: [] } as never);
+    const addEvent = jest.spyOn(service, 'addEvent').mockResolvedValue({ squad: [] } as never);
     const deleteGame = jest.spyOn(service, 'deleteGame').mockResolvedValue({ squad: [] } as never);
-    return { service, addGame, deleteGame };
+    const deleteEvent = jest.spyOn(service, 'deleteEvent').mockResolvedValue({ squad: [] } as never);
+    return { service, addGame, addGoal, addEvent, deleteGame, deleteEvent };
   }
   const input = { teamA: 'A', teamB: 'B', scoreA: 1, scoreB: 0 };
 
@@ -109,12 +147,51 @@ describe("captains keeping the score", () => {
     await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('match day only');
   });
 
-  it("can't delete what the organiser saved, but can delete a captain's", async () => {
+  it("can delete only what they saved themselves: not the organiser's, not the other captain's", async () => {
     const organiser = captainSetup();
     await expect(organiser.service.captainDeleteGame('s1', 'g1', ['ada'])).rejects.toThrow('only they can delete it');
     await expect(organiser.service.captainDeleteGoal('s1', 'x1', ['ada'])).rejects.toThrow('only they can remove it');
-    const captain = captainSetup({ recordedBy: 'Bisi (captain)' });
-    await captain.service.captainDeleteGame('s1', 'g1', ['ada']);
-    expect(captain.deleteGame).toHaveBeenCalledWith('s1', 'g1', 'org');
+    const other = captainSetup({ recordedBy: 'Bisi (captain)' });
+    await expect(other.service.captainDeleteGame('s1', 'g1', ['ada'])).rejects.toThrow('Bisi (captain) saved this score: ask them or the organiser');
+    await expect(other.service.captainDeleteEvent('s1', 'e1', ['ada'])).rejects.toThrow('ask them or the organiser');
+    const own = captainSetup({ recordedBy: 'Ada (captain)' });
+    await own.service.captainDeleteGame('s1', 'g1', ['ada']);
+    expect(own.deleteGame).toHaveBeenCalledWith('s1', 'g1', 'org');
+  });
+
+  it("won't delete their game once the organiser has named scorers in it", async () => {
+    const { service, deleteGame } = captainSetup({ recordedBy: 'Ada (captain)', goalsBy: ['Ada (captain)', 'Tunde (organiser)'] });
+    await expect(service.captainDeleteGame('s1', 'g1', ['ada'])).rejects.toThrow('Someone else named scorers');
+    expect(deleteGame).not.toHaveBeenCalled();
+  });
+
+  it('only adds games their own team played', async () => {
+    const { service, addGame } = captainSetup({ teamCount: 3 });
+    await expect(service.captainAddGame('s1', ['ada'], { teamA: 'B', teamB: 'C', scoreA: 1, scoreB: 0 })).rejects.toThrow('games your team played');
+    expect(addGame).not.toHaveBeenCalled();
+  });
+
+  it('only names scorers in games their own team played', async () => {
+    const { service, addGoal } = captainSetup({ teamCount: 3, gameTeams: ['B', 'C'] });
+    await expect(service.captainAddGoal('s1', 'g1', ['ada'], { team: 'B', scorerId: 'bisi' })).rejects.toThrow('games your team played');
+    expect(addGoal).not.toHaveBeenCalled();
+  });
+
+  it("adds cards and saves for their own players, never the other side's", async () => {
+    const { service, addEvent } = captainSetup();
+    await expect(service.captainAddEvent('s1', ['ada'], { playerId: 'bisi', kind: 'yellow' })).rejects.toThrow('your own team only');
+    await service.captainAddEvent('s1', ['ada'], { playerId: 'chidi', kind: 'save' });
+    expect(addEvent).toHaveBeenCalledTimes(1);
+    expect(addEvent).toHaveBeenCalledWith('s1', 'org', { playerId: 'chidi', kind: 'save' }, 'Ada (captain)');
+  });
+
+  it('stops at full time: the organiser changes scores while the vote is on', async () => {
+    const { service } = captainSetup({ status: SessionStatus.COMPLETED });
+    await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('Full time');
+  });
+
+  it("can't keep the score when marked as not here", async () => {
+    const { service } = captainSetup({ attendance: 'no_show' });
+    await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('not here today');
   });
 });

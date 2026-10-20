@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TEAMS, teamName } from '@/lib/teams';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import type { TeamKey } from '@/lib/api';
 import { getGameLineup, pickBib, type GameLineup, type GamePaid } from '@/lib/player';
 
@@ -24,7 +25,9 @@ function PaidTag({ paid }: { paid: GamePaid | null }) {
 export function MatchDayBibs({ sessionId }: { sessionId: string }) {
   const toast = useToast();
   const [lineup, setLineup] = useState<GameLineup | null>(null);
-  const [saving, setSaving] = useState<TeamKey | 'clear' | null>(null);
+  const [saving, setSaving] = useState<TeamKey | null>(null);
+  // A captain switching sides is asked first: the armband stays with the side they leave.
+  const [switching, setSwitching] = useState<TeamKey | null>(null);
 
   useEffect(() => {
     getGameLineup(sessionId).then(setLineup).catch(() => setLineup(null));
@@ -33,12 +36,24 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
   if (!lineup) return null;
   const teams = KEYS.slice(0, lineup.teamCount);
 
-  async function choose(team: TeamKey) {
-    const next = lineup?.myTeam === team ? null : team;
-    setSaving(next ?? 'clear');
+  const amCaptain = !!lineup.squad.find((p) => p.me)?.captain;
+
+  /**
+   * Their own side again does nothing: clearing it used to drop a captain's armband (and their
+   * "Keep the score") without a word. A captain picking another side is asked first.
+   */
+  function choose(team: TeamKey) {
+    if (lineup?.myTeam === team) return;
+    if (amCaptain) setSwitching(team);
+    else save(team);
+  }
+
+  async function save(next: TeamKey) {
+    setSwitching(null);
+    setSaving(next);
     try {
       setLineup(await pickBib(sessionId, next));
-      if (next) toast.success(lineup?.captains[next] ? `You're in Team ${lineup.captains[next]} ⚽` : `You're in ${TEAMS[next].name.toLowerCase()} ⚽`);
+      toast.success(lineup?.captains[next] ? `Bib saved: Team ${lineup.captains[next]}` : `Bib saved: ${TEAMS[next].name.toLowerCase()}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save your team");
     } finally {
@@ -49,8 +64,21 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
   const byTeam = (t: TeamKey | null) => lineup.squad.filter((p) => p.team === t);
   const noBib = byTeam(null);
 
+  const myTeam = lineup.myTeam;
   return (
     <div className="mt-4 rounded-2xl bg-chalk p-3.5 space-y-3">
+      <ConfirmDialog
+        open={!!switching}
+        variant="danger"
+        title={myTeam ? `Stop captaining ${teamName(myTeam, lineup.captains)}?` : 'Stop being captain?'}
+        message={`You captain ${myTeam ? teamName(myTeam, lineup.captains) : 'your side'} today. Moving to ${
+          switching ? teamName(switching, lineup.captains) : 'another team'
+        } means you stop being captain and can't keep the score. The organiser can make you captain again.`}
+        confirmLabel="Move and stop captaining"
+        cancelLabel="Stay captain"
+        onConfirm={() => switching && save(switching)}
+        onCancel={() => setSwitching(null)}
+      />
       {lineup.bibsOpen ? (
         <div>
           <p className="text-xs font-bold text-ink mb-2">{Object.keys(lineup.captains).length ? 'Which team are you in?' : 'Which bib are you in?'}</p>
@@ -63,7 +91,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
                   onClick={() => choose(t)}
                   disabled={!!saving}
                   aria-pressed={mine}
-                  className={`flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full text-xs font-bold transition-colors disabled:opacity-60 ${
+                  className={`flex items-center gap-2 min-h-11 pl-2 pr-3.5 rounded-full text-[13px] font-bold transition-colors disabled:opacity-60 ${
                     mine ? 'bg-ink text-white' : 'bg-white text-ink border border-gray-200 hover:border-ink'
                   }`}
                 >
