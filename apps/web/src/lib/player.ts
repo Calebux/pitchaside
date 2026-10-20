@@ -3,7 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
-import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -421,6 +421,16 @@ export function unsubscribePlayerPush(endpoint: string) {
 }
 
 /** How a player's card number is made: theirs, or a clubmate's. Null before they've played. */
+/** The Club tab: a group's table (all season, or the last N match days), for a group they play in. */
+export function getMyGroupTable(groupId: string, lastDays?: number) {
+  return request<LeagueTable>('GET', `/me/groups/${groupId}/table${lastDays ? `?last=${lastDays}` : ''}`);
+}
+
+/** The Club tab's rating parts (stats, votes, results) for everyone in a group they play in. */
+export function getMyGroupRatings(groupId: string) {
+  return request<RatingTrial>('GET', `/me/groups/${groupId}/ratings`);
+}
+
 export function getPlayerRatingBreakdown(playerId: string) {
   return request<RatingBreakdown | null>('GET', `/me/players/${playerId}/rating-breakdown`);
 }

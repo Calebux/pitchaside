@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNumber, IsObject, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
@@ -316,6 +316,19 @@ export class PlayerPortalController {
   @Get('games/:id/lineup')
   lineup(@Param('id') id: string, @CurrentPerson() person: Person) {
     return this.portal.gameLineup(person, id);
+  }
+
+  /** The Club tab: a group's table (all season, or the last N match days), for a group they play in. */
+  @Get('groups/:groupId/table')
+  groupTable(@Param('groupId') groupId: string, @Query('last') last: string | undefined, @CurrentPerson() person: Person) {
+    const n = Number(last);
+    return this.portal.groupTable(person, groupId, Number.isInteger(n) && n >= 1 && n <= 52 ? n : undefined);
+  }
+
+  /** The Club tab's Stats ranked by rating: each player's stats, votes and results parts. */
+  @Get('groups/:groupId/ratings')
+  groupRatings(@Param('groupId') groupId: string, @CurrentPerson() person: Person) {
+    return this.portal.groupRatings(person, groupId);
   }
 
   /** How a player's card number is made: their own, or any player's in a club they play for. */
