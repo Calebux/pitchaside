@@ -58,6 +58,7 @@ export function MatchPlayerSheet({
   members,
   owed,
   busy,
+  picked: initialPick,
   onClose,
   onGive,
 }: {
@@ -65,12 +66,14 @@ export function MatchPlayerSheet({
   members: MatchMember[];
   owed: OwedItem[];
   busy: boolean;
+  /** Opened from "Give to Ada…": start with them picked, so the footer shows what it pays. */
+  picked?: string;
   onClose: () => void;
   onGive: (m: MatchMember, toast: string) => void;
 }) {
   const titleId = useId();
   const [query, setQuery] = useState('');
-  const [picked, setPicked] = useState<string | null>(null);
+  const [picked, setPicked] = useState<string | null>(initialPick ?? null);
   const amount = Number(transfer.amount);
   const q = query.trim().toLowerCase();
   const rows = members

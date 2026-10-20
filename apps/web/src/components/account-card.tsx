@@ -26,8 +26,9 @@ function useCopy() {
 }
 
 /**
- * Asked after a player copies the account number: once they say they've sent it, a transfer
- * that arrives without their reference or name can still be matched to them.
+ * Asked after a player copies the account number. Saying they've sent it doesn't mark them paid:
+ * their payment code or name matches the transfer when it lands, and if neither is on it the
+ * organiser sees that they said they paid and confirms it.
  */
 function PaidSheet({
   groupId,
@@ -71,12 +72,12 @@ function PaidSheet({
           {result === 'matched' ? '✅' : '👍'}
         </p>
         <h2 id="paid-title" className="font-display text-xl font-extrabold text-ink mt-2">
-          {result === 'matched' ? 'Got it, you’re marked as paid' : 'Thanks, we’ll match it'}
+          {result === 'matched' ? 'Got it, you’re marked as paid' : 'Thanks, your organiser can see it'}
         </h2>
         <p className="text-sm text-gray-600 mt-2">
           {result === 'matched'
             ? 'We found your transfer and matched it to you.'
-            : 'As soon as your transfer lands in the group account, it’s matched to you. That’s usually within a minute.'}
+            : `If your payment code or your name is on the transfer, it’s matched to you as soon as it lands. If not, your organiser sees that you said you sent ₦${Number(sent).toLocaleString('en-NG')} and confirms it.`}
         </p>
         <button onClick={onClose} className="mt-5 w-full py-3 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 transition-colors">
           Done
@@ -92,8 +93,8 @@ function PaidSheet({
       </h2>
       <p className="text-sm text-gray-600 mt-2">
         {copied ? 'Account number copied. ' : ''}Send it to <span className="font-bold text-ink">{account.bankName}</span>{' '}
-        <span className="font-bold text-ink tabular-nums">{formatAccountNumber(account.accountNumber)}</span>, then tap
-        &ldquo;Yes&rdquo; so we can match it to you.
+        <span className="font-bold text-ink tabular-nums">{formatAccountNumber(account.accountNumber)}</span>, then tell us
+        here so your organiser knows it’s yours.
       </p>
       <label className="block text-left mt-4">
         <span className="text-xs font-bold text-gray-500">Amount you sent</span>
@@ -144,7 +145,7 @@ export function PayIntoCard({
   paymentType: PaymentType | string;
   reference?: string;
   eyebrow?: string;
-  /** For a signed-in member: copying the number asks if they've paid, so we can match it. */
+  /** For a signed-in member: copying the number asks if they've paid, so the organiser can see it. */
   claim?: { groupId: string; amount: number };
   onClaimed?: (status: 'matched' | 'waiting') => void;
 }) {
