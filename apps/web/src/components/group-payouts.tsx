@@ -12,6 +12,8 @@ import { SendMoneyModal, type RefundableMember } from '@/components/send-money-m
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { PAYOUT, PAYOUT_PICKS } from '@/lib/money-categories';
+import { MonthList } from '@/components/money/month-list';
+import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { InfoTip } from '@/components/info-tip';
 import {
   cancelPayout,
@@ -211,6 +213,7 @@ export function PayoutsPanel({
   const [savingCategory, setSavingCategory] = useState(false);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<PayoutFilter>('all');
+  const [cat, setCat] = useState<PayoutCategory | 'all' | 'none'>('all');
   const paidAhead = refundable.reduce((sum, m) => sum + m.credit, 0);
 
   async function load() {
@@ -269,6 +272,7 @@ export function PayoutsPanel({
   const statuses = FILTERS.find(([k]) => k === filter)![2];
   const shown = payouts.filter((p) => {
     if (statuses.length && !statuses.includes(p.status)) return false;
+    if (cat === 'none' ? !!p.category : cat !== 'all' && p.category !== cat) return false;
     if (!q) return true;
     const words = [
       p.beneficiaryName,
@@ -392,31 +396,37 @@ export function PayoutsPanel({
           </ul>
         </div>
       )}
-      {payouts.length > 4 && (
+      {payouts.length > 0 && (
         <div className="space-y-2">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search who, what for or amount"
-            aria-label="Search withdrawals"
-            className="w-full min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-          />
-          <div role="radiogroup" aria-label="Show" className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {FILTERS.map(([k, label]) => (
-              <button
-                key={k}
-                role="radio"
-                aria-checked={filter === k}
-                onClick={() => setFilter(k)}
-                className={`press shrink-0 min-h-11 px-3.5 rounded-full text-[13px] font-bold border transition-colors ${
-                  filter === k ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-600 hover:text-ink'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          {payouts.length > 4 && (
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search who, what for or amount"
+              aria-label="Search withdrawals"
+              className="w-full min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          )}
+          <FilterBar>
+            <FilterMenu
+              label="What it was for"
+              value={cat}
+              onChange={setCat}
+              options={[
+                { value: 'all', label: 'All categories' },
+                ...(Object.keys(PAYOUT) as PayoutCategory[]).map((k) => ({ value: k, label: PAYOUT[k] })),
+                { value: 'none', label: 'Not said yet' },
+              ]}
+            />
+            <FilterMenu
+              label="Status"
+              value={filter}
+              onChange={setFilter}
+              columns={2}
+              options={FILTERS.map(([k, label]) => ({ value: k, label: k === 'all' ? 'All status' : label }))}
+            />
+          </FilterBar>
         </div>
       )}
       {payouts.length === 0 ? (
@@ -432,6 +442,7 @@ export function PayoutsPanel({
             onClick={() => {
               setSearch('');
               setFilter('all');
+              setCat('all');
             }}
             className="mt-1 min-h-11 px-3 text-sm font-bold text-pitch-700"
           >
@@ -439,66 +450,79 @@ export function PayoutsPanel({
           </button>
         </div>
       ) : (
-        shown.map((p) => (
-          <div key={p.id} className="bg-white rounded-2xl border border-gray-100 shadow-card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-display text-xl font-extrabold text-ink tabular-nums">
-                  {formatCurrency(Number(p.amount))}
-                  {Number(p.fee) > 0 && <span className="text-sm font-bold text-gray-500 ml-1">+ {formatCurrency(Number(p.fee))} fee</span>}
-                </p>
-                {p.refundPlayer && (
-                  <p className="text-xs font-bold text-pitch-600 mt-0.5 truncate">
-                    Refund to {p.refundPlayer.firstName} {p.refundPlayer.lastName}
+        <MonthList
+          items={shown}
+          idOf={(p) => p.id}
+          dateOf={(p) => p.createdAt}
+          // Only money that left counts in a month's total.
+          amountOf={(p) => (p.status === 'failed' || p.status === 'cancelled' ? 0 : Number(p.amount))}
+          direction="out"
+          sticky={!q}
+        >
+          {(p) => (
+            <div className="px-4 py-3">
+              <div className="flex items-start gap-3">
+                <span className="w-10 h-10 shrink-0 rounded-full bg-chalk text-ink flex items-center justify-center" aria-hidden>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19.5v-15m0 0-6.75 6.75M12 4.5l6.75 6.75" />
+                  </svg>
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-bold text-ink truncate">
+                    {p.refundPlayer ? `Refund to ${p.refundPlayer.firstName} ${p.refundPlayer.lastName}` : `To ${p.beneficiaryName || p.beneficiaryAccount}`}
                   </p>
-                )}
-                <p className="text-xs text-gray-500 mt-0.5 truncate">
-                  → {p.beneficiaryName || p.beneficiaryAccount} · {p.beneficiaryBankName}
-                </p>
-                {p.narration && <p className="text-xs text-gray-500 mt-0.5 truncate">{p.narration}</p>}
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  {new Date(p.createdAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  {p.initiatedBy && ` · ${p.initiatedBy.firstName} ${p.initiatedBy.lastName}`}
-                </p>
+                  <p className="text-[13px] text-gray-600 mt-0.5 truncate">
+                    {new Date(p.createdAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')},{' '}
+                    {new Date(p.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    {p.initiatedBy && ` · ${p.initiatedBy.firstName}`}
+                  </p>
+                  {(p.narration || p.beneficiaryBankName) && (
+                    <p className="text-[12px] text-gray-500 mt-0.5 truncate">{[p.beneficiaryBankName, p.narration].filter(Boolean).join(' · ')}</p>
+                  )}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className={`font-display text-[15px] font-extrabold tabular-nums ${p.status === 'failed' || p.status === 'cancelled' ? 'text-gray-400 line-through' : 'text-ink'}`}>
+                    −{formatCurrency(Number(p.amount))}
+                  </p>
+                  {Number(p.fee) > 0 && <p className="text-[11px] text-gray-500 tabular-nums">+ {formatCurrency(Number(p.fee))} fee</p>}
+                  <span className={`mt-1 inline-block text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${statusStyles[p.status]}`}>
+                    {statusWords[p.status]}
+                  </span>
+                </div>
               </div>
-              <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0 ${statusStyles[p.status]}`}>
-                {statusWords[p.status]}
-              </span>
-            </div>
-            {p.errorMessage && (
-              <p className="mt-2 text-xs text-kit-600 bg-kit-500/10 rounded-lg px-3 py-1.5">{p.errorMessage}</p>
-            )}
-            <div className="flex flex-wrap items-center gap-2 empty:hidden">
-              {!p.refundPlayerId &&
-                (canSend ? (
+              {p.errorMessage && <p className="mt-2 ml-[52px] text-xs text-kit-600 bg-kit-500/10 rounded-lg px-3 py-1.5">{p.errorMessage}</p>}
+              <div className="ml-[52px] flex flex-wrap items-center gap-2 empty:hidden">
+                {!p.refundPlayerId &&
+                  (canSend ? (
+                    <button
+                      onClick={() => setPicking(p)}
+                      className={`press mt-2 inline-flex items-center gap-1 min-h-11 px-3 rounded-full text-[13px] font-bold border transition-colors ${
+                        p.category ? 'bg-chalk border-chalk text-ink' : 'bg-white border-dashed border-gray-300 text-gray-600 hover:text-ink'
+                      }`}
+                      aria-label={p.category ? `For ${PAYOUT[p.category]}. Change` : 'Say what it was for'}
+                    >
+                      {p.category ? PAYOUT[p.category] : '+ What was it for?'}
+                      {p.category && (
+                        <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      )}
+                    </button>
+                  ) : (
+                    p.category && <p className="mt-2 text-[13px] font-semibold text-ink">For: {PAYOUT[p.category]}</p>
+                  ))}
+                {p.status === 'pending' && (
                   <button
-                    onClick={() => setPicking(p)}
-                    className={`press mt-2.5 inline-flex items-center gap-1 min-h-11 px-3 rounded-full text-[13px] font-bold border transition-colors ${
-                      p.category ? 'bg-chalk border-chalk text-ink' : 'bg-white border-dashed border-gray-300 text-gray-600 hover:text-ink'
-                    }`}
-                    aria-label={p.category ? `For ${PAYOUT[p.category]}. Change` : 'Say what it was for'}
+                    onClick={() => setCancelId(p.id)}
+                    className="mt-2 min-h-11 px-4 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
                   >
-                    {p.category ? PAYOUT[p.category] : '+ What was it for?'}
-                    {p.category && (
-                      <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                      </svg>
-                    )}
+                    Cancel
                   </button>
-                ) : (
-                  p.category && <p className="mt-2 text-[13px] font-semibold text-ink">For: {PAYOUT[p.category]}</p>
-                ))}
-              {p.status === 'pending' && (
-                <button
-                  onClick={() => setCancelId(p.id)}
-                  className="mt-2.5 min-h-11 px-4 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
-                >
-                  Cancel
-                </button>
-              )}
+                )}
+              </div>
             </div>
-          </div>
-        ))
+          )}
+        </MonthList>
       )}
     </div>
   );

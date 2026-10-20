@@ -16,6 +16,8 @@ import type { MatchMember } from '@/lib/give-outcome';
 import { accountHint, from as unnamedFrom, when as whenIn } from '@/components/group/how-paid-sheet';
 import { btnPrimary } from '@/components/buttons';
 import { NotPlayerSheet } from '@/components/money/not-player-sheet';
+import { MonthList } from '@/components/money/month-list';
+import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { MONEY_IN } from '@/lib/money-categories';
 import {
   giveTransfer,
@@ -497,11 +499,14 @@ function TransferRow({
   onClick,
   expanded,
   statusLabel,
+  withDate,
 }: {
   t: BankTransfer;
   onClick: () => void;
   expanded?: boolean;
   statusLabel?: string;
+  /** In a month's list there's no day heading, so the row says the day too. */
+  withDate?: boolean;
 }) {
   const who = payerName(t);
   const status = transferStatus[t.status];
@@ -517,6 +522,9 @@ function TransferRow({
       <span className="min-w-0 flex-1">
         <span className="block text-[15px] font-bold text-ink truncate">{transferName(t)}</span>
         <span className="block text-[13px] text-gray-600 mt-0.5 truncate">
+          {withDate
+            ? `${new Date(t.receivedAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}, `
+            : ''}
           {new Date(t.receivedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
           {t.status === 'unmatched' && t.narration && !(!t.senderName?.trim() && senderFrom(t)) ? `, “${t.narration}”` : ''}
         </span>
@@ -742,7 +750,8 @@ export function TransfersPanel({
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
   const [classifying, setClassifying] = useState<BankTransfer | null>(null);
   const [search, setSearch] = useState('');
-  const [show, setShow] = useState<'all' | 'players' | 'other'>('all');
+  const [show, setShow] = useState<'all' | 'games' | 'ahead' | 'other'>('all');
+  const [when, setWhen] = useState<'any' | 'week' | 'month' | 'last'>('any');
 
   async function run(id: string, fn: () => Promise<unknown>, ok: string) {
     setWorkingId(id);
@@ -806,19 +815,30 @@ export function TransfersPanel({
   const placed = transfers.filter((t) => t.status === 'matched' || t.status === 'assigned');
   const notPlayers = transfers.filter((t) => t.status === 'other');
   const setAside = transfers.filter((t) => t.status === 'ignored');
-  const received = placed.reduce((sum, t) => sum + Number(t.amount), 0);
-  const otherIn = notPlayers.reduce((sum, t) => sum + Number(t.amount), 0);
-  // Money in: players' payments and money that isn't, narrowed by the chips and the search.
-  const q = search.trim().toLowerCase();
-  const listed = transfers.filter((t) => {
-    if (show !== 'other' && (t.status === 'matched' || t.status === 'assigned')) {
+  // Money in: players' payments and money that isn't, narrowed by the two filters and the search.
+  const q = search.trim().toLowerCase().replace(/[₦,]/g, '');
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const lastStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+  const inTime = (iso: string) => {
+    const at = new Date(iso).getTime();
+    if (when === 'week') return at >= now.getTime() - 7 * 86_400_000;
+    if (when === 'month') return at >= monthStart;
+    if (when === 'last') return at >= lastStart && at < monthStart;
+    return true;
+  };
+  const listed = [...placed, ...notPlayers]
+    .sort((x, y) => new Date(y.receivedAt).getTime() - new Date(x.receivedAt).getTime())
+    .filter((t) => {
+      if (show === 'games' && !(t.status !== 'other' && t.payment?.session)) return false;
+      if (show === 'ahead' && !(t.status !== 'other' && !t.payment?.session)) return false;
+      if (show === 'other' && t.status !== 'other') return false;
+      if (!inTime(t.receivedAt)) return false;
       if (!q) return true;
-    } else if (show !== 'players' && t.status === 'other') {
-      if (!q) return true;
-    } else return false;
-    const words = [transferName(t), payerName(t), t.senderName, t.narration, t.note, t.category && MONEY_IN[t.category].label, paidFor(t), String(Number(t.amount))];
-    return words.some((w) => w && w.toLowerCase().includes(q.replace(/[₦,]/g, '')));
-  });
+      const words = [transferName(t), payerName(t), t.senderName, t.narration, t.note, t.category && MONEY_IN[t.category].label, paidFor(t), String(Number(t.amount))];
+      return words.some((w) => w && w.toLowerCase().includes(q));
+    });
+  const filtered = show !== 'all' || when !== 'any' || !!q;
 
   return (
     <div className="space-y-3">
@@ -940,49 +960,53 @@ export function TransfersPanel({
         </section>
       )}
 
-      {/* Everyone who's paid, newest first, like a bank app */}
+      {/* Everyone who's paid, newest first, like a bank app: search, two filters, then month by month */}
       <section aria-labelledby="money-in-title" className="pt-3">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="money-in-title" className="text-base font-bold text-ink">
-            Money in
-          </h2>
-          <p className="text-xs font-semibold text-gray-500 tabular-nums text-right">
-            {formatCurrency(received)} from {placed.length} payment{placed.length === 1 ? '' : 's'}
-            {notPlayers.length > 0 && <span className="block">+ {formatCurrency(otherIn)} not from players</span>}
-          </p>
-        </div>
-        {placed.length + notPlayers.length > 4 && (
+        <h2 id="money-in-title" className="text-base font-bold text-ink">
+          Money in
+        </h2>
+        {placed.length + notPlayers.length > 0 && (
           <div className="mt-2.5 space-y-2">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search a name, note or amount"
-              aria-label="Search money in"
-              className="w-full min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-            />
-            {notPlayers.length > 0 && (
-              <div role="radiogroup" aria-label="Show" className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {(
-                  [
-                    ['all', 'All'],
-                    ['players', `Players (${placed.length})`],
-                    ['other', `Not players (${notPlayers.length})`],
-                  ] as const
-                ).map(([k, label]) => (
-                  <button
-                    key={k}
-                    role="radio"
-                    aria-checked={show === k}
-                    onClick={() => setShow(k)}
-                    className={`press shrink-0 min-h-11 px-3.5 rounded-full text-[13px] font-bold border transition-colors ${
-                      show === k ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-600 hover:text-ink'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
+            {placed.length + notPlayers.length > 4 && (
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search a name, note or amount"
+                aria-label="Search money in"
+                className="w-full min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+              />
+            )}
+            <FilterBar>
+              <FilterMenu
+                label="What kind of money"
+                value={show}
+                onChange={setShow}
+                columns={2}
+                options={[
+                  { value: 'all', label: 'All money' },
+                  { value: 'games', label: 'Paid for games' },
+                  { value: 'ahead', label: 'Paid ahead' },
+                  { value: 'other', label: 'Not from players' },
+                ]}
+              />
+              <FilterMenu
+                label="When"
+                value={when}
+                onChange={setWhen}
+                columns={2}
+                options={[
+                  { value: 'any', label: 'Any time' },
+                  { value: 'week', label: 'Last 7 days' },
+                  { value: 'month', label: 'This month' },
+                  { value: 'last', label: 'Last month' },
+                ]}
+              />
+            </FilterBar>
+            {filtered && listed.length > 0 && (
+              <p className="px-1 text-[13px] text-gray-600 tabular-nums" aria-live="polite">
+                {listed.length} payment{listed.length === 1 ? '' : 's'} · {formatCurrency(listed.reduce((n, t) => n + Number(t.amount), 0))}
+              </p>
             )}
           </div>
         )}
@@ -1003,6 +1027,7 @@ export function TransfersPanel({
             onClick={() => {
               setSearch('');
               setShow('all');
+              setWhen('any');
             }}
             className="mt-1 min-h-11 px-3 text-sm font-bold text-pitch-700"
           >
@@ -1010,7 +1035,15 @@ export function TransfersPanel({
           </button>
         </div>
       ) : (
-        <TransferDayList days={groupByDay(listed)}>
+        <MonthList
+          items={listed}
+          idOf={(t) => t.id}
+          idPrefix="transfer-"
+          dateOf={(t) => t.receivedAt}
+          amountOf={(t) => Number(t.amount)}
+          direction="in"
+          sticky={!q}
+        >
           {(t) => {
             const open = openId === t.id;
             const other = t.status === 'other';
@@ -1021,6 +1054,7 @@ export function TransfersPanel({
                   onClick={() => setOpenId(open ? null : t.id)}
                   expanded={open}
                   statusLabel={other ? (t.category ? MONEY_IN[t.category].label : 'Not a player') : paidFor(t)}
+                  withDate
                 />
                 {open && (
                   <div className="px-4 pb-4 -mt-1 space-y-1.5 text-xs text-gray-600">
@@ -1058,7 +1092,7 @@ export function TransfersPanel({
               </>
             );
           }}
-        </TransferDayList>
+        </MonthList>
       )}
 
       {setAside.length > 0 && (
