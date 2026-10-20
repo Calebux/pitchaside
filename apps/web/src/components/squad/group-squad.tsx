@@ -330,7 +330,7 @@ export function GroupSquad({
                   {inCount}
                   {group.targetPlayers > 0 && <span className="text-[13px] font-bold text-gray-400"> / {group.targetPlayers}</span>}
                 </p>
-                <p className="mt-1 text-[12px] leading-snug text-gray-600">in for {nextLabel} ›</p>
+                <p className="mt-1 text-[12px] leading-snug text-gray-600">coming {nextLabel} ›</p>
               </Link>
             ) : (
               <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5">
@@ -344,28 +344,54 @@ export function GroupSquad({
             </div>
           </div>
 
-          {memberCount > 6 && (
-            <div className="relative mt-3">
-              <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name or nickname"
-                aria-label="Search the squad"
-                className="w-full min-h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-2xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-              />
+          {/* Search on the left, sort on the right: one row */}
+          <div className="mt-3 flex items-center gap-2">
+            {memberCount > 6 && (
+              <div className="relative flex-1 min-w-0">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search name or nickname"
+                  aria-label="Search the squad"
+                  className="w-full min-h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-2xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+                />
+              </div>
+            )}
+            {/* The sort icon opens the phone's own picker; a dot shows when it isn't A–Z */}
+            <div className={`relative shrink-0 ${memberCount > 6 ? '' : 'ml-auto'}`}>
+              <span
+                className={`w-11 h-11 rounded-2xl border flex items-center justify-center transition-colors ${
+                  sort === 'name' ? 'bg-white border-gray-200 text-ink' : 'bg-ink border-ink text-volt-300'
+                }`}
+                aria-hidden
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+                </svg>
+              </span>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as typeof sort)}
+                aria-label={`Sort players, now by ${sort === 'name' ? 'name' : sort === 'rating' ? 'rating' : 'games played'}`}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              >
+                <option value="name">Sort by name (A–Z)</option>
+                <option value="rating">Sort by rating</option>
+                <option value="games">Sort by games played</option>
+              </select>
             </div>
-          )}
+          </div>
 
           <div className="mt-3 flex items-center gap-2">
             <div role="radiogroup" aria-label="Show" className="flex-1 min-w-0 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {(
                 [
                   { key: 'all', label: 'All', n: memberCount, show: true },
-                  { key: 'in', label: `In for ${nextLabel}`, n: inCount, show: !!nextGame },
+                  { key: 'in', label: 'Coming', n: inCount, show: !!nextGame },
                   { key: 'out', label: 'Not in yet', n: outCount, show: !!nextGame && outCount > 0 },
                   { key: 'new', label: 'New', n: newCount, show: newCount > 0 },
                 ] as { key: typeof memberFilter; label: string; n: number; show: boolean }[]
@@ -377,6 +403,7 @@ export function GroupSquad({
                     role="radio"
                     aria-checked={memberFilter === f.key}
                     onClick={() => setMemberFilter(f.key)}
+                    aria-label={f.key === 'in' ? `Coming to ${nextLabel}: ${f.n}` : undefined}
                     className={`press shrink-0 min-h-11 px-3.5 text-[13px] font-bold rounded-full border whitespace-nowrap tabular-nums transition-colors ${
                       memberFilter === f.key ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
                     }`}
@@ -386,30 +413,15 @@ export function GroupSquad({
                 ))}
             </div>
           </div>
-          <div className="mt-2 flex items-center justify-end gap-2">
-            <label htmlFor={`sort-${id}`} className="text-[13px] font-semibold text-gray-500">
-              Sort by
-            </label>
-            <select
-              id={`sort-${id}`}
-              value={sort}
-              onChange={(e) => setSort(e.target.value as typeof sort)}
-              className="min-h-11 pl-3 pr-8 bg-white border border-gray-200 rounded-xl text-[13px] font-bold text-ink focus:outline-none focus:ring-4 focus:ring-volt-300/70"
-            >
-              <option value="name">Name</option>
-              <option value="rating">Rating</option>
-              <option value="games">Games played</option>
-            </select>
-          </div>
 
           {shown.length === 0 && !(offerMe && !q && memberFilter === 'all') ? (
             <p className="mt-6 text-sm text-gray-600 text-center">
               {q
                 ? `No one called “${query.trim()}”.`
                 : memberFilter === 'in'
-                  ? `No one’s in for ${nextLabel} yet.`
+                  ? `No one’s said they’re coming to ${nextLabel} yet.`
                   : memberFilter === 'out'
-                    ? `Everyone is in for ${nextLabel}.`
+                    ? `Everyone’s coming to ${nextLabel}.`
                     : 'No one here.'}
             </p>
           ) : (
@@ -468,7 +480,7 @@ export function GroupSquad({
                         <span
                           className={`shrink-0 text-[11px] font-extrabold px-2 py-1 rounded-full ${m.coming ? 'bg-volt-300 text-ink' : 'bg-chalk text-gray-600'}`}
                         >
-                          {m.coming ? 'In' : 'Not in yet'}
+                          {m.coming ? 'Coming' : 'Not in yet'}
                         </span>
                       )}
                       <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
