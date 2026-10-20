@@ -82,6 +82,7 @@ export function PlayerCardHero({
   ratings,
   caption,
   photoKey,
+  photoButton,
   onRatingTap,
 }: {
   firstName: string;
@@ -90,6 +91,8 @@ export function PlayerCardHero({
   caption?: string;
   /** Their photo takes the drawn player's place on the card. */
   photoKey?: string | null;
+  /** The camera on the portrait's corner (CardPhotoButton), where they can change their photo. */
+  photoButton?: React.ReactNode;
   /** Tapping the big number explains how it's made. */
   onRatingTap?: () => void;
 }) {
@@ -100,7 +103,8 @@ export function PlayerCardHero({
     <div className="relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
       <div className="absolute inset-0 turf-stripes" />
       <div className="relative grid grid-cols-[auto_1fr] gap-4 p-5">
-        <div className="relative w-24 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
+        <div className="relative w-24 self-start">
+        <div className="relative rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
           {onRatingTap && ratings.ovr !== null ? (
             <button
               onClick={onRatingTap}
@@ -144,13 +148,15 @@ export function PlayerCardHero({
           </svg>
           )}
           {ratings.provisional && (
-            <p className="absolute z-10 bottom-1.5 inset-x-1.5 text-center rounded-md bg-black/45 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
+            <p className="absolute z-10 top-[46px] left-1.5 rounded-md bg-black/45 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
               Provisional
             </p>
           )}
         </div>
+        {photoButton && <span className="absolute z-10 -bottom-2 -right-2">{photoButton}</span>}
+        </div>
         <div className="min-w-0">
-                    <h1 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h1>
+          <h2 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h2>
           <div className="mt-3">
             <AttributeRow ratings={ratings} dark />
           </div>

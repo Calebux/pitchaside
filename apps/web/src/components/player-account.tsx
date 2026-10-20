@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { Sheet } from '@/components/sheet';
+import { SheetTitle } from '@/components/home/sheet-title';
+import { btnPrimary } from '@/components/buttons';
 import { useToast } from '@/components/toast';
 import { BallSpinner } from '@/components/skeleton';
 import { PasswordField } from '@/components/password-sign-in';
@@ -28,6 +31,8 @@ export function PlayerAccountSettings({
   const [name, setName] = useState({ firstName, lastName, nickname: nickname ?? '' });
   const [pw, setPw] = useState({ current: '', next: '' });
   const [busy, setBusy] = useState(false);
+  const nameTitle = useId();
+  const pwTitle = useId();
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -59,89 +64,85 @@ export function PlayerAccountSettings({
     }
   }
 
+  const chevron = (
+    <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+    </svg>
+  );
   const row = (label: string, value: string, key: 'name' | 'password') => (
-    <button
-      onClick={() => setOpen(open === key ? null : key)}
-      className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
-      aria-expanded={open === key}
-    >
+    <button onClick={() => setOpen(key)} className="press w-full flex items-center justify-between gap-3 min-h-16 px-4 py-3 text-left hover:bg-chalk/60">
       <span className="min-w-0">
-        <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">{label}</span>
-        <span className="block text-sm font-bold text-ink truncate">{value}</span>
+        <span className="block text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">{label}</span>
+        <span className="block text-[15px] font-bold text-ink truncate">{value}</span>
       </span>
-      <span className="text-xs font-bold text-pitch-600 shrink-0">{open === key ? 'Close' : 'Edit'}</span>
+      <span className="flex items-center gap-1 shrink-0 text-[13px] font-bold text-pitch-700">
+        Change
+        {chevron}
+      </span>
     </button>
   );
-
-  const save = (label: string, disabled = false) => (
-    <button
-      type="submit"
-      disabled={busy || disabled}
-      className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 disabled:opacity-50 flex items-center justify-center gap-2"
-    >
+  const label = (id: string, text: string) => (
+    <label htmlFor={id} className="block text-xs font-bold text-gray-600 mb-1">
+      {text}
+    </label>
+  );
+  const submit = (form: string, text: string, disabled = false) => (
+    <button type="submit" form={form} disabled={busy || disabled} className={`${btnPrimary} w-full`}>
       {busy && <BallSpinner />}
-      {label}
+      {text}
     </button>
   );
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100">
-      {row('Name', nickname ? `${firstName} “${nickname}” ${lastName}` : `${firstName} ${lastName}`, 'name')}
-      {open === 'name' && (
-        <form onSubmit={saveName} className="px-4 pb-4 pt-3 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              aria-label="First name"
-              required
-              minLength={2}
-              value={name.firstName}
-              onChange={(e) => setName({ ...name, firstName: e.target.value })}
-              className={input}
-            />
-            <input
-              aria-label="Last name"
-              required
-              minLength={2}
-              value={name.lastName}
-              onChange={(e) => setName({ ...name, lastName: e.target.value })}
-              className={input}
-            />
-          </div>
-          <div>
-            <input
-              aria-label="Nickname"
-              placeholder="Nickname (optional)"
-              maxLength={24}
-              value={name.nickname}
-              onChange={(e) => setName({ ...name, nickname: e.target.value })}
-              className={input}
-            />
-            <p className="text-[11px] text-gray-500 mt-1">What they call you on the pitch. Team sheets show it instead of your name.</p>
-          </div>
-          {save('Save name')}
-        </form>
-      )}
-
-      <div className="px-4 py-3">
-        <span className="block text-[11px] font-bold uppercase tracking-wider text-gray-500">Email (sign-in)</span>
-        <span className="block text-sm font-bold text-ink break-all">{email}</span>
+    <>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
+        {row('Name', nickname ? `${firstName} “${nickname}” ${lastName}` : `${firstName} ${lastName}`, 'name')}
+        <div className="min-h-16 px-4 py-3">
+          <span className="block text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">Email · you sign in with it</span>
+          <span className="block text-[15px] font-bold text-ink [overflow-wrap:anywhere]">{email}</span>
+        </div>
+        {row('Password', '••••••••', 'password')}
       </div>
 
-      {row('Password', '••••••••', 'password')}
-      {open === 'password' && (
-        <form onSubmit={savePassword} className="px-4 pb-4 pt-3 space-y-3">
-          <PasswordField
-            id="pw-current"
-            label="Current password"
-            value={pw.current}
-            onChange={(v) => setPw({ ...pw, current: v })}
-            autoComplete="current-password"
-            required={false}
-          />
-          <PasswordField id="pw-new" label="New password" value={pw.next} onChange={(v) => setPw({ ...pw, next: v })} autoComplete="new-password" />
-          {save('Change password', pw.next.length < 8)}
-        </form>
+      {open === 'name' && (
+        <Sheet titleId={nameTitle} onClose={() => setOpen(null)} align="left" footer={submit('name-form', 'Save name')}>
+          <SheetTitle id={nameTitle} title="Your name" sub="It changes in every club you play in." onClose={() => setOpen(null)} />
+          <form id="name-form" onSubmit={saveName} className="mt-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                {label('me-first', 'First name')}
+                <input id="me-first" required minLength={2} value={name.firstName} onChange={(e) => setName({ ...name, firstName: e.target.value })} className={input} />
+              </div>
+              <div>
+                {label('me-last', 'Last name')}
+                <input id="me-last" required minLength={2} value={name.lastName} onChange={(e) => setName({ ...name, lastName: e.target.value })} className={input} />
+              </div>
+            </div>
+            <div>
+              {label('me-nick', 'Nickname (optional)')}
+              <input id="me-nick" maxLength={24} value={name.nickname} onChange={(e) => setName({ ...name, nickname: e.target.value })} className={input} />
+              <p className="text-[12px] text-gray-500 mt-1">What they call you on the pitch. Team sheets and ballots show it instead of your name.</p>
+            </div>
+          </form>
+        </Sheet>
       )}
-    </div>
+
+      {open === 'password' && (
+        <Sheet titleId={pwTitle} onClose={() => setOpen(null)} align="left" footer={submit('pw-form', 'Change password', pw.next.length < 8)}>
+          <SheetTitle id={pwTitle} title="Change your password" sub="At least 8 characters." onClose={() => setOpen(null)} />
+          <form id="pw-form" onSubmit={savePassword} className="mt-4 space-y-3">
+            <PasswordField
+              id="pw-current"
+              label="Current password"
+              value={pw.current}
+              onChange={(v) => setPw({ ...pw, current: v })}
+              autoComplete="current-password"
+              required={false}
+            />
+            <PasswordField id="pw-new" label="New password (at least 8 characters)" value={pw.next} onChange={(v) => setPw({ ...pw, next: v })} autoComplete="new-password" />
+          </form>
+        </Sheet>
+      )}
+    </>
   );
 }
