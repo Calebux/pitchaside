@@ -987,15 +987,22 @@ export interface PlayerRatings {
 export interface LeagueTable {
   games: number;
   points: { win: number; draw: number; teamOfDay: number; potm: number };
-  rows: (PlayerRatings & { player: SquadMember })[];
+  rows: (PlayerRatings & {
+    player: SquadMember;
+    /** The player's own last three match days, oldest first: W more games won than lost, L fewer, D level. */
+    form: ('W' | 'D' | 'L')[];
+    /** Places up (+) or down since before the latest match day; null if they weren't in the table then. */
+    move: number | null;
+  })[];
 }
 
 export function getSessionVoting(sessionId: string): Promise<SessionVoting> {
   return http.get(`/sessions/${sessionId}/voting`);
 }
 
-export function getGroupTable(groupId: string): Promise<LeagueTable> {
-  return http.get(`/groups/${groupId}/table`);
+/** The group's table; `lastDays` limits it to the latest match days. */
+export function getGroupTable(groupId: string, lastDays?: number): Promise<LeagueTable> {
+  return http.get(`/groups/${groupId}/table${lastDays ? `?last=${lastDays}` : ''}`);
 }
 
 export function getPlayerRatings(playerId: string): Promise<PlayerRatings> {

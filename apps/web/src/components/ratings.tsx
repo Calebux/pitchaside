@@ -135,6 +135,90 @@ const TrophyMark = () => (
 );
 
 /** The group's league: points from results (every short game on match day), Team of the Day and Player of the Match. */
+type TableRow = LeagueTable['rows'][number];
+
+const FORM_STYLE: Record<'W' | 'D' | 'L', { bg: string; word: string }> = {
+  W: { bg: 'bg-volt-400', word: 'won' },
+  D: { bg: 'bg-gray-200', word: 'drew' },
+  L: { bg: 'bg-kit-400', word: 'lost' },
+};
+
+/** A player's last three match days as lettered dots: colour and letter, and said in words. */
+function FormDots({ form }: { form: TableRow['form'] }) {
+  if (!form.length) return <span className="text-[11px] text-gray-400">–</span>;
+  return (
+    <span className="inline-flex gap-0.5" role="img" aria-label={`Last ${form.length} match day${form.length === 1 ? '' : 's'}: ${form.map((f) => FORM_STYLE[f].word).join(', ')}`}>
+      {form.map((f, i) => (
+        <span key={i} className={`w-4 h-4 rounded-[5px] ${FORM_STYLE[f].bg} text-ink text-[9px] font-extrabold flex items-center justify-center`} aria-hidden>
+          {f}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** ▲2, ▼1 or – : places moved since before the latest match day. */
+function Move({ move }: { move: number | null }) {
+  if (move === null) return <span className="text-[10px] font-bold text-gray-400">new</span>;
+  if (move === 0) return <span className="text-[10px] font-bold text-gray-400" aria-label="Same place">–</span>;
+  return (
+    <span className={`text-[10px] font-extrabold ${move > 0 ? 'text-pitch-600' : 'text-kit-600'}`} aria-label={`${move > 0 ? 'Up' : 'Down'} ${Math.abs(move)}`}>
+      {move > 0 ? '▲' : '▼'}
+      {Math.abs(move)}
+    </span>
+  );
+}
+
+const nameOf = (r: TableRow) => r.player.nickname || `${r.player.firstName} ${r.player.lastName}`.trim();
+
+/** The top three on a striped pitch: their shirt (or photo), name and points, tallest in the middle. */
+function Podium({ rows }: { rows: TableRow[] }) {
+  // Second, first, third, left to right.
+  const order = [rows[1], rows[0], rows[2]];
+  const place = ['2nd', '1st', '3rd'];
+  const block = ['h-[68px] bg-gray-200', 'h-[92px] bg-volt-300', 'h-[52px] bg-kit-400'];
+  return (
+    <div className="turf-stripes bg-pitch-700 rounded-3xl px-3 pt-4 grid grid-cols-3 gap-2 items-end" aria-label="Top three">
+      {order.map((r, i) => {
+        const name = nameOf(r);
+        const initials = `${r.player.firstName[0] ?? ''}${r.player.lastName[0] ?? ''}`.toUpperCase();
+        return (
+          <div key={r.player.id} className="flex flex-col items-center gap-1.5 min-w-0 text-center text-ink">
+            {r.player.photoKey ? (
+              <Avatar name={name} photoKey={r.player.photoKey} className="w-12 h-12 ring-2 ring-ink" />
+            ) : (
+              // Always a light shirt: a dark one would vanish on the pitch.
+              <svg viewBox="0 0 48 48" className="w-12 h-12" aria-hidden>
+                <path
+                  d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z"
+                  className={['fill-sky-300', 'fill-sun-400', 'fill-white'][i]}
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinejoin="round"
+                />
+                <text x="24" y="34" textAnchor="middle" fontSize="12" fontWeight="800" className="font-display fill-ink">
+                  {initials}
+                </text>
+              </svg>
+            )}
+            <span className="max-w-full truncate text-[13px] font-bold text-white">{name}</span>
+            <div className={`w-full ${block[i]} rounded-t-2xl flex flex-col items-center pt-2 text-ink animate-rise`}>
+              <span className="font-display text-2xl font-extrabold leading-none tabular-nums">{r.points}</span>
+              <span className="text-[11px] font-bold">
+                pts · {place[i]}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The season table: the top three on a podium, then everyone else in a dense list with their
+ * record, form over their last three match days and places moved since the last one.
+ */
 export function LeagueTableView({ table }: { table: LeagueTable }) {
   if (table.rows.length === 0 || table.rows.every((r) => r.points === 0)) {
     return (
@@ -145,62 +229,60 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
       />
     );
   }
+  // A podium needs three with points; otherwise it's all one list.
+  const podium = table.rows.length >= 3 && table.rows[2].points > 0;
+  const rest = podium ? table.rows.slice(3) : table.rows;
+  const first = podium ? 4 : 1;
+  const cols = 'grid grid-cols-[30px_minmax(0,1fr)_24px_56px_34px] items-center gap-2';
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
-      <div className="grid grid-cols-[28px_1fr_32px_40px_44px] sm:grid-cols-[32px_1fr_40px_64px_48px_48px_56px] items-center gap-2 px-4 py-2.5 bg-ink text-[10px] font-extrabold uppercase tracking-wider text-white/50">
-        <span>#</span>
-        <span>Player</span>
-        <span className="text-center">P</span>
-        <span className="hidden sm:block text-center">W-D-L</span>
-        <span className="text-center" title="Player of the Match">★<span className="sr-only">Player of the Match wins</span></span>
-        <span className="hidden sm:block text-center">OVR</span>
-        <span className="text-right text-volt-300">Pts</span>
-      </div>
-      {table.rows.map((row, i) => {
-        const name = `${row.player.firstName} ${row.player.lastName}`;
-        return (
-          <div
-            key={row.player.id}
-            className={`grid grid-cols-[28px_1fr_32px_40px_44px] sm:grid-cols-[32px_1fr_40px_64px_48px_48px_56px] items-center gap-2 px-4 py-3 border-t border-gray-100 ${
-              i === 0 ? 'bg-volt-100' : ''
-            }`}
-          >
-            <span
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-extrabold tabular-nums ${
-                i === 0 ? 'bg-sun-400 text-ink' : i === 1 ? 'bg-gray-200 text-ink' : i === 2 ? 'bg-kit-400/30 text-ink' : 'text-gray-500'
-              }`}
-            >
-              {i + 1}
+    <div className="space-y-3">
+      {podium && <Podium rows={table.rows} />}
+      {rest.length > 0 && (
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
+          <div className={`${cols} px-3.5 py-2.5 bg-ink text-[10px] font-extrabold uppercase tracking-wider text-white/60`}>
+            <span>#</span>
+            <span>Player</span>
+            <span className="text-center" title="Games played">
+              P<span className="sr-only">layed</span>
             </span>
-            <span className="flex items-center gap-2.5 min-w-0">
-              <Avatar name={name} photoKey={row.player.photoKey} className="w-8 h-8 text-[11px]" />
-              <span className="min-w-0">
-                <span className="block text-sm font-bold text-ink truncate">{name}</span>
-                <span className="flex sm:hidden items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">
-                  {row.record.w}W {row.record.d}D {row.record.l}L
-                  {row.teamOfDay > 0 && (
-                    <span className="inline-flex items-center gap-0.5 text-amber-700" aria-label={`Team of the Day ${row.teamOfDay} time${row.teamOfDay === 1 ? '' : 's'}`}>
-                      <span aria-hidden>·</span>
-                      <TrophyMark />
-                      <span aria-hidden>{row.teamOfDay}</span>
-                    </span>
-                  )}
-                </span>
-              </span>
-            </span>
-            <span className="text-center text-sm text-gray-500 tabular-nums">{row.games}</span>
-            <span className="hidden sm:block text-center text-xs font-semibold text-gray-500 tabular-nums">
-              {row.record.w}-{row.record.d}-{row.record.l}
-            </span>
-            <span className={`text-center text-sm tabular-nums ${row.potmWins > 0 ? 'font-bold text-ink' : 'text-gray-500'}`}>{row.potmWins}</span>
-            <span className="hidden sm:block text-center text-sm font-bold text-ink tabular-nums">{row.ovr ?? '–'}</span>
-            <span className="text-right font-display text-lg font-extrabold text-ink tabular-nums">{row.points}</span>
+            <span className="text-center">Form</span>
+            <span className="text-right text-volt-300">Pts</span>
           </div>
-        );
-      })}
-      <p className="px-4 py-3 border-t border-gray-100 text-[11px] text-gray-500">
+          {rest.map((row, i) => {
+            const name = nameOf(row);
+            return (
+              <div key={row.player.id} className={`${cols} px-3.5 py-2.5 border-t border-gray-100`}>
+                <span className="flex flex-col leading-none gap-0.5">
+                  <span className="font-display text-[15px] font-extrabold text-ink tabular-nums">{first + i}</span>
+                  <Move move={row.move} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold text-ink truncate">{name}</span>
+                  <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">
+                    {row.record.w}W {row.record.d}D {row.record.l}L
+                    {row.potmWins > 0 && <span aria-label={`Player of the Match ${row.potmWins}`}>· ★ {row.potmWins}</span>}
+                    {row.teamOfDay > 0 && (
+                      <span className="inline-flex items-center gap-0.5 text-amber-700" aria-label={`Team of the Day ${row.teamOfDay} time${row.teamOfDay === 1 ? '' : 's'}`}>
+                        <span aria-hidden>·</span>
+                        <TrophyMark />
+                        <span aria-hidden>{row.teamOfDay}</span>
+                      </span>
+                    )}
+                  </span>
+                </span>
+                <span className="text-center text-sm text-gray-500 tabular-nums">{row.games}</span>
+                <span className="flex justify-center">
+                  <FormDots form={row.form} />
+                </span>
+                <span className="text-right font-display text-lg font-extrabold text-ink tabular-nums">{row.points}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="px-1 text-[11px] leading-snug text-gray-500">
         {table.points.win} pts a win · {table.points.draw} a draw · +{table.points.teamOfDay} for Team of the Day (<TrophyMark />) · +{table.points.potm} for
-        Player of the Match (★)
+        Player of the Match (★). ▲▼ places moved since the last match day. Form: their last 3 match days, W more games won than lost, D level, L fewer.
       </p>
     </div>
   );

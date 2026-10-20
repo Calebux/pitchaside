@@ -1281,16 +1281,43 @@ export class RatingsService {
     );
   }
 
-  async getGroupTable(groupId: string, organizationId: string) {
+  /**
+   * A group's table. `lastDays` limits it to the latest match days ("Last 5 match days"). Each row
+   * also carries `form`, how the player's own last three match days went (W more games won than
+   * lost, L fewer, D level; from the latest six), and `move`, places up (+) or down since before the latest match
+   * day (null when they weren't in the table then).
+   */
+  async getGroupTable(groupId: string, organizationId: string, lastDays?: number) {
     const group = await this.groupsRepo.findOne({ where: { id: groupId, organizationId } });
     if (!group) throw new NotFoundException('Group not found');
-    const sessions = await this.gamesQuery(organizationId).andWhere('session.groupId = :groupId', { groupId }).getMany();
-    const stats = await this.aggregate(sessions, await this.skills(organizationId));
-    const rows = [...stats.values()].sort(
-      // Level on points: more Player of the Match wins, then more wins, then more games.
-      (a, b) => b.points - a.points || b.potmWins - a.potmWins || b.record.w - a.record.w || b.games - a.games,
-    );
-    return { games: sessions.length, points: POINTS, rows };
+    const all = await this.gamesQuery(organizationId).andWhere('session.groupId = :groupId', { groupId }).getMany();
+    // Oldest first, so the latest match days are at the end.
+    all.sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.createdAt.getTime() - b.createdAt.getTime());
+    const sessions = lastDays ? all.slice(-lastDays) : all;
+    const skills = await this.skills(organizationId);
+    const ranked = async (list: Session[]) =>
+      [...(await this.aggregate(list, skills)).values()].sort(
+        // Level on points: more Player of the Match wins, then more wins, then more games.
+        (a, b) => b.points - a.points || b.potmWins - a.potmWins || b.record.w - a.record.w || b.games - a.games,
+      );
+    const rows = await ranked(sessions);
+    const before = sessions.length > 1 ? await ranked(sessions.slice(0, -1)) : [];
+    const placeBefore = new Map(before.map((r, i) => [r.player.id, i]));
+    // Each of the latest six match days on its own, oldest first: form is a player's last three of them.
+    const days = await Promise.all(sessions.slice(-6).map((s) => this.aggregate([s], skills)));
+    return {
+      games: sessions.length,
+      points: POINTS,
+      rows: rows.map((r, i) => {
+        const was = placeBefore.get(r.player.id);
+        const form = days
+          .map((d) => d.get(r.player.id)?.record)
+          .filter((rec): rec is { w: number; d: number; l: number } => !!rec && rec.w + rec.d + rec.l > 0)
+          .map((rec) => (rec.w > rec.l ? 'W' : rec.w < rec.l ? 'L' : 'D') as 'W' | 'D' | 'L')
+          .slice(-3);
+        return { ...r, form, move: was === undefined || !before.length ? null : was - i };
+      }),
+    };
   }
 
   /** A player's ratings across the club, all time, with this calendar year's alongside. */

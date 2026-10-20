@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsUUID, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ConfigService } from '@nestjs/config';
@@ -124,8 +124,10 @@ export class RatingsController {
   }
 
   @Get('groups/:id/table')
-  groupTable(@Param('id') id: string, @CurrentUser() user: User) {
-    return this.ratings.getGroupTable(id, user.organizationId);
+  groupTable(@Param('id') id: string, @Query('last') last: string | undefined, @CurrentUser() user: User) {
+    // "Last 5 match days": any whole number from 1 to 52; anything else means the whole season.
+    const n = Number(last);
+    return this.ratings.getGroupTable(id, user.organizationId, Number.isInteger(n) && n >= 1 && n <= 52 ? n : undefined);
   }
 
   @Get('players/:id/ratings')
