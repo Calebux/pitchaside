@@ -89,6 +89,18 @@ describe('money in that is not a player payment', () => {
     expect(membership.credit).toBe('500.00');
   });
 
+  it('takes the deposit back from their extra first, then the game it paid', async () => {
+    // ₦30,000 under their name: ₦1,500 paid a game, ₦28,500 waited as extra.
+    const { service, membership, payments } = setup(0, 1);
+    membership.extra = '28500.00';
+    const preview = await service.notPlayerPreview('t1', 'org');
+    expect(preview).toMatchObject({ fromExtra: 28500, fromKept: 0 });
+    expect(preview.reopen.map((r) => r.paymentId)).toEqual(['pay0']);
+    await service.classifyTransfer('t1', 'org', { category: 'organiser' });
+    expect(membership.extra).toBe('0.00');
+    expect(payments[0].status).toBe(PaymentStatus.PENDING);
+  });
+
   it('changes nothing for a payment nobody was named for', async () => {
     const { service, membership, transfer } = setup(800, 1, TransferStatus.UNMATCHED);
     expect(await service.notPlayerPreview('t1', 'org')).toMatchObject({ fromKept: 0, reopen: [] });

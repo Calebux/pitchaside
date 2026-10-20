@@ -150,11 +150,12 @@ export function GroupMoney({
             .filter((t) => t.status === "unmatched")
             .reduce((sum, t) => sum + Number(t.amount), 0)}
           refundable={members
-            .filter((m) => Number(m.credit ?? 0) > 0)
+            .filter((m) => Number(m.credit ?? 0) + Number(m.extra ?? 0) > 0)
             .map((m) => ({
               playerId: m.player.id,
               name: `${m.player.firstName} ${m.player.lastName}`,
-              credit: Number(m.credit),
+              credit: Number(m.credit ?? 0),
+              extra: Number(m.extra ?? 0),
             }))}
           onRefresh={async () => {
             await onRefresh();

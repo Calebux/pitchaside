@@ -41,3 +41,19 @@ export async function refundToCredit(manager: EntityManager, groupId: string, pa
     return credited;
   });
 }
+
+/**
+ * The dues money can pay now, from a member's unpaid dues in date order: games already played
+ * (or today's), and their one next game. Never games further ahead: a transfer is for this
+ * week's game, and more than that is the organiser's to sort (someone else's, kept, or sent back).
+ */
+export function payableNow<T extends { session: { date: string | Date } }>(pending: T[], today: string): T[] {
+  let next = false;
+  return pending.filter((p) => {
+    const d = p.session.date instanceof Date ? p.session.date.toISOString().slice(0, 10) : String(p.session.date).slice(0, 10);
+    if (d <= today) return true;
+    if (next) return false;
+    next = true;
+    return true;
+  });
+}

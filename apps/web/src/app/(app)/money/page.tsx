@@ -25,6 +25,11 @@ export default function MoneyPage() {
   const [groups, setGroups] = useState<IGroupWithMembers[] | null>(null);
   const [sessions, setSessions] = useState<ISessionWithDetails[]>([]);
   const [view, setView] = useState<MoneyView>(params.get('view') === 'payouts' ? 'payouts' : 'transfers');
+  // A link inside the page can switch the tab too (e.g. "Send it back" opens Withdrawals).
+  const askedView = params.get('view');
+  useEffect(() => {
+    if (askedView === 'payouts') setView('payouts');
+  }, [askedView]);
   const [focusTransfer, setFocusTransfer] = useState<string | null>(params.get('transfer'));
   const [showAccount, setShowAccount] = useState(false);
 

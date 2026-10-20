@@ -50,8 +50,10 @@ export interface IGroupWithMembers extends IGroup {
     role: MemberRole;
     player: IPlayer;
     joinedAt: string;
-    /** Paid toward their next due but not enough to cover it yet (decimal string). */
+    /** Kept for their games: part of a due, a called-off game's money, or extra the organiser kept for them (decimal string). */
     credit?: string;
+    /** Sent beyond what they owed, waiting for the organiser to sort (decimal string). */
+    extra?: string;
     /** The code this player puts in their transfer description so it's matched to them automatically. */
     paymentRef?: string | null;
   }[];
@@ -531,9 +533,47 @@ export type PayoutCategory = 'pitch' | 'footballs' | 'bibs' | 'water' | 'supplie
 export interface NotPlayerPreview {
   amount: number;
   playerId: string | null;
+  /** Extra they sent that wasn't sorted yet: taken back first. */
+  fromExtra: number;
   fromKept: number;
   backToKept: number;
   reopen: { paymentId: string; sessionId: string; date: string; label: string | null; kind: string; amount: number }[];
+}
+
+/** A member who sent more than they owed: the extra waits until the organiser sorts it. */
+export interface ExtraMoney {
+  playerId: string;
+  name: string;
+  extra: number;
+  lastTransfer: { id: string; amount: number; receivedAt: string } | null;
+}
+
+export interface GiveExtraPreview {
+  /** How much of the extra it would use: no more than they owe now. */
+  move: number;
+  pays: { paymentId: string; date: string; label: string | null; kind: string; amount: number }[];
+  /** Less than a whole game: what it would have paid towards the next one. */
+  towards: { paymentId: string; date: string; label: string | null; kind: string; amount: number; paidSoFar: number } | null;
+  /** Extra still to sort afterwards. */
+  left: number;
+}
+
+export function getExtraMoney(groupId: string): Promise<ExtraMoney[]> {
+  return http.get(`/groups/${groupId}/extra`);
+}
+
+export function getGiveExtraPreview(groupId: string, fromId: string, toId: string): Promise<GiveExtraPreview> {
+  return http.get(`/groups/${groupId}/extra/${fromId}/give/${toId}`);
+}
+
+/** The extra was for someone else: it pays what they owe now. */
+export function giveExtra(groupId: string, fromId: string, toId: string): Promise<{ settled: number }> {
+  return http.post(`/groups/${groupId}/extra/${fromId}/give`, { playerId: toId });
+}
+
+/** The extra really was for their own next game. */
+export function keepExtra(groupId: string, playerId: string): Promise<{ kept: number }> {
+  return http.post(`/groups/${groupId}/extra/${playerId}/keep`);
 }
 
 export function getNotPlayerPreview(transferId: string): Promise<NotPlayerPreview> {

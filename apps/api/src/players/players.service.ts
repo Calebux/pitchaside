@@ -74,10 +74,13 @@ export class PlayersService {
   async remove(id: string, organizationId: string) {
     const player = await this.findOne(id, organizationId);
     const withCredit = await this.playersRepo.manager.count(GroupMembership, {
-      where: { playerId: id, credit: MoreThan('0') },
+      where: [
+        { playerId: id, credit: MoreThan('0') },
+        { playerId: id, extra: MoreThan('0') },
+      ],
     });
     if (withCredit) {
-      throw new ConflictException('This player has money paid ahead in a group. Remove them from that group first.');
+      throw new ConflictException('This player has money in a group that hasn’t paid a game yet. Sort it from that group first.');
     }
     await this.playersRepo.remove(player);
   }

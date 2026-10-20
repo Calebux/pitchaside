@@ -4,9 +4,9 @@ import { MockPulseClient } from './pulse/mock-pulse.client';
 import { PayoutStatus } from './entities/outgoing-transfer.entity';
 
 /** BillingService with one member holding `credit`, and just what refund payouts touch. */
-function setup(credit: number) {
+function setup(credit: number, extra = 0) {
   const group = { id: 'g1', name: 'FlowVault', organizationId: 'org1', accountNumber: '9999268301' };
-  const membership: any = { groupId: 'g1', playerId: 'p1', credit: credit.toFixed(2) };
+  const membership: any = { groupId: 'g1', playerId: 'p1', credit: credit.toFixed(2), extra: extra.toFixed(2) };
   const tx = {
     findOne: async (_e: unknown, o: any) => (o.where.playerId === 'p1' ? membership : null),
     save: async (x: any) => x,
@@ -69,14 +69,28 @@ describe('refund payouts', () => {
     await expect(refund(100, 'stranger')).rejects.toThrow("isn't in this group");
   });
 
-  it('gives the credit back when the bank rejects the transfer', async () => {
+  it('gives the money back as extra to sort when the bank rejects the transfer', async () => {
     const { membership, refund, transferOut } = setup(1500);
     transferOut.mockRejectedValueOnce(new Error('Beneficiary bank unavailable'));
 
     const payout = await refund(1000);
 
     expect(payout.status).toBe(PayoutStatus.FAILED);
-    expect(membership.credit).toBe('1500.00');
+    // Nobody chose to keep it for their next game, so it waits for the organiser.
+    expect(membership.credit).toBe('500.00');
+    expect(membership.extra).toBe('1000.00');
+  });
+
+  it('sends back extra not sorted yet before money kept for their next game', async () => {
+    const { membership, refund } = setup(1000, 1500);
+    await refund(2000);
+    expect(membership.extra).toBe('0.00');
+    expect(membership.credit).toBe('500.00');
+  });
+
+  it('refuses more than their extra and kept money together', async () => {
+    const { refund } = setup(500, 1000);
+    await expect(refund(2000)).rejects.toThrow('only have ₦1,500');
   });
 
   it('gives it back when Pulse later reports failure, once, and takes it again if it then completes', async () => {
@@ -87,10 +101,12 @@ describe('refund payouts', () => {
 
     await service.handlePayoutWebhook(payout().providerReference, 'failed', 'Declined');
     await service.handlePayoutWebhook(payout().providerReference, 'failed', 'Declined');
-    expect(membership.credit).toBe('1500.00');
+    expect(membership.credit).toBe('500.00');
+    expect(membership.extra).toBe('1000.00');
 
     await service.handlePayoutWebhook(payout().providerReference, 'completed');
     expect(membership.credit).toBe('500.00');
+    expect(membership.extra).toBe('0.00');
 
     function transferOutProcessing() {
       jest.spyOn((service as any).pulse, 'transferOut').mockResolvedValueOnce({ status: 'processing' } as any);

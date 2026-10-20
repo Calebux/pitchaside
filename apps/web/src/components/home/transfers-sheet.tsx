@@ -118,7 +118,7 @@ export function TransfersSheet({
                           : t.status === 'other'
                             ? `Not a player · ${t.category ? MONEY_IN[t.category].label : 'Other'}${t.note ? `, “${t.note}”` : ''}`
                           : p
-                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · paid ahead')
+                            ? `${p.firstName} ${p.lastName ?? ''}`.trim() + (t.payment?.session?.label ? ` · ${t.payment.session.label}` : t.payment ? '' : ' · not on a game yet')
                             : '—'}
                     </dd>
                     {t.status === 'unmatched' && (

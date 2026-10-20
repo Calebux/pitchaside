@@ -247,6 +247,20 @@ export default function Dashboard() {
       icon: <span className="font-display text-base font-extrabold">₦</span>,
     });
   }
+  // Sent more than they owed: nothing happens with it until the organiser says what it was for.
+  const extraMembers = (group?.memberships ?? []).filter((m) => Number(m.extra ?? 0) > 0);
+  if (group && extraMembers.length > 0) {
+    const total = extraMembers.reduce((n, m) => n + Number(m.extra), 0);
+    const names = extraMembers.map((m) => m.player.firstName);
+    needs.push({
+      key: 'extra',
+      href: moneyHref(group.id, { extra: true }),
+      title: `${formatCurrency(total)} extra money to sort`,
+      detail: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''} sent more than they owed`,
+      tone: 'sun',
+      icon: <span className="font-display text-base font-extrabold">₦</span>,
+    });
+  }
   if (liveGame) {
     const { owing, coveredByDues } = gameMoney(liveGame);
     if (owing.length > 0) {
