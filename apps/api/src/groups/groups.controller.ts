@@ -70,6 +70,12 @@ export class GroupsController {
     return this.groupsService.addOrganiser(id, user);
   }
 
+  /** What removing them would do: games still to come they come off, and money that goes with them. */
+  @Get(':id/members/:playerId/leaving')
+  leavingPreview(@Param('id') id: string, @Param('playerId') playerId: string, @CurrentUser() user: User) {
+    return this.groupsService.leavingPreview(id, playerId, user.organizationId);
+  }
+
   @Delete(':id/members/:playerId')
   removeMember(
     @Param('id') id: string,

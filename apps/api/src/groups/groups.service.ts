@@ -8,6 +8,7 @@ import { CreateGroupDto, UpdateGroupDto } from './dto/create-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
+import { RsvpService } from '../rsvp/rsvp.service';
 import { User } from '../users/entities/user.entity';
 import { naira } from '../common/format.util';
 
@@ -17,6 +18,7 @@ export class GroupsService {
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
     private billing: BillingService,
+    private rsvp: RsvpService,
   ) {}
 
   async create(dto: CreateGroupDto, organizationId: string) {
@@ -124,17 +126,33 @@ export class GroupsService {
     return this.billing.addOrganiserToGroup(groupId, user);
   }
 
-  /** A member's kept, extra and waiting money go with them, so removing one who has some needs `force`. */
-  async removeMember(groupId: string, playerId: string, organizationId: string, force = false) {
+  /**
+   * What removing a member would do, for the organiser's confirm: the games still to come they
+   * come off, and money of theirs that goes with them (held in the group, or paid by transfer for
+   * those games), and cash they paid ahead that the organiser gives back.
+   */
+  async leavingPreview(groupId: string, playerId: string, organizationId: string) {
     await this.findOne(groupId, organizationId);
     const membership = await this.membershipsRepo.findOne({ where: { groupId, playerId } });
     if (!membership) throw new NotFoundException('Membership not found');
+    const ahead = await this.rsvp.leavingPreview(groupId, playerId);
     const held = Number(membership.credit) + Number(membership.extra ?? 0) + Number(membership.waiting ?? 0);
-    if (held > 0 && !force) {
+    return { ...ahead, held, dropped: held + ahead.byTransfer };
+  }
+
+  /**
+   * They come off every game that hasn't started (their place passes to the waitlist), then
+   * leave the group. Their kept, extra and waiting money, and what they paid by transfer for
+   * those games, go with them, so removing one who has some needs `force`.
+   */
+  async removeMember(groupId: string, playerId: string, organizationId: string, force = false) {
+    const { dropped } = await this.leavingPreview(groupId, playerId, organizationId);
+    if (dropped > 0.001 && !force) {
       throw new ConflictException(
-        `They have ${naira(held)} in this group that hasn't paid a due yet. Removing them drops it from the books, so sort it or send it back first.`,
+        `They have ${naira(dropped)} in this group that hasn't paid a played game. Removing them drops it from the books, so sort it or send it back first.`,
       );
     }
+    await this.rsvp.takeOffGamesAhead(groupId, playerId);
     await this.membershipsRepo.delete({ groupId, playerId });
   }
 

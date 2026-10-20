@@ -5,9 +5,10 @@ import { GroupMembership } from './entities/group-membership.entity';
 import { GroupsService } from './groups.service';
 import { GroupsController } from './groups.controller';
 import { BillingModule } from '../billing/billing.module';
+import { RsvpModule } from '../rsvp/rsvp.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Group, GroupMembership]), BillingModule],
+  imports: [TypeOrmModule.forFeature([Group, GroupMembership]), BillingModule, RsvpModule],
   controllers: [GroupsController],
   providers: [GroupsService],
   exports: [GroupsService],
