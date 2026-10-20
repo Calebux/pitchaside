@@ -46,6 +46,9 @@ export interface IGroup {
   contributionsVisibility?: ContributionsVisibility;
   /** How long each game usually lasts on match day, in minutes; null for the usual 7. */
   gameMinutes?: number | null;
+
+  /** What each side wears and is called; null for the default colours. */
+  bibs?: Bibs | null;
   inviteCode?: string;
   accountNumber?: string;
   accountName?: string;
@@ -344,3 +347,47 @@ export interface GameTimer {
   /** The server's time when sent, so every phone counts down from the same clock. */
   now: string;
 }
+
+// ── Bibs: the colours a group's sides wear, and their names ──
+
+/** Bib colours an organiser can pick. `ink`: dark text reads on it (else white). */
+export const BIB_COLOURS = {
+  orange: { label: 'Orange', hex: '#ff6a3d', ink: true },
+  yellow: { label: 'Yellow', hex: '#ffc93c', ink: true },
+  blue: { label: 'Blue', hex: '#3b82f6', ink: false },
+  white: { label: 'White', hex: '#ffffff', ink: true },
+  green: { label: 'Green', hex: '#2f8f48', ink: false },
+  red: { label: 'Red', hex: '#e5484d', ink: false },
+  black: { label: 'Black', hex: '#1b201d', ink: false },
+  sky: { label: 'Sky blue', hex: '#62c4f0', ink: true },
+  navy: { label: 'Navy', hex: '#1f3a8a', ink: false },
+  maroon: { label: 'Maroon', hex: '#7c1f2b', ink: false },
+  pink: { label: 'Pink', hex: '#f472b6', ink: true },
+  purple: { label: 'Purple', hex: '#7c4dde', ink: false },
+  grey: { label: 'Grey', hex: '#9aa19c', ink: true },
+  lime: { label: 'Lime', hex: '#c8f03c', ink: true },
+} as const;
+export type BibColour = keyof typeof BIB_COLOURS;
+export const BIB_COLOUR_KEYS = Object.keys(BIB_COLOURS) as BibColour[];
+
+/** One side's bib: its colour, and a name the organiser gave it ("Red Devils"), if any. */
+export interface TeamBib {
+  colour: BibColour;
+  name?: string | null;
+}
+export type BibSides = 'A' | 'B' | 'C' | 'D' | 'E' | 'F';
+/** A group's (or one game's) bibs, side by side. Sides left out wear the default colour. */
+export type Bibs = Partial<Record<BibSides, TeamBib>>;
+
+/** What each side wears when nobody has set bibs. */
+export const DEFAULT_BIBS: Record<BibSides, TeamBib> = {
+  A: { colour: 'orange' },
+  B: { colour: 'yellow' },
+  C: { colour: 'blue' },
+  D: { colour: 'white' },
+  E: { colour: 'green' },
+  F: { colour: 'red' },
+};
+
+/** Longest team name an organiser can give a side. */
+export const TEAM_NAME_MAX = 20;

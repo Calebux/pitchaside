@@ -1,3 +1,4 @@
+import type { Bibs } from '@pitchaside/shared';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -70,6 +71,10 @@ export class Session {
   /** When the running game's clock was started; null while it isn't running. */
   @Column({ name: 'timer_started_at', type: 'timestamptz', nullable: true })
   timerStartedAt: Date | null;
+
+  /** This game's bibs, when the organiser changed them for the day. Null: the group's bibs. */
+  @Column({ type: 'jsonb', nullable: true })
+  bibs: Bibs | null;
 
   /** Set once the day-before reminder has gone out. */
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })

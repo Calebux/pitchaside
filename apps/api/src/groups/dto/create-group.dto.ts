@@ -1,4 +1,5 @@
-import { IsInt, Max, IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches, IsIn } from 'class-validator';
+import { IsInt, Max, IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches, IsIn, IsObject } from 'class-validator';
+import type { Bibs } from '@pitchaside/shared';
 import { PaymentType, CONTRIBUTIONS_VISIBILITY, type ContributionsVisibility } from '../entities/group.entity';
 
 export class CreateGroupDto {
@@ -100,4 +101,9 @@ export class UpdateGroupDto {
   @Min(1)
   @Max(60)
   gameMinutes?: number | null;
+
+  /** Each side's bib colour and optional name; null goes back to the default colours. Checked by cleanBibs. */
+  @IsOptional()
+  @IsObject()
+  bibs?: Bibs | null;
 }

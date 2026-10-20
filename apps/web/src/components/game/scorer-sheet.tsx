@@ -7,7 +7,7 @@ import { Avatar } from '@/components/ratings';
 import { stagger } from '@/components/motion';
 import { btnPrimary } from '@/components/buttons';
 import type { Lineup, TeamKey } from '@/lib/api';
-import { teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { Swatch, shortName } from './teams-step';
 
 type Member = Lineup['squad'][number];
@@ -39,7 +39,7 @@ export function ScorerSheet({
   const [scorer, setScorer] = useState<Member | null>(null);
   const [assist, setAssist] = useState<Member | null>(null);
   const side = lineup.squad.filter((m) => m.team === team).sort((a, b) => shortName(a).localeCompare(shortName(b)));
-  const name = teamName(team, lineup.captains);
+  const name = teamName(team, lineup.captains, lineup.bibs);
 
   const footer = (
     <div className="space-y-2">
@@ -96,7 +96,7 @@ export function ScorerSheet({
       {scorer && side.length > 1 && (
         <section className="mt-5 animate-fade-in-up" aria-labelledby={`${titleId}-assist`}>
           <h3 id={`${titleId}-assist`} className="flex items-center gap-1.5 text-[14px] font-bold text-ink">
-            <Swatch team={team} />
+            <Swatch team={team} bibs={lineup.bibs} />
             Who set it up? <span className="font-semibold text-gray-500">(optional)</span>
           </h3>
           <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-labelledby={`${titleId}-assist`}>

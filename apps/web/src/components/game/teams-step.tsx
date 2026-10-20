@@ -6,8 +6,11 @@ import { SheetTitle } from '@/components/home/sheet-title';
 import { Avatar } from '@/components/ratings';
 import { BallSpinner } from '@/components/skeleton';
 import { buzz, stagger } from '@/components/motion';
-import { balanceLineup, saveLineup, type Lineup, type TeamKey } from '@/lib/api';
-import { TEAMS, teamName } from '@/lib/teams';
+import { balanceLineup, saveLineup, setGameBibs, type Lineup, type TeamKey } from '@/lib/api';
+import { BibShirt } from '@/components/bib-shirt';
+import { BibsSheet } from '@/components/bibs-sheet';
+import type { Bibs } from '@pitchaside/shared';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 type Member = Lineup['squad'][number];
@@ -17,8 +20,8 @@ const shownName = (m: Member) => m.nickname || `${m.firstName} ${m.lastName}`;
 /** On the narrow team columns: nickname, else first name and initial ("Chidi N."). */
 export const shortName = (m: Pick<Member, 'nickname' | 'firstName' | 'lastName'>) => m.nickname || `${m.firstName} ${m.lastName.charAt(0)}.`;
 
-export function Swatch({ team, className = 'w-3 h-3 rounded-sm' }: { team: TeamKey; className?: string }) {
-  return <span className={`${className} ${TEAMS[team].swatch} inline-block shrink-0`} aria-hidden />;
+export function Swatch({ team, bibs, className = 'w-3 h-3 rounded-sm' }: { team: TeamKey; bibs?: Bibs | null; className?: string }) {
+  return <span className={`${className} inline-block shrink-0`} style={bibFill(team, bibs)} aria-hidden />;
 }
 
 /**
@@ -44,6 +47,7 @@ export function TeamsStep({
   const titleId = useId();
   const [busy, setBusy] = useState<string | null>(null);
   const [moving, setMoving] = useState<Member | null>(null);
+  const [bibsOpen, setBibsOpen] = useState(false);
   const teams = KEYS.slice(0, lineup.teamCount);
   const locked = lineup.locked;
   const unpicked = lineup.squad.filter((m) => !m.team);
@@ -64,6 +68,18 @@ export function TeamsStep({
     setMoving(null);
     buzz(8);
     run(m.id, () => saveLineup(sessionId, { teams: { [m.id]: team } }));
+  };
+  // Stays open if it doesn't save, so their picks aren't lost.
+  const saveBibs = async (bibs: Bibs | null) => {
+    setBusy('bibs');
+    try {
+      onLineup(await setGameBibs(sessionId, bibs));
+      setBibsOpen(false);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'The bibs didn’t save. Try again.');
+    } finally {
+      setBusy(null);
+    }
   };
   const captain = (m: Member, team: TeamKey, on: boolean) => {
     setMoving(null);
@@ -169,6 +185,21 @@ export function TeamsStep({
         )}
       </div>
 
+      {/* What each side wears today: allowed after scores too, it only changes how they look */}
+      <button
+        onClick={() => setBibsOpen(true)}
+        disabled={!!busy}
+        className="press mt-2 w-full min-h-12 flex items-center gap-3 px-3 rounded-2xl bg-white border border-gray-200 text-left hover:border-ink"
+      >
+        <span className="flex -space-x-2 shrink-0">
+          {teams.map((t) => (
+            <BibShirt key={t} team={t} bibs={lineup.bibs} className="w-7 h-7" />
+          ))}
+        </span>
+        <span className="flex-1 min-w-0 text-[14px] font-bold text-ink">Bibs and names for this game</span>
+        <span className="shrink-0 text-[13px] font-bold text-pitch-700">Change</span>
+      </button>
+
       {unpicked.length > 0 && (
         <div className="mt-4">
           <h3 className="px-1 text-[13px] font-extrabold text-ink">
@@ -190,11 +221,11 @@ export function TeamsStep({
           const a = avg(t);
           const best = lineup.teamOfTheDay === t;
           return (
-            <div key={t} className={`min-w-0 rounded-3xl p-1.5 ${TEAMS[t].soft}`}>
+            <div key={t} className="min-w-0 rounded-3xl p-1.5" style={bibTint(t, lineup.bibs)}>
               <h3 className="px-2 pt-1.5 pb-1">
                 <span className="flex items-center gap-1.5 text-[13px] font-extrabold text-ink">
-                  <Swatch team={t} className="w-3.5 h-3.5 rounded" />
-                  <span className="truncate">{teamName(t, lineup.captains)}</span>
+                  <Swatch team={t} bibs={lineup.bibs} className="w-3.5 h-3.5 rounded" />
+                  <span className="truncate">{teamName(t, lineup.captains, lineup.bibs)}</span>
                   {best && (
                     <span className="shrink-0" title="Team of the Day">
                       🏆<span className="sr-only">, Team of the Day</span>
@@ -202,7 +233,7 @@ export function TeamsStep({
                   )}
                 </span>
                 <span className="block text-[11px] font-semibold text-gray-600 tabular-nums">
-                  {lineup.captains[t] ? `${TEAMS[t].name} · ` : ''}
+                  {lineup.captains[t] || bibOf(t, lineup.bibs).name ? `${bibOf(t, lineup.bibs).label} · ` : ''}
                   {members.length} player{members.length === 1 ? '' : 's'}
                   {a != null ? ` · avg ${a}` : ''}
                 </span>
@@ -232,7 +263,7 @@ export function TeamsStep({
           <SheetTitle
             id={titleId}
             title={shownName(moving)}
-            sub={moving.team ? `On ${teamName(moving.team, lineup.captains)}${moving.captain ? ', captain' : ''}` : 'Not on a team yet'}
+            sub={moving.team ? `On ${teamName(moving.team, lineup.captains, lineup.bibs)}${moving.captain ? ', captain' : ''}` : 'Not on a team yet'}
             onClose={() => setMoving(null)}
           />
           <p className="mt-4 text-[13px] font-bold text-gray-600">Move to</p>
@@ -250,9 +281,9 @@ export function TeamsStep({
                   }`}
                   style={stagger(i, 30, 20)}
                 >
-                  <Swatch team={t} className="w-5 h-5 rounded-md" />
+                  <Swatch team={t} bibs={lineup.bibs} className="w-5 h-5 rounded-md" />
                   <span className="min-w-0">
-                    <span className="block text-[14px] font-bold text-ink truncate">{teamName(t, lineup.captains)}</span>
+                    <span className="block text-[14px] font-bold text-ink truncate">{teamName(t, lineup.captains, lineup.bibs)}</span>
                     <span className="block text-[12px] text-gray-500 tabular-nums">{here ? 'On it now' : `${size} player${size === 1 ? '' : 's'}`}</span>
                   </span>
                 </button>
@@ -266,9 +297,11 @@ export function TeamsStep({
                   onClick={() => captain(moving, moving.team!, !moving.captain)}
                   className="press w-full text-left px-2 py-3 rounded-2xl hover:bg-chalk"
                 >
-                  <span className="block text-[15px] font-bold text-ink">{moving.captain ? 'Not captain' : `Make captain of ${TEAMS[moving.team].name}`}</span>
+                  <span className="block text-[15px] font-bold text-ink">{moving.captain ? 'Not captain' : `Make captain of ${teamName(moving.team, lineup.captains, lineup.bibs)}`}</span>
                   <span className="block text-[13px] leading-snug text-gray-600">
-                    {moving.captain ? `${TEAMS[moving.team].name} goes back to its bib colour.` : `The team goes by their name: Team ${moving.nickname || moving.firstName}.`}
+                    {moving.captain ? `${teamName(moving.team, lineup.captains, lineup.bibs)} goes back to ${bibOf(moving.team, lineup.bibs).name ?? 'its bib colour'}.` : bibOf(moving.team, lineup.bibs).name
+                      ? `The team keeps its name, ${bibOf(moving.team, lineup.bibs).name}.`
+                      : `The team goes by their name: Team ${moving.nickname || moving.firstName}.`}
                   </span>
                 </button>
               </li>
@@ -283,6 +316,20 @@ export function TeamsStep({
             )}
           </ul>
         </Sheet>
+      )}
+
+      {bibsOpen && (
+        <BibsSheet
+          title="Bibs for this game"
+          sub="Only this game. The group’s usual bibs stay as they are."
+          current={lineup.bibs}
+          shown={lineup.teamCount}
+          saving={busy === 'bibs'}
+          resetLabel="Use the group’s usual bibs"
+          onSave={saveBibs}
+          onReset={() => saveBibs(null)}
+          onClose={() => setBibsOpen(false)}
+        />
       )}
     </section>
   );

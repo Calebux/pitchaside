@@ -3,6 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { GameTimer, PaymentType } from '@pitchaside/shared';
+import type { Bibs } from '@pitchaside/shared';
 import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -252,6 +253,7 @@ export interface RecentMatchDay {
   teamCount: number;
   myTeam: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
   captains?: Partial<Record<TeamKey, string>>;
+  bibs?: Bibs;
   /** Whether the player can still pick or change their team (until voting closes). */
   teamOpen?: boolean;
   teamOfTheDay: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
@@ -355,6 +357,7 @@ export interface GameLineup {
   myTeam: TeamKey | null;
   /** Side → its captain's name; a side with a captain goes by "Team <name>". */
   captains: Partial<Record<TeamKey, string>>;
+  bibs?: Bibs;
   myPaid: GamePaid;
   /** Whether the group shares who's paid with players. */
   showPaid: boolean;

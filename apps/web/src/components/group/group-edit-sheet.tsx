@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { DEFAULT_GAME_MINUTES, type ContributionsVisibility } from '@pitchaside/shared';
+import { DEFAULT_BIBS, type Bibs, type ContributionsVisibility } from '@pitchaside/shared';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
@@ -9,6 +9,10 @@ import { RsvpToggle } from '@/components/rsvp-toggle';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
 import { prettyTime } from '@/components/player-ui';
 import { frequencyOptions } from '@/lib/billing';
+import { BibShirt } from '@/components/bib-shirt';
+import { BibsSheet } from '@/components/bibs-sheet';
+import { teamName } from '@/lib/teams';
+import type { TeamKey } from '@/lib/api';
 
 export interface GroupEditData {
   name: string;
@@ -23,7 +27,12 @@ export interface GroupEditData {
   contributionsVisibility: ContributionsVisibility;
   /** How long each game lasts on match day, in minutes; the timer starts from this. */
   gameMinutes: number;
+
+  /** What each side wears and is called; null for the default colours. */
+  bibs: Bibs | null;
 }
+
+const SIDES = Object.keys(DEFAULT_BIBS) as TeamKey[];
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 // Kick-off times on the half hour, early morning to late evening.
@@ -145,6 +154,7 @@ export function GroupEditSheet({
   const titleId = useId();
   const [d, setD] = useState<GroupEditData>({ ...initial, feePerPlayer: Math.round(Number(initial.feePerPlayer)) });
   const [day, setDay] = useState(() => dayOf(initial.schedule));
+  const [bibsOpen, setBibsOpen] = useState(false);
   const set = (patch: Partial<GroupEditData>) => setD((x) => ({ ...x, ...patch }));
   const times = d.kickoffTime && !TIMES.includes(d.kickoffTime.slice(0, 5)) ? [d.kickoffTime.slice(0, 5), ...TIMES] : TIMES;
   const valid = d.name.trim().length > 0 && d.targetPlayers >= 2 && d.feePerPlayer >= 0 && d.gameMinutes >= 1 && d.gameMinutes <= 60;
@@ -257,6 +267,30 @@ export function GroupEditSheet({
           <p className="mt-1.5 text-xs text-gray-500">Minutes. The match-day timer starts from this; change it on the day if you need to.</p>
         </div>
 
+        {/* What the sides wear */}
+        <div>
+          <span className={label} id="g-bibs-label">
+            Bibs and team names
+          </span>
+          <button
+            type="button"
+            aria-labelledby="g-bibs-label g-bibs-now"
+            onClick={() => setBibsOpen(true)}
+            className="press w-full min-h-14 flex items-center gap-3 px-3 bg-white border border-gray-200 rounded-xl text-left hover:border-ink"
+          >
+            <span className="flex -space-x-2 shrink-0">
+              {SIDES.slice(0, 4).map((s) => (
+                <BibShirt key={s} team={s} bibs={d.bibs} className="w-8 h-8" />
+              ))}
+            </span>
+            <span id="g-bibs-now" className="flex-1 min-w-0 text-[14px] font-semibold text-ink truncate">
+              {SIDES.slice(0, 4).map((s) => teamName(s, undefined, d.bibs)).join(', ')}
+            </span>
+            <span className="shrink-0 text-[13px] font-bold text-pitch-700">Change</span>
+          </button>
+          <p className="mt-1.5 text-xs text-gray-500">Games from now on start with these; games already played keep theirs. Change one game on its Teams step.</p>
+        </div>
+
         {/* Players and money */}
         <div>
           <span className={label} id="g-players-label">
@@ -322,6 +356,27 @@ export function GroupEditSheet({
           </div>
         )}
       </div>
+      {bibsOpen && (
+        <BibsSheet
+          title="Bibs and team names"
+          sub="The colours your group owns, and names if your teams keep them."
+          current={d.bibs}
+          shown={4}
+          more
+          saving={false}
+          saveLabel="Use these bibs"
+          resetLabel={d.bibs ? 'Back to the usual colours' : undefined}
+          onSave={(bibs) => {
+            set({ bibs });
+            setBibsOpen(false);
+          }}
+          onReset={() => {
+            set({ bibs: null });
+            setBibsOpen(false);
+          }}
+          onClose={() => setBibsOpen(false)}
+        />
+      )}
     </Sheet>
   );
 }

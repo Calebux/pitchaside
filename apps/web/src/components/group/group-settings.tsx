@@ -39,6 +39,8 @@ export function GroupSettingsSheet({
     requireRsvp: !!group.requireRsvp,
     contributionsVisibility: group.contributionsVisibility ?? 'private',
     gameMinutes: group.gameMinutes ?? DEFAULT_GAME_MINUTES,
+
+    bibs: group.bibs ?? null,
   };
 
   async function save(d: GroupEditData) {
@@ -56,6 +58,8 @@ export function GroupSettingsSheet({
         requireRsvp: d.requireRsvp,
         contributionsVisibility: d.contributionsVisibility,
         gameMinutes: d.gameMinutes,
+
+        bibs: d.bibs,
       });
       toast.success('Changes saved');
       onSaved();

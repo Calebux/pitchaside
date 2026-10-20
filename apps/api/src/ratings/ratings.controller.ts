@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MATCH_EVENT_KINDS, type MatchEventKind } from './entities/match-event.entity';
@@ -81,6 +81,13 @@ export class TimerDto {
   minutes?: number;
 }
 
+export class GameBibsDto {
+  /** Checked by cleanBibs: sides A–F, colours from the list, names up to 20 characters. */
+  @IsOptional()
+  @IsObject()
+  bibs?: Record<string, { colour: string; name?: string | null }> | null;
+}
+
 export class GameDto {
   @IsIn(['A', 'B', 'C', 'D', 'E', 'F'])
   teamA: string;
@@ -151,6 +158,12 @@ export class RatingsController {
   @Post('sessions/:id/lineup/balance')
   balance(@Param('id') id: string, @Body() dto: BalanceDto, @CurrentUser() user: User) {
     return this.ratings.balanceTeams(id, user.organizationId, dto.teamCount);
+  }
+
+  /** This game's bibs for the day; `bibs: null` goes back to the group's. */
+  @Patch('sessions/:id/bibs')
+  setGameBibs(@Param('id') id: string, @Body() dto: GameBibsDto, @CurrentUser() user: User) {
+    return this.ratings.setGameBibs(id, user.organizationId, dto.bibs ?? null);
   }
 
   @Post('sessions/:id/games')

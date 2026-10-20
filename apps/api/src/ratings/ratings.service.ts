@@ -5,6 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { bibsFor, cleanBibs } from './bibs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
@@ -444,7 +445,7 @@ export class RatingsService {
       // Best VII of the Day: the seven most picked.
       return [{ key: c.key, title: c.title, team: null as string | null, standings: c.key === VoteCategory.VII ? standings.slice(0, VII_STARTERS + 1) : standings, voters, inconclusive }];
     });
-    return { ballots, squadSize: squad.length, hidden, categories };
+    return { ballots, squadSize: squad.length, hidden, categories, bibs: bibsFor(session) };
   }
 
   // ── Admin ──
@@ -515,6 +516,8 @@ export class RatingsService {
       })),
       teamCount: session.teamCount,
       captains: this.captainsOf(session),
+      /** Each side's bib colour and name for this game (its own, else the group's). */
+      bibs: bibsFor(session),
       ballots: r.ballots,
       squadSize: r.squadSize,
     };
@@ -681,6 +684,7 @@ export class RatingsService {
     return {
       groupName: group?.name ?? '',
       clubName: group?.organization?.name ?? null,
+      bibs: bibsFor(session),
       date: session.date,
       open: w.open,
       ballots: results.ballots,
@@ -749,6 +753,8 @@ export class RatingsService {
       /** Scores can be added from match day, unless the game was called off. */
       scoresOpen: session.status !== SessionStatus.CANCELLED && localDate(0) >= String(session.date).slice(0, 10),
       captains: this.captainsOf(session),
+      /** Each side's bib colour and name for this game (its own, else the group's). */
+      bibs: bibsFor(session),
       squad: (session.payments ?? [])
         .filter((p) => p.player && p.attendance !== 'no_show')
         .map((p) => ({
@@ -818,6 +824,22 @@ export class RatingsService {
   async captainTimer(sessionId: string, playerIds: string[], input: { start?: boolean; minutes?: number }) {
     const { session } = await this.captainToday(sessionId, playerIds);
     return this.changeTimer(session, input);
+  }
+
+  /**
+   * This game's bibs, changed on the day (colours and names). Allowed after the scores are in:
+   * it changes what the sides are called and wear, not who played. Null goes back to the group's.
+   */
+  async setGameBibs(sessionId: string, organizationId: string, bibs: unknown) {
+    await this.loadSession(sessionId, organizationId);
+    let clean;
+    try {
+      clean = cleanBibs(bibs);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    await this.sessionsRepo.update(sessionId, { bibs: clean });
+    return this.getLineup(sessionId, organizationId);
   }
 
   async setLineup(
@@ -1068,6 +1090,8 @@ export class RatingsService {
       bibsClosed: locked || this.bibsClosed(session),
       myTeam: this.teamOf(session, mine.team),
       captains: this.captainsOf(session),
+      /** Each side's bib colour and name for this game (its own, else the group's). */
+      bibs: bibsFor(session),
       /** They captain a side today, so they can keep the score from their phone. */
       canKeepScore:
         this.isCaptain(session, mine) && session.status !== SessionStatus.CANCELLED && localDate(0) === String(session.date).slice(0, 10),
@@ -1561,6 +1585,8 @@ export class RatingsService {
           teamCount: s.teamCount,
           myTeam,
           captains: this.captainsOf(s),
+          /** Each side's bib colour and name for this game (its own, else the group's). */
+          bibs: bibsFor(s),
           teamOpen: this.bibsOpen(s, dayGames.length > 0),
           teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
           record,

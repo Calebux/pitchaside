@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TEAMS, teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -67,7 +67,7 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
     setSaving(next);
     try {
       setLineup(await pickBib(sessionId, next));
-      toast.success(lineup?.captains[next] ? `Bib saved: Team ${lineup.captains[next]}` : `Bib saved: ${TEAMS[next].name.toLowerCase()}`);
+      toast.success(lineup?.captains[next] ? `Bib saved: ${teamName(next, lineup.captains, lineup.bibs)}` : `Bib saved: ${teamName(next, undefined, lineup?.bibs)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save your team");
     } finally {
@@ -84,9 +84,9 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
       <ConfirmDialog
         open={!!switching}
         variant="danger"
-        title={myTeam ? `Stop captaining ${teamName(myTeam, lineup.captains)}?` : 'Stop being captain?'}
-        message={`You captain ${myTeam ? teamName(myTeam, lineup.captains) : 'your side'} today. Moving to ${
-          switching ? teamName(switching, lineup.captains) : 'another team'
+        title={myTeam ? `Stop captaining ${teamName(myTeam, lineup.captains, lineup.bibs)}?` : 'Stop being captain?'}
+        message={`You captain ${myTeam ? teamName(myTeam, lineup.captains, lineup.bibs) : 'your side'} today. Moving to ${
+          switching ? teamName(switching, lineup.captains, lineup.bibs) : 'another team'
         } means you stop being captain and can't keep the score. The organiser can make you captain again.`}
         confirmLabel="Move and stop captaining"
         cancelLabel="Stay captain"
@@ -95,7 +95,7 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
       />
       {lineup.bibsOpen ? (
         <div>
-          <p className="text-[13px] font-bold text-white mb-2">{Object.keys(lineup.captains).length ? 'Which team are you in?' : 'Which bib are you in?'}</p>
+          <p className="text-[13px] font-bold text-white mb-2">{Object.keys(lineup.captains).length || lineup.bibs && Object.values(lineup.bibs).some((b) => b?.name) ? 'Which team are you in?' : 'Which bib are you in?'}</p>
           <div className="flex flex-wrap gap-2">
             {teams.map((t) => {
               const mine = lineup.myTeam === t;
@@ -109,8 +109,8 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
                     mine ? 'bg-volt-400 text-ink' : 'bg-white/10 text-white border border-white/15 hover:border-white/40'
                   }`}
                 >
-                  {saving === t ? <BallSpinner /> : <span className={`w-5 h-5 rounded-full ${TEAMS[t].swatch}`} aria-hidden />}
-                  {teamName(t, lineup.captains)}
+                  {saving === t ? <BallSpinner /> : <span className="w-5 h-5 rounded-full" style={bibFill(t, lineup.bibs)} aria-hidden />}
+                  {teamName(t, lineup.captains, lineup.bibs)}
                 </button>
               );
             })}
@@ -125,7 +125,8 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
       {/* The clock, once whoever runs the day starts it */}
       {live && <GameTimer sessionId={sessionId} api={WATCH} watch />}
 
-      {lineup.live && lineup.live.games.length > 0 && <Live live={lineup.live} captains={lineup.captains} myTeam={lineup.myTeam} />}
+
+      {lineup.live && lineup.live.games.length > 0 && <Live live={lineup.live} captains={lineup.captains} bibs={lineup.bibs} myTeam={lineup.myTeam} />}
 
 
       {lineup.squad.some((p) => p.team) && (
@@ -135,8 +136,8 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
             .map((t) => (
               <div key={t}>
                 <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-white/60 mb-1">
-                  <span className={`w-2.5 h-2.5 rounded-sm ${TEAMS[t].swatch}`} aria-hidden />
-                  {teamName(t, lineup.captains)} · {byTeam(t).length}
+                  <span className="w-2.5 h-2.5 rounded-sm" style={bibFill(t, lineup.bibs)} aria-hidden />
+                  {teamName(t, lineup.captains, lineup.bibs)} · {byTeam(t).length}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {byTeam(t).map((p) => (
@@ -166,7 +167,17 @@ const KIND_LABEL: Record<string, string> = { yellow: 'Yellow card', red: 'Red ca
  * The day so far: the teams' table (your side marked), then each game newest first with its
  * score and who scored, then cards and saves. Team colour is always written beside the swatch.
  */
-function Live({ live, captains, myTeam }: { live: NonNullable<GameLineup['live']>; captains: GameLineup['captains']; myTeam: TeamKey | null }) {
+function Live({
+  live,
+  captains,
+  bibs,
+  myTeam,
+}: {
+  live: NonNullable<GameLineup['live']>;
+  captains: GameLineup['captains'];
+  bibs: GameLineup['bibs'];
+  myTeam: TeamKey | null;
+}) {
   const played = live.table.rows.filter((r) => r.p > 0);
   return (
     <div className="space-y-3" aria-live="polite">
@@ -192,8 +203,8 @@ function Live({ live, captains, myTeam }: { live: NonNullable<GameLineup['live']
             <tr key={r.team} className={r.team === myTeam ? 'text-volt-300' : 'text-white'}>
               <td className="py-1">
                 <span className="flex items-center gap-1.5 min-w-0 font-bold">
-                  <span className={`w-2.5 h-2.5 shrink-0 rounded-sm ${TEAMS[r.team].swatch}`} aria-hidden />
-                  <span className="truncate">{teamName(r.team, captains)}</span>
+                  <span className="w-2.5 h-2.5 shrink-0 rounded-sm" style={bibFill(r.team, bibs)} aria-hidden />
+                  <span className="truncate">{teamName(r.team, captains, bibs)}</span>
                   {r.team === myTeam && <span className="text-[10px] font-extrabold">· you</span>}
                   {live.table.teamOfTheDay === r.team && <span aria-label="leading">🏆</span>}
                 </span>
@@ -219,11 +230,11 @@ function Live({ live, captains, myTeam }: { live: NonNullable<GameLineup['live']
             <li key={g.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
               <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/50">Game {live.games.length - i}</p>
               <p className="mt-0.5 flex items-center gap-2 text-[14px] font-bold text-white">
-                <span className="flex-1 min-w-0 truncate text-right">{teamName(g.teamA, captains)}</span>
+                <span className="flex-1 min-w-0 truncate text-right">{teamName(g.teamA, captains, bibs)}</span>
                 <span className="shrink-0 font-display text-[18px] font-extrabold tabular-nums">
                   {g.scoreA} – {g.scoreB}
                 </span>
-                <span className="flex-1 min-w-0 truncate">{teamName(g.teamB, captains)}</span>
+                <span className="flex-1 min-w-0 truncate">{teamName(g.teamB, captains, bibs)}</span>
               </p>
               {g.goals.some((x) => x.scorer) && (
                 <p className="mt-1 grid grid-cols-2 gap-3 text-[11px] text-white/70">
