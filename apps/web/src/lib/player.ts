@@ -5,6 +5,7 @@
 import type { GameTimer, PaymentType } from '@pitchaside/shared';
 import type { Bibs } from '@pitchaside/shared';
 import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import { serverMessage } from './http';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -75,8 +76,7 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    const msg = Array.isArray(data.message) ? data.message[0] : data.message;
-    throw new Error(msg || `Request failed (${res.status})`);
+    throw new Error(serverMessage(res.status, data));
   }
   const text = await res.text();
   return text ? JSON.parse(text) : (undefined as T);

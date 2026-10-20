@@ -1,3 +1,4 @@
+import { VOTE_HOURS } from '@pitchaside/shared';
 import type { ISessionWithDetails } from './api';
 import { daysFromToday } from '@/components/money-card';
 
@@ -21,7 +22,7 @@ export const toneOnDark: Record<Tone, string> = {
 
 /**
  * True while a game is taking votes, by the server's rule (RatingsService.window): from when it
- * was ended, for 48 hours, or until everyone who came has voted, whichever is first. Games ended
+ * was ended, for VOTE_HOURS (36), or until everyone who came has voted, whichever is first. Games ended
  * before the vote moved to full time keep their match-day-plus-a-week window.
  */
 export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' | 'status' | 'voteOpensAt' | 'voteClosedAt'>) {
@@ -31,7 +32,7 @@ export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' 
   if (session.voteClosedAt && new Date(session.voteClosedAt).getTime() <= now) return false;
   if (session.voteOpensAt) {
     const opens = new Date(session.voteOpensAt).getTime();
-    return now >= opens && now < opens + 48 * 3_600_000;
+    return now >= opens && now < opens + VOTE_HOURS * 3_600_000;
   }
   const day = new Date(`${session.date.slice(0, 10)}T00:00:00`).getTime();
   return now >= day && now < day + 8 * 86_400_000;
@@ -39,7 +40,7 @@ export function isVotingOpen(session: Pick<ISessionWithDetails, 'date' | 'kind' 
 
 /**
  * The same short states as the home card: In N days / Tomorrow / Today / Not ended / Voting / Final.
- * An ended game reads "Voting" while its vote is open (48 hours from full time) and "Final" after.
+ * An ended game reads "Voting" while its vote is open (36 hours from full time) and "Final" after.
  */
 export function gameChip(s: ISessionWithDetails): { text: string; tone: Tone } {
   const days = daysFromToday(s.date);

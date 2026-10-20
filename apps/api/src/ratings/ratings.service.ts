@@ -28,7 +28,8 @@ export const TEAM_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 type TeamKey = (typeof TEAM_KEYS)[number];
 
 /** The vote opens at full time (when the organiser ends the game) and stays open this long. */
-const VOTE_HOURS = 48;
+/** Same as VOTE_HOURS in @pitchaside/shared: a Saturday game's vote closes Sunday evening. */
+const VOTE_HOURS = 36;
 /** Games ended before the vote was tied to full time keep their old window: match day plus a week. */
 const LEGACY_WINDOW_DAYS = 7;
 
@@ -329,7 +330,7 @@ export class RatingsService {
   // ── Voting window & squad ──
 
   /**
-   * When players can vote: from the moment the organiser ends the game, for 48 hours. Nobody
+   * When players can vote: from the moment the organiser ends the game, for 36 hours. Nobody
    * votes on a game that hasn't been played, and a game reopened by mistake stops taking votes
    * until it's ended again (keeping its first full-time, so reopening never stretches the vote).
    */

@@ -3,19 +3,19 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ratings';
-import { InstallCard, PushToggle } from '@/components/pwa';
-import { GameCard, GameRow, LoadError, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
+import { PushToggle } from '@/components/pwa';
+import { GameCard, GameRow, LoadError, Section, niceDate } from '@/components/player-ui';
 import { CountUpNaira } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
-import { getPlayerHome, getPlayerRatingBreakdown, subscribePlayerPush, type PlayerHome } from '@/lib/player';
+import { getPlayerHome, subscribePlayerPush, type PlayerHome } from '@/lib/player';
 import { ModeSwitch, usePlayerProfile } from '@/components/player-shell';
-import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
+
+/** 1st, 2nd, 3rd, 4th… for a place in the table. */
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
 
 export default function PlayerHomePage() {
   const [home, setHome] = useState<PlayerHome | null>(null);
   const { profile } = usePlayerProfile();
-  // "How this 80 is made", opened from the card's number.
-  const [explaining, setExplaining] = useState(false);
   const [failed, setFailed] = useState<unknown>(null);
   // A failed refresh after it has loaded keeps what's on screen; only a first load shows the error.
   const load = useCallback(
@@ -58,13 +58,6 @@ export default function PlayerHomePage() {
 
   const r = home.ratings;
   const firstTable = home.tables.find((t) => t.me);
-  const caption = [
-    firstTable?.me ? `#${firstTable.me.rank} in ${firstTable.groupName} · ${firstTable.me.points} pts` : 'Play, win and get votes to build your card',
-    r.record.w + r.record.d + r.record.l ? `W${r.record.w} D${r.record.d} L${r.record.l}` : null,
-    r.potmWins ? `★ ${r.potmWins} POTM` : null,
-  ]
-    .filter(Boolean)
-    .join(' · ');
   // What to send now, from the server (played games and each group's next one, after part payments).
   const totalOwed = home.groups.reduce((sum, g) => sum + g.toPay, 0);
   const owedNow = home.owed.filter((o) => o.now).length;
@@ -162,6 +155,56 @@ export default function PlayerHomePage() {
         </div>
       )}
 
+      {/* You in the club, two taps away: your card lives on Me, the full table on Club */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Link
+          href="/me/profile"
+          aria-label={`Your card: rating ${r.ovr ?? 'not set yet'}. Open Me`}
+          className="press relative overflow-hidden flex flex-col justify-between min-h-[120px] rounded-3xl bg-ink text-white p-4 shadow-card"
+        >
+          <span className="absolute inset-0 turf-stripes-soft" aria-hidden />
+          <span className="relative flex items-center justify-between gap-2">
+            <span className="text-[12px] font-bold text-white/70">Your card</span>
+            <Avatar name={`${home.player.firstName} ${home.player.lastName}`} photoKey={home.player.photoKey} className="w-8 h-8 text-[10px]" />
+          </span>
+          <span className="relative">
+            <span className="flex items-baseline gap-1.5">
+              <span className="font-display text-[34px] leading-none font-extrabold text-volt-300 tabular-nums">{r.ovr ?? '–'}</span>
+              <span className="text-[11px] font-extrabold tracking-[0.12em] text-white/60">OVR</span>
+            </span>
+            <span className="mt-1 block text-[12px] text-white/70 truncate">
+              {r.games > 0 ? `W${r.record.w} D${r.record.d} L${r.record.l}${r.provisional ? ' · settling' : ''}` : 'Play to build it'}
+            </span>
+          </span>
+        </Link>
+        <Link
+          href={firstTable ? `/me/club?group=${firstTable.groupId}` : '/me/club'}
+          aria-label={firstTable?.me ? `${ordinal(firstTable.me.rank)} in ${firstTable.groupName} with ${firstTable.me.points} points. Open the table` : 'Open the table'}
+          className="press flex flex-col justify-between min-h-[120px] rounded-3xl bg-white border border-gray-100 p-4 shadow-card"
+        >
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-[12px] font-bold text-gray-500">The table</span>
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </span>
+          {firstTable?.me ? (
+            <span>
+              <span className="flex items-baseline gap-1.5">
+                <span className="font-display text-[34px] leading-none font-extrabold text-ink tabular-nums">{ordinal(firstTable.me.rank)}</span>
+                <span className="text-[13px] font-bold text-gray-500 tabular-nums">{firstTable.me.points} pts</span>
+              </span>
+              <span className="mt-1 block text-[12px] text-gray-600 truncate">in {firstTable.groupName}</span>
+            </span>
+          ) : (
+            <span>
+              <span className="block font-display text-[20px] leading-tight font-extrabold text-ink">Not on it yet</span>
+              <span className="mt-1 block text-[12px] text-gray-600">Play a game with scores</span>
+            </span>
+          )}
+        </Link>
+      </div>
+
       {home.upcoming.length > 1 && (
         <Section
           title="Coming up"
@@ -179,60 +222,10 @@ export default function PlayerHomePage() {
         </Section>
       )}
 
-      <Section title="Your card">
-        <PlayerCardHero
-          firstName={home.player.firstName}
-          lastName={home.player.lastName}
-          ratings={r}
-          caption={caption}
-          photoKey={home.player.photoKey}
-          onRatingTap={profile?.ratingsPlayerId && r.games > 0 ? () => setExplaining(true) : undefined}
-        />
-      </Section>
-      {explaining && profile?.ratingsPlayerId && (
-        <RatingBreakdownSheet
-          name={`${home.player.firstName} ${home.player.lastName}`}
-          load={() => getPlayerRatingBreakdown(profile.ratingsPlayerId!)}
-          onClose={() => setExplaining(false)}
-        />
-      )}
       </div>
 
       <div>
-      {home.tables.some((t) => t.top.some((row) => row.points > 0)) && (
-        <Section title="The table">
-          <div className="space-y-3">
-            {home.tables
-              .filter((t) => t.top.some((row) => row.points > 0))
-              .map((t) => (
-                <div key={t.groupId} className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
-                  <p className="px-4 py-2.5 bg-ink text-[11px] font-extrabold uppercase tracking-wider text-white/60">{t.groupName}</p>
-                  {t.top.map((row) => (
-                    <div
-                      key={row.id}
-                      className={`flex items-center gap-3 px-4 py-2.5 border-t border-gray-100 ${row.id === t.myPlayerId ? 'bg-volt-100' : ''}`}
-                    >
-                      <span className="w-5 text-xs font-extrabold text-gray-500 tabular-nums">{row.rank}</span>
-                      <Avatar name={row.name} className="w-7 h-7 text-[10px]" />
-                      <span className="flex-1 text-sm font-bold text-ink truncate">{row.id === t.myPlayerId ? 'You' : row.name}</span>
-                      <span className="font-display font-extrabold text-ink tabular-nums">{row.points}</span>
-                    </div>
-                  ))}
-                  {t.me && t.me.rank > t.top.length && (
-                    <div className="flex items-center gap-3 px-4 py-2.5 border-t border-dashed border-gray-200 bg-volt-100">
-                      <span className="w-5 text-xs font-extrabold text-gray-500 tabular-nums">{t.me.rank}</span>
-                      <Avatar name={`${home.player.firstName} ${home.player.lastName}`} className="w-7 h-7 text-[10px]" />
-                      <span className="flex-1 text-sm font-bold text-ink">You</span>
-                      <span className="font-display font-extrabold text-ink tabular-nums">{t.me.points}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-          </div>
-        </Section>
-      )}
       <div className="mt-6 space-y-2">
-        <InstallCard />
         <PushToggle save={subscribePlayerPush} />
       </div>
       </div>

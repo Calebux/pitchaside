@@ -51,6 +51,7 @@ export function ScoresStep({
   timer = ORGANISER_TIMER,
   timerOn = true,
   canRemove = () => true,
+  ended = false,
 }: {
   sessionId: string;
   lineup: Lineup;
@@ -67,6 +68,8 @@ export function ScoresStep({
   timerOn?: boolean;
   /** Whether this person can delete a score or a scorer someone recorded ("Ada (captain)"). */
   canRemove?: (recordedBy: string | null | undefined) => boolean;
+  /** Full time: the results come first and adding a game is folded away. */
+  ended?: boolean;
 }) {
   const sideTitle = useId();
   const teams = KEYS.slice(0, lineup.teamCount);
@@ -79,6 +82,8 @@ export function ScoresStep({
   const [choosing, setChoosing] = useState<'teamA' | 'teamB' | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [removing, setRemoving] = useState<MatchGame | null>(null);
+  // After full time: the score box for a game that was missed, opened on request.
+  const [adding, setAdding] = useState(false);
   const onSides = lineup.squad.filter((m) => m.team).length;
 
   if (!lineup.scoresOpen) {
@@ -228,13 +233,8 @@ export function ScoresStep({
     );
   };
 
-  return (
-    <section aria-label="Scores">
-      {timerOn && (
-        <div className="mb-3">
-          <GameTimer sessionId={sessionId} api={timer} onError={onError} />
-        </div>
-      )}
+  const entry = (
+    <>
       <div className="rounded-3xl bg-ink turf-stripes p-4">
         <p className="text-center text-[12px] font-bold text-white/60">Game {lineup.games.length + 1}</p>
         <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-start gap-1">
@@ -255,6 +255,10 @@ export function ScoresStep({
         {!lineup.locked && <p className="mt-2 text-center text-[12px] text-white/60">Saving the first score locks the teams.</p>}
       </div>
 
+    </>
+  );
+  const events = (
+    <>
       <EventsSection
         lineup={lineup}
         busy={busy}
@@ -281,6 +285,10 @@ export function ScoresStep({
         }}
       />
 
+    </>
+  );
+  const results = (
+    <>
       {lineup.games.length > 0 && (
         <>
           <h3 className="mt-5 px-1 text-[13px] font-extrabold text-ink">Today’s table</h3>
@@ -372,6 +380,10 @@ export function ScoresStep({
         </>
       )}
 
+    </>
+  );
+  const scorersToday = (
+    <>
       {lineup.games.some((g) => g.goals.length) && (() => {
         // Today's scorers: goals, then assists, from every game so far.
         const tally = new Map<string, { goals: number; assists: number }>();
@@ -407,6 +419,47 @@ export function ScoresStep({
           </>
         );
       })()}
+
+    </>
+  );
+
+  return (
+    <section aria-label="Scores">
+      {ended ? (
+        <>
+          {/* After full time, the results lead: who scored, each game, the table. Adding a game
+              that was missed is still there, folded behind one quiet button. */}
+          {lineup.games.length === 0 && (
+            <div className="rounded-3xl bg-chalk px-5 py-6 text-center">
+              <p className="text-[15px] font-bold text-ink">No scores were added</p>
+              <p className="mt-1 text-[13px] text-gray-600">Add the games from today if you have them.</p>
+            </div>
+          )}
+          <div className="[&>h3:first-child]:mt-0">{scorersToday}</div>
+          {results}
+          {events}
+          {adding ? (
+            <div className="mt-5">{entry}</div>
+          ) : (
+            <button onClick={() => setAdding(true)} className="press mt-5 w-full min-h-12 rounded-2xl bg-white border border-gray-300 text-[15px] font-bold text-ink hover:border-ink">
+              + Add a game you missed
+            </button>
+          )}
+        </>
+      ) : (
+        <>
+          {/* The match-day clock, above the score box while the day is on */}
+          {timerOn && (
+            <div className="mb-3">
+              <GameTimer sessionId={sessionId} api={timer} onError={onError} />
+            </div>
+          )}
+          {entry}
+          {events}
+          {results}
+          {scorersToday}
+        </>
+      )}
 
       {scoring && (
         <ScorerSheet

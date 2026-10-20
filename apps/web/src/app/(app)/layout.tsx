@@ -6,7 +6,7 @@ import { Nav } from '@/components/nav';
 import { useAuth } from '@/lib/auth';
 import { EmailVerifiedModal, VerifyEmailModal } from '@/components/verify-email-modal';
 import { BallLoader } from '@/components/skeleton';
-import { InstallCard } from '@/components/pwa';
+import { InstallNudge } from '@/components/pwa';
 import { CurrentGroupProvider } from '@/lib/current-group';
 
 export default function AppLayout({
@@ -53,7 +53,7 @@ export default function AppLayout({
         {children}
       </main>
       <div className="fixed bottom-20 left-4 right-4 z-40 md:hidden">
-        <InstallCard />
+        <InstallNudge />
       </div>
       <Nav />
     </CurrentGroupProvider>

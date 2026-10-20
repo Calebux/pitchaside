@@ -391,3 +391,9 @@ export const DEFAULT_BIBS: Record<BibSides, TeamBib> = {
 
 /** Longest team name an organiser can give a side. */
 export const TEAM_NAME_MAX = 20;
+
+/**
+ * How long a game's vote stays open after the organiser ends it (or until everyone who played
+ * has voted). The API keeps its own copy: VOTE_HOURS in ratings.service.
+ */
+export const VOTE_HOURS = 36;

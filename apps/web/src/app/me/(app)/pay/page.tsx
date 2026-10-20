@@ -1,10 +1,9 @@
 'use client';
 
-import { CountUpNaira } from '@/components/motion';
 import { MonthList } from '@/components/money/month-list';
 import { PageHeader } from '@/components/brand';
 import { useEffect, useState } from 'react';
-import { PayIntoCard } from '@/components/account-card';
+import { SendCard } from '@/components/account-card';
 import { LoadError, Section, niceDate } from '@/components/player-ui';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerPayments, type GroupKitty, type PlayerPayments } from '@/lib/player';
@@ -58,121 +57,94 @@ export default function PlayerPayPage() {
   // ahead, and money of theirs the organiser has to sort.
   const total = data.groups.reduce((s, g) => s + g.toPay, 0);
   const later = data.groups.reduce((s, g) => s + g.later, 0);
-  const ahead = data.groups.reduce((s, g) => s + g.paidAhead, 0);
   const extra = data.groups.reduce((s, g) => s + g.extra, 0);
-  const owedGroups = data.groups.filter((g) => data.owed.some((o) => o.groupId === g.id));
+  // Groups you can pay right now first: money owed with an account to send it to.
+  const owedGroups = data.groups
+    .filter((g) => data.owed.some((o) => o.groupId === g.id))
+    .sort((a, b) => Number(!!b.account && b.toPay > 0) - Number(!!a.account && a.toPay > 0));
+  const sending = data.groups.filter((g) => g.toPay > 0);
   const dueLabel = (o: (typeof data.owed)[number]) => o.label ?? `Game · ${niceDate(o.date, { weekday: 'short', day: 'numeric', month: 'short' })}`;
 
   return (
     <>
       <PageHeader title="Pay" subtitle="What you owe, where to send it, and what you’ve paid." />
 
-      {/* The organiser's account card, from the player's side: what to send now, in lime on dark */}
-      <div className="relative overflow-hidden rounded-[28px] bg-ink text-white shadow-card">
-        <span className="absolute inset-0 turf-stripes-soft" aria-hidden />
-        <div className="relative p-5">
-          <p className="text-[13px] font-semibold text-white/70">{total > 0 || later > 0 ? 'To pay now' : 'Your balance'}</p>
-          {total > 0 ? (
-            <CountUpNaira value={total} className="block mt-0.5 font-display text-[40px] leading-none font-extrabold text-volt-300" />
-          ) : (
-            <p className="mt-0.5 font-display text-[30px] leading-none font-extrabold">{later > 0 ? 'Nothing yet ✓' : 'All square ✓'}</p>
-          )}
-          {total > 0 && <p className="mt-2 text-[13px] text-white/70">Put your payment code on the transfer and it’s marked paid as soon as it lands.</p>}
-          {(later > 0 || ahead > 0) && (
-            <ul className="mt-3 -mx-1.5">
-              {later > 0 && (
-                <li className="flex items-center gap-2.5 min-h-10 px-1.5 text-[13px] font-semibold text-white/85">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-white/25" aria-hidden />
-                  <span className="min-w-0">
-                    {formatCurrency(later)} for games further ahead · pay each when it’s your next
-                  </span>
-                </li>
-              )}
-              {ahead > 0 && (
-                <li className="flex items-center gap-2.5 min-h-10 px-1.5 text-[13px] font-semibold text-white/85">
-                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-volt-400" aria-hidden />
-                  <span className="min-w-0">{formatCurrency(ahead)} paid ahead · it pays your next game</span>
-                </li>
-              )}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      {extra > 0 && (
-        <div className="mt-3 rounded-3xl bg-white border border-gray-100 shadow-card px-5 py-4 text-ink" role="note">
-          <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-gray-500">
-            <span className="w-2 h-2 rounded-full bg-sun-400" aria-hidden />
-            With your organiser
-          </p>
-          <p className="font-display text-2xl font-extrabold tabular-nums">{formatCurrency(extra)}</p>
-          <p className="mt-1 text-sm text-gray-600">
-            More than you owed when it came in, or money for a game that was called off or you were taken off. Your organiser will keep it for a later game, pass it on
-            if it was for someone else, or send it back to you.
-          </p>
+      {/* Where to send it comes first: one card per group that wants money, as each group has its
+          own account. The amount and what it's for follow inside the card. */}
+      {total === 0 && (
+        <div className="flex items-center gap-3 rounded-3xl bg-white border border-gray-100 shadow-card px-5 py-4">
+          <span className="w-10 h-10 shrink-0 rounded-full bg-volt-400 text-ink flex items-center justify-center text-lg font-extrabold" aria-hidden>
+            ✓
+          </span>
+          <span className="min-w-0">
+            <span className="block font-display text-[22px] leading-tight font-extrabold text-ink">All square</span>
+            <span className="block text-[13px] text-gray-600">{later > 0 ? 'Nothing to pay yet. Later games are below.' : 'Nothing to pay right now.'}</span>
+          </span>
         </div>
       )}
+      {sending.length > 1 && (
+        <p className="mb-2.5 text-[13px] text-gray-600">
+          <b className="text-ink tabular-nums">{formatCurrency(total)}</b> to send across {sending.length} groups. Each has its own account, so send each one separately.
+        </p>
+      )}
 
-      <div className="md:grid md:grid-cols-2 md:gap-6">
-      {owedGroups.map((g) => {
-        const now = data.owed.filter((o) => o.groupId === g.id && o.now);
-        const ahead = data.owed.filter((o) => o.groupId === g.id && !o.now);
-        return (
-          <Section key={g.id} title={g.name}>
-            {now.length > 0 && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-card divide-y divide-gray-100 mb-3">
-                {now.map((o) => (
-                  <div key={o.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink">{dueLabel(o)}</p>
-                      {o.paidSoFar > 0 && (
-                        <p className="text-xs text-pitch-600 font-semibold">{formatCurrency(o.paidSoFar)} paid so far · this is what’s left</p>
-                      )}
-                    </div>
-                    <span className="font-display text-lg font-extrabold text-ink tabular-nums">{formatCurrency(o.amount)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            {ahead.length > 0 && (
-              <div className="mb-3">
-                <p className="px-1 mb-1.5 text-[12px] font-bold text-gray-500">Later · pay once it’s your next game</p>
-                <div className="bg-chalk rounded-2xl divide-y divide-gray-200/70">
-                  {ahead.map((o) => (
-                    <div key={o.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
-                      <p className="min-w-0 text-sm font-semibold text-gray-600">{dueLabel(o)}</p>
-                      <span className="font-display text-base font-extrabold text-gray-600 tabular-nums">{formatCurrency(o.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            <PayIntoCard
-              account={g.account}
-              fee={g.feePerPlayer}
-              paymentType={g.paymentType}
-              reference={g.paymentRef}
-              claim={g.toPay > 0 ? { groupId: g.id, amount: g.toPay } : undefined}
-              onClaimed={onClaimed}
-            />
-          </Section>
-        );
-      })}
-
-      </div>
+      {owedGroups.length > 0 && (
+        <div className={`space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 ${total === 0 ? 'mt-3' : ''}`}>
+          {owedGroups.map((g) => {
+            const mine = data.owed.filter((o) => o.groupId === g.id);
+            const line = (o: (typeof data.owed)[number]) => ({ id: o.id, label: dueLabel(o), amount: o.amount, paidSoFar: o.paidSoFar });
+            return (
+              <SendCard
+                key={g.id}
+                groupName={g.name}
+                account={g.account}
+                reference={g.paymentRef}
+                fee={g.feePerPlayer}
+                paymentType={g.paymentType}
+                now={mine.filter((o) => o.now).map(line)}
+                later={mine.filter((o) => !o.now).map(line)}
+                paidAhead={g.paidAhead}
+                claim={g.toPay > 0 ? { groupId: g.id, amount: g.toPay } : undefined}
+                onClaimed={onClaimed}
+              />
+            );
+          })}
+        </div>
+      )}
 
       {data.groups.length > 0 && owedGroups.length === 0 && (
         <Section title="Where to pay">
           <p className="-mt-1 mb-2.5 text-[13px] text-gray-600">For when you next owe for a game.</p>
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
             {data.groups.map((g) => (
-              <div key={g.id}>
-                <p className="text-xs font-bold text-gray-500 mb-1.5">{g.name}</p>
-                <PayIntoCard account={g.account} fee={g.feePerPlayer} paymentType={g.paymentType} reference={g.paymentRef} />
-              </div>
+              <SendCard
+                key={g.id}
+                groupName={g.name}
+                account={g.account}
+                reference={g.paymentRef}
+                fee={g.feePerPlayer}
+                paymentType={g.paymentType}
+                now={[]}
+                paidAhead={g.paidAhead}
+              />
             ))}
           </div>
         </Section>
+      )}
+
+      {extra > 0 && (
+        <div className="mt-3 flex gap-3 rounded-3xl bg-white border border-gray-100 shadow-card px-5 py-4" role="note">
+          <span className="mt-1.5 w-2.5 h-2.5 shrink-0 rounded-full bg-sun-400" aria-hidden />
+          <span className="min-w-0">
+            <span className="block text-[15px] font-bold text-ink">
+              <span className="tabular-nums">{formatCurrency(extra)}</span> of yours is with your organiser
+            </span>
+            <span className="block mt-0.5 text-[13px] leading-snug text-gray-600">
+              Money that came in beyond what you owed, or from a game that was called off or you were taken off. Your organiser keeps it for a later
+              game, passes it on if it was for someone else, or sends it back to you.
+            </span>
+          </span>
+        </div>
       )}
 
       {data.contributions.length > 0 && (

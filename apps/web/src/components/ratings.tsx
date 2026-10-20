@@ -342,7 +342,7 @@ export function SessionVotingCard({
 
         {voting.notYet ? (
           <p className="text-sm text-ink/70 mt-2">
-            The vote opens when you end the game, for 48 hours. Only players who came vote, and the winners show when it closes.
+            The vote opens when you end the game, for 36 hours. Only players who came vote, and the winners show when it closes.
           </p>
         ) : (
           <>
