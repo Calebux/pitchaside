@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 /**
  * A small "i" beside a label that explains a number people may not know (rating, points, paid
  * ahead). It adds to the label, never replaces it. Tap opens a short note; tap again, the ×,
  * Escape or a tap anywhere else closes it. The visible dot is small but the tap target is 44px.
+ * The note is drawn on the page's top layer, so nothing next to it (a sticky bar, a filter row)
+ * can cover it. It follows its dot while the page scrolls.
  */
 export function InfoTip({
   label,
@@ -26,31 +29,34 @@ export function InfoTip({
   const wrap = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const note = useRef<HTMLSpanElement>(null);
-  // Nudged sideways so the note never runs off a narrow screen.
-  const [shift, setShift] = useState(0);
-  // Opens upward when there's no room below (the phone tab bar sits at the bottom).
-  const [up, setUp] = useState(false);
-  useLayoutEffect(() => {
-    if (!open || !note.current) {
-      setShift(0);
-      setUp(false);
-      return;
-    }
-    const r = note.current.getBoundingClientRect();
-    if (r.bottom > window.innerHeight - 96 && r.top - r.height - 60 > 0) setUp(true);
+  // Where the note sits on screen: under the dot (over it when there's no room below, as the
+  // phone tab bar sits at the bottom), lined up with `align` and kept 8px inside the screen.
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null);
+  const place = () => {
+    if (!button.current || !note.current) return;
+    const b = button.current.getBoundingClientRect();
+    const n = note.current.getBoundingClientRect();
     const edge = 8;
-    const left = r.left - shift;
-    const right = r.right - shift;
-    setShift(left < edge ? edge - left : right > window.innerWidth - edge ? window.innerWidth - edge - right : 0);
-    // Measured once per opening.
+    const want = align === 'right' ? b.right - n.width : b.left;
+    const left = Math.min(Math.max(edge, want), window.innerWidth - edge - n.width);
+    const up = b.bottom + 4 + n.height > window.innerHeight - 96 && b.top - 4 - n.height > 0;
+    setPos(up ? { left, bottom: window.innerHeight - b.top + 4 } : { left, top: b.bottom + 4 });
+  };
+  useLayoutEffect(() => {
+    if (open) place();
+    else setPos(null);
+    // Measured on opening; scrolling and resizing re-place it (below).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => {
-      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (!wrap.current?.contains(t) && !note.current?.contains(t)) setOpen(false);
     };
+    // Fixed on screen, so it follows its dot while the page scrolls.
+    const scrolled = () => place();
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setOpen(false);
@@ -59,9 +65,13 @@ export function InfoTip({
     };
     document.addEventListener('pointerdown', away);
     document.addEventListener('keydown', esc);
+    window.addEventListener('scroll', scrolled, { passive: true, capture: true });
+    window.addEventListener('resize', scrolled);
     return () => {
       document.removeEventListener('pointerdown', away);
       document.removeEventListener('keydown', esc);
+      window.removeEventListener('scroll', scrolled, { capture: true });
+      window.removeEventListener('resize', scrolled);
     };
   }, [open]);
 
@@ -93,12 +103,13 @@ export function InfoTip({
           i
         </span>
       </button>
-      {open && (
-        // The outer layer is placed (and nudged on screen); the inner one pops in.
+      {open &&
+        createPortal(
+        // The outer layer is placed on screen (hidden until measured); the inner one pops in.
         <span
           ref={note}
-          style={shift ? { transform: `translateX(${shift}px)` } : undefined}
-          className={`absolute ${up ? 'bottom-full mb-2' : 'top-full mt-2'} z-40 w-[min(18rem,calc(100vw-2.5rem))] ${align === 'right' ? 'right-0 -mr-3' : 'left-0 -ml-3'}`}
+          style={pos ? { left: pos.left, top: pos.top, bottom: pos.bottom } : { left: 0, top: 0, visibility: 'hidden' }}
+          className="fixed z-[80] w-[min(18rem,calc(100vw-2.5rem))]"
         >
           <span
             id={id}
@@ -121,8 +132,9 @@ export function InfoTip({
               </svg>
             </button>
           </span>
-        </span>
-      )}
+        </span>,
+          document.body,
+        )}
     </span>
   );
 }
