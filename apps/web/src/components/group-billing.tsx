@@ -27,6 +27,9 @@ import {
   getExtraMoney,
   giveExtra,
   keepExtra,
+  keepExtraForGroup,
+  KEPT_REASON_WORDS,
+  type KeptReason,
   holdExtra,
   releaseWaiting,
   type ExtraSource,
@@ -53,6 +56,7 @@ import {
 } from '@/lib/api';
 import { openWhatsApp } from '@/lib/whatsapp';
 import { useAuth } from '@/lib/auth';
+import { UserRole } from '@pitchaside/shared';
 import { formatAccountNumber, frequencyShort, paymentShareText } from '@/lib/billing';
 import { moneyHref } from '@/lib/money-href';
 
@@ -812,6 +816,9 @@ export function TransfersPanel({
   // Put aside for someone not in the group yet, or no one knows who.
   const waitingMoney = extraMoney.filter((x) => x.waiting > 0.001);
   const [sorting, setSorting] = useState<(ExtraMoney & { source: ExtraSource }) | null>(null);
+  const { user } = useAuth();
+  // "Keep it for the group", waiting for the organiser's confirm.
+  const [keeping, setKeeping] = useState<{ item: ExtraMoney & { source: ExtraSource }; reason: KeptReason; note: string } | null>(null);
   const loadExtras = () => getExtraMoney(groupId).then(setExtras).catch(() => {});
   useEffect(() => {
     loadExtras();
@@ -1023,6 +1030,15 @@ export function TransfersPanel({
             await run(`extra-${item.playerId}`, () => holdExtra(groupId, item.playerId, note || undefined), `${formatCurrency(item.extra)} is waiting for a player`);
             loadExtras();
           }}
+          onKeepForGroup={
+            user?.role === UserRole.TREASURER
+              ? undefined
+              : (reason, note) => {
+                  const item = sorting;
+                  setSorting(null);
+                  setKeeping({ item, reason, note });
+                }
+          }
           onRelease={async () => {
             const item = sorting;
             setSorting(null);
@@ -1031,6 +1047,27 @@ export function TransfersPanel({
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={!!keeping}
+        title={keeping ? `Keep ${formatCurrency(keeping.item.extra)} for the group?` : ''}
+        message={
+          keeping
+            ? `${keeping.item.name.split(' ')[0]} won’t be owed this any more, and it can’t be refunded afterwards. They’ll see “${keeping.reason === 'other' ? keeping.note : KEPT_REASON_WORDS[keeping.reason]}” in their history.`
+            : ''
+        }
+        confirmLabel="Keep it for the group"
+        cancelLabel="Go back"
+        variant="danger"
+        onConfirm={async () => {
+          const k = keeping;
+          setKeeping(null);
+          if (!k) return;
+          await run(`extra-${k.item.playerId}`, () => keepExtraForGroup(groupId, k.item.playerId, k.reason, k.note || undefined), `${formatCurrency(k.item.extra)} kept for the group`);
+          loadExtras();
+        }}
+        onCancel={() => setKeeping(null)}
+      />
 
       {/* Money that isn't on a game: extra to sort, and what's waiting for a player. Never used on its own. */}
       {extras.length + waitingMoney.length > 0 && (

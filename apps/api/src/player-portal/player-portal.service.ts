@@ -1,4 +1,5 @@
 import type { MatchEventKind } from '../ratings/entities/match-event.entity';
+import { GroupKeptMoney } from '../billing/entities/group-kept-money.entity';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
@@ -405,7 +406,27 @@ export class PlayerPortalService {
       })),
       groups: this.groupsOf(memberships, owed),
       contributions: await this.contributions(memberships),
+      keptByGroup: await this.keptByGroup(ids),
     };
+  }
+
+  /** Money of theirs a group kept (nobody owes anybody for it now), newest first, with why. */
+  private async keptByGroup(ids: string[]) {
+    if (!ids.length) return [];
+    const rows = await this.paymentsRepo.manager.find(GroupKeptMoney, {
+      where: { playerId: In(ids) },
+      relations: ['group'],
+      order: { createdAt: 'DESC' },
+      take: 30,
+    });
+    return rows.map((k) => ({
+      id: k.id,
+      groupName: k.group?.name ?? '',
+      amount: Number(k.amount),
+      reason: k.reason,
+      note: k.note,
+      date: k.createdAt,
+    }));
   }
 
   async profile(person: Person) {

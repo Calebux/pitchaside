@@ -11,6 +11,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { BankTransfer } from './entities/bank-transfer.entity';
 import { OutgoingTransfer } from './entities/outgoing-transfer.entity';
 import { PaymentClaim } from './entities/payment-claim.entity';
+import { GroupKeptMoney } from './entities/group-kept-money.entity';
 import { UsersModule } from '../users/users.module';
 import { Competition } from '../competitions/entities/competition.entity';
 import { CompetitionTeam } from '../competitions/entities/competition-team.entity';
@@ -22,7 +23,7 @@ import { HttpPulseClient } from './pulse/http-pulse.client';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer, OutgoingTransfer, PaymentClaim, Competition, CompetitionTeam]),
+    TypeOrmModule.forFeature([Group, GroupMembership, Session, Payment, Player, BankTransfer, OutgoingTransfer, PaymentClaim, GroupKeptMoney, Competition, CompetitionTeam]),
     PaymentsModule,
     NotificationsModule,
     UsersModule,

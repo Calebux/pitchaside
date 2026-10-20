@@ -1,7 +1,10 @@
+import { localDate } from '../common/time.util';
 import { RatingsService } from './ratings.service';
 import { SessionStatus } from '../sessions/entities/session.entity';
 
-const today = new Date().toISOString().slice(0, 10);
+// Match day in the app's own time zone (Lagos), as the service checks it: a UTC date is a day
+// behind for an hour every night.
+const today = localDate(0);
 const pay = (playerId: string, team: string | null, attendance: string | null = null) => ({ playerId, team, attendance, captain: false });
 
 /** A match-day game with Ada and Chidi on Orange (A), Bisi and Dayo on Yellow (B). */

@@ -5,10 +5,10 @@ import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
 import { Avatar } from '@/components/ratings';
-import { formatCurrency, getGiveExtraPreview, type ExtraMoney, type ExtraSource, type GiveExtraPreview, type OwedItem } from '@/lib/api';
+import { KEPT_REASON_WORDS, formatCurrency, getGiveExtraPreview, type ExtraMoney, type ExtraSource, type GiveExtraPreview, type KeptReason, type OwedItem } from '@/lib/api';
 import { owedLabel, type MatchMember } from '@/lib/give-outcome';
 
-type Choice = 'someone' | 'unknown' | 'keep' | 'back' | 'release';
+type Choice = 'someone' | 'unknown' | 'keep' | 'back' | 'group' | 'release';
 
 /** "Sat 17 Oct", or "October 2026 dues". */
 const dueLabel = (d: { date: string; label: string | null; kind: string }) =>
@@ -35,6 +35,7 @@ export function ExtraSheet({
   onSendBack,
   onHold,
   onRelease,
+  onKeepForGroup,
   onClose,
 }: {
   groupId: string;
@@ -48,6 +49,8 @@ export function ExtraSheet({
   onSendBack: () => void;
   onHold: (note: string) => void;
   onRelease: () => void;
+  /** The group keeps it (nobody is owed it). Left out for treasurers: only organisers decide that. */
+  onKeepForGroup?: (reason: KeptReason, note: string) => void;
   onClose: () => void;
 }) {
   const waiting = source === 'waiting';
@@ -60,6 +63,8 @@ export function ExtraSheet({
   const [preview, setPreview] = useState<GiveExtraPreview | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [note, setNote] = useState('');
+  const [reason, setReason] = useState<KeptReason | null>(null);
+  const [why, setWhy] = useState('');
 
   useEffect(() => {
     setPreview(null);
@@ -91,6 +96,7 @@ export function ExtraSheet({
         { key: 'unknown', title: 'For someone not in the group yet', hint: 'Or you don’t know who yet' },
         { key: 'keep', title: `Keep it for ${first}’s next game`, hint: 'They paid ahead' },
         { key: 'back', title: `Send it back to ${first}`, hint: 'Refund it from the group account' },
+        ...(onKeepForGroup ? [{ key: 'group' as const, title: 'Keep it for the group', hint: `Nobody owes anybody. ${first} sees why` }] : []),
       ];
 
   const outcome = (() => {
@@ -135,6 +141,14 @@ export function ExtraSheet({
       <button onClick={onSendBack} className={`${btnPrimary} w-full`}>
         Send {formatCurrency(amount)} back to {first}
       </button>
+    ) : choice === 'group' && onKeepForGroup ? (
+      <button
+        disabled={busy || !reason || (reason === 'other' && !why.trim())}
+        onClick={() => reason && onKeepForGroup(reason, why.trim())}
+        className={`${btnPrimary} w-full disabled:opacity-40`}
+      >
+        {busy ? 'Saving…' : !reason ? 'Pick why' : reason === 'other' && !why.trim() ? 'Say why in a few words' : `Keep ${formatCurrency(amount)} for the group`}
+      </button>
     ) : (
       <button disabled className={`${btnPrimary} w-full opacity-40`}>
         Pick what it was for
@@ -161,6 +175,40 @@ export function ExtraSheet({
       <p className="text-[13px] leading-snug text-gray-600">Pays {first}’s next game once it’s the next one, never games further ahead.</p>
     ) : key === 'back' ? (
       <p className="text-[13px] leading-snug text-gray-600">Opens Send money with a refund to {first}’s own account ready.</p>
+    ) : key === 'group' ? (
+      <>
+        <p className="text-[13px] leading-snug text-gray-600">
+          {first} won’t be owed it any more: it stops showing as theirs and can’t be refunded. The money stays in the account. {first} sees the reason in their history.
+        </p>
+        <div role="radiogroup" aria-label="Why is the group keeping it?" className="mt-2.5 flex flex-wrap gap-2">
+          {(['player_agreed', 'unreachable', 'sorted_in_person', 'other'] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              role="radio"
+              aria-checked={reason === r}
+              onClick={() => setReason(r)}
+              className={`press min-h-11 px-3.5 rounded-full border text-[13px] font-bold transition-colors ${
+                reason === r ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
+              }`}
+            >
+              {KEPT_REASON_WORDS[r]}
+            </button>
+          ))}
+        </div>
+        {reason === 'other' && (
+          <label className="block mt-2.5">
+            <span className="sr-only">Why is the group keeping it?</span>
+            <input
+              value={why}
+              onChange={(e) => setWhy(e.target.value.slice(0, 120))}
+              maxLength={120}
+              placeholder="e.g. Paid towards the new balls"
+              className="w-full h-11 px-3.5 bg-white border border-gray-200 rounded-xl text-[15px] placeholder:text-gray-500 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+            />
+          </label>
+        )}
+      </>
     ) : key === 'release' ? (
       <p className="text-[13px] leading-snug text-gray-600">Back to {first}’s extra, to keep for them or send back.</p>
     ) : null;

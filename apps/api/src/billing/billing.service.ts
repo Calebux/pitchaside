@@ -24,6 +24,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus, type MoneyInCategory } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus, type PayoutCategory } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
+import { GroupKeptMoney, KEPT_REASONS, type KeptReason } from './entities/group-kept-money.entity';
 import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimSettledBy, couldPair } from './claims';
 import { normaliseAccount, payerNameFrom, whoSent } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
@@ -1390,6 +1391,36 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     });
     await this.applyCredit(groupId, playerId);
     return { kept };
+  }
+
+  /**
+   * Nobody can sort it, or the player said keep it: the group keeps the member's extra. They're
+   * no longer owed it (it stops showing as theirs, and refunds can't take it), and a record says
+   * how much, when and why, for their history. The balance doesn't change: the money was already
+   * in the account. Never touches credit, money waiting for a player, or anyone's games.
+   */
+  async keepForGroup(
+    groupId: string,
+    playerId: string,
+    organizationId: string,
+    input: { reason: KeptReason; note?: string; recordedBy?: string },
+  ) {
+    await this.findGroup(groupId, organizationId);
+    const note = input.note?.trim().replace(/\s+/g, ' ').slice(0, 120) || null;
+    if (!KEPT_REASONS.includes(input.reason)) throw new BadRequestException('Pick why the group is keeping it');
+    if (input.reason === 'other' && !note) throw new BadRequestException('Say in a few words why the group is keeping it');
+    return this.membershipsRepo.manager.transaction(async (tx) => {
+      const m = await tx.findOne(GroupMembership, { where: { groupId, playerId }, lock: { mode: 'pessimistic_write' } });
+      if (!m) throw new NotFoundException("That player isn't in this group");
+      const extra = Number(m.extra ?? 0);
+      if (extra <= 0.001) throw new BadRequestException('There’s no extra left to sort.');
+      m.extra = '0.00';
+      await tx.save(m);
+      await tx.save(
+        tx.create(GroupKeptMoney, { groupId, playerId, amount: extra.toFixed(2), reason: input.reason, note, recordedBy: input.recordedBy ?? null }),
+      );
+      return { kept: extra };
+    });
   }
 
   /** What a withdrawal was for, set or changed afterwards. */
