@@ -58,12 +58,12 @@ export function ModeSwitch({ organiser, tone = 'light' }: { organiser: PlayerPro
   };
   return (
     <div
-      className={`flex items-center rounded-full p-0.5 text-[11px] font-bold ${tone === 'dark' ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}
+      className={`flex items-center rounded-full p-0.5 text-[12px] font-bold ${tone === 'dark' ? 'bg-white/10' : 'bg-chalk border border-gray-200'}`}
       role="tablist"
       aria-label="Mode"
     >
       <span
-        className={`flex-1 text-center px-2.5 py-1.5 rounded-full ${tone === 'dark' ? 'bg-volt-400 text-ink' : 'bg-ink text-volt-300'}`}
+        className={`flex-1 inline-flex items-center justify-center min-h-10 text-center px-3 rounded-full ${tone === 'dark' ? 'bg-volt-400 text-ink' : 'bg-ink text-volt-300'}`}
         role="tab"
         aria-selected
       >
@@ -71,7 +71,8 @@ export function ModeSwitch({ organiser, tone = 'light' }: { organiser: PlayerPro
       </span>
       <button
         onClick={goOrganise}
-        className={`flex-1 px-2.5 py-1.5 rounded-full ${tone === 'dark' ? 'text-white/60 hover:text-white' : 'text-gray-600 hover:text-ink'}`}
+        aria-label="Organising: back to running your groups"
+        className={`press flex-1 min-h-10 px-3 rounded-full ${tone === 'dark' ? 'text-white/60 hover:text-white' : 'text-gray-600 hover:text-ink'}`}
         role="tab"
         aria-selected={false}
       >
@@ -187,9 +188,17 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <div className="min-h-screen pb-28 md:pb-12 md:pl-60">
-        {/* No phone header bar, like the organiser app: each screen opens on its own title. The
-            Playing ⇄ Organising switch sits in Home's header (and the desktop sidebar). */}
-        <main className="max-w-md md:max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-10">{children}</main>
+        {/* No phone header bar, like the organiser app: each screen opens on its own title. An
+            organiser can always get back to organising: the Playing ⇄ Organising switch sits in
+            Home's header, above every other tab's title on phones, and in the desktop sidebar. */}
+        <main className="max-w-md md:max-w-5xl mx-auto px-4 md:px-8 pt-4 md:pt-10">
+          {profile.organiser && pathname !== '/me' && (
+            <div className="md:hidden -mt-1 mb-2 flex justify-end">
+              <ModeSwitch organiser={profile.organiser} />
+            </div>
+          )}
+          {children}
+        </main>
       </div>
 
       {/* Phone tab bar */}
