@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { photoUrl } from '@/lib/http';
-import { TEAMS } from '@/lib/teams';
+import type { Bibs } from '@pitchaside/shared';
+import { teamName } from '@/lib/teams';
 import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
@@ -40,8 +41,8 @@ export const categoryMeta: Record<VoteCategory, { short: string; tone: string; c
 };
 
 /** A result's heading: "Best on Orange" for the per-team pick, else the category's own title. */
-export function resultTitle(c: { key: VoteCategory; title: string; team?: TeamKey | null }) {
-  return c.key === 'teammate' && c.team ? `Best on ${TEAMS[c.team].name}` : c.title;
+export function resultTitle(c: { key: VoteCategory; title: string; team?: TeamKey | null }, bibs?: Bibs | null) {
+  return c.key === 'teammate' && c.team ? `Best on ${teamName(c.team, undefined, bibs)}` : c.title;
 }
 
 export function Avatar({ name, photoKey, className = 'w-9 h-9 text-xs' }: { name: string; photoKey?: string | null; className?: string }) {
@@ -81,7 +82,7 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
                 {meta.short}
               </span>
               <span className={`text-[11px] font-semibold ${c.key === 'potm' && !compact ? 'text-white/50' : 'text-gray-500'}`}>
-                {resultTitle(c)}
+                {resultTitle(c, results.bibs)}
               </span>
             </div>
             {c.key === 'vii' && c.standings.length > 0 ? (

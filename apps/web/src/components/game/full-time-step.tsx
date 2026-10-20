@@ -4,7 +4,7 @@ import { btnPrimary } from '@/components/buttons';
 import { SessionVotingCard } from '@/components/ratings';
 import type { Lineup } from '@/lib/api';
 import type { GamePhase } from '@/lib/game-player';
-import { teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { Swatch } from './teams-step';
 
 /**
@@ -49,8 +49,8 @@ export function FullTimeStep({
             {winner ? (
               <>
                 <b className="flex items-center gap-1.5 text-[15px] text-ink">
-                  <Swatch team={winner} />
-                  <span className="truncate">{teamName(winner, lineup.captains)}</span>
+                  <Swatch team={winner} bibs={lineup.bibs} />
+                  <span className="truncate">{teamName(winner, lineup.captains, lineup.bibs)}</span>
                 </b>
                 {ended ? 'Team of the Day' : 'Team of the Day so far'} · {games} game{games === 1 ? '' : 's'}
               </>

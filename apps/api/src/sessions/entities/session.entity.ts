@@ -1,3 +1,4 @@
+import type { Bibs } from '@pitchaside/shared';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -62,6 +63,10 @@ export class Session {
   /** How many sides the squad is split into on match day (2–6). */
   @Column({ name: 'team_count', type: 'int', default: 2 })
   teamCount: number;
+
+  /** This game's bibs, when the organiser changed them for the day. Null: the group's bibs. */
+  @Column({ type: 'jsonb', nullable: true })
+  bibs: Bibs | null;
 
   /** Set once the day-before reminder has gone out. */
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })

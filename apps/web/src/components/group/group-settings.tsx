@@ -38,6 +38,7 @@ export function GroupSettingsSheet({
     paymentType: group.paymentType,
     requireRsvp: !!group.requireRsvp,
     contributionsVisibility: group.contributionsVisibility ?? 'private',
+    bibs: group.bibs ?? null,
   };
 
   async function save(d: GroupEditData) {
@@ -54,6 +55,7 @@ export function GroupSettingsSheet({
         paymentType: d.paymentType as PaymentType,
         requireRsvp: d.requireRsvp,
         contributionsVisibility: d.contributionsVisibility,
+        bibs: d.bibs,
       });
       toast.success('Changes saved');
       onSaved();

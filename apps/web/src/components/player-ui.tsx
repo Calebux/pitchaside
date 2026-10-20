@@ -7,7 +7,7 @@ import { photoUrl } from '@/lib/http';
 import { Ball, Player, kitFor, skins } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
 import { AttributeRow } from '@/components/ratings';
-import { TEAMS, teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { MatchDayBibs } from '@/components/match-day-bibs';
 import { KeepScoreLink } from '@/components/keep-score-link';
 import { useToast } from '@/components/toast';
@@ -452,8 +452,8 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
           <span className="mt-1 block text-[16px] font-bold text-ink truncate">{day.groupName}</span>
           {day.myTeam ? (
             <span className="flex items-center gap-1.5 text-[13px] text-gray-600 truncate">
-              <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${TEAMS[day.myTeam].swatch}`} aria-hidden />
-              {teamName(day.myTeam, day.captains)}
+              <span className="w-2.5 h-2.5 rounded-sm shrink-0" style={bibFill(day.myTeam, day.bibs)} aria-hidden />
+              {teamName(day.myTeam, day.captains, day.bibs)}
             </span>
           ) : (
             <span className="block text-[13px] text-gray-600">No team picked</span>

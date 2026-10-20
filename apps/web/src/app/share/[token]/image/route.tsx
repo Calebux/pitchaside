@@ -1,6 +1,8 @@
 import { ImageResponse } from 'next/og';
 import { fit, loadFonts } from '@/lib/og';
 import { getMatchCard, type MatchCard } from '../match-card';
+import { bibOf, teamName } from '@/lib/teams';
+import type { TeamKey } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,14 +18,11 @@ const C = {
   muted: 'rgba(255,255,255,0.55)',
 };
 
-const TEAM_COLOURS: Record<string, { name: string; bg: string; fg: string }> = {
-  A: { name: 'Orange', bg: '#ff6a3d', fg: '#ffffff' },
-  B: { name: 'Yellow', bg: '#ffc93c', fg: C.ink },
-  C: { name: 'Blue', bg: '#3b82f6', fg: '#ffffff' },
-  D: { name: 'White', bg: '#ffffff', fg: C.ink },
-  E: { name: 'Green', bg: '#2f8f48', fg: '#ffffff' },
-  F: { name: 'Red', bg: '#e5484d', fg: '#ffffff' },
-};
+/** A side's colour and name on the card: the game's own bibs (custom name first, then captain, then colour). */
+function side(team: string, card: MatchCard, captain?: string | null) {
+  const bib = bibOf(team as TeamKey, card.bibs);
+  return { name: teamName(team as TeamKey, captain ? { [team]: captain } : undefined, card.bibs), bg: bib.hex, fg: bib.ink ? C.ink : '#ffffff' };
+}
 
 function prettyDate(iso: string) {
   return new Date(`${iso}T12:00:00`)
@@ -76,7 +75,7 @@ function Card({ card }: { card: MatchCard }) {
   const potm = card.awards.find((a) => a.key === 'potm');
   const others = card.awards.filter((a) => a.key !== 'potm');
   const tod = card.teamOfTheDay;
-  const todColour = tod ? TEAM_COLOURS[tod.team] ?? TEAM_COLOURS.A : null;
+  const todColour = tod ? side(tod.team, card, tod.captain) : null;
 
   return (
     <div
@@ -221,7 +220,7 @@ function Card({ card }: { card: MatchCard }) {
             >
               <div style={{ display: 'flex', fontSize: 21, fontWeight: 700, letterSpacing: 3, color: C.volt300 }}>
                 {(a.key === 'teammate' && a.team
-                  ? `Best on ${a.captain ? `Team ${a.captain}` : (TEAM_COLOURS[a.team]?.name ?? 'their team')}`
+                  ? `Best on ${a.team ? side(a.team, card, a.captain).name : 'their team'}`
                   : a.title
                 ).toUpperCase()}
               </div>
@@ -264,7 +263,7 @@ function Card({ card }: { card: MatchCard }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 4, color: C.volt300 }}>
-              TEAM OF THE DAY · {(tod.captain ? `Team ${tod.captain}` : todColour.name).toUpperCase()}
+              TEAM OF THE DAY · {todColour.name.toUpperCase()}
             </div>
             <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, marginTop: 4 }}>
               W{tod.w} D{tod.d} L{tod.l} · {tod.pts} pts
