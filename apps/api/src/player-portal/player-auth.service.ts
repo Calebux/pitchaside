@@ -294,6 +294,31 @@ export class PlayerAuthService {
   }
 
   /** An organiser switching to Playing gets a player record in their own club (so they can join their own games). */
+  /**
+   * Whether an organiser must prove they own their email (with a code) before the "Playing" switch
+   * opens the player side. Signing up as an organiser doesn't check the email, so without this anyone
+   * could register with a player's address and walk into their records in every club. Asked only when
+   * it matters: the email isn't confirmed yet and it already belongs to someone on the player side
+   * (a player in another club, or a player account with a password).
+   */
+  async organiserNeedsProof(user: User): Promise<boolean> {
+    if (user.emailVerified) return false;
+    const key = emailKey(user.email);
+    const players = await this.findPlayersByKey(key);
+    if (players.some((p) => p.organizationId !== user.organizationId)) return true;
+    const account = await this.accountsRepo.findOne({ where: { personKey: key } });
+    return !!account?.passwordHash;
+  }
+
+  /** The organiser typed the code from their email: it's their address, so mark it confirmed. */
+  async proveOrganiserEmail(user: User, code: string) {
+    // A wrong code is a form error here, not a lost session: a 401 would sign the organiser out.
+    await this.verifyCode(emailKey(user.email), code).catch((err) => {
+      throw err instanceof UnauthorizedException ? new BadRequestException(err.message) : err;
+    });
+    await this.usersRepo.update(user.id, { emailVerified: true, emailVerificationToken: null, emailVerificationExpiresAt: null });
+  }
+
   ensureOrganiserPlayer(user: User) {
     return clubPlayerFor(this.playersRepo, user.organizationId, {
       email: user.email,

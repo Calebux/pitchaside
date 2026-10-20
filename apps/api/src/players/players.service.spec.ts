@@ -62,6 +62,7 @@ describe('PlayersService', () => {
 
       expect(playersRepo.create).toHaveBeenCalledWith({
         ...dto,
+        nickname: null,
         organizationId: 'org-1',
       });
       expect(result.organizationId).toBe('org-1');

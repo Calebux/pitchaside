@@ -9,6 +9,7 @@ import { Logo } from '@/components/brand';
 import { useToast } from '@/components/toast';
 import { playerTokenFromOrganiser } from '@/lib/api';
 import { BallIcon } from '@/components/illustrations';
+import { ConfirmEmailSheet } from '@/components/confirm-email-sheet';
 
 // The bottom bar: today, the games, the people, the money, the cups. Everything else is in More.
 const tabs = [
@@ -121,24 +122,42 @@ const adminTab = {
 };
 
 /** Organising → Playing: open this person's player side (same email). */
+/**
+ * The switch to "Playing". Usually instant; when the server first wants proof the email is theirs it
+ * returns `needsCode`, and the code sheet takes over.
+ */
 function usePlayingSwitch() {
   const router = useRouter();
   const toast = useToast();
-  return async () => {
+  const [asking, setAsking] = useState<{ email: string; devCode?: string } | null>(null);
+  const start = async () => {
     try {
-      await playerTokenFromOrganiser();
-      router.push('/me');
+      const res = await playerTokenFromOrganiser();
+      if (res.needsCode) setAsking({ email: res.email, devCode: res.devCode });
+      else router.push('/me');
     } catch (err: any) {
       toast.error(err.message || 'Could not switch');
     }
   };
+  const sheet = asking && (
+    <ConfirmEmailSheet
+      email={asking.email}
+      devCode={asking.devCode}
+      onClose={() => setAsking(null)}
+      onConfirmed={() => {
+        setAsking(null);
+        router.push('/me');
+      }}
+    />
+  );
+  return { start, sheet };
 }
 
 export function Nav() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const switchToPlaying = usePlayingSwitch();
+  const { start: switchToPlaying, sheet: confirmEmailSheet } = usePlayingSwitch();
   const menuRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = user?.role === UserRole.ORG_ADMIN || user?.role === UserRole.SUPER_ADMIN;
@@ -164,6 +183,7 @@ export function Nav() {
 
   return (
     <>
+      {confirmEmailSheet}
       {/* Mobile bottom nav — floating pill */}
       <nav className="fixed bottom-0 left-0 right-0 md:hidden z-50 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pointer-events-none">
         <div className="pointer-events-auto flex justify-around items-center bg-ink/95 backdrop-blur-xl rounded-[22px] px-1.5 py-1.5 shadow-lift">

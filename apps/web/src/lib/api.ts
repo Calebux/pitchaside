@@ -876,9 +876,15 @@ export function getMessages(): Promise<{ mode: 'mock' | 'live'; messages: Outbou
   return http.get('/messages');
 }
 
-/** Organiser → "Playing": exchange the organiser session for their player session. */
-export function playerTokenFromOrganiser(): Promise<{ token: string }> {
-  return http.post('/player-auth/from-organiser');
+/**
+ * Organiser → "Playing": exchange the organiser session for their player session. When the email
+ * isn't confirmed and already belongs to a player, the server emails a code first and answers
+ * `needsCode`; send it back as `code`.
+ */
+export function playerTokenFromOrganiser(
+  code?: string,
+): Promise<{ token: string; needsCode?: undefined } | { needsCode: true; email: string; devCode?: string; token?: undefined }> {
+  return http.post('/player-auth/from-organiser', code ? { code } : {});
 }
 
 // ── Email Verification ──
