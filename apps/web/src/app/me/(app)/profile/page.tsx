@@ -58,6 +58,13 @@ export default function PlayerProfilePage() {
         />
       )}
 
+      {/* The card is one club's: with more than one, say which, and where the others are. */}
+      {profile.clubs.length > 1 && (
+        <p className="mt-3 text-[13px] leading-snug text-gray-600">
+          Your card and stats are from <b className="text-ink">{profile.clubs.find((c) => c.playerId === profile.ratingsPlayerId)?.clubName ?? profile.clubs[0].clubName}</b>,
+          where you’ve played most. Your rating at each club is under My clubs.
+        </p>
+      )}
       <div className="mt-5">
         <PlayerStats ratings={r} you />
       </div>

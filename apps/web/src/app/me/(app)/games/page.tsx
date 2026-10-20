@@ -2,7 +2,8 @@
 
 import { PageHeader } from '@/components/brand';
 import { useCallback, useEffect, useState } from 'react';
-import { GameCard, GameRow, LoadError, MatchDayCard } from '@/components/player-ui';
+import { GameCard, GameRow, GroupChips, LoadError, MatchDayCard } from '@/components/player-ui';
+import { usePlayerProfile } from '@/components/player-shell';
 import { getPlayerGames, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
 export default function PlayerGamesPage() {
@@ -12,6 +13,20 @@ export default function PlayerGamesPage() {
   const [tab, setTab] = useState<'ahead' | 'past'>(() =>
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'played' ? 'past' : 'ahead',
   );
+  // Players in more than one group can look at one at a time; all together by default.
+  const { profile } = usePlayerProfile();
+  const groups = (profile?.clubs ?? []).flatMap((c) => c.groups);
+  const [groupId, setGroupId] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('group') : null,
+  );
+  const picked = groups.find((g) => g.id === groupId) ?? null;
+  const pickGroup = (id: string | null) => {
+    setGroupId(id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set('group', id);
+    else url.searchParams.delete('group');
+    window.history.replaceState(window.history.state, '', url);
+  };
   const pickTab = (next: 'ahead' | 'past') => {
     setTab(next);
     const url = new URL(window.location.href);
@@ -34,6 +49,10 @@ export default function PlayerGamesPage() {
     load();
   }, [load]);
 
+  const upcoming = data ? data.upcoming.filter((g) => !picked || g.groupId === picked.id) : [];
+  const recent = data ? data.recent.filter((d) => !picked || d.groupId === picked.id) : [];
+  const where = picked ? ` in ${picked.name}` : '';
+
   return (
     <>
       <PageHeader title="Games" subtitle="Your next games, and how the last ones went." />
@@ -53,12 +72,13 @@ export default function PlayerGamesPage() {
         </div>
       ) : (
         <>
+          <GroupChips groups={groups} value={picked?.id ?? null} onChange={pickGroup} all="All groups" />
           {/* The organiser's switch: games coming up, or played ones with results and votes */}
           <div className="grid grid-cols-2 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="Which games">
             {(
               [
-                ['ahead', 'Coming up', data.upcoming.length],
-                ['past', 'Played', data.recent.length],
+                ['ahead', 'Coming up', upcoming.length],
+                ['past', 'Played', recent.length],
               ] as const
             ).map(([key, label, n]) => {
               const on = tab === key;
@@ -82,34 +102,34 @@ export default function PlayerGamesPage() {
           </div>
 
           {tab === 'ahead' ? (
-            data.upcoming.length === 0 ? (
+            upcoming.length === 0 ? (
               <div className="mt-4 rounded-3xl bg-chalk px-5 py-8 text-center">
-                <p className="text-[15px] font-bold text-ink">No games coming up</p>
+                <p className="text-[15px] font-bold text-ink">No games coming up{where}</p>
                 <p className="mt-1 text-[13px] text-gray-600">You’ll get a ping when your organiser sets the next one.</p>
               </div>
             ) : (
               <div className="mt-4 space-y-3">
                 {/* The next game in full; later ones as cards that open their own page */}
                 <div className="md:max-w-xl">
-                  <GameCard game={data.upcoming[0]} onChange={load} />
+                  <GameCard game={upcoming[0]} onChange={load} />
                 </div>
-                {data.upcoming.length > 1 && (
+                {upcoming.length > 1 && (
                   <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3">
-                    {data.upcoming.slice(1).map((g, i) => (
+                    {upcoming.slice(1).map((g, i) => (
                       <GameRow key={g.id} game={g} index={i} />
                     ))}
                   </div>
                 )}
               </div>
             )
-          ) : data.recent.length === 0 ? (
+          ) : recent.length === 0 ? (
             <div className="mt-4 rounded-3xl bg-chalk px-5 py-8 text-center">
-              <p className="text-[15px] font-bold text-ink">No games played yet</p>
+              <p className="text-[15px] font-bold text-ink">No games played yet{where}</p>
               <p className="mt-1 text-[13px] text-gray-600">Your results, votes and Player of the Match show up here after your first game.</p>
             </div>
           ) : (
             <div className="mt-4 space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
-              {data.recent.map((d, i) => (
+              {recent.map((d, i) => (
                 <MatchDayCard key={d.sessionId} day={d} index={i} />
               ))}
             </div>
