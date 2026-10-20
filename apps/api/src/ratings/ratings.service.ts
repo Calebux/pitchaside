@@ -1514,6 +1514,58 @@ export class RatingsService {
   }
 
   /**
+   * How one player's card number is made: each part's score, what went into it, and where they
+   * stand in the club on it. Everyone can see anyone's (Matt, 20 Oct). Null if they haven't
+   * played, when the card shows the level their organiser gave them.
+   */
+  async ratingBreakdown(playerId: string, organizationId: string) {
+    const { everyone, trial } = await this.clubCard(organizationId);
+    const me = everyone.find((r) => r.player.id === playerId && r.games > 0);
+    if (!me) return null;
+    const t = trial.get(playerId)!;
+    const played = everyone.filter((r) => r.games > 0);
+    // Where they stand on a part: 1 + how many have a higher score; ties share. Null when everyone's
+    // level on it (no votes yet, say): a place would mean nothing.
+    const placeOn = (k: keyof TrialRating['parts']) =>
+      played.every((r) => trial.get(r.player.id)!.parts[k] === t.parts[k]) ? null : 1 + played.filter((r) => trial.get(r.player.id)!.parts[k] > t.parts[k]).length;
+    const awards = Object.entries(me.evidence ?? {})
+      .filter(([, e]) => e && e.enough)
+      .map(([key, e]) => ({ key, share: Math.round(e!.share * 100) / 100 }));
+    return {
+      player: me.player,
+      rating: t.trial,
+      weights: TRIAL_WEIGHTS,
+      of: played.length,
+      worth: { save: SAVE_WORTH, yellow: YELLOW_COST, red: RED_COST },
+      stats: {
+        score: t.parts.stats,
+        place: placeOn('stats'),
+        games: me.games,
+        goals: me.goals,
+        assists: me.assists,
+        saves: me.saves,
+        yellowCards: me.yellowCards,
+        redCards: me.redCards,
+      },
+      votes: {
+        score: t.parts.votes,
+        place: placeOn('votes'),
+        ballots: me.ballotsSeen,
+        potmVotes: me.votes.potm ?? 0,
+        potmWins: me.potmWins,
+        viiPicks: me.viiPicks,
+        awards,
+      },
+      results: {
+        score: t.parts.results,
+        place: placeOn('results'),
+        record: me.record,
+        skill: me.skill,
+      },
+    };
+  }
+
+  /**
    * A player's ratings across the club, all time, with this calendar year's alongside. Each
    * carries `compare`: for the main numbers, the club's average (in total and per game) and
    * where this player ranks, among everyone who has played in that period.

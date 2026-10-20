@@ -6,10 +6,15 @@ import { Avatar } from '@/components/ratings';
 import { InstallCard, PushToggle } from '@/components/pwa';
 import { GameCard, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
 import { formatCurrency } from '@/lib/api';
-import { getPlayerHome, subscribePlayerPush, type PlayerHome } from '@/lib/player';
+import { getPlayerHome, getPlayerRatingBreakdown, subscribePlayerPush, type PlayerHome } from '@/lib/player';
+import { usePlayerProfile } from '@/components/player-shell';
+import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
 
 export default function PlayerHomePage() {
   const [home, setHome] = useState<PlayerHome | null>(null);
+  const { profile } = usePlayerProfile();
+  // "How this 80 is made", opened from the card's number.
+  const [explaining, setExplaining] = useState(false);
   const load = useCallback(() => getPlayerHome().then(setHome).catch(() => {}), []);
 
   useEffect(() => {
@@ -41,7 +46,20 @@ export default function PlayerHomePage() {
   return (
     <div className="md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:gap-8 md:items-start">
       <div>
-      <PlayerCardHero firstName={home.player.firstName} lastName={home.player.lastName} ratings={r} caption={caption} />
+      <PlayerCardHero
+        firstName={home.player.firstName}
+        lastName={home.player.lastName}
+        ratings={r}
+        caption={caption}
+        onRatingTap={profile?.ratingsPlayerId && r.games > 0 ? () => setExplaining(true) : undefined}
+      />
+      {explaining && profile?.ratingsPlayerId && (
+        <RatingBreakdownSheet
+          name={`${home.player.firstName} ${home.player.lastName}`}
+          load={() => getPlayerRatingBreakdown(profile.ratingsPlayerId!)}
+          onClose={() => setExplaining(false)}
+        />
+      )}
 
       <div className="mt-4 space-y-2 md:hidden">
         <InstallCard />

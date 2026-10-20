@@ -303,6 +303,12 @@ export class PlayerPortalController {
     return this.portal.gameLineup(person, id);
   }
 
+  /** How a player's card number is made: their own, or any player's in a club they play for. */
+  @Get('players/:playerId/rating-breakdown')
+  ratingBreakdown(@Param('playerId') playerId: string, @CurrentPerson() person: Person) {
+    return this.portal.ratingBreakdown(person, playerId);
+  }
+
   /** Match day for the day's captains: the scoreboard, games and scorers. */
   @Get('games/:id/match-day')
   matchDay(@Param('id') id: string, @CurrentPerson() person: Person) {

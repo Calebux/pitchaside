@@ -67,6 +67,7 @@ export function PlayerCardHero({
   ratings,
   caption,
   photoKey,
+  onRatingTap,
 }: {
   firstName: string;
   lastName: string;
@@ -74,6 +75,8 @@ export function PlayerCardHero({
   caption?: string;
   /** Their photo takes the drawn player's place on the card. */
   photoKey?: string | null;
+  /** Tapping the big number explains how it's made. */
+  onRatingTap?: () => void;
 }) {
   const fullName = `${firstName} ${lastName}`;
   const photo = photoUrl(photoKey);
@@ -83,10 +86,26 @@ export function PlayerCardHero({
       <div className="absolute inset-0 turf-stripes" />
       <div className="relative grid grid-cols-[auto_1fr] gap-4 p-5">
         <div className="relative w-24 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
-          <div className="absolute z-10 top-2 left-2 leading-none">
-            <p className="font-display text-xl font-extrabold text-volt-300 tabular-nums">{ratings.ovr ?? '–'}</p>
-            <p className="text-[7px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
-          </div>
+          {onRatingTap && ratings.ovr !== null ? (
+            <button
+              onClick={onRatingTap}
+              aria-label={`Rating ${ratings.ovr}: how it's made`}
+              className="press absolute z-10 top-0 left-0 min-w-11 min-h-11 pt-2 pl-2 pr-2 pb-1 text-left leading-none rounded-br-xl hover:bg-white/10"
+            >
+              <span className="block font-display text-xl font-extrabold text-volt-300 tabular-nums">{ratings.ovr}</span>
+              <span className="flex items-center gap-0.5 text-[7px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">
+                OVR
+                <span className="w-2.5 h-2.5 rounded-full bg-white/20 text-white text-[7px] leading-[10px] text-center tracking-normal" aria-hidden>
+                  i
+                </span>
+              </span>
+            </button>
+          ) : (
+            <div className="absolute z-10 top-2 left-2 leading-none">
+              <p className="font-display text-xl font-extrabold text-volt-300 tabular-nums">{ratings.ovr ?? '–'}</p>
+              <p className="text-[7px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
+            </div>
+          )}
           {photo ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}

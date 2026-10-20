@@ -3,7 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
-import type { GoalInput, Lineup, MatchEventKind, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -318,7 +318,9 @@ export interface PlayerProfile {
   player: PlayerHome['player'];
   organiser: Organiser;
   ratings: PlayerRatings;
-  clubs: { clubName: string; ratings: PlayerRatings; groups: { id: string; name: string }[] }[];
+  /** Which of their player records the card's number is for; null before they've played. */
+  ratingsPlayerId: string | null;
+  clubs: { playerId: string; clubName: string; ratings: PlayerRatings; groups: { id: string; name: string }[] }[];
 }
 
 export function getPlayerProfile() {
@@ -419,4 +421,9 @@ export function subscribePlayerPush(sub: PushSubscriptionJSON) {
 
 export function unsubscribePlayerPush(endpoint: string) {
   return request('DELETE', '/me/push', { endpoint });
+}
+
+/** How a player's card number is made: theirs, or a clubmate's. Null before they've played. */
+export function getPlayerRatingBreakdown(playerId: string) {
+  return request<RatingBreakdown | null>('GET', `/me/players/${playerId}/rating-breakdown`);
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BackButton } from '@/components/back-button';
+import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
@@ -16,6 +17,7 @@ import {
   getPlayerPayments,
   getPlayerStats,
   getPlayerRatings,
+  getRatingBreakdown,
   type PlayerRatings,
   deletePlayer,
   formatCurrency,
@@ -48,6 +50,8 @@ export default function PlayerDetailPage() {
   const [groups, setGroups] = useState<IGroupWithMembers[]>([]);
   const [payments, setPayments] = useState<IPayment[]>([]);
   const [ratings, setRatings] = useState<PlayerRatings | null>(null);
+  // "How this 80 is made", opened from the card's number.
+  const [explaining, setExplaining] = useState(false);
   const [stats, setStats] = useState<{ totalSessions: number; totalPaid: number; totalOwed: number; paymentRate: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -114,6 +118,9 @@ export default function PlayerDetailPage() {
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
       <BackButton label="Players" />
+      {explaining && (
+        <RatingBreakdownSheet name={`${player.firstName} ${player.lastName}`} load={() => getRatingBreakdown(id)} onClose={() => setExplaining(false)} />
+      )}
 
       <ConfirmDialog
         open={showDeleteConfirm}
@@ -146,10 +153,26 @@ export default function PlayerDetailPage() {
           <div className="relative grid grid-cols-[auto_1fr] gap-4 sm:gap-6 p-5 sm:p-6">
             {/* Trading-card style portrait */}
             <div className="relative w-28 sm:w-32 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
-              <div className="absolute z-10 top-2 left-2.5 leading-none">
-                <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings?.ovr ?? '–'}</p>
-                <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
-              </div>
+              {ratings?.ovr != null && ratings.games > 0 ? (
+                <button
+                  onClick={() => setExplaining(true)}
+                  aria-label={`Rating ${ratings.ovr}: how it's made`}
+                  className="press absolute z-10 top-0 left-0 min-w-11 min-h-11 pt-2 pl-2.5 pr-2 pb-1 text-left leading-none rounded-br-xl hover:bg-white/10"
+                >
+                  <span className="block font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings.ovr}</span>
+                  <span className="flex items-center gap-0.5 text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">
+                    OVR
+                    <span className="w-3 h-3 rounded-full bg-white/20 text-white text-[8px] leading-3 text-center tracking-normal" aria-hidden>
+                      i
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <div className="absolute z-10 top-2 left-2.5 leading-none">
+                  <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings?.ovr ?? '–'}</p>
+                  <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
+                </div>
+              )}
               {player.photoKey ? (
                 <>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -219,7 +242,7 @@ export default function PlayerDetailPage() {
                   <AttributeRow ratings={ratings} dark />
                   <p className="text-[10px] text-white/40 mt-1.5">
                     {ratings.games > 0
-                      ? `Rating: 40% goals and assists, 40% votes, 20% results, over ${ratings.games} game${ratings.games === 1 ? '' : 's'}. Skills lifted by teammates' awards`
+                      ? `Rating: 40% stats, 40% votes, 20% results, over ${ratings.games} game${ratings.games === 1 ? '' : 's'}. Tap the number to see how it's made`
                       : 'Based on their level until they’ve played; results and votes take over'}
                   </p>
                 </div>
