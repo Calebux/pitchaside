@@ -19,6 +19,7 @@ import { NotPlayerSheet } from '@/components/money/not-player-sheet';
 import { MonthList } from '@/components/money/month-list';
 import { ExtraSheet } from '@/components/money/extra-sheet';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
+import { DateRangePicker, inRange, rangeLabel, type DateRange } from '@/components/date-range';
 import { MONEY_IN } from '@/lib/money-categories';
 import {
   giveTransfer,
@@ -676,13 +677,6 @@ function TransferRecordSheet({
   );
 }
 
-/** "17 Oct – 20 Oct", "From 17 Oct", "Until 20 Oct": a picked date range, short. */
-function rangeLabel({ from, to }: { from: string; to: string }) {
-  const f = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  if (from && to) return `${f(from)} – ${f(to)}`;
-  return from ? `From ${f(from)}` : `Until ${f(to)}`;
-}
-
 /** Money received into the group account: who paid, and the few payments no one could put a name to. */
 export function TransfersPanel({
   groupId,
@@ -782,7 +776,7 @@ export function TransfersPanel({
   const [show, setShow] = useState<'all' | 'games' | 'ahead' | 'other'>('all');
   const [when, setWhen] = useState<'any' | 'week' | 'month' | 'last' | 'custom'>('any');
   // "Pick dates": from and to, as YYYY-MM-DD from the date inputs (either may be empty).
-  const [range, setRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  const [range, setRange] = useState<DateRange>({ from: '', to: '' });
 
   async function run(id: string, fn: () => Promise<unknown>, ok: string) {
     setWorkingId(id);
@@ -856,10 +850,7 @@ export function TransfersPanel({
     if (when === 'week') return at >= now.getTime() - 7 * 86_400_000;
     if (when === 'month') return at >= monthStart;
     if (when === 'last') return at >= lastStart && at < monthStart;
-    if (when === 'custom') {
-      const day = new Date(iso).toLocaleDateString('en-CA');
-      return (!range.from || day >= range.from) && (!range.to || day <= range.to);
-    }
+    if (when === 'custom') return inRange(iso, range);
     return true;
   };
   const listed = [...placed, ...notPlayers]
@@ -1104,27 +1095,33 @@ export function TransfersPanel({
                   { value: 'week', label: 'Last 7 days' },
                   { value: 'month', label: 'This month' },
                   { value: 'last', label: 'Last month' },
-                  { value: 'custom', label: when === 'custom' && (range.from || range.to) ? rangeLabel(range) : 'Pick dates' },
+                  { value: 'custom', label: when === 'custom' ? rangeLabel(range) : 'Pick dates' },
                 ]}
+                custom={{
+                  value: 'custom',
+                  render: (done) => (
+                    <DateRangePicker
+                      value={range}
+                      showLabel="Show payments"
+                      onApply={(r) => {
+                        setRange(r);
+                        setWhen('custom');
+                        done();
+                      }}
+                      onClear={
+                        when === 'custom'
+                          ? () => {
+                              setRange({ from: '', to: '' });
+                              setWhen('any');
+                              done();
+                            }
+                          : undefined
+                      }
+                    />
+                  ),
+                }}
               />
             </FilterBar>
-            {when === 'custom' && (
-              <div className="grid grid-cols-2 gap-2 animate-fade-in-up">
-                {(['from', 'to'] as const).map((k) => (
-                  <label key={k} className="block">
-                    <span className="block px-1 mb-1 text-[12px] font-semibold text-gray-500">{k === 'from' ? 'From' : 'To'}</span>
-                    <input
-                      type="date"
-                      value={range[k]}
-                      max={k === 'from' ? range.to || undefined : undefined}
-                      min={k === 'to' ? range.from || undefined : undefined}
-                      onChange={(e) => setRange({ ...range, [k]: e.target.value })}
-                      className="w-full min-h-11 px-3 bg-white border border-gray-200 rounded-2xl text-[15px] text-ink focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
             {filtered && listed.length > 0 && (
               <p className="px-1 text-[13px] text-gray-600 tabular-nums" aria-live="polite">
                 {listed.length} payment{listed.length === 1 ? '' : 's'} · {formatCurrency(listed.reduce((n, t) => n + Number(t.amount), 0))}

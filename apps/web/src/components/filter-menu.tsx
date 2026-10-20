@@ -52,6 +52,7 @@ export function FilterMenu<T extends string>({
   icon,
   title,
   columns = 3,
+  custom,
 }: {
   /** What the button is about, for screen readers: "Category", "Sort players". */
   label: string;
@@ -63,10 +64,21 @@ export function FilterMenu<T extends string>({
   /** A line over the chips, e.g. "Sort by". */
   title?: string;
   columns?: 2 | 3;
+  /**
+   * A choice that needs more than a tap (e.g. "Pick dates"): tapping it keeps the panel open
+   * and shows `render` under the chips; call `done` once it's applied to close the panel.
+   */
+  custom?: { value: T; render: (done: () => void) => ReactNode };
 }) {
   const bar = useContext(Bar);
   const id = useId();
   const open = bar?.open === id;
+  const [picking, setPicking] = useState(false);
+  // Each time the panel opens, the custom part shows only if that's what's already picked.
+  useEffect(() => {
+    if (open) setPicking(!!custom && value === custom.value);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
   const current = options.find((o) => o.value === value) ?? options[0];
   const active = value !== options[0].value;
 
@@ -106,7 +118,7 @@ export function FilterMenu<T extends string>({
           {title && <p className="px-1 pb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-gray-500">{title}</p>}
           <div role="radiogroup" aria-label={label} className={`grid gap-2 ${columns === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
             {options.map((o) => {
-              const on = o.value === value;
+              const on = custom && picking ? o.value === custom.value : o.value === value;
               return (
                 <button
                   key={o.value}
@@ -114,6 +126,7 @@ export function FilterMenu<T extends string>({
                   role="radio"
                   aria-checked={on}
                   onClick={() => {
+                    if (custom && o.value === custom.value) return setPicking(true);
                     onChange(o.value);
                     bar?.setOpen(null);
                   }}
@@ -126,6 +139,7 @@ export function FilterMenu<T extends string>({
               );
             })}
           </div>
+          {custom && picking && <div className="mt-3 pt-3 border-t border-gray-100 animate-fade-in-up">{custom.render(() => bar?.setOpen(null))}</div>}
         </div>
       )}
     </>
