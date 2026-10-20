@@ -993,9 +993,37 @@ export class RatingsService {
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
 
-    const [paid, locked] = await Promise.all([this.paidFor(session), this.scoresIn(session.id)]);
+    const [paid, locked, games, goals, events] = await Promise.all([
+      this.paidFor(session),
+      this.scoresIn(session.id),
+      this.gamesRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
+      this.goalsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
+      this.eventsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
+    ]);
     const showPaid = session.group.contributionsVisibility === 'names';
+    const nameOf = (id: string | null | undefined) => {
+      const p = id ? session.payments?.find((x) => x.playerId === id)?.player : null;
+      return p ? sheetName(p) : null;
+    };
     return {
+      /**
+       * Match day as it happens, for everyone in the game (not just the captains): each game's
+       * score with who scored and set it up, the cards and saves, and the day's table so far.
+       */
+      live: {
+        games: games.map((g) => ({
+          id: g.id,
+          teamA: g.teamA,
+          teamB: g.teamB,
+          scoreA: g.scoreA,
+          scoreB: g.scoreB,
+          goals: goals
+            .filter((x) => x.gameId === g.id)
+            .map((x) => ({ team: x.team, scorer: nameOf(x.scorerId), assist: nameOf(x.assistId), mine: playerIds.includes(x.scorerId) })),
+        })),
+        events: events.map((e) => ({ kind: e.kind, name: nameOf(e.playerId), mine: playerIds.includes(e.playerId) })),
+        table: this.standings(session.teamCount, games),
+      },
       teamCount: session.teamCount,
       bibsOpen: this.bibsOpen(session, locked),
       bibsClosed: locked || this.bibsClosed(session),
