@@ -1,12 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { GameCard, GameRow, MatchDayCard, PageTitle, Section } from '@/components/player-ui';
+import { GameCard, GameRow, LoadError, MatchDayCard, PageTitle, Section } from '@/components/player-ui';
 import { getPlayerGames, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
 export default function PlayerGamesPage() {
   const [data, setData] = useState<{ upcoming: UpcomingGame[]; recent: RecentMatchDay[] } | null>(null);
-  const load = useCallback(() => getPlayerGames().then(setData).catch(() => {}), []);
+  const [failed, setFailed] = useState<unknown>(null);
+  const load = useCallback(
+    () =>
+      getPlayerGames()
+        .then((d) => {
+          setData(d);
+          setFailed(null);
+        })
+        .catch(setFailed),
+    [],
+  );
 
   useEffect(() => {
     load();
@@ -15,7 +25,16 @@ export default function PlayerGamesPage() {
   return (
     <>
       <PageTitle eyebrow="Fixtures & results" title="Games" />
-      {!data ? (
+      {!data && failed ? (
+        <LoadError
+          what="Your games"
+          error={failed}
+          onRetry={() => {
+            setFailed(null);
+            load();
+          }}
+        />
+      ) : !data ? (
         <div className="space-y-3 animate-pulse">
           <div className="h-36 bg-gray-100 rounded-3xl" />
           <div className="h-36 bg-gray-100 rounded-3xl" />

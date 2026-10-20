@@ -3,17 +3,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { GameCard, Section, daysFrom } from '@/components/player-ui';
+import { GameCard, LoadError, Section, daysFrom } from '@/components/player-ui';
 import { getPlayerGame, type GamePlayer, type PlayerGame } from '@/lib/player';
 
 /** One game from the player's side: their game card, where it is, and who's playing. */
 export default function PlayerGamePage() {
   const { id } = useParams<{ id: string }>();
   const [game, setGame] = useState<PlayerGame | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const load = useCallback(
     () =>
-      getPlayerGame(id).then(setGame, (err) => setError(err instanceof Error ? err.message : 'Could not load this game')),
+      getPlayerGame(id).then(
+        (g) => {
+          setGame(g);
+          setError(null);
+        },
+        setError,
+      ),
     [id],
   );
 
@@ -33,8 +39,15 @@ export default function PlayerGamePage() {
         Games
       </Link>
 
-      {error ? (
-        <p className="text-sm text-gray-500 bg-chalk rounded-2xl px-4 py-5 text-center">{error}</p>
+      {error && !game ? (
+        <LoadError
+          what="This game"
+          error={error}
+          onRetry={() => {
+            setError(null);
+            load();
+          }}
+        />
       ) : !game ? (
         <div className="space-y-3 animate-pulse">
           <div className="h-48 bg-gray-100 rounded-3xl" />
