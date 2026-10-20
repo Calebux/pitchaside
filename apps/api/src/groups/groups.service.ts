@@ -103,12 +103,12 @@ export class GroupsService {
     return this.billing.addOrganiserToGroup(groupId, user);
   }
 
-  /** A member's kept and extra money go with them, so removing one who has some needs `force`. */
+  /** A member's kept, extra and waiting money go with them, so removing one who has some needs `force`. */
   async removeMember(groupId: string, playerId: string, organizationId: string, force = false) {
     await this.findOne(groupId, organizationId);
     const membership = await this.membershipsRepo.findOne({ where: { groupId, playerId } });
     if (!membership) throw new NotFoundException('Membership not found');
-    const held = Number(membership.credit) + Number(membership.extra ?? 0);
+    const held = Number(membership.credit) + Number(membership.extra ?? 0) + Number(membership.waiting ?? 0);
     if (held > 0 && !force) {
       throw new ConflictException(
         `They have ${naira(held)} in this group that hasn't paid a due yet. Removing them drops it from the books, so sort it or send it back first.`,

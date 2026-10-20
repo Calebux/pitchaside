@@ -5,10 +5,10 @@ import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
 import { kitFor } from '@/components/illustrations';
-import { formatCurrency, getGiveExtraPreview, type ExtraMoney, type GiveExtraPreview, type OwedItem } from '@/lib/api';
+import { formatCurrency, getGiveExtraPreview, type ExtraMoney, type ExtraSource, type GiveExtraPreview, type OwedItem } from '@/lib/api';
 import { owedLabel, type MatchMember } from '@/lib/give-outcome';
 
-type Choice = 'someone' | 'keep' | 'back';
+type Choice = 'someone' | 'unknown' | 'keep' | 'back' | 'release';
 
 /** "Sat 17 Oct", or "October 2026 dues". */
 const dueLabel = (d: { date: string; label: string | null; kind: string }) =>
@@ -16,11 +16,16 @@ const dueLabel = (d: { date: string; label: string | null; kind: string }) =>
 
 /**
  * A member sent more than they owed: what was the extra for? Paying for someone else (it pays
- * what they owe now, shown before confirming), keeping it for the sender's next game, or sending
+ * what they owe now, shown before confirming), someone not in the group yet or no one knows who
+ * (it waits, apart from the sender's money), keeping it for the sender's next game, or sending
  * it back. Nothing happens with the money until the organiser picks one.
+ *
+ * With `source` 'waiting' it sorts money already waiting for a player: give it to the player
+ * once they're in the group, or put it back with the sender's extra.
  */
 export function ExtraSheet({
   groupId,
+  source = 'extra',
   item,
   members,
   owed,
@@ -28,9 +33,12 @@ export function ExtraSheet({
   onGive,
   onKeep,
   onSendBack,
+  onHold,
+  onRelease,
   onClose,
 }: {
   groupId: string;
+  source?: ExtraSource;
   item: ExtraMoney;
   members: MatchMember[];
   owed: OwedItem[];
@@ -38,8 +46,12 @@ export function ExtraSheet({
   onGive: (to: MatchMember, toast: string) => void;
   onKeep: () => void;
   onSendBack: () => void;
+  onHold: (note: string) => void;
+  onRelease: () => void;
   onClose: () => void;
 }) {
+  const waiting = source === 'waiting';
+  const amount = waiting ? item.waiting : item.extra;
   const titleId = useId();
   const first = item.name.split(' ')[0];
   const [choice, setChoice] = useState<Choice | null>(null);
@@ -47,13 +59,14 @@ export function ExtraSheet({
   const [to, setTo] = useState<MatchMember | null>(null);
   const [preview, setPreview] = useState<GiveExtraPreview | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [note, setNote] = useState('');
 
   useEffect(() => {
     setPreview(null);
     setPreviewFailed(false);
     if (!to) return;
-    getGiveExtraPreview(groupId, item.playerId, to.playerId).then(setPreview, () => setPreviewFailed(true));
-  }, [groupId, item.playerId, to]);
+    getGiveExtraPreview(groupId, item.playerId, to.playerId, source).then(setPreview, () => setPreviewFailed(true));
+  }, [groupId, item.playerId, to, source]);
 
   // Who owes, most first: the likeliest people the extra was for.
   const owes = (playerId: string) => owed.filter((o) => o.playerId === playerId).reduce((n, o) => n + o.amount, 0);
@@ -64,22 +77,28 @@ export function ExtraSheet({
     .sort((a, b) => owes(b.playerId) - owes(a.playerId) || a.name.localeCompare(b.name));
   const toFirst = to?.name.split(' ')[0];
   // Name the transfer only when it alone explains the extra.
-  const sent = item.lastTransfer && item.lastTransfer.amount + 0.001 >= item.extra
+  const sent = item.lastTransfer && item.lastTransfer.amount + 0.001 >= amount
     ? `${formatCurrency(item.lastTransfer.amount)} on ${new Date(item.lastTransfer.receivedAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}`
     : null;
 
-  const options: { key: Choice; title: string; hint: string }[] = [
-    { key: 'someone', title: 'Paying for someone else', hint: 'Like a friend’s game fee' },
-    { key: 'keep', title: `Keep it for ${first}’s next game`, hint: 'It pays their next game once it’s the next one' },
-    { key: 'back', title: `Send it back to ${first}`, hint: 'Refund it from the group account' },
-  ];
+  const options: { key: Choice; title: string; hint: string }[] = waiting
+    ? [
+        { key: 'someone', title: 'It was for a player in the group', hint: 'It pays what they owe now' },
+        { key: 'release', title: `Put it back with ${first}’s extra`, hint: 'Then keep it for them or send it back' },
+      ]
+    : [
+        { key: 'someone', title: 'Paying for someone else', hint: 'Like a friend’s game fee' },
+        { key: 'unknown', title: 'For someone not in the group yet', hint: 'Or you don’t know who. It waits until you find out' },
+        { key: 'keep', title: `Keep it for ${first}’s next game`, hint: 'It pays their next game once it’s the next one' },
+        { key: 'back', title: `Send it back to ${first}`, hint: 'Refund it from the group account' },
+      ];
 
   const outcome = (() => {
     if (!preview || !to) return null;
     const parts = [
       preview.pays.length ? `Pays ${toFirst}’s ${preview.pays.map(dueLabel).join(' and ')}` : null,
       preview.towards ? `${formatCurrency(preview.towards.paidSoFar)} towards ${toFirst}’s ${dueLabel(preview.towards)}` : null,
-      preview.left > 0.5 ? `${formatCurrency(preview.left)} stays to sort` : null,
+      preview.left > 0.5 ? `${formatCurrency(preview.left)} ${waiting ? 'keeps waiting' : 'stays to sort'}` : null,
     ].filter(Boolean);
     return parts.join('. ');
   })();
@@ -94,19 +113,27 @@ export function ExtraSheet({
         )}
         <button
           disabled={!to || !preview || preview.move <= 0.001 || busy}
-          onClick={() => to && preview && onGive(to, `${formatCurrency(preview.move)} of ${first}’s extra paid for ${to.name}. ${outcome}.`)}
+          onClick={() => to && preview && onGive(to, `${formatCurrency(preview.move)} ${waiting ? 'from ' + first : 'of ' + first + '’s extra'} paid for ${to.name}. ${outcome}.`)}
           className={`${btnPrimary} w-full disabled:opacity-40`}
         >
           {busy ? 'Saving…' : to ? `Pay for ${toFirst}` : 'Pick who it was for'}
         </button>
       </div>
+    ) : choice === 'unknown' ? (
+      <button disabled={busy} onClick={() => onHold(note.trim())} className={`${btnPrimary} w-full`}>
+        {busy ? 'Saving…' : `Hold ${formatCurrency(amount)} until you know who`}
+      </button>
+    ) : choice === 'release' ? (
+      <button disabled={busy} onClick={onRelease} className={`${btnPrimary} w-full`}>
+        {busy ? 'Saving…' : `Put ${formatCurrency(amount)} back with ${first}’s extra`}
+      </button>
     ) : choice === 'keep' ? (
       <button disabled={busy} onClick={onKeep} className={`${btnPrimary} w-full`}>
-        {busy ? 'Saving…' : `Keep ${formatCurrency(item.extra)} for ${first}`}
+        {busy ? 'Saving…' : `Keep ${formatCurrency(amount)} for ${first}`}
       </button>
     ) : choice === 'back' ? (
       <button onClick={onSendBack} className={`${btnPrimary} w-full`}>
-        Send {formatCurrency(item.extra)} back to {first}
+        Send {formatCurrency(amount)} back to {first}
       </button>
     ) : (
       <button disabled className={`${btnPrimary} w-full opacity-40`}>
@@ -118,8 +145,12 @@ export function ExtraSheet({
     <Sheet titleId={titleId} onClose={onClose} align="left" footer={footer}>
       <SheetTitle
         id={titleId}
-        title={`What was the extra ${formatCurrency(item.extra)} for?`}
-        sub={`${item.name} sent more than they owed${sent ? ` (${sent})` : ', over earlier transfers'}. Nothing happens with it until you choose.`}
+        title={waiting ? `${formatCurrency(amount)} waiting for a player` : `What was the extra ${formatCurrency(amount)} for?`}
+        sub={
+          waiting
+            ? `Sent by ${item.name}${item.waitingNote ? `, for “${item.waitingNote}”` : ''}. It pays nothing until you say who it’s for.`
+            : `${item.name} sent more than they owed${sent ? ` (${sent})` : ', over earlier transfers'}. Nothing happens with it until you choose.`
+        }
         onClose={onClose}
       />
 
@@ -199,6 +230,29 @@ export function ExtraSheet({
         </div>
       )}
 
+      {choice === 'unknown' && (
+        <div className="mt-4">
+          <label className="block">
+            <span className="block px-1 mb-1.5 text-[13px] font-semibold text-gray-500">Who might it be for? (optional)</span>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 80))}
+              maxLength={80}
+              placeholder="e.g. Kunle’s friend, new player Tobi"
+              className="w-full h-11 px-3.5 bg-chalk rounded-xl text-[15px] placeholder:text-gray-500 focus:outline-none focus:bg-white focus:ring-4 focus:ring-volt-300/70"
+            />
+          </label>
+          <p className="mt-3 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
+            It stays in the group account under “Waiting for a player”, not as {first}’s money, and pays no one’s game. When you know who it was
+            for, add them to the group and give it to them there.
+          </p>
+        </div>
+      )}
+      {choice === 'release' && (
+        <p className="mt-4 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
+          It goes back to {first}’s extra to sort, where you can keep it for their next game or send it back to them.
+        </p>
+      )}
       {choice === 'keep' && (
         <p className="mt-4 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
           It shows as paid ahead for {first}. It pays their next game when that game is the next one, never games further ahead. You can still send it back

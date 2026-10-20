@@ -123,7 +123,7 @@ export function GroupSquad({
       // Their credit is dropped with them, so say how much before it goes.
       message:
         credit > 0
-          ? `${playerName} has ${formatCurrency(credit)} of theirs in the group that hasn't paid a game. Removing them drops it from the group's books, so sort it or send it back first. Remove anyway?`
+          ? `${playerName} has ${formatCurrency(credit)} in the group that hasn't paid a game. Removing them drops it from the group's books, so sort it or send it back first. Remove anyway?`
           : `${playerName} comes off this group's list.`,
       confirmLabel: credit > 0 ? 'Remove anyway' : 'Remove',
       onConfirm: async () => {
@@ -233,7 +233,7 @@ export function GroupSquad({
         <PlayerSheet
           key={opened.player.id}
           player={opened.player}
-          membership={{ joinedAt: opened.joinedAt, credit: Number(opened.credit ?? 0), extra: Number(opened.extra ?? 0), paymentCode: opened.paymentRef, due: opened.due }}
+          membership={{ joinedAt: opened.joinedAt, credit: Number(opened.credit ?? 0), extra: Number(opened.extra ?? 0), waiting: Number(opened.waiting ?? 0), paymentCode: opened.paymentRef, due: opened.due }}
           canEdit={canManage}
           onClose={() => setOpenMember(null)}
           onSaved={(p) =>
@@ -257,7 +257,7 @@ export function GroupSquad({
           }
           onRemove={() => {
             setOpenMember(null);
-            handleRemoveMember(opened.player.id, `${opened.player.firstName} ${opened.player.lastName}`, Number(opened.credit ?? 0) + Number(opened.extra ?? 0));
+            handleRemoveMember(opened.player.id, `${opened.player.firstName} ${opened.player.lastName}`, Number(opened.credit ?? 0) + Number(opened.extra ?? 0) + Number(opened.waiting ?? 0));
           }}
         />
       )}

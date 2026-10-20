@@ -78,6 +78,33 @@ describe('sorting extra money', () => {
   });
 });
 
+describe('extra waiting for a player', () => {
+  it('moves apart from the sender’s money with the note, and pays nothing', async () => {
+    const { service, members, payments } = setup(3000, [{ amount: 1500, date: day(-3) }]);
+    await service.holdExtra('g1', 'femi', 'org1', ' Kunle’s friend ');
+    expect(members.femi).toMatchObject({ extra: '0.00', waiting: '3000.00', waitingNote: 'Kunle’s friend' });
+    expect(payments[0].status).toBe(PaymentStatus.PENDING);
+    await expect(service.holdExtra('g1', 'femi', 'org1')).rejects.toThrow('no extra left');
+  });
+
+  it('later pays the right player, and only what they owe now stays given', async () => {
+    const { service, members, payments } = setup(3000, [{ amount: 1500, date: day(-3) }]);
+    await service.holdExtra('g1', 'femi', 'org1', 'Not registered');
+    expect(await service.giveExtraPreview('g1', 'femi', 'ada', 'org1', 'waiting')).toMatchObject({ move: 1500, left: 1500 });
+    await service.giveExtra('g1', 'femi', 'ada', 'org1', 'waiting');
+    expect(payments[0].status).toBe(PaymentStatus.PAID);
+    expect(members.femi).toMatchObject({ extra: '0.00', waiting: '1500.00', waitingNote: 'Not registered' });
+  });
+
+  it('can be put back with the sender’s extra', async () => {
+    const { service, members } = setup(2000, []);
+    await service.holdExtra('g1', 'femi', 'org1');
+    await service.releaseWaiting('g1', 'femi', 'org1');
+    expect(members.femi).toMatchObject({ extra: '2000.00', waiting: '0.00', waitingNote: null });
+    await expect(service.releaseWaiting('g1', 'femi', 'org1')).rejects.toThrow('Nothing is waiting');
+  });
+});
+
 describe('payableNow', () => {
   const due = (date: string) => ({ session: { date } }) as unknown as Payment;
   it('keeps played games and the one next game', () => {

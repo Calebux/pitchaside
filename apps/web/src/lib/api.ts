@@ -54,6 +54,8 @@ export interface IGroupWithMembers extends IGroup {
     credit?: string;
     /** Sent beyond what they owed, waiting for the organiser to sort (decimal string). */
     extra?: string;
+    /** Extra put aside for someone not in the group yet (decimal string). */
+    waiting?: string;
     /** The code this player puts in their transfer description so it's matched to them automatically. */
     paymentRef?: string | null;
   }[];
@@ -545,8 +547,14 @@ export interface ExtraMoney {
   playerId: string;
   name: string;
   extra: number;
+  /** Extra put aside for someone not in the group yet, or no one knows who. */
+  waiting: number;
+  waitingNote: string | null;
   lastTransfer: { id: string; amount: number; receivedAt: string } | null;
 }
+
+/** Whose money pays: the sender's extra, or what's waiting for a player. */
+export type ExtraSource = 'extra' | 'waiting';
 
 export interface GiveExtraPreview {
   /** How much of the extra it would use: no more than they owe now. */
@@ -562,13 +570,23 @@ export function getExtraMoney(groupId: string): Promise<ExtraMoney[]> {
   return http.get(`/groups/${groupId}/extra`);
 }
 
-export function getGiveExtraPreview(groupId: string, fromId: string, toId: string): Promise<GiveExtraPreview> {
-  return http.get(`/groups/${groupId}/extra/${fromId}/give/${toId}`);
+export function getGiveExtraPreview(groupId: string, fromId: string, toId: string, from: ExtraSource = 'extra'): Promise<GiveExtraPreview> {
+  return http.get(`/groups/${groupId}/extra/${fromId}/give/${toId}?from=${from}`);
 }
 
 /** The extra was for someone else: it pays what they owe now. */
-export function giveExtra(groupId: string, fromId: string, toId: string): Promise<{ settled: number }> {
-  return http.post(`/groups/${groupId}/extra/${fromId}/give`, { playerId: toId });
+export function giveExtra(groupId: string, fromId: string, toId: string, from: ExtraSource = 'extra'): Promise<{ settled: number }> {
+  return http.post(`/groups/${groupId}/extra/${fromId}/give`, { playerId: toId, from });
+}
+
+/** For someone not in the group yet, or no one knows who: it waits apart from the sender's money. */
+export function holdExtra(groupId: string, playerId: string, note?: string): Promise<{ waiting: number }> {
+  return http.post(`/groups/${groupId}/extra/${playerId}/hold`, note ? { note } : {});
+}
+
+/** Money waiting for a player goes back with the sender's extra, still to sort. */
+export function releaseWaiting(groupId: string, playerId: string): Promise<{ extra: number }> {
+  return http.post(`/groups/${groupId}/extra/${playerId}/release`);
 }
 
 /** The extra really was for their own next game. */

@@ -12,6 +12,24 @@ export class GiveTransferDto {
   playerId: string;
 }
 
+/** Whose money pays: the sender's extra, or what's waiting for a player. */
+export const EXTRA_SOURCES = ['extra', 'waiting'] as const;
+export type ExtraSource = (typeof EXTRA_SOURCES)[number];
+
+export class GiveExtraDto extends GiveTransferDto {
+  @IsOptional()
+  @IsIn(EXTRA_SOURCES)
+  from?: ExtraSource;
+}
+
+export class HoldExtraDto {
+  /** Anything known about who it's for, e.g. "Kunle's friend". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  note?: string;
+}
+
 export class SimulateTransferDto {
   @IsNumber()
   @Min(1)

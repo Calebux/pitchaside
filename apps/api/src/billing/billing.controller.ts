@@ -10,6 +10,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   RawBodyRequest,
   Req,
   UseGuards,
@@ -21,6 +22,10 @@ import { BillingService } from './billing.service';
 import {
   AssignTransferDto,
   GiveTransferDto,
+  GiveExtraDto,
+  HoldExtraDto,
+  EXTRA_SOURCES,
+  type ExtraSource,
   ChangeTransferPinDto,
   ClassifyTransferDto,
   InitiatePayoutDto,
@@ -176,14 +181,35 @@ export class BillingController {
   /** What giving a member's extra to someone else would pay, before confirming. */
   @AllowTreasurer()
   @Get('groups/:id/extra/:playerId/give/:toPlayerId')
-  giveExtraPreview(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Param('toPlayerId', ParseUUIDPipe) to: string, @CurrentUser() user: User) {
-    return this.billing.giveExtraPreview(id, playerId, to, user.organizationId);
+  giveExtraPreview(
+    @Param('id') id: string,
+    @Param('playerId', ParseUUIDPipe) playerId: string,
+    @Param('toPlayerId', ParseUUIDPipe) to: string,
+    @Query('from') from: string | undefined,
+    @CurrentUser() user: User,
+  ) {
+    const source: ExtraSource = (EXTRA_SOURCES as readonly string[]).includes(from ?? '') ? (from as ExtraSource) : 'extra';
+    return this.billing.giveExtraPreview(id, playerId, to, user.organizationId, source);
   }
 
   @AllowTreasurer()
   @Post('groups/:id/extra/:playerId/give')
-  giveExtra(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Body() dto: GiveTransferDto, @CurrentUser() user: User) {
-    return this.billing.giveExtra(id, playerId, dto.playerId, user.organizationId);
+  giveExtra(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Body() dto: GiveExtraDto, @CurrentUser() user: User) {
+    return this.billing.giveExtra(id, playerId, dto.playerId, user.organizationId, dto.from ?? 'extra');
+  }
+
+  /** For someone not in the group, or no one knows who: it waits apart from the sender's money. */
+  @AllowTreasurer()
+  @Post('groups/:id/extra/:playerId/hold')
+  holdExtra(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @Body() dto: HoldExtraDto, @CurrentUser() user: User) {
+    return this.billing.holdExtra(id, playerId, user.organizationId, dto.note);
+  }
+
+  /** Waiting money goes back with the sender's extra, to keep for them or send back. */
+  @AllowTreasurer()
+  @Post('groups/:id/extra/:playerId/release')
+  releaseWaiting(@Param('id') id: string, @Param('playerId', ParseUUIDPipe) playerId: string, @CurrentUser() user: User) {
+    return this.billing.releaseWaiting(id, playerId, user.organizationId);
   }
 
   @AllowTreasurer()
