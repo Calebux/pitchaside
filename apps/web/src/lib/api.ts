@@ -17,6 +17,7 @@ import type {
   CompetitionScope,
   CompetitionVisibility,
   CompetitionStatus,
+  GameTimer,
 } from '@pitchaside/shared';
 import { http } from './http';
 
@@ -106,6 +107,8 @@ export function updateGroup(
     requireRsvp: boolean;
     kickoffTime: string;
     contributionsVisibility: ContributionsVisibility;
+    gameMinutes: number | null;
+
     bibs: Bibs | null;
   }>,
 ): Promise<IGroup> {
@@ -820,6 +823,16 @@ export function saveLineup(
   data: { teamCount?: number; teams?: Record<string, TeamKey | null>; captains?: Partial<Record<TeamKey, string | null>> },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
+}
+
+/** The match-day clock. */
+export function getTimer(sessionId: string): Promise<GameTimer> {
+  return http.get(`/sessions/${sessionId}/timer`);
+}
+
+/** Start (from now) or stop the clock, and/or set today's game length. */
+export function setTimer(sessionId: string, change: { start?: boolean; minutes?: number }): Promise<GameTimer> {
+  return http.put(`/sessions/${sessionId}/timer`, change);
 }
 
 /** One game's bibs and team names (null: back to the group's). Allowed after scores too; it's only how sides look. */

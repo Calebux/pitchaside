@@ -2,7 +2,7 @@
  * Player-side API client. Players sign in with email + password and get
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
-import type { PaymentType } from '@pitchaside/shared';
+import type { GameTimer, PaymentType } from '@pitchaside/shared';
 import type { Bibs } from '@pitchaside/shared';
 import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 import { serverMessage } from './http';
@@ -365,6 +365,16 @@ export interface GameLineup {
   squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; paid: GamePaid | null }[];
   /** They captain a side today, so they can keep the score from their phone. */
   canKeepScore?: boolean;
+}
+
+/** The match-day clock, for anyone in the game. */
+export function getGameTimer(sessionId: string) {
+  return request<GameTimer>('GET', `/me/games/${sessionId}/timer`);
+}
+
+/** Today's captains start and stop the clock. */
+export function setGameTimer(sessionId: string, change: { start?: boolean; minutes?: number }) {
+  return request<GameTimer>('PUT', `/me/games/${sessionId}/timer`, change);
 }
 
 export function getGameLineup(sessionId: string) {

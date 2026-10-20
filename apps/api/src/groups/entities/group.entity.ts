@@ -62,6 +62,10 @@ export class Group {
   @Column({ name: 'kickoff_time', type: 'varchar', length: 5, nullable: true })
   kickoffTime: string | null;
 
+  /** How long each game on match day usually lasts, in minutes; null for the usual 7. */
+  @Column({ name: 'game_minutes', type: 'int', nullable: true })
+  gameMinutes: number | null;
+
   /** What players can see of the group's contributions: 'private' | 'totals' | 'names'. */
   @Column({ name: 'contributions_visibility', type: 'varchar', length: 10, default: 'private' })
   contributionsVisibility: ContributionsVisibility;

@@ -31,10 +31,14 @@ export function teamName(team: TeamKey, captains?: Partial<Record<TeamKey, strin
   return captain ? `Team ${captain}` : bib.label;
 }
 
-/** A side's colour as a fill, with an outline on light colours so white still shows on white. */
+/**
+ * A side's colour as a fill, with an outline where it would vanish: dark on white for white
+ * bibs, faint white for black ones so they still show on the dark match-day cards.
+ */
 export function bibFill(team: TeamKey, bibs?: Bibs | null): CSSProperties {
   const bib = bibOf(team, bibs);
-  return { backgroundColor: bib.hex, boxShadow: bib.colour === 'white' ? 'inset 0 0 0 1px #111a14' : undefined };
+  const ring = bib.colour === 'white' ? 'inset 0 0 0 1px #111a14' : bib.colour === 'black' ? 'inset 0 0 0 1.5px rgba(255,255,255,0.55)' : undefined;
+  return { backgroundColor: bib.hex, boxShadow: ring };
 }
 
 /** The same colour, faint, behind a side's column. */

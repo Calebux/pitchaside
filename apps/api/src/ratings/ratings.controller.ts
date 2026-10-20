@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MATCH_EVENT_KINDS, type MatchEventKind } from './entities/match-event.entity';
 import { ConfigService } from '@nestjs/config';
@@ -68,6 +68,19 @@ export class EventDto {
   clientKey?: string;
 }
 
+/** Start or stop the match-day clock, and/or set today's game length. */
+export class TimerDto {
+  @IsOptional()
+  @IsBoolean()
+  start?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  minutes?: number;
+}
+
 export class GameBibsDto {
   /** Checked by cleanBibs: sides A–F, colours from the list, names up to 20 characters. */
   @IsOptional()
@@ -125,6 +138,16 @@ export class RatingsController {
   @Get('sessions/:id/lineup')
   lineup(@Param('id') id: string, @CurrentUser() user: User) {
     return this.ratings.getLineup(id, user.organizationId);
+  }
+
+  @Get('sessions/:id/timer')
+  timer(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.ratings.getTimer(id, user.organizationId);
+  }
+
+  @Put('sessions/:id/timer')
+  setTimer(@Param('id') id: string, @Body() dto: TimerDto, @CurrentUser() user: User) {
+    return this.ratings.setTimer(id, user.organizationId, dto);
   }
 
   @Put('sessions/:id/lineup')

@@ -7,7 +7,10 @@ import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { LiveDot } from '@/components/motion';
 import type { TeamKey } from '@/lib/api';
-import { getGameLineup, pickBib, type GameLineup, type GamePaid } from '@/lib/player';
+import { getGameLineup, getGameTimer, pickBib, type GameLineup, type GamePaid } from '@/lib/player';
+import { GameTimer, type TimerApi } from '@/components/game-timer';
+
+const WATCH: TimerApi = { load: getGameTimer };
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
@@ -118,6 +121,10 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
           {lineup.bibsClosed ? 'Teams are set: the scores are in.' : 'Picking your team opens on match day.'}
         </p>
       )}
+
+      {/* The clock, once whoever runs the day starts it */}
+      {live && <GameTimer sessionId={sessionId} api={WATCH} watch />}
+
 
       {lineup.live && lineup.live.games.length > 0 && <Live live={lineup.live} captains={lineup.captains} bibs={lineup.bibs} myTeam={lineup.myTeam} />}
 

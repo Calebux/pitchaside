@@ -64,6 +64,14 @@ export class Session {
   @Column({ name: 'team_count', type: 'int', default: 2 })
   teamCount: number;
 
+  /** Today's game length when changed at the pitch; null: the group's. */
+  @Column({ name: 'timer_minutes', type: 'int', nullable: true })
+  timerMinutes: number | null;
+
+  /** When the running game's clock was started; null while it isn't running. */
+  @Column({ name: 'timer_started_at', type: 'timestamptz', nullable: true })
+  timerStartedAt: Date | null;
+
   /** This game's bibs, when the organiser changed them for the day. Null: the group's bibs. */
   @Column({ type: 'jsonb', nullable: true })
   bibs: Bibs | null;
