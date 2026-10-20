@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PageHeader } from '@/components/brand';
+import { GroupChips } from '@/components/player-ui';
 import { usePlayerProfile } from '@/components/player-shell';
 import { GroupTable } from '@/components/squad/group-table';
 import { GroupStats, type ClubApi, type StatSort } from '@/components/squad/group-stats';
@@ -59,29 +60,15 @@ export default function PlayerClubPage() {
         </div>
       ) : (
         <>
-          {groups.length > 1 && (
-            <div className="-mt-1 mb-3 flex gap-2 overflow-x-auto pb-1" role="radiogroup" aria-label="Which group">
-              {groups.map((g) => {
-                const on = g.id === group.id;
-                return (
-                  <button
-                    key={g.id}
-                    role="radio"
-                    aria-checked={on}
-                    onClick={() => {
-                      setGroupId(g.id);
-                      remember({ group: g.id });
-                    }}
-                    className={`press shrink-0 min-h-11 px-4 rounded-full text-[14px] font-bold whitespace-nowrap transition-colors ${
-                      on ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-ink hover:border-ink'
-                    }`}
-                  >
-                    {g.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <GroupChips
+            groups={groups}
+            value={group.id}
+            onChange={(id) => {
+              if (!id) return;
+              setGroupId(id);
+              remember({ group: id });
+            }}
+          />
 
           <div className="mb-4 grid grid-cols-2 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="Club view">
             {(

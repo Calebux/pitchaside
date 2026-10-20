@@ -249,6 +249,7 @@ export type UpcomingGame = PlayerHome['upcoming'][number];
 export interface RecentMatchDay {
   sessionId: string;
   date: string;
+  groupId?: string;
   groupName?: string;
   teamCount: number;
   myTeam: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;

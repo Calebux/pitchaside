@@ -1582,6 +1582,7 @@ export class RatingsService {
         return {
           sessionId: s.id,
           date: s.date,
+          groupId: s.groupId,
           groupName: s.group?.name,
           teamCount: s.teamCount,
           myTeam,
