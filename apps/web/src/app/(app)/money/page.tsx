@@ -72,7 +72,7 @@ export default function MoneyPage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-      <PageHeader title="Money" />
+      <PageHeader title="Money" subtitle="The group’s account: what came in, who it’s from, and what went out." />
       {!group ? (
         <EmptyState icon="users" title="No groups yet" description="Create a group to open its bank account and collect money." actionLabel="Create a group" actionHref="/groups/new" />
       ) : (

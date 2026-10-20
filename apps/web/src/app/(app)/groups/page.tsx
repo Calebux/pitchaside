@@ -56,7 +56,7 @@ export default function GroupsPage() {
       <PageHeader
         eyebrow="Organising"
         title="Groups"
-        subtitle={meta.total > 0 ? `${meta.total} group${meta.total === 1 ? '' : 's'}` : undefined}
+        subtitle={meta.total > 0 ? `${meta.total} squad${meta.total === 1 ? '' : 's'} you run` : 'The squads you run'}
         actions={
         <>
           {meta.total > 0 && (
