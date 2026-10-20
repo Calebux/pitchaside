@@ -329,8 +329,12 @@ export function VotePrompt() {
       .then((all) => {
         const latest = all.filter(isVotingOpen).sort((a, b) => b.date.localeCompare(a.date))[0];
         if (!latest) return;
-        setGame(latest);
-        return getSessionVoting(latest.id).then(setVoting);
+        // The server has the last word: if it says the vote has closed, there's nothing to show.
+        return getSessionVoting(latest.id).then((v) => {
+          if (!v.open) return;
+          setGame(latest);
+          setVoting(v);
+        });
       })
       .catch(() => {});
   }, []);
@@ -349,10 +353,12 @@ export function VotePrompt() {
     >
       <span className="w-9 h-9 rounded-xl bg-ink text-sun-400 flex items-center justify-center font-display font-extrabold shrink-0">★</span>
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-extrabold text-ink leading-tight">Post-match vote is open</span>
+        <span className="block text-sm font-extrabold text-ink leading-tight">
+          Game ended · vote open{voting?.closesAt ? ` until ${closeTime(voting.closesAt)}` : ''}
+        </span>
         <span className="block text-xs text-ink/70 truncate">
           {game.group?.name ?? 'Last game'} · {date}
-          {voting ? ` · ${voting.ballots}/${voting.squadSize} voted` : ''}
+          {voting ? ` · ${voting.ballots} of ${voting.squadSize} voted` : ''}
         </span>
       </span>
       <span className="text-xs font-bold text-ink shrink-0 flex items-center gap-1">

@@ -275,8 +275,8 @@ export default function Dashboard() {
     needs.push({
       key: 'vote',
       href: `/sessions/${voteGame.id}?tab=stars`,
-      title: 'Vote is open',
-      detail: `${v.ballots} of ${v.squadSize} have voted · closes ${closes}`,
+      title: `Game ended · vote open until ${closes}`,
+      detail: `${v.ballots} of ${v.squadSize} have voted. It closes early once everyone who came has.`,
       tone: 'volt',
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
