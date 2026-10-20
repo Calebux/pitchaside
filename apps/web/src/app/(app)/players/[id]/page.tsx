@@ -26,7 +26,7 @@ import {
   setPlayerPhoto,
 } from '@/lib/api';
 import { photoUrl } from '@/lib/http';
-import { PhotoPicker } from '@/components/photo-picker';
+import { CardPhotoButton } from '@/components/photo-picker';
 import { StatCard } from '@/components/stat-card';
 import { AttributeRow } from '@/components/ratings';
 import { PlayerStats } from '@/components/player-stats';
@@ -146,41 +146,48 @@ export default function PlayerDetailPage() {
         />
       )}
 
-      {/* Header */}
-      {(
-        <div className="relative mb-6 rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
-          <div className="absolute inset-0 turf-stripes" />
-          <div className="relative grid grid-cols-[auto_1fr] gap-4 sm:gap-6 p-5 sm:p-6">
-            {/* Trading-card style portrait */}
-            <div className="relative w-28 sm:w-32 rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
-              {ratings?.ovr != null && ratings.games > 0 ? (
+      {/* Player card: portrait (rating, photo) beside who they are and how to reach them; skills below */}
+      <div className="relative mb-6 rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
+        <div className="absolute inset-0 turf-stripes" aria-hidden />
+        <div className="relative p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-2 -mt-1 -mr-1">
+            <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Player profile</p>
+            {canManage && (
+              <div className="flex">
                 <button
-                  onClick={() => setExplaining(true)}
-                  aria-label={`Rating ${ratings.ovr}: how it's made`}
-                  className="press absolute z-10 top-0 left-0 min-w-11 min-h-11 pt-2 pl-2.5 pr-2 pb-1 text-left leading-none rounded-br-xl hover:bg-white/10"
+                  onClick={() => setEditing(true)}
+                  className="press w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                  aria-label={`Edit ${player.firstName}’s details`}
                 >
-                  <span className="block font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings.ovr}</span>
-                  <span className="flex items-center gap-0.5 text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">
-                    OVR
-                    <span className="w-3 h-3 rounded-full bg-white/20 text-white text-[8px] leading-3 text-center tracking-normal" aria-hidden>
-                      i
-                    </span>
-                  </span>
+                  <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                  </svg>
                 </button>
-              ) : (
-                <div className="absolute z-10 top-2 left-2.5 leading-none">
-                  <p className="font-display text-2xl font-extrabold text-volt-300 tabular-nums">{ratings?.ovr ?? '–'}</p>
-                  <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/60 mt-0.5">OVR</p>
-                </div>
-              )}
-              {player.photoKey ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photoUrl(player.photoKey)!} alt="" className="w-full aspect-[2/3] object-cover" />
-                  <span className="absolute inset-0 bg-gradient-to-b from-ink/60 via-transparent to-ink/50" aria-hidden />
-                </>
-              ) : (
-              <svg viewBox="0 0 100 150" className="w-full h-auto mt-3" aria-hidden>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="press w-11 h-11 flex items-center justify-center rounded-full text-white/70 hover:text-kit-400 hover:bg-white/10 transition-colors"
+                  aria-label={`Delete ${player.firstName} ${player.lastName}`}
+                >
+                  <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-1 flex gap-4">
+            {/* Trading-card portrait: the rating to tap, their photo or kit, and a camera to change it */}
+            <div className="relative w-[112px] sm:w-32 shrink-0 aspect-[2/3] rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15">
+              <div className="absolute inset-0 rounded-2xl overflow-hidden">
+                {player.photoKey ? (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photoUrl(player.photoKey)!} alt="" className="w-full h-full object-cover" />
+                    <span className="absolute inset-0 bg-gradient-to-b from-ink/60 via-transparent to-ink/40" aria-hidden />
+                  </>
+                ) : (
+                  <svg viewBox="0 0 100 150" className="w-full h-full pt-3" aria-hidden>
                 <Player
                   x={50}
                   y={146}
@@ -194,109 +201,121 @@ export default function PlayerDetailPage() {
                 />
                 <Ball x={84} y={138} r={8} />
               </svg>
+                )}
+              </div>
+              {ratings?.ovr != null && ratings.games > 0 ? (
+                <button
+                  onClick={() => setExplaining(true)}
+                  aria-label={`Rating ${ratings.ovr}: how it's made`}
+                  className="press absolute z-10 top-0 left-0 min-w-11 min-h-11 pt-2 pl-2.5 pr-2 pb-1 text-left leading-none rounded-tl-2xl rounded-br-xl hover:bg-white/10"
+                >
+                  <span className="block font-display text-[26px] font-extrabold text-volt-300 tabular-nums">{ratings.ovr}</span>
+                  <span className="flex items-center gap-0.5 text-[8px] font-extrabold tracking-[0.14em] text-white/70 mt-0.5">
+                    OVR
+                    <span className="w-3 h-3 rounded-full bg-white/20 text-white text-[8px] leading-3 text-center tracking-normal" aria-hidden>
+                      i
+                    </span>
+                  </span>
+                </button>
+              ) : (
+                <div className="absolute z-10 top-2 left-2.5 leading-none">
+                  <p className="font-display text-[26px] font-extrabold text-volt-300 tabular-nums">{ratings?.ovr ?? '–'}</p>
+                  <p className="text-[8px] font-extrabold tracking-[0.14em] text-white/70 mt-0.5">OVR</p>
+                </div>
               )}
               {ratings?.provisional && (
-                <p className="absolute z-10 bottom-1.5 inset-x-1.5 text-center rounded-md bg-black/45 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
+                <p className="absolute z-10 top-[54px] left-2 rounded-md bg-black/50 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] text-volt-300" title="Rating is still settling: fewer than 3 games with scores">
                   Provisional
                 </p>
               )}
+              {canManage && (
+                <span className="absolute z-10 -bottom-2 -right-2">
+                  <CardPhotoButton
+                    name={`${player.firstName} ${player.lastName}`}
+                    photoKey={player.photoKey}
+                    onUpload={async (image) => (await setPlayerPhoto(player.id, image)).photoKey}
+                    onRemove={() => removePlayerPhoto(player.id).then(() => undefined)}
+                    onChange={(photoKey) => setPlayer({ ...player, photoKey })}
+                  />
+                </span>
+              )}
             </div>
 
-            <div className="min-w-0 flex flex-col">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Player profile</p>
-                  <h1 className="font-display text-[28px] leading-[1.05] font-extrabold mt-1">
-                    {player.firstName} {player.lastName}
-                  </h1>
-                  {player.nickname && <p className="text-sm font-bold text-volt-300 mt-1">“{player.nickname}”</p>}
-                </div>
-                {canManage && (
-                <div className="flex gap-1.5 shrink-0">
-                  <button
-                    onClick={() => setEditing(true)}
-                    className="p-2.5 text-white/70 bg-white/10 rounded-xl hover:text-white hover:bg-white/15 transition-colors"
-                    title="Edit details"
-                    aria-label={`Edit ${player.firstName}’s details`}
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="p-2.5 text-white/70 bg-white/10 rounded-xl hover:text-white hover:bg-kit-500 transition-colors"
-                    title="Delete player"
-                    aria-label={`Delete ${player.firstName} ${player.lastName}`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                </div>
-                )}
-              </div>
+            <div className="min-w-0 flex-1 flex flex-col">
+              <h1 className="font-display text-[26px] leading-[1.05] font-extrabold break-words">
+                {player.firstName} {player.lastName}
+              </h1>
+              {player.nickname && <p className="mt-1 text-sm font-bold text-volt-300 truncate">“{player.nickname}”</p>}
+              {/* Their season in three numbers, so the column carries weight next to the portrait */}
+              <dl className="mt-3 grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    ['Goals', ratings?.goals],
+                    ['Assists', ratings?.assists],
+                    ['POTM', ratings?.potmWins],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label} className="min-w-0 flex flex-col-reverse rounded-xl bg-white/[0.07] px-1 py-1.5 text-center">
+                    <dt className="mt-1 text-[9px] font-extrabold uppercase tracking-[0.1em] text-white/60 truncate">{label}</dt>
+                    <dd className="font-display text-[18px] leading-none font-extrabold tabular-nums">{value ?? '–'}</dd>
+                  </div>
+                ))}
+              </dl>
 
-              {ratings && (
-                <div className="mt-3">
-                  <AttributeRow ratings={ratings} dark />
-                  <p className="text-[10px] text-white/40 mt-1.5">
-                    {ratings.games > 0
-                      ? `Rating: 40% stats, 40% votes, 20% results, over ${ratings.games} game${ratings.games === 1 ? '' : 's'}. Tap the number to see how it's made`
-                      : 'Based on their level until they’ve played; results and votes take over'}
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-auto pt-4 space-y-2">
-                {player.email ? (
-                  <a href={`mailto:${player.email}`} className="block text-sm font-semibold text-white/80 hover:text-white transition-colors truncate">
-                    {player.email}
-                  </a>
-                ) : (
-                  <p className="text-xs text-white/50">No email yet — they can&apos;t sign in until you add one.</p>
-                )}
+              {/* Reaching them: one row of round buttons, each says what it does */}
+              <div className="mt-auto pt-3 flex items-center gap-2">
                 {player.phone && (
-                  <a href={`tel:${player.phone}`} className="block text-xs text-white/50 hover:text-white/80 transition-colors tabular-nums">
-                    {player.phone}
-                  </a>
-                )}
-                {player.phone && <a
-                  href={`https://wa.me/${whatsappNumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#25D366] px-3 py-1.5 rounded-full hover:brightness-95 transition"
-                >
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <a
+                    href={`https://wa.me/${whatsappNumber}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`WhatsApp ${player.firstName}`}
+                    className="press w-11 h-11 rounded-full bg-[#25D366] text-white flex items-center justify-center hover:brightness-95"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
                     <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.496A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.594-.822-6.343-2.2l-.444-.355-3.187 1.07 1.07-3.187-.355-.444A9.955 9.955 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/>
                   </svg>
-                  WhatsApp
-                </a>}
+                  </a>
+                )}
+                {player.phone && (
+                  <a
+                    href={`tel:${player.phone}`}
+                    aria-label={`Call ${player.firstName} on ${player.phone}`}
+                    className="press w-11 h-11 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                    </svg>
+                  </a>
+                )}
+                {player.email && (
+                  <a
+                    href={`mailto:${player.email}`}
+                    aria-label={`Email ${player.firstName} at ${player.email}`}
+                    className="press w-11 h-11 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                    </svg>
+                  </a>
+                )}
               </div>
+              {!player.email && <p className="mt-2 text-[11px] leading-snug text-white/60">No email yet: they can’t sign in until you add one.</p>}
+              {player.phone && <p className="mt-2 text-[12px] text-white/60 tabular-nums truncate">{player.phone}</p>}
             </div>
           </div>
-        </div>
-      )}
 
-      {canManage && (
-        <div className="-mt-3 mb-6 rounded-3xl bg-white border border-gray-100 shadow-card px-4 py-3">
-          <PhotoPicker
-            name={`${player.firstName} ${player.lastName}`}
-            photoKey={player.photoKey}
-            size="w-14 h-14 text-lg"
-            onUpload={async (image) => {
-              const { photoKey } = await setPlayerPhoto(player.id, image);
-              setPlayer({ ...player, photoKey });
-              return photoKey;
-            }}
-            onRemove={async () => {
-              await removePlayerPhoto(player.id);
-              setPlayer({ ...player, photoKey: null });
-            }}
-          />
+          {ratings && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <AttributeRow ratings={ratings} dark />
+              <p className="mt-2 text-[11px] text-white/50">
+                {ratings.games > 0 ? 'Skills come from teammates’ award votes. Tap the rating to see how it’s made.' : 'Based on their level until they’ve played.'}
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Stats */}
       {stats && (
