@@ -494,7 +494,6 @@ export function PayoutsPanel({
                     {p.refundPlayer ? `Refund to ${p.refundPlayer.firstName} ${p.refundPlayer.lastName}` : `To ${p.beneficiaryName || p.beneficiaryAccount}`}
                   </p>
                   <p className="text-[13px] text-gray-600 mt-0.5 truncate">
-                    {new Date(p.createdAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')},{' '}
                     {new Date(p.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                     {p.initiatedBy && ` · ${p.initiatedBy.firstName}`}
                   </p>

@@ -77,6 +77,7 @@ export default function GamePage() {
   // Match day in four steps, one on screen at a time: players, teams, scores, full time.
   const [step, setStep] = useState<Step | null>(null);
   const [lineup, setLineup] = useState<Lineup | null | undefined>(undefined);
+  const [lineupError, setLineupError] = useState<string | null>(null);
   const [board, setBoard] = useState<RsvpBoard | null>(null);
   // Money in the group account no one could put a name to: one may be a player's payment.
   const [unnamed, setUnnamed] = useState<BankTransfer[]>([]);
@@ -123,7 +124,15 @@ export default function GamePage() {
   const isGameKind = session ? session.kind !== 'dues' : false;
   useEffect(() => {
     if (!session || !isGameKind) return;
-    getLineup(id).then(setLineup).catch(() => setLineup(null));
+    getLineup(id)
+      .then((l) => {
+        setLineup(l);
+        setLineupError(null);
+      })
+      .catch((err) => {
+        setLineup(null);
+        setLineupError(err instanceof Error ? err.message : null);
+      });
     if (session.group?.requireRsvp) getRsvpBoard(id).then(setBoard).catch(() => setBoard(null));
   }, [id, session, isGameKind]);
 
@@ -432,13 +441,13 @@ export default function GamePage() {
       {isGame && step === 'teams' && (lineup ? (
         <TeamsStep sessionId={id} lineup={lineup} onLineup={setLineup} onError={(m) => toast.error(m)} onDone={() => chooseStep('scores')} />
       ) : (
-        <LineupFailed onRetry={() => getLineup(id).then(setLineup).catch(() => toast.error('Still not loading. Check your connection.'))} />
+        <LineupFailed reason={lineupError} onRetry={() => getLineup(id).then((l) => { setLineup(l); setLineupError(null); }).catch((err) => { setLineupError(err instanceof Error ? err.message : null); toast.error('Still not loading.'); })} />
       ))}
 
       {isGame && step === 'scores' && (lineup ? (
         <ScoresStep sessionId={id} lineup={lineup} dateLabel={gameLabel(session)} onLineup={setLineup} onError={(m) => toast.error(m)} onPickTeams={() => chooseStep('teams')} />
       ) : (
-        <LineupFailed onRetry={() => getLineup(id).then(setLineup).catch(() => toast.error('Still not loading. Check your connection.'))} />
+        <LineupFailed reason={lineupError} onRetry={() => getLineup(id).then((l) => { setLineup(l); setLineupError(null); }).catch((err) => { setLineupError(err instanceof Error ? err.message : null); toast.error('Still not loading.'); })} />
       ))}
 
       {isGame && step === 'full' && (
@@ -501,10 +510,12 @@ export default function GamePage() {
   );
 }
 
-function LineupFailed({ onRetry }: { onRetry: () => void }) {
+/** The teams didn't load: say so, with what the server said (it helps find the cause), and a retry. */
+function LineupFailed({ onRetry, reason }: { onRetry: () => void; reason?: string | null }) {
   return (
     <div className="py-10 text-center" role="alert">
       <p className="text-sm text-gray-600">The teams didn’t load.</p>
+      {reason && <p className="mt-1 text-[12px] text-gray-500">The server said: “{reason}”</p>}
       <button onClick={onRetry} className="mt-2 h-11 px-3 text-sm font-bold text-pitch-700">
         Try again
       </button>
