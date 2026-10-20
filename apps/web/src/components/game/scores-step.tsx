@@ -450,7 +450,7 @@ export function ScoresStep({
         <>
           {/* The match-day clock, above the score box while the day is on */}
           {timerOn && (
-            <div className="mb-3">
+            <div className="mb-3 empty:hidden">
               <GameTimer sessionId={sessionId} api={timer} onError={onError} />
             </div>
           )}

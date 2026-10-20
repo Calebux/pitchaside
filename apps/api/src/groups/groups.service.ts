@@ -20,6 +20,13 @@ export class GroupsService {
   ) {}
 
   async create(dto: CreateGroupDto, organizationId: string) {
+    if (dto.bibs) {
+      try {
+        dto.bibs = cleanBibs(dto.bibs);
+      } catch (e) {
+        throw new BadRequestException(e instanceof Error ? e.message : 'Those bibs can’t be saved');
+      }
+    }
     const group = await this.groupsRepo.save(this.groupsRepo.create({ ...dto, organizationId }));
     // Invite link, PulseMFB collection account and first dues period.
     return this.billing.setupGroup(group);

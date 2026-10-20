@@ -39,6 +39,7 @@ export function GroupSettingsSheet({
     requireRsvp: !!group.requireRsvp,
     contributionsVisibility: group.contributionsVisibility ?? 'private',
     gameMinutes: group.gameMinutes ?? DEFAULT_GAME_MINUTES,
+    timerOn: group.timerOn !== false,
 
     bibs: group.bibs ?? null,
   };
@@ -58,6 +59,7 @@ export function GroupSettingsSheet({
         requireRsvp: d.requireRsvp,
         contributionsVisibility: d.contributionsVisibility,
         gameMinutes: d.gameMinutes,
+        timerOn: d.timerOn,
 
         bibs: d.bibs,
       });

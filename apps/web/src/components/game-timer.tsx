@@ -204,6 +204,9 @@ export function GameTimer({
     }
   }
 
+  // The group turned the timer off: nothing to show, for anyone.
+  if (timer?.on === false) return null;
+
   // Players watching: only a running clock, or one that just ran out.
   if (watch) {
     if (!timer || left == null || left < -WATCH_UP_MS) return null;

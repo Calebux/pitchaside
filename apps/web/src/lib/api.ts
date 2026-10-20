@@ -90,6 +90,9 @@ export function createGroup(data: {
   requireRsvp?: boolean;
   kickoffTime?: string;
   contributionsVisibility?: ContributionsVisibility;
+  gameMinutes?: number;
+  timerOn?: boolean;
+  bibs?: Bibs | null;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -108,6 +111,7 @@ export function updateGroup(
     kickoffTime: string;
     contributionsVisibility: ContributionsVisibility;
     gameMinutes: number | null;
+    timerOn: boolean;
 
     bibs: Bibs | null;
   }>,

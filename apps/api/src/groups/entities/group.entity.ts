@@ -66,6 +66,10 @@ export class Group {
   @Column({ name: 'game_minutes', type: 'int', nullable: true })
   gameMinutes: number | null;
 
+  /** Whether match day shows the game timer (organiser, captains and players). On unless turned off. */
+  @Column({ name: 'timer_on', type: 'boolean', default: true })
+  timerOn: boolean;
+
   /** What players can see of the group's contributions: 'private' | 'totals' | 'names'. */
   @Column({ name: 'contributions_visibility', type: 'varchar', length: 10, default: 'private' })
   contributionsVisibility: ContributionsVisibility;

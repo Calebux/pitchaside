@@ -12,6 +12,8 @@ import { PaymentType, type ContributionsVisibility } from '@pitchaside/shared';
 import { frequencyOptions } from '@/lib/billing';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
 import { RsvpToggle } from '@/components/rsvp-toggle';
+import { MatchDayFields, type MatchDay } from '@/components/group/match-day-fields';
+import { DEFAULT_GAME_MINUTES } from '@pitchaside/shared';
 
 type Errors = Record<string, string>;
 
@@ -40,6 +42,8 @@ export default function NewGroupPage() {
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
+  // How match day runs: set here so a new group starts the way it plays. All of it can change later in settings.
+  const [matchDay, setMatchDay] = useState<MatchDay>({ timerOn: true, gameMinutes: DEFAULT_GAME_MINUTES, bibs: null });
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -64,6 +68,9 @@ export default function NewGroupPage() {
         paymentType: form.get('paymentType') as PaymentType,
         requireRsvp: form.get('requireRsvp') === 'on',
         contributionsVisibility: form.get('contributionsVisibility') as ContributionsVisibility,
+        timerOn: matchDay.timerOn,
+        gameMinutes: matchDay.gameMinutes,
+        ...(matchDay.bibs ? { bibs: matchDay.bibs } : {}),
       });
       // Home shows what's next for a new group: its bank account, then its first game.
       setGroupId(group.id);
@@ -204,6 +211,11 @@ export default function NewGroupPage() {
               </label>
             ))}
           </div>
+        </fieldset>
+
+        <fieldset className="min-w-0 space-y-4">
+          <legend className="block text-sm font-bold text-ink mb-2">Match day</legend>
+          <MatchDayFields value={matchDay} onChange={(patch) => setMatchDay((m) => ({ ...m, ...patch }))} idPrefix="new" />
         </fieldset>
 
         <RsvpToggle name="requireRsvp" checked />
