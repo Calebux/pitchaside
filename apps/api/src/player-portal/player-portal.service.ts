@@ -61,7 +61,7 @@ export class PlayerPortalService {
       })),
     );
     const primary = [...clubs].sort((a, b) => b.ratings.games - a.ratings.games)[0];
-    return { clubs, primary: primary?.ratings ?? (null as PlayerRatings | null) };
+    return { clubs, primary: primary?.ratings ?? (null as PlayerRatings | null), primaryId: primary?.playerId ?? null };
   }
 
   private async upcoming(person: Person, memberships: GroupMembership[]) {
@@ -379,14 +379,17 @@ export class PlayerPortalService {
       // Ratings only decorate the profile: if they can't be worked out, the player app still opens.
       this.ratingsByClub(person).catch((err) => {
         this.logger.error(`Ratings for ${person.key}'s profile failed: ${err instanceof Error ? err.stack : err}`);
-        return { primary: null, clubs: [] as Awaited<ReturnType<PlayerPortalService['ratingsByClub']>>['clubs'] };
+        return { primary: null, primaryId: null, clubs: [] as Awaited<ReturnType<PlayerPortalService['ratingsByClub']>>['clubs'] };
       }),
     ]);
     return {
       player: this.personInfo(person),
       organiser,
       ratings: ratings.primary ?? emptyRatings(),
+      /** Which of their player records the card's number is for (the club they've played most for). */
+      ratingsPlayerId: ratings.primaryId,
       clubs: ratings.clubs.map((c) => ({
+        playerId: c.playerId,
         clubName: c.clubName,
         ratings: c.ratings,
         groups: memberships.filter((m) => m.playerId === c.playerId).map((m) => ({ id: m.groupId, name: m.group.name })),
@@ -437,6 +440,13 @@ export class PlayerPortalService {
 
   deleteGoal(person: Person, sessionId: string, goalId: string) {
     return this.ratings.captainDeleteGoal(sessionId, goalId, this.ids(person));
+  }
+
+  /** Any player's, as long as they're in a club this person plays for. */
+  async ratingBreakdown(person: Person, playerId: string) {
+    const target = await this.playersRepo.findOne({ where: { id: playerId }, select: ['id', 'organizationId'] });
+    if (!target || !person.players.some((p) => p.organizationId === target.organizationId)) throw new NotFoundException('Player not found');
+    return this.ratings.ratingBreakdown(playerId, target.organizationId);
   }
 
   addEvent(person: Person, sessionId: string, input: { playerId: string; kind: MatchEventKind }) {

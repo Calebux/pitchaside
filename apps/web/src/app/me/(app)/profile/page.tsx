@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
+import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
 import { useRouter } from 'next/navigation';
 import { InstallCard, PushToggle } from '@/components/pwa';
 import { PlayerCardHero, Section } from '@/components/player-ui';
@@ -8,12 +10,13 @@ import { PlayerStats } from '@/components/player-stats';
 import { usePlayerProfile } from '@/components/player-shell';
 import { PlayerAccountSettings } from '@/components/player-account';
 import { KitLine } from '@/components/illustrations';
-import { logoutPlayer, removeMyPhoto, setMyPhoto, subscribePlayerPush } from '@/lib/player';
+import { getPlayerRatingBreakdown, logoutPlayer, removeMyPhoto, setMyPhoto, subscribePlayerPush } from '@/lib/player';
 import { PhotoPicker } from '@/components/photo-picker';
 
 export default function PlayerProfilePage() {
   const router = useRouter();
   const { profile, refresh } = usePlayerProfile();
+  const [explaining, setExplaining] = useState(false);
   if (!profile) return null;
   const r = profile.ratings;
 
@@ -25,7 +28,15 @@ export default function PlayerProfilePage() {
         ratings={r}
         caption={profile.player.email}
         photoKey={profile.player.photoKey}
+        onRatingTap={profile.ratingsPlayerId && r.games > 0 ? () => setExplaining(true) : undefined}
       />
+      {explaining && profile.ratingsPlayerId && (
+        <RatingBreakdownSheet
+          name={`${profile.player.firstName} ${profile.player.lastName}`}
+          load={() => getPlayerRatingBreakdown(profile.ratingsPlayerId!)}
+          onClose={() => setExplaining(false)}
+        />
+      )}
 
       {/* Their own photo: on their card and wherever their name shows, in every club */}
       <div className="mt-4 rounded-3xl bg-white border border-gray-100 shadow-card px-4 py-3">

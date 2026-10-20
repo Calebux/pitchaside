@@ -481,3 +481,17 @@ describe('recording cards and saves', () => {
     await expect(setup(false).service.addEvent('s1', 'org', { playerId: 'ada', kind: 'red' })).rejects.toThrow('match day');
   });
 });
+
+describe('ratingBreakdown', () => {
+  it('shows each part, what went into it and where they stand; null before they have played', async () => {
+    const service = new RatingsService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    const row = (id: string, goals: number, games = 5) =>
+      ({ ...blankRatings(), player: { id }, games, goals, ballotsSeen: 30, skill: 1500 + goals * 10 }) as any;
+    const everyone = [row('a', 9), row('b', 3), row('c', 0), row('new', 0, 0)];
+    jest.spyOn(service as any, 'clubCard').mockResolvedValue({ everyone, trial: trialRatings(everyone) });
+    const b = (await service.ratingBreakdown('a', 'org'))!;
+    expect(b.rating).toBe(Math.round(0.4 * b.stats.score + 0.4 * b.votes.score + 0.2 * b.results.score));
+    expect(b).toMatchObject({ of: 3, stats: { goals: 9, games: 5, place: 1 } });
+    expect(await service.ratingBreakdown('new', 'org')).toBeNull();
+  });
+});

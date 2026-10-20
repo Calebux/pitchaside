@@ -1058,6 +1058,24 @@ export interface RatingTrial {
   }[];
 }
 
+/** How a player's card number is made, part by part. Null before they've played. */
+export interface RatingBreakdown {
+  player: SquadMember;
+  rating: number;
+  weights: { stats: number; votes: number; results: number };
+  /** Players in the club who have played: "2nd of 22". */
+  of: number;
+  /** In goals: what a save adds and a card costs. */
+  worth: { save: number; yellow: number; red: number };
+  stats: { score: number; place: number | null; games: number; goals: number; assists: number; saves: number; yellowCards: number; redCards: number };
+  votes: { score: number; place: number | null; ballots: number; potmVotes: number; potmWins: number; viiPicks: number; awards: { key: string; share: number }[] };
+  results: { score: number; place: number | null; record: { w: number; d: number; l: number }; skill: number };
+}
+
+export function getRatingBreakdown(playerId: string): Promise<RatingBreakdown | null> {
+  return http.get(`/players/${playerId}/rating-breakdown`);
+}
+
 export function getRatingTrial(groupId: string): Promise<RatingTrial> {
   return http.get(`/groups/${groupId}/rating-trial`);
 }
