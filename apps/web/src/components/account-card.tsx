@@ -229,3 +229,150 @@ export function PayIntoCard({
     </div>
   );
 }
+
+export interface SendLine {
+  id: string;
+  label: string;
+  amount: number;
+  /** Part paid already: this line is what's left. */
+  paidSoFar?: number;
+}
+
+/**
+ * The player's Pay card for one group, in the order they act on it: the account number to copy
+ * first, then the payment code for the description, then how much to send and what it's for,
+ * then "I've sent it". Each group has its own account, so each owing group gets its own card.
+ */
+export function SendCard({
+  groupName,
+  account,
+  reference,
+  fee,
+  paymentType,
+  now,
+  later = [],
+  paidAhead = 0,
+  claim,
+  onClaimed,
+}: {
+  groupName: string;
+  account: GroupAccount | null;
+  reference?: string;
+  fee: number;
+  paymentType: PaymentType | string;
+  /** What to send now; empty when nothing is owed (the card is then just where to pay). */
+  now: SendLine[];
+  later?: SendLine[];
+  paidAhead?: number;
+  claim?: { groupId: string; amount: number };
+  onClaimed?: (status: 'matched' | 'waiting') => void;
+}) {
+  const { copied, copy } = useCopy();
+  const [asking, setAsking] = useState(false);
+  const total = now.reduce((s, l) => s + l.amount, 0);
+
+  return (
+    <div className="relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
+      <div className="absolute inset-0 turf-stripes" aria-hidden />
+      <div className="relative p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Pay {groupName}</p>
+          <span className="shrink-0 text-[11px] font-bold text-white/60 tabular-nums">
+            {formatCurrency(fee)} {frequencyShort(paymentType)}
+          </span>
+        </div>
+
+        {account ? (
+          <>
+            {/* 1. Where to send it: the number first, big, one tap to copy */}
+            <p className="mt-3 text-[12px] font-semibold text-white/60">Account number</p>
+            <button
+              onClick={() => copy('acct', account.accountNumber)}
+              aria-label={`Copy account number ${account.accountNumber}`}
+              className="press group mt-1 flex items-center gap-3 text-left w-full min-w-0"
+            >
+              <span className="min-w-0 whitespace-nowrap font-display text-[27px] font-extrabold tracking-[0.03em] tabular-nums leading-none">
+                {formatAccountNumber(account.accountNumber)}
+              </span>
+              <span className="ml-auto shrink-0 inline-flex items-center min-h-11 px-3.5 rounded-xl text-[13px] font-bold bg-white/10 group-hover:bg-volt-400 group-hover:text-ink transition-colors">
+                {copied === 'acct' ? 'Copied ✓' : 'Copy'}
+              </span>
+            </button>
+            <p className="mt-1.5 text-[13px] text-white/70 leading-snug">
+              {account.bankName} · {account.accountName}
+            </p>
+
+            {/* 2. What to write on it */}
+            {reference && (
+              <button
+                onClick={() => copy('ref', reference)}
+                aria-label={`Copy payment code ${reference}`}
+                className="press mt-4 w-full flex items-center justify-between gap-3 rounded-2xl bg-volt-400 text-ink px-4 py-3 text-left"
+              >
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-bold text-ink/70">Payment code · put it in the description</span>
+                  <span className="font-display text-2xl font-extrabold tracking-[0.12em]">{reference}</span>
+                </span>
+                <span className="shrink-0 inline-flex items-center min-h-11 px-3.5 rounded-xl text-[13px] font-bold bg-ink text-volt-300">
+                  {copied === 'ref' ? 'Copied ✓' : 'Copy'}
+                </span>
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="mt-3 rounded-2xl bg-white/[0.07] px-4 py-3 text-[13px] leading-snug text-white/80">
+            Your organiser hasn’t set up this group’s account yet. Where to send it shows here as soon as it’s ready.
+          </p>
+        )}
+
+        {/* 3. How much, and what it's for */}
+        {now.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-white/10">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-[13px] font-semibold text-white/70">Send</p>
+              <p className="font-display text-[30px] leading-none font-extrabold text-volt-300 tabular-nums">{formatCurrency(total)}</p>
+            </div>
+            <ul className="mt-2 space-y-1">
+              {now.map((l) => (
+                <li key={l.id} className="flex items-baseline justify-between gap-3 text-[13px]">
+                  <span className="min-w-0 text-white/80">
+                    {l.label}
+                    {l.paidSoFar ? <span className="block text-[12px] text-volt-300">{formatCurrency(l.paidSoFar)} paid so far · this is what’s left</span> : null}
+                  </span>
+                  {now.length > 1 && <span className="shrink-0 font-bold tabular-nums text-white/80">{formatCurrency(l.amount)}</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {(later.length > 0 || paidAhead > 0) && (
+          <ul className={`${now.length ? 'mt-3' : 'mt-4 pt-4 border-t border-white/10'} space-y-1 text-[12px] text-white/60`}>
+            {later.map((l) => (
+              <li key={l.id} className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0">Later: {l.label} · pay once it’s your next</span>
+                <span className="shrink-0 tabular-nums">{formatCurrency(l.amount)}</span>
+              </li>
+            ))}
+            {paidAhead > 0 && <li>{formatCurrency(paidAhead)} paid ahead · it pays your next game</li>}
+          </ul>
+        )}
+
+        {claim && account && (
+          <button
+            onClick={() => setAsking(true)}
+            className="press mt-4 w-full h-12 inline-flex items-center justify-center rounded-2xl border border-white/20 text-[15px] font-bold text-white hover:bg-white/10 transition-colors"
+          >
+            I&apos;ve sent it
+          </button>
+        )}
+      </div>
+      <p className="sr-only" aria-live="polite">
+        {copied === 'acct' ? 'Account number copied' : copied === 'ref' ? 'Payment code copied' : ''}
+      </p>
+      {asking && claim && account && (
+        <PaidSheet groupId={claim.groupId} account={account} amount={claim.amount} reference={reference} onClose={() => setAsking(false)} onClaimed={onClaimed} />
+      )}
+    </div>
+  );
+}
