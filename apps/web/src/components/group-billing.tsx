@@ -46,6 +46,7 @@ import {
   simulateTransfer,
   updateProfile,
   type BankTransfer,
+  type TransferClaim,
   type GroupBilling,
   type ISessionWithDetails,
   type WebhookStatus,
@@ -126,6 +127,24 @@ function QrToggle({ accountNumber, bankName, accountName }: { accountNumber: str
 }
 
 /** The group's PulseMFB collection account + shareable join/pay link. */
+
+/** The one player who said "I've paid" for an unmatched transfer, if only one did. */
+function claimant(t: BankTransfer) {
+  const people = [...new Map((t.claims ?? []).map((c) => [c.player.id, c.player])).values()];
+  return people.length === 1 ? people[0] : null;
+}
+
+/** "Femi Kuti said they sent ₦1,500 at 14:53", or who all said so when it's more than one. */
+function claimLine(claims: TransferClaim[]) {
+  const people = [...new Map(claims.map((c) => [c.player.id, `${c.player.firstName} ${c.player.lastName}`.trim()])).values()];
+  if (people.length > 1) return `${people.join(', ')} each said they sent this. Check before you give it.`;
+  const c = claims[0];
+  const d = new Date(c.createdAt);
+  const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const at = d.toDateString() === new Date().toDateString() ? `at ${time}` : `on ${d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${time}`;
+  return `${people[0]} said they sent ${formatCurrency(Number(c.amount))} ${at}.`;
+}
+
 export function GroupAccountCard({
   groupId,
   groupName,
@@ -762,7 +781,10 @@ export function TransfersPanel({
     handledFocus.current = focused.id;
     setOpenId(focused.id);
     // Arrived from the home's "Match to a player": open the picker straight away.
-    if (focused.status === 'unmatched' && membersRef.current > 0) setMatching(focused);
+    if (focused.status === 'unmatched' && membersRef.current > 0) {
+      setPick(claimant(focused)?.id);
+      setMatching(focused);
+    }
     // After the list has rendered with the row in it.
     requestAnimationFrame(() =>
       document.getElementById(`transfer-${focused.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
@@ -777,6 +799,8 @@ export function TransfersPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
   const [matching, setMatching] = useState<BankTransfer | null>(null);
+  // Who to start with picked in the matching sheet: the one player who said they sent it.
+  const [pick, setPick] = useState<string | undefined>();
   const membersRef = useRef(0);
   membersRef.current = members.length;
   const [ignoring, setIgnoring] = useState<BankTransfer | null>(null);
@@ -904,6 +928,7 @@ export function TransfersPanel({
           members={members}
           owed={owed}
           busy={workingId === matching.id}
+          picked={pick}
           onClose={() => setMatching(null)}
           onGive={async (member, done) => {
             const t = matching;
@@ -1097,6 +1122,12 @@ export function TransfersPanel({
                   </div>
                   <p className="shrink-0 font-display text-[15px] font-extrabold tabular-nums text-ink">+{formatCurrency(Number(t.amount))}</p>
                 </div>
+                {(t.claims?.length ?? 0) > 0 && (
+                  <p className="mt-2 flex items-start gap-2 rounded-2xl bg-volt-300/30 px-3 py-2 text-[13px] leading-snug text-ink">
+                    <span aria-hidden>🙋</span>
+                    <span>{claimLine(t.claims!)}</span>
+                  </p>
+                )}
                 <div className="mt-2.5 flex items-center gap-2">
                   {members.length === 0 ? (
                     onAddPlayers ? (
@@ -1107,8 +1138,15 @@ export function TransfersPanel({
                       <p className="flex-1 text-[13px] leading-snug text-gray-600">The organiser needs to add players before this can be matched.</p>
                     )
                   ) : (
-                    <button disabled={workingId === t.id} onClick={() => setMatching(t)} className={`${btnPrimary} flex-1 min-h-10 text-sm`}>
-                      Choose the player
+                    <button
+                      disabled={workingId === t.id}
+                      onClick={() => {
+                        setPick(claimant(t)?.id);
+                        setMatching(t);
+                      }}
+                      className={`${btnPrimary} flex-1 min-h-10 text-sm`}
+                    >
+                      {claimant(t) ? `Give to ${claimant(t)!.firstName}…` : 'Choose the player'}
                     </button>
                   )}
                   <button

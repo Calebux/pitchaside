@@ -24,7 +24,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { BankTransfer, TransferStatus, type MoneyInCategory } from './entities/bank-transfer.entity';
 import { OutgoingTransfer, PayoutStatus, type PayoutCategory } from './entities/outgoing-transfer.entity';
 import { ClaimStatus, PaymentClaim } from './entities/payment-claim.entity';
-import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimForTransfer, claimSettledBy, couldPair, transferForClaim } from './claims';
+import { CLAIM_WINDOW_MS, AMOUNT_TOLERANCE, claimSettledBy, couldPair } from './claims';
 import { normaliseAccount, payerNameFrom, whoSent } from './payer-name';
 import { IncomingTransfer, PULSE_CLIENT, PulseClient } from './pulse/pulse.client';
 import { HttpPulseClient } from './pulse/http-pulse.client';
@@ -680,9 +680,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (playerId) {
       // Known sender: it's theirs even if it's less than a due — it goes to their credit.
       await this.settleTransfer(transfer, playerId, TransferStatus.MATCHED);
-    } else {
-      await this.pairWithClaim(transfer);
     }
+    // No reference or name: it waits for the organiser, even if a player said they'd sent this
+    // amount. "I've paid" is only a word from the player, and anyone in the group could say it
+    // first, so it shows as a suggestion on the transfer and never moves money by itself.
     if (transfer.status === TransferStatus.UNMATCHED) notifyUnmatched();
     return { received: true, status: transfer.status };
   }
@@ -738,23 +739,6 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     return true;
   }
 
-  /** What's still open around a moment: pending claims and unmatched transfers that could pair. */
-  private openAround(groupId: string, at: Date) {
-    // Twice the window: a pair can sit a full window either side of something that's itself a window away.
-    const since = new Date(at.getTime() - 2 * CLAIM_WINDOW_MS);
-    return Promise.all([
-      this.claimsRepo.find({ where: { groupId, status: ClaimStatus.PENDING, createdAt: MoreThanOrEqual(since) } }),
-      this.transfersRepo.find({ where: { groupId, status: TransferStatus.UNMATCHED, receivedAt: MoreThanOrEqual(since) } }),
-    ]);
-  }
-
-  /** A transfer nobody's reference or name matched: is it the one a player said they'd sent? */
-  private async pairWithClaim(transfer: BankTransfer) {
-    const [claims, unmatched] = await this.openAround(transfer.groupId, transfer.receivedAt);
-    const claim = claimForTransfer(transfer, claims, unmatched);
-    if (claim) await this.settleTransfer(transfer, claim.playerId, TransferStatus.MATCHED, { claimId: claim.id });
-  }
-
   /**
    * A transfer went to a player (their reference, their name, their account, or the organiser's
    * pick): their "I've paid" for it is answered, so it stops showing as a suggestion elsewhere.
@@ -771,8 +755,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
 
   /**
-   * A player tapped "Yes, I've paid". Pairs it with their transfer if that's already in and
-   * unambiguous; otherwise it waits for the transfer, and the organiser sees it as a suggestion.
+   * A player tapped "Yes, I've paid". If a transfer already came in and was matched to them (their
+   * reference, name or account), the claim is answered by it. Otherwise it waits: their reference or
+   * name will match it when it lands, or the organiser sees "said they've paid" on the transfer and
+   * confirms. A claim alone never takes an unmatched transfer, since anyone could tap it first.
    */
   async claimPayment(groupId: string, playerId: string, amount: number): Promise<{ status: 'matched' | 'waiting' }> {
     if (!(amount > 0)) throw new BadRequestException('Enter the amount you sent');
@@ -786,10 +772,23 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         ? recent
         : await this.claimsRepo.save(this.claimsRepo.create({ groupId, playerId, amount }));
 
-    const [claims, unmatched] = await this.openAround(groupId, claim.createdAt);
-    const transfer = transferForClaim(claim, unmatched, claims);
-    if (transfer && (await this.settleTransfer(transfer, playerId, TransferStatus.MATCHED, { claimId: claim.id }))) {
-      return { status: 'matched' };
+    const theirs = await this.transfersRepo.find({
+      where: {
+        groupId,
+        playerId,
+        status: In([TransferStatus.MATCHED, TransferStatus.ASSIGNED]),
+        receivedAt: MoreThanOrEqual(new Date(claim.createdAt.getTime() - CLAIM_WINDOW_MS)),
+      },
+    });
+    const answered = await this.claimsRepo.find({ where: { groupId, playerId, status: ClaimStatus.MATCHED } });
+    const used = new Set(answered.map((c) => c.transferId));
+    const transfer = theirs.find((t) => !used.has(t.id) && couldPair(claim, t));
+    if (transfer) {
+      const { affected } = await this.claimsRepo.update(
+        { id: claim.id, status: ClaimStatus.PENDING },
+        { status: ClaimStatus.MATCHED, transferId: transfer.id },
+      );
+      if (affected) return { status: 'matched' };
     }
     return { status: 'waiting' };
   }
