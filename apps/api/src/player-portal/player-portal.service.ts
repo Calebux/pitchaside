@@ -13,6 +13,7 @@ import { DEFAULT_START } from '../ratings/skill';
 import { BillingService } from '../billing/billing.service';
 import { AuthService } from '../auth/auth.service';
 import { localDate } from '../common/time.util';
+import { owedSplit } from '../payments/credit';
 import { sheetName } from '../players/player-name';
 import { Person, PlayerAuthService } from './player-auth.service';
 import type { GoalInput } from '../ratings/ratings.service';
@@ -162,6 +163,11 @@ export class PlayerPortalService {
     };
   }
 
+  /**
+   * What they owe in each group, split the way money is really used (owedSplit): `now` is what a
+   * transfer pays today, `later` are games further ahead it can't pay yet. Cancelled games and ₦0
+   * dues aren't owed.
+   */
   private async owed(person: Person) {
     const ids = this.ids(person);
     if (!ids.length) return [];
@@ -172,46 +178,69 @@ export class PlayerPortalService {
       .where('payment.playerId IN (:...ids)', { ids })
       .andWhere('payment.status = :pending', { pending: PaymentStatus.PENDING })
       .andWhere('session.status != :cancelled', { cancelled: SessionStatus.CANCELLED })
+      .andWhere('payment.amount > 0')
       .orderBy('session.date', 'ASC')
       .getMany();
-    // Money already paid toward a due (partial transfers) comes off their oldest due in that group.
     const credits = await this.membershipsRepo
       .createQueryBuilder('m')
       .where('m.playerId IN (:...ids)', { ids })
       .andWhere('m.credit > 0')
       .getMany();
-    const creditIn = new Map(credits.map((m) => [m.groupId, Number(m.credit)]));
-    return rows.map((p) => {
-      const paidSoFar = Math.min(creditIn.get(p.session.groupId) ?? 0, Number(p.amount));
-      creditIn.delete(p.session.groupId);
-      return {
+    const creditIn = new Map(credits.map((m) => [`${m.groupId}:${m.playerId}`, Number(m.credit)]));
+    const byGroup = new Map<string, Payment[]>();
+    for (const p of rows) {
+      const key = `${p.session.groupId}:${p.playerId}`;
+      byGroup.set(key, [...(byGroup.get(key) ?? []), p]);
+    }
+    const today = localDate();
+    const items = [...byGroup.entries()].flatMap(([key, pending]) => {
+      const { now, later } = owedSplit(pending, creditIn.get(key) ?? 0, today);
+      return [...now.map((p) => ({ p, now: true })), ...later.map((p) => ({ p, now: false }))];
+    });
+    return items
+      .sort((a, b) => String(a.p.session.date).localeCompare(String(b.p.session.date)))
+      .map(({ p, now }) => ({
         id: p.id,
-        amount: Number(p.amount) - paidSoFar,
-        paidSoFar,
+        amount: p.left,
+        paidSoFar: p.paidSoFar,
+        /** A transfer pays this today. False: a game further ahead, payable once it's their next one. */
+        now,
         groupId: p.session.groupId,
         groupName: p.session.group.name,
         label: p.session.label ? `${p.session.label} dues` : null,
         date: p.session.date,
-      };
-    });
+      }));
   }
 
-  private groupsOf(memberships: GroupMembership[]) {
-    return memberships.map((m) => ({
-      id: m.groupId,
-      name: m.group.name,
-      clubName: m.group.organization?.name,
-      schedule: m.group.schedule,
-      kickoffTime: m.group.kickoffTime,
-      feePerPlayer: Number(m.group.feePerPlayer),
-      paymentType: m.group.paymentType,
-      paymentRef: m.paymentRef,
-      /** Money they've sent that isn't used yet: it pays their next game (part of it may already count towards what they owe). */
-      paidAhead: Number(m.credit ?? 0),
-      account: m.group.accountNumber
-        ? { accountNumber: m.group.accountNumber, accountName: m.group.accountName, bankName: m.group.bankName }
-        : null,
-    }));
+  /**
+   * Their groups, with the money worked out here rather than in the app: `toPay` is what to send
+   * now, `later` what's owed for games further ahead, `paidAhead` what they've sent beyond any part
+   * payment (it pays their next game), and `extra` money of theirs the organiser has to sort
+   * (they sent more than was owed, or a game they paid for was called off or they were taken off).
+   */
+  private groupsOf(memberships: GroupMembership[], owed: Awaited<ReturnType<PlayerPortalService['owed']>>) {
+    return memberships.map((m) => {
+      const mine = owed.filter((o) => o.groupId === m.groupId);
+      const sum = (list: typeof mine) => list.reduce((s, o) => s + o.amount, 0);
+      const partPaid = mine.reduce((s, o) => s + o.paidSoFar, 0);
+      return {
+        id: m.groupId,
+        name: m.group.name,
+        clubName: m.group.organization?.name,
+        schedule: m.group.schedule,
+        kickoffTime: m.group.kickoffTime,
+        feePerPlayer: Number(m.group.feePerPlayer),
+        paymentType: m.group.paymentType,
+        paymentRef: m.paymentRef,
+        toPay: sum(mine.filter((o) => o.now)),
+        later: sum(mine.filter((o) => !o.now)),
+        paidAhead: Math.max(0, Number(m.credit ?? 0) - partPaid),
+        extra: Number(m.extra ?? 0),
+        account: m.group.accountNumber
+          ? { accountNumber: m.group.accountNumber, accountName: m.group.accountName, bankName: m.group.bankName }
+          : null,
+      };
+    });
   }
 
   /**
@@ -318,7 +347,7 @@ export class PlayerPortalService {
     return {
       player: this.personInfo(person),
       organiser,
-      groups: this.groupsOf(memberships),
+      groups: this.groupsOf(memberships, owed),
       upcoming: upcoming.slice(0, 3),
       owed,
       openVotes,
@@ -367,7 +396,7 @@ export class PlayerPortalService {
         paidAt: p.paidAt,
         viaTransfer: p.source === 'transfer',
       })),
-      groups: this.groupsOf(memberships),
+      groups: this.groupsOf(memberships, owed),
       contributions: await this.contributions(memberships),
     };
   }

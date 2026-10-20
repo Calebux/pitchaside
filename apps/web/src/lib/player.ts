@@ -190,8 +190,14 @@ export type PlayerGroup = {
   feePerPlayer: number;
   paymentType: PaymentType;
   paymentRef?: string;
-  /** Sent but not used yet; part of it may already be counted in `owed[].paidSoFar`. */
-  paidAhead?: number;
+  /** To send now: played games and their next one, after any part payment (worked out on the server). */
+  toPay: number;
+  /** Owed for games further ahead: it can be paid once each is their next game. */
+  later: number;
+  /** Sent beyond what counts towards a due: it pays their next game. */
+  paidAhead: number;
+  /** Their money the organiser has to sort: more than was owed, or a game they paid for called off. */
+  extra: number;
   account: GroupAccount | null;
 };
 
@@ -200,17 +206,7 @@ export type Organiser = { clubName: string; email: string } | null;
 export interface PlayerHome {
   player: { id: string; firstName: string; lastName: string; nickname: string | null; photoKey?: string | null; email: string; phone: string | null };
   organiser: Organiser;
-  groups: {
-    id: string;
-    name: string;
-    clubName?: string;
-    kickoffTime?: string | null;
-    schedule?: string;
-    feePerPlayer: number;
-    paymentType: PaymentType;
-    paymentRef?: string;
-    account: GroupAccount | null;
-  }[];
+  groups: PlayerGroup[];
   upcoming: {
     id: string;
     date: string;
@@ -233,7 +229,8 @@ export interface PlayerHome {
     teamCount?: number;
   }[];
   /** `amount` is what's left to pay; `paidSoFar` is credit from partial transfers already counted against it. */
-  owed: { id: string; amount: number; paidSoFar: number; groupId: string; groupName: string; label: string | null; date: string }[];
+  /** `now`: a transfer pays it today (played games and their next one). False: a game further ahead. */
+  owed: { id: string; amount: number; paidSoFar: number; now: boolean; groupId: string; groupName: string; label: string | null; date: string }[];
   openVotes: { token: string; sessionId: string; groupName?: string; date: string; voted: boolean }[];
   ratings: PlayerRatings;
   tables: {

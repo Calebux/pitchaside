@@ -28,13 +28,14 @@ export default function PlayerPayPage() {
     );
   }
 
-  const total = data.owed.reduce((s, o) => s + o.amount, 0);
-  // Money sent that isn't used yet, after what already counts towards a due ("paid so far").
-  const ahead = data.groups.reduce(
-    (sum, g) => sum + Math.max(0, (g.paidAhead ?? 0) - data.owed.filter((o) => o.groupId === g.id).reduce((s, o) => s + o.paidSoFar, 0)),
-    0,
-  );
+  // Every figure comes from the server: what to send now, what's for later games, money sent
+  // ahead, and money of theirs the organiser has to sort.
+  const total = data.groups.reduce((s, g) => s + g.toPay, 0);
+  const later = data.groups.reduce((s, g) => s + g.later, 0);
+  const ahead = data.groups.reduce((s, g) => s + g.paidAhead, 0);
+  const extra = data.groups.reduce((s, g) => s + g.extra, 0);
   const owedGroups = data.groups.filter((g) => data.owed.some((o) => o.groupId === g.id));
+  const dueLabel = (o: (typeof data.owed)[number]) => o.label ?? `Game · ${niceDate(o.date, { weekday: 'short', day: 'numeric', month: 'short' })}`;
 
   return (
     <>
@@ -42,10 +43,15 @@ export default function PlayerPayPage() {
 
       <div className={`rounded-3xl px-5 py-4 ${total > 0 ? 'bg-ink text-white' : 'bg-volt-100 border border-volt-300 text-ink'}`}>
         <p className={`text-[11px] font-extrabold uppercase tracking-[0.12em] ${total > 0 ? 'text-white/50' : 'text-ink/50'}`}>
-          {total > 0 ? 'To pay' : 'Balance'}
+          {total > 0 ? 'To pay now' : later > 0 ? 'To pay now' : 'Balance'}
         </p>
-        <p className="font-display text-3xl font-extrabold tabular-nums">{total > 0 ? formatCurrency(total) : 'All square ✅'}</p>
-        {total > 0 && <p className="text-xs text-white/60 mt-1">Put your payment code in the transfer description and it’s marked paid automatically.</p>}
+        <p className="font-display text-3xl font-extrabold tabular-nums">{total > 0 ? formatCurrency(total) : later > 0 ? 'Nothing yet ✅' : 'All square ✅'}</p>
+        {total > 0 && <p className="text-xs text-white/60 mt-1">Put your payment code in the transfer description and it’s marked paid as soon as it lands.</p>}
+        {later > 0 && (
+          <p className={`text-sm mt-1 ${total > 0 ? 'text-white/80' : 'text-ink/80'}`}>
+            Plus {formatCurrency(later)} for games further ahead. Pay for each one when it’s your next game.
+          </p>
+        )}
         {ahead > 0 && (
           <p className={`text-sm font-semibold mt-1 ${total > 0 ? 'text-volt-300' : 'text-pitch-700'}`}>
             {formatCurrency(ahead)} paid ahead: it pays your next game.
@@ -53,32 +59,60 @@ export default function PlayerPayPage() {
         )}
       </div>
 
+      {extra > 0 && (
+        <div className="mt-3 rounded-3xl bg-white border border-gray-100 shadow-card px-5 py-4 text-ink" role="note">
+          <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-gray-500">
+            <span className="w-2 h-2 rounded-full bg-sun-400" aria-hidden />
+            With your organiser
+          </p>
+          <p className="font-display text-2xl font-extrabold tabular-nums">{formatCurrency(extra)}</p>
+          <p className="mt-1 text-sm text-gray-600">
+            More than you owed when it came in, or money for a game that was called off or you were taken off. Your organiser will keep it for a later game, pass it on
+            if it was for someone else, or send it back to you.
+          </p>
+        </div>
+      )}
+
       <div className="md:grid md:grid-cols-2 md:gap-6">
       {owedGroups.map((g) => {
-        const items = data.owed.filter((o) => o.groupId === g.id);
+        const now = data.owed.filter((o) => o.groupId === g.id && o.now);
+        const ahead = data.owed.filter((o) => o.groupId === g.id && !o.now);
         return (
           <Section key={g.id} title={g.name}>
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-card divide-y divide-gray-100 mb-3">
-              {items.map((o) => (
-                <div key={o.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">
-                      {o.label ?? `Game · ${niceDate(o.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-                    </p>
-                    {o.paidSoFar > 0 && (
-                      <p className="text-xs text-pitch-600 font-semibold">{formatCurrency(o.paidSoFar)} paid so far — this is what&apos;s left</p>
-                    )}
+            {now.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-card divide-y divide-gray-100 mb-3">
+                {now.map((o) => (
+                  <div key={o.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink">{dueLabel(o)}</p>
+                      {o.paidSoFar > 0 && (
+                        <p className="text-xs text-pitch-600 font-semibold">{formatCurrency(o.paidSoFar)} paid so far · this is what’s left</p>
+                      )}
+                    </div>
+                    <span className="font-display text-lg font-extrabold text-ink tabular-nums">{formatCurrency(o.amount)}</span>
                   </div>
-                  <span className="font-display text-lg font-extrabold text-ink tabular-nums">{formatCurrency(o.amount)}</span>
+                ))}
+              </div>
+            )}
+            {ahead.length > 0 && (
+              <div className="mb-3">
+                <p className="px-1 mb-1.5 text-[12px] font-bold text-gray-500">Later · pay once it’s your next game</p>
+                <div className="bg-chalk rounded-2xl divide-y divide-gray-200/70">
+                  {ahead.map((o) => (
+                    <div key={o.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                      <p className="min-w-0 text-sm font-semibold text-gray-600">{dueLabel(o)}</p>
+                      <span className="font-display text-base font-extrabold text-gray-600 tabular-nums">{formatCurrency(o.amount)}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
             <PayIntoCard
               account={g.account}
               fee={g.feePerPlayer}
               paymentType={g.paymentType}
               reference={g.paymentRef}
-              claim={{ groupId: g.id, amount: items.reduce((sum, o) => sum + o.amount, 0) }}
+              claim={g.toPay > 0 ? { groupId: g.id, amount: g.toPay } : undefined}
               onClaimed={onClaimed}
             />
           </Section>
@@ -89,18 +123,12 @@ export default function PlayerPayPage() {
 
       {data.groups.length > 0 && owedGroups.length === 0 && (
         <Section title="Where to pay">
+          <p className="-mt-1 mb-2.5 text-[13px] text-gray-600">For when you next owe for a game.</p>
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
             {data.groups.map((g) => (
               <div key={g.id}>
                 <p className="text-xs font-bold text-gray-500 mb-1.5">{g.name}</p>
-                <PayIntoCard
-                  account={g.account}
-                  fee={g.feePerPlayer}
-                  paymentType={g.paymentType}
-                  reference={g.paymentRef}
-                  claim={{ groupId: g.id, amount: g.feePerPlayer }}
-                  onClaimed={onClaimed}
-                />
+                <PayIntoCard account={g.account} fee={g.feePerPlayer} paymentType={g.paymentType} reference={g.paymentRef} />
               </div>
             ))}
           </div>
