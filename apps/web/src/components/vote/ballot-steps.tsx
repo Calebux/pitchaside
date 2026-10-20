@@ -12,17 +12,17 @@ import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 
 export type Picks = Partial<Record<VoteCategory, string | string[]>>;
 type Player = Ballot['squad'][number];
-type Step = 'potm' | 'vii' | 'awards';
+type Step = 'potm' | 'mate' | 'vii' | 'awards';
 
 const short = (p: Player) => `${p.nickname || p.firstName} ${p.lastName.charAt(0)}.`;
 const initials = (p: Player) => `${p.firstName.charAt(0)}${p.lastName.charAt(0)}`.toUpperCase();
-const STEP_NAME: Record<Step, string> = { potm: 'Player of the Match', vii: 'Best VII', awards: 'Awards' };
+const STEP_NAME: Record<Step, string> = { potm: 'POTM', mate: 'Best on team', vii: 'Best VII', awards: 'Awards' };
 const full = (p: Player) => `${p.firstName} ${p.lastName}`;
 
 /**
- * The post-match ballot in three short steps, one button each: Player of the Match and the best on
- * your team; your Best VII of the Day (six starters and a sub, some from other teams); then up to
- * three awards, each optional. Everyone is grouped by side, your team first.
+ * The post-match ballot in short steps, one pick and one button each: Player of the Match; the best
+ * on your own team; your Best VII of the Day (six starters and a sub, some from other teams); then
+ * up to three awards, each optional. Everyone is grouped by side, your team first, with their photo.
  */
 export function BallotSteps({
   ballot,
@@ -44,10 +44,8 @@ export function BallotSteps({
   error: string | null;
 }) {
   const sheetId = useId();
-  const steps: Step[] = ['potm', ...(ballot.vii ? (['vii'] as const) : []), 'awards'];
   const [step, setStep] = useState<Step>('potm');
   const [awardOpen, setAwardOpen] = useState<VoteCategory | null>(null);
-  const at = steps.indexOf(step);
 
   const others = ballot.squad.filter((p) => p.id !== me);
   const myTeam = ballot.squad.find((p) => p.id === me)?.team ?? null;
@@ -62,6 +60,8 @@ export function BallotSteps({
   }));
   const byId = (id: unknown) => others.find((p) => p.id === id);
   const mates = myTeam && ballot.categories.some((c) => c.key === 'teammate') ? others.filter((p) => p.team === myTeam) : [];
+  const steps: Step[] = ['potm', ...(mates.length ? (['mate'] as const) : []), ...(ballot.vii ? (['vii'] as const) : []), 'awards'];
+  const at = steps.indexOf(step);
 
   // Best VII: starters in the order picked, then the sub.
   const starters = (Array.isArray(picks.vii) ? picks.vii : []).filter((id) => byId(id));
@@ -95,8 +95,7 @@ export function BallotSteps({
     else if (!sub) onPicks({ ...picks, vii_sub: id });
   }
 
-  const step1Done = !!picks.potm && (!mates.length || !!picks.teammate);
-  const nextLabel = (to: Step) => (to === 'vii' ? 'Next: your Best VII' : 'Next: awards');
+  const nextLabel = (to: Step) => (to === 'mate' ? 'Next: best on your team' : to === 'vii' ? 'Next: your Best VII' : 'Next: awards');
 
   /** One player to tap, as their bib in their side's colour. `mark` shows when picked: a tick, or their Best VII spot. */
   const chip = (p: Player, selected: boolean, onTap: () => void, mark: string | null = null, disabled = false) => (
@@ -111,7 +110,17 @@ export function BallotSteps({
           selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
         }`}
       >
-        <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className="w-11 h-11" />
+        {p.photoKey ? (
+          // Their face, with a small bib in their side's colour on the corner
+          <span className="relative">
+            <Avatar name={full(p)} photoKey={p.photoKey} className="w-12 h-12 text-[13px]" />
+            <span className="absolute -bottom-1 -right-2 rounded-full bg-white p-0.5 shadow-card" aria-hidden>
+              <BibShirt team={p.team} bibs={ballot.bibs} className="w-5 h-5 block" />
+            </span>
+          </span>
+        ) : (
+          <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className="w-12 h-12" />
+        )}
         <span className="w-full truncate text-[13px] font-bold text-ink leading-tight">{short(p)}</span>
         {selected && (
           <span className="absolute top-1.5 right-1.5 min-w-6 h-6 px-1.5 rounded-full bg-ink text-volt-300 text-[11px] font-extrabold leading-6 text-center animate-pop-in" aria-hidden>
@@ -141,8 +150,14 @@ export function BallotSteps({
   let button: { label: string; disabled: boolean; onClick: () => void };
   if (step === 'potm') {
     button = {
-      label: !picks.potm ? 'Pick Player of the Match' : mates.length && !picks.teammate ? 'Pick the best on your team' : nextLabel(steps[at + 1]),
-      disabled: !step1Done,
+      label: picks.potm ? nextLabel(steps[at + 1]) : 'Pick Player of the Match',
+      disabled: !picks.potm,
+      onClick: () => setStep(steps[at + 1]),
+    };
+  } else if (step === 'mate') {
+    button = {
+      label: picks.teammate ? nextLabel(steps[at + 1]) : 'Pick the best on your team',
+      disabled: !picks.teammate,
       onClick: () => setStep(steps[at + 1]),
     };
   } else if (step === 'vii') {
@@ -200,20 +215,20 @@ export function BallotSteps({
           <div role="radiogroup" aria-label="Player of the Match">
             {bySide((p) => chip(p, picks.potm === p.id, () => togglePotm(p.id)))}
           </div>
-          {mates.length > 0 && myTeam && (
-            <section className="mt-7" aria-labelledby="best-mate">
-              <h2 id="best-mate" className="font-display text-xl font-extrabold text-ink">
-                Best on your team
-              </h2>
-              <p className="text-sm text-gray-600 mt-0.5">
-                One of your {bibOf(myTeam, ballot.bibs).label}
-                {ballot.captains[myTeam] ? ` (Team ${ballot.captains[myTeam]})` : ''} teammates.
-              </p>
-              <ul className="mt-2.5 grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="best-mate">
-                {mates.map((p) => chip(p, picks.teammate === p.id, () => toggleMate(p.id)))}
-              </ul>
-            </section>
-          )}
+        </>
+      )}
+
+      {step === 'mate' && myTeam && (
+        <>
+          <h2 id="best-mate" className="font-display text-2xl font-extrabold text-ink">
+            Best on your team
+          </h2>
+          <p className="text-sm text-gray-600 mt-0.5">
+            Who was the best of your {teamName(myTeam, ballot.captains, ballot.bibs)} teammates? One pick, and it can’t be you.
+          </p>
+          <ul className="mt-3.5 grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="best-mate">
+            {mates.map((p) => chip(p, picks.teammate === p.id, () => toggleMate(p.id)))}
+          </ul>
         </>
       )}
 
