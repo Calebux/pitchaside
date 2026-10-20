@@ -1,5 +1,7 @@
 'use client';
 
+import { CountUpNaira } from '@/components/motion';
+import { MonthList } from '@/components/money/month-list';
 import { PageHeader } from '@/components/brand';
 import { useEffect, useState } from 'react';
 import { PayIntoCard } from '@/components/account-card';
@@ -65,22 +67,36 @@ export default function PlayerPayPage() {
     <>
       <PageHeader title="Pay" subtitle="What you owe, where to send it, and what you’ve paid." />
 
-      <div className={`rounded-3xl px-5 py-4 ${total > 0 ? 'bg-ink text-white' : 'bg-volt-100 border border-volt-300 text-ink'}`}>
-        <p className={`text-[11px] font-extrabold uppercase tracking-[0.12em] ${total > 0 ? 'text-white/50' : 'text-ink/50'}`}>
-          {total > 0 ? 'To pay now' : later > 0 ? 'To pay now' : 'Balance'}
-        </p>
-        <p className="font-display text-3xl font-extrabold tabular-nums">{total > 0 ? formatCurrency(total) : later > 0 ? 'Nothing yet ✅' : 'All square ✅'}</p>
-        {total > 0 && <p className="text-xs text-white/60 mt-1">Put your payment code in the transfer description and it’s marked paid as soon as it lands.</p>}
-        {later > 0 && (
-          <p className={`text-sm mt-1 ${total > 0 ? 'text-white/80' : 'text-ink/80'}`}>
-            Plus {formatCurrency(later)} for games further ahead. Pay for each one when it’s your next game.
-          </p>
-        )}
-        {ahead > 0 && (
-          <p className={`text-sm font-semibold mt-1 ${total > 0 ? 'text-volt-300' : 'text-pitch-700'}`}>
-            {formatCurrency(ahead)} paid ahead: it pays your next game.
-          </p>
-        )}
+      {/* The organiser's account card, from the player's side: what to send now, in lime on dark */}
+      <div className="relative overflow-hidden rounded-[28px] bg-ink text-white shadow-card">
+        <span className="absolute inset-0 turf-stripes-soft" aria-hidden />
+        <div className="relative p-5">
+          <p className="text-[13px] font-semibold text-white/70">{total > 0 || later > 0 ? 'To pay now' : 'Your balance'}</p>
+          {total > 0 ? (
+            <CountUpNaira value={total} className="block mt-0.5 font-display text-[40px] leading-none font-extrabold text-volt-300" />
+          ) : (
+            <p className="mt-0.5 font-display text-[30px] leading-none font-extrabold">{later > 0 ? 'Nothing yet ✓' : 'All square ✓'}</p>
+          )}
+          {total > 0 && <p className="mt-2 text-[13px] text-white/70">Put your payment code on the transfer and it’s marked paid as soon as it lands.</p>}
+          {(later > 0 || ahead > 0) && (
+            <ul className="mt-3 -mx-1.5">
+              {later > 0 && (
+                <li className="flex items-center gap-2.5 min-h-10 px-1.5 text-[13px] font-semibold text-white/85">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-white/25" aria-hidden />
+                  <span className="min-w-0">
+                    {formatCurrency(later)} for games further ahead · pay each when it’s your next
+                  </span>
+                </li>
+              )}
+              {ahead > 0 && (
+                <li className="flex items-center gap-2.5 min-h-10 px-1.5 text-[13px] font-semibold text-white/85">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-volt-400" aria-hidden />
+                  <span className="min-w-0">{formatCurrency(ahead)} paid ahead · it pays your next game</span>
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
       </div>
 
       {extra > 0 && (
@@ -171,25 +187,38 @@ export default function PlayerPayPage() {
 
       <Section title="History">
         {data.paid.length === 0 ? (
-          <p className="text-sm text-gray-500 bg-chalk rounded-2xl px-4 py-5 text-center">No payments yet.</p>
+          <div className="rounded-3xl bg-chalk px-5 py-6 text-center">
+            <p className="text-[15px] font-bold text-ink">No payments yet</p>
+            <p className="mt-1 text-[13px] text-gray-600">Each game you pay for shows here, on the day it was paid.</p>
+          </div>
         ) : (
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100">
-            {data.paid.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+          // Like the organiser's money list: month by month, each day with what went out, and
+          // each line says which game it paid for (so an early payment reads as one).
+          <MonthList
+            items={data.paid}
+            idOf={(p) => p.id}
+            dateOf={(p) => p.paidAt ?? p.date}
+            amountOf={(p) => p.amount}
+            direction="out"
+            sticky
+            idPrefix="paid-"
+          >
+            {(p) => (
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-ink truncate">{p.groupName}</p>
-                  <p className="text-xs text-gray-500">
-                    {p.label ?? `Game · ${niceDate(p.date, { day: 'numeric', month: 'short' })}`}
+                  <p className="text-[15px] font-bold text-ink truncate">{p.label ?? `Game · ${niceDate(p.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}</p>
+                  <p className="text-[13px] text-gray-600 truncate">
+                    {p.groupName}
                     {p.viaTransfer ? ' · bank transfer' : ''}
                   </p>
                 </div>
-                <span className="text-right">
-                  <span className="block font-display font-extrabold text-ink tabular-nums">{formatCurrency(p.amount)}</span>
-                  <span className="block text-[10px] font-bold text-pitch-600">✓ Paid</span>
+                <span className="shrink-0 text-right">
+                  <span className="block font-display text-[15px] font-extrabold text-ink tabular-nums">{formatCurrency(p.amount)}</span>
+                  <span className="block text-[11px] font-bold text-pitch-700">✓ Paid</span>
                 </span>
               </div>
-            ))}
-          </div>
+            )}
+          </MonthList>
         )}
       </Section>
 
