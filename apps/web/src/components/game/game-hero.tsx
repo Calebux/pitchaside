@@ -1,23 +1,53 @@
 'use client';
 
-import type { IPayment } from '@pitchaside/shared';
 import { CountUpNaira } from '@/components/motion';
 import { Ticket } from '@/components/ticket';
 import { prettyTime } from '@/components/player-ui';
 import { gameDay } from '@/components/money-card';
 import { formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { gameChip, toneOnDark } from '@/lib/game-status';
-import { gameTally, playerState, type GamePhase } from '@/lib/game-player';
+import { gameTally, type GamePhase } from '@/lib/game-player';
 
-/** Shirts shown on the card; the rest are a count. */
-const SHIRTS = 21;
+const WhatsAppIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.03c-.24.68-1.42 1.3-1.95 1.34-.5.05-.97.23-3.27-.68-2.77-1.09-4.52-3.93-4.66-4.11-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27.25-.27.54-.34.72-.34h.52c.16 0 .39-.06.61.47.24.56.79 1.92.86 2.06.07.14.11.3.02.48-.09.18-.14.3-.27.46-.14.16-.29.36-.41.48-.14.14-.28.29-.12.56.16.27.71 1.17 1.52 1.89 1.04.93 1.92 1.22 2.19 1.36.27.14.43.11.59-.07.16-.18.68-.79.86-1.07.18-.27.36-.23.61-.14.25.09 1.59.75 1.86.89.27.14.45.2.52.32.07.11.07.66-.17 1.34Z" />
+  </svg>
+);
+
+const BellIcon = () => (
+  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"
+    />
+  </svg>
+);
+
+/** One of the card's two numbers, on turf: what it is, the figure, a bar when it's a share, a line in words. */
+function Cell({ label, children, share, note, warn }: { label: string; children: React.ReactNode; share?: number | null; note: string; warn?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-2xl bg-white/[0.08] px-3 py-2.5">
+      <p className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-white/60">{label}</p>
+      <div className="mt-0.5 leading-none truncate">{children}</div>
+      {share != null && (
+        <div className="mt-2 h-1.5 w-full rounded-full bg-white/10 overflow-hidden" aria-hidden>
+          <div
+            className={`h-full rounded-full animate-fill-grow ${warn ? 'bg-sun-400' : 'bg-volt-300'}`}
+            style={{ width: `${Math.max(share > 0 ? 4 : 0, Math.min(100, share))}%` }}
+          />
+        </div>
+      )}
+      <p className={`mt-1.5 text-[12px] font-semibold leading-snug line-clamp-2 ${warn ? 'text-sun-400' : 'text-white/75'}`}>{note}</p>
+    </div>
+  );
+}
 
 /**
- * The game at a glance, on turf. One headline, chosen by where the game is in its week: before
- * kick-off it's the squad ("12 of 28 in"), once it's played it's the money ("₦19,500 collected").
- * The group is the eyebrow and the date the title, so the card says which game before anything
- * else. Remind sits with the money it's about. One shirt per player: filled when paid, dashed
- * while they still owe, faded when free; no-shows aren't on the pitch.
+ * The game at a glance, on turf: which game (group, date, kick-off and venue) and where it stands
+ * (In 5 days, Today, Voting). Then two separate numbers, never read as one: Players (who's in,
+ * against the places; who played, after) and Money (paid so far, or what's left to collect).
+ * The ticket's stub holds the messages to players: Share the game before it, Remind who owes.
  */
 export function GameHero({
   session,
@@ -25,65 +55,85 @@ export function GameHero({
   phase,
   reminding,
   onRemind,
+  onShare,
 }: {
   session: ISessionWithDetails;
   coveredByDues: boolean;
   phase: GamePhase;
   reminding: boolean;
   onRemind: () => void;
+  /** Share the game on WhatsApp; only before it's played. */
+  onShare?: () => void;
 }) {
   const before = phase === 'before' || phase === 'today';
   const payments = session.payments ?? [];
   const tally = gameTally(payments, coveredByDues, before);
-  const onPitch = payments.filter((p) => p.attendance !== 'no_show');
   const chip = gameChip(session);
   const kickoff = session.kickoffTime || session.group?.kickoffTime;
   const collected = Number(session.collectedAmount);
   const due = collected + tally.toPayAmount;
-  const pct = due > 0 ? Math.min(100, Math.round((collected / due) * 100)) : 0;
   const places = Number(session.group?.targetPlayers ?? 0);
   const isDues = session.kind === 'dues';
   const title = isDues && session.label ? `${session.label} dues` : gameDay(session.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
-  const where = [!isDues && kickoff ? prettyTime(kickoff) : null, session.group?.location].filter(Boolean).join(' · ');
+  const time = !isDues && kickoff ? prettyTime(kickoff) : null;
+  const venue = session.group?.location;
   const canRemind = tally.toPay > 0 && phase !== 'cancelled' && !coveredByDues;
-  // Before the game the squad is the story; after, the money.
-  const squadFirst = before && !isDues;
-  // The ticket's stub: the money, with the action it needs right next to it.
+  const share = before && onShare ? onShare : undefined;
+  const n = tally.playing;
+
+  const players = isDues
+    ? { value: tally.paid, of: n, note: `of ${n} paid their dues`, share: n ? (tally.paid / n) * 100 : null }
+    : before
+      ? {
+          value: n,
+          of: places || undefined,
+          note: !n ? 'No one’s in yet' : !places ? 'said they’re in' : n >= places ? (n > places ? `${n - places} over the ${places} places` : 'Full') : `${places - n} place${places - n === 1 ? '' : 's'} left`,
+          share: places ? (n / places) * 100 : null,
+        }
+      : phase === 'cancelled'
+        ? { value: n, of: undefined, note: n ? `had said they’re in. Called off` : 'Called off', share: null }
+        : { value: n, of: undefined, note: !n ? 'No one played' : tally.noShows ? `played, ${tally.noShows} didn’t come` : 'played', share: null };
+
+  const money = coveredByDues
+    ? { value: null, note: `Covered by ${session.group?.paymentType ?? ''} dues`.replace('  ', ' '), warn: false, share: null }
+    : !due
+      ? { value: null, note: phase === 'cancelled' ? 'Nothing to collect' : n ? 'Nothing to pay' : 'Nothing due yet', warn: false, share: null }
+      : tally.toPay
+        ? before
+          ? { value: collected, note: `${tally.toPay} not paid yet`, warn: false, share: (collected / due) * 100 }
+          : { value: collected, note: `${formatCurrency(tally.toPayAmount)} left from ${tally.toPay}`, warn: true, share: (collected / due) * 100 }
+        : { value: collected, note: 'Everyone’s paid', warn: false, share: 100 };
+
   const stub =
-    !isDues && !coveredByDues && onPitch.length > 0 ? (
-      <div className="flex items-center gap-3 h-[68px] px-5">
-        <p className="flex-1 min-w-0 text-[13px] leading-snug text-white/75 tabular-nums truncate">
-          {squadFirst ? (
-            <>
-              <b className="block text-[14px] text-white">{formatCurrency(collected)} paid ahead</b>
-              {tally.toPay > 0 ? <span className="text-sun-400 font-semibold">{tally.toPay} not paid yet</span> : 'Everyone who’s in has paid'}
-            </>
-          ) : (
-            <>
-              <b className="block text-[14px] text-white">
-                {tally.paid} paid{tally.toPay > 0 && <span className="text-sun-400"> · {tally.toPay} to pay</span>}
-              </b>
-              {tally.noShows > 0 ? `${tally.noShows} didn’t come` : `${tally.playing} played`}
-            </>
-          )}
-        </p>
+    share || canRemind ? (
+      <div className="flex items-center gap-2 h-[64px] px-4">
+        {share && (
+          <button
+            onClick={share}
+            aria-label="Share game on WhatsApp"
+            className={`press min-w-0 inline-flex items-center justify-center gap-1.5 h-11 px-3.5 rounded-full text-[13px] font-bold ${
+              canRemind ? 'shrink-0 bg-white/10 text-white hover:bg-white/20' : 'flex-1 bg-white text-ink hover:bg-volt-300'
+            }`}
+          >
+            <WhatsAppIcon />
+            <span className="truncate">{canRemind ? 'Share' : 'Share game'}</span>
+          </button>
+        )}
         {canRemind && (
           <button
             onClick={onRemind}
             disabled={reminding}
-            className="press shrink-0 inline-flex items-center gap-1.5 h-11 pl-3.5 pr-4 rounded-full bg-white text-ink text-[13px] font-bold shadow-card hover:bg-volt-300 disabled:opacity-60"
+            className="press flex-1 min-w-0 inline-flex items-center justify-center gap-1.5 h-11 px-3 rounded-full bg-white text-ink text-[13px] font-bold shadow-card hover:bg-volt-300 disabled:opacity-60"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-            </svg>
-            {reminding ? 'Sending…' : `Remind ${tally.toPay}`}
+            <BellIcon />
+            <span className="truncate">{reminding ? 'Sending…' : `Remind ${tally.toPay} to pay`}</span>
           </button>
         )}
       </div>
     ) : null;
 
   return (
-    <Ticket aria-label="The game" stub={stub} stubHeight={68} bodyClassName="bg-pitch-800 rounded-[28px] text-white">
+    <Ticket aria-label="The game" stub={stub} stubHeight={64} bodyClassName="bg-pitch-800 rounded-[28px] text-white">
       <div className="absolute inset-0 turf-stripes" />
       <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none" viewBox="0 0 400 300" aria-hidden>
         <g stroke="white" strokeOpacity="0.1" strokeWidth="2" fill="none">
@@ -93,8 +143,8 @@ export function GameHero({
         </g>
       </svg>
 
-      <div className="relative px-5 pt-4 pb-4">
-        {/* Which game: group, then the date as the title with the headline number beside it */}
+      <div className="relative px-4 pt-4 pb-4">
+        {/* Which game: group, the date as the title, then kick-off and venue */}
         <div className="flex items-start justify-between gap-3">
           <p className="min-w-0 pt-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-volt-300 truncate">{session.group?.name || 'Game'}</p>
           <span className={`shrink-0 inline-flex items-center gap-1.5 text-[12px] font-bold px-2.5 py-1 rounded-full ${toneOnDark[chip.tone]}`}>
@@ -102,98 +152,28 @@ export function GameHero({
             {chip.text}
           </span>
         </div>
-        <div className="mt-1 flex items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="font-display text-[28px] leading-none font-extrabold tabular-nums">{title}</h1>
-            {where && <p className="mt-1.5 text-[13px] font-semibold text-white/70 truncate">{where}</p>}
-          </div>
-          {/* The headline: one number, said in words underneath */}
-          <div className="shrink-0 text-right">
-            {squadFirst ? (
-              <p className="leading-none">
-                <span className="font-display text-[36px] font-extrabold tabular-nums">{tally.playing}</span>
-                {places > 0 && <span className="text-[15px] font-bold text-white/60 tabular-nums">/{places}</span>}
-                <span className="block mt-0.5 text-[12px] font-bold text-white/65">in</span>
-              </p>
-            ) : coveredByDues ? (
-              <p className="leading-none">
-                <span className="font-display text-[36px] font-extrabold tabular-nums">{tally.paid}</span>
-                <span className="text-[15px] font-bold text-white/60 tabular-nums">/{tally.playing}</span>
-                <span className="block mt-0.5 text-[12px] font-bold text-white/65">dues paid</span>
-              </p>
+        <h1 className="mt-1 font-display text-[28px] leading-none font-extrabold tabular-nums">{title}</h1>
+        {(time || venue) && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-white/75 min-w-0">
+            {time && <span className="shrink-0">{time} kick-off</span>}
+            {time && venue && <span className="text-white/40" aria-hidden>·</span>}
+            {venue && <span className="truncate">{venue}</span>}
+          </p>
+        )}
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Cell label={isDues ? 'Dues paid' : before ? 'Players in' : 'Players'} share={players.share} note={players.note}>
+            <span className="font-display text-[26px] font-extrabold tabular-nums">{players.value}</span>
+            {players.of !== undefined && <span className="text-[14px] font-bold text-white/55 tabular-nums"> / {players.of}</span>}
+          </Cell>
+          <Cell label={before ? 'Paid so far' : 'Money'} share={money.share} note={money.note} warn={money.warn}>
+            {money.value === null ? (
+              <span className="font-display text-[26px] font-extrabold text-white/40">—</span>
             ) : (
-              <p className="leading-none">
-                <CountUpNaira value={collected} className="font-display text-[26px] font-extrabold tabular-nums" />
-                <span className="block mt-1 text-[12px] font-bold text-white/65">collected</span>
-              </p>
+              <CountUpNaira value={money.value} className="font-display text-[22px] leading-[26px] font-extrabold tabular-nums" />
             )}
-          </div>
+          </Cell>
         </div>
-
-        <div className="mt-3">
-          {squadFirst ? (
-            <>
-              {places > 0 && (
-                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={tally.playing} aria-valuemin={0} aria-valuemax={places} aria-label="Places taken">
-                  <div className="h-full rounded-full bg-volt-300 animate-fill-grow" style={{ width: `${Math.min(100, Math.round((tally.playing / places) * 100))}%` }} />
-                </div>
-              )}
-              <p className="mt-1.5 text-[13px] font-semibold text-white/80">
-                {!tally.playing
-                  ? 'No one’s in yet'
-                  : places > tally.playing
-                    ? `${places - tally.playing} place${places - tally.playing === 1 ? '' : 's'} left`
-                    : places
-                      ? 'Full'
-                      : `${tally.playing} said they’re in`}
-              </p>
-            </>
-          ) : coveredByDues ? (
-            <p className="text-[13px] font-semibold text-white/80">The game is covered by dues</p>
-          ) : (
-            <>
-              {due > 0 && (
-                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Paid so far">
-                  <div className={`h-full rounded-full animate-fill-grow ${pct === 100 ? 'bg-volt-400' : 'bg-sun-400'}`} style={{ width: `${pct}%` }} />
-                </div>
-              )}
-              <p className={`mt-1.5 text-[13px] font-semibold ${tally.toPay ? 'text-sun-400' : 'text-volt-300'}`}>
-                {!onPitch.length
-                  ? 'No one played'
-                  : tally.toPay
-                    ? `${formatCurrency(tally.toPayAmount)} still to collect from ${tally.toPay}`
-                    : 'Everyone who came has paid'}
-              </p>
-            </>
-          )}
-
-          {onPitch.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-0.5" aria-label="Who has paid">
-              {onPitch.slice(0, SHIRTS).map((p: IPayment, i) => {
-                const s = playerState(p, coveredByDues, before);
-                const paid = s.key === 'paid' || s.key === 'dues_paid';
-                const free = s.key === 'free';
-                return (
-                  <svg key={p.id} viewBox="0 0 48 48" className="w-[22px] h-[22px] animate-kit-on" style={{ animationDelay: `${Math.min(i, 20) * 25}ms` }} aria-label={`${p.player?.firstName ?? 'Player'}: ${s.label}`}>
-                    <path
-                      d="M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z"
-                      fill={paid ? '#d4f53c' : free ? 'rgba(255,255,255,0.25)' : 'transparent'}
-                      stroke={!paid && !free ? '#ffc93c' : 'transparent'}
-                      strokeWidth="2.5"
-                      strokeDasharray={!paid && !free ? '4 3' : undefined}
-                      strokeLinejoin="round"
-                    />
-                    <text x="24" y="34" textAnchor="middle" fontSize="15" fontWeight="800" fill={paid ? '#0f1a14' : 'rgba(255,255,255,0.85)'}>
-                      {p.player?.firstName?.charAt(0) ?? '?'}
-                    </text>
-                  </svg>
-                );
-              })}
-              {onPitch.length > SHIRTS && <span className="ml-1 text-xs font-bold text-white/70 tabular-nums">+{onPitch.length - SHIRTS}</span>}
-            </div>
-          )}
-        </div>
-
       </div>
     </Ticket>
   );

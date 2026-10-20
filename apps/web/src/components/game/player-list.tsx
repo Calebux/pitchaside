@@ -91,6 +91,7 @@ export function PlayerList({
   canSendDetails = false,
   canMove,
   busyId,
+  onAdd,
   onAction,
   onBulkPaid,
 }: {
@@ -103,6 +104,8 @@ export function PlayerList({
   /** Paid by transfer, and they have another unpaid game it could pay instead. */
   canMove?: (p: IPayment) => boolean;
   busyId: string | null;
+  /** Put a group member on the game by hand; before it's played. */
+  onAdd?: () => void;
   onAction: (p: IPayment, action: Action) => void;
   onBulkPaid: (ids: string[]) => Promise<void>;
 }) {
@@ -152,17 +155,30 @@ export function PlayerList({
         <h2 id="players-title" className="text-base font-bold text-ink">
           {before ? 'Who’s in' : 'Who played'}
         </h2>
-        {!coveredByDues && count('to_pay') > 1 && (
-          <button
-            onClick={() => {
-              setSelecting(!selecting);
-              setPicked(new Set());
-            }}
-            className="h-10 px-1 text-[13px] font-bold text-pitch-700 hover:text-ink"
-          >
-            {selecting ? 'Cancel' : 'Select'}
-          </button>
-        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {!coveredByDues && count('to_pay') > 1 && (
+            <button
+              onClick={() => {
+                setSelecting(!selecting);
+                setPicked(new Set());
+              }}
+              className="min-h-11 px-2 text-[13px] font-bold text-pitch-700 hover:text-ink"
+            >
+              {selecting ? 'Cancel' : 'Select'}
+            </button>
+          )}
+          {onAdd && !selecting && (
+            <button
+              onClick={onAdd}
+              className="press inline-flex items-center gap-1 min-h-11 pl-2.5 pr-3.5 rounded-full bg-white border border-gray-200 text-[13px] font-bold text-ink hover:border-ink"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Add players
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="mt-2 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Show players">
