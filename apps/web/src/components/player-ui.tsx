@@ -13,7 +13,9 @@ import { KeepScoreLink } from '@/components/keep-score-link';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ShareCardButton } from '@/components/share-card';
-import { CountUp, LiveDot } from '@/components/motion';
+import { CountUp, LiveDot, stagger } from '@/components/motion';
+import { Stat } from '@/components/stat';
+import { toneCls } from '@/lib/game-status';
 import { formatCurrency, type PlayerRatings } from '@/lib/api';
 import { setRsvp, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
@@ -160,40 +162,68 @@ export function PlayerCardHero({
 }
 
 /** A later game in the list: one tap opens its game day card. */
-export function GameRow({ game }: { game: UpcomingGame }) {
-  const d = new Date(game.date);
+/**
+ * A game further ahead, as the organiser's games list shows one: a date block, where the player
+ * stands as a chip, kick-off and group, then two numbers kept apart: who's in, and the player's own
+ * money for it. Tapping opens the game.
+ */
+export function GameRow({ game, index = 0 }: { game: UpcomingGame; index?: number }) {
+  // The game's calendar day, read as local midnight so it never slips a day.
+  const day = new Date(`${String(game.date).slice(0, 10)}T00:00:00`);
   const time = prettyTime(game.kickoffTime);
-  const status =
+  const chip =
     game.myStatus === 'in'
-      ? { text: "You're in ✅", cls: 'text-pitch-600' }
+      ? { text: "You're in", cls: toneCls.live }
       : game.myStatus === 'waitlist'
-        ? { text: `Waitlist #${game.waitlistPosition ?? '–'}`, cls: 'text-amber-700' }
+        ? { text: `Waitlist #${game.waitlistPosition ?? '–'}`, cls: toneCls.warn }
         : game.myStatus === 'out'
-          ? { text: "You're out", cls: 'text-gray-500' }
-          : { text: 'Not replied', cls: 'text-gray-500' };
+          ? { text: "You're out", cls: toneCls.calm }
+          : { text: game.requireRsvp ? 'Not replied' : daysUntil(game.date), cls: toneCls.calm };
+  const owes = game.myStatus === 'in' && game.payment?.status === 'pending' && game.payment.amount > 0;
+  const money: { value: string; note: string; tone: 'ink' | 'warn' | 'muted' } = owes
+    ? { value: formatCurrency(game.payment!.amount), note: 'to pay', tone: 'warn' }
+    : game.myStatus === 'in' && game.payment?.status === 'paid'
+      ? { value: 'Paid', note: `${formatCurrency(game.payment.amount)} ✓`, tone: 'ink' }
+      : game.myStatus === 'in' && game.payment?.status === 'waived'
+        ? { value: 'Free', note: 'nothing to pay', tone: 'ink' }
+        : { value: '—', note: game.myStatus === 'in' ? 'Nothing to pay' : 'Reply to play', tone: 'muted' };
   return (
-    <Link
-      href={`/me/games/${game.id}`}
-      className="flex items-center gap-3 bg-white rounded-2xl p-3 border border-gray-100 shadow-card hover:border-gray-300 transition-colors"
-    >
-      <span className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-gray-200 text-center">
-        <span className="block bg-kit-500 text-white text-[9px] font-extrabold uppercase tracking-wider py-0.5">
-          {d.toLocaleDateString('en-GB', { month: 'short' })}
+    <div className="animate-rise" style={stagger(Math.min(index, 10), 35, 0)}>
+      <Link
+        href={`/me/games/${game.id}`}
+        className="press group block p-3.5 bg-white rounded-3xl border border-gray-100 shadow-card hover:border-gray-300 hover:shadow-lift transition-all"
+      >
+        <span className="flex items-center gap-3">
+          <span className="w-14 shrink-0 rounded-2xl py-2 text-center bg-pitch-800 text-white" aria-hidden>
+            <span className="block text-[10px] font-extrabold uppercase tracking-[0.12em] text-volt-300">{day.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
+            <span className="block font-display text-[22px] leading-none font-extrabold tabular-nums mt-0.5">{day.getDate()}</span>
+            <span className="block text-[11px] font-bold mt-0.5">{day.toLocaleDateString('en-GB', { month: 'short' })}</span>
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap ${chip.cls}`}>{chip.text}</span>
+            <span className="mt-1 block text-[16px] font-bold text-ink truncate">{time ? `${time} kick-off` : day.toLocaleDateString('en-GB', { weekday: 'long' })}</span>
+            <span className="block text-[13px] text-gray-600 truncate">{game.groupName}</span>
+          </span>
+          <svg className="w-5 h-5 shrink-0 self-center text-gray-400 group-hover:text-ink group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+          </svg>
         </span>
-        <span className="block font-display text-lg font-extrabold text-ink leading-7">{d.getDate()}</span>
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="block text-sm font-bold text-ink truncate">{game.groupName}</span>
-        <span className="block text-xs text-gray-500 mt-0.5">
-          {niceDate(game.date, { weekday: 'short', day: 'numeric', month: 'short' })}
-          {time ? ` · ${time}` : ''}
+        <span className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-4">
+          {game.requireRsvp ? (
+            <Stat
+              label="Players in"
+              value={String(game.confirmed)}
+              of={` / ${game.capacity}`}
+              note={game.waitlist ? `${game.waitlist} waiting` : game.confirmed >= game.capacity ? 'full' : `${game.capacity - game.confirmed} places left`}
+              share={(game.confirmed / Math.max(game.capacity, 1)) * 100}
+            />
+          ) : (
+            <Stat label="Players" value="Squad" note="everyone in the group" />
+          )}
+          <Stat label="You" value={money.value} note={money.note} tone={money.tone} />
         </span>
-      </span>
-      <span className={`text-[11px] font-extrabold whitespace-nowrap ${status.cls}`}>{status.text}</span>
-      <span className="text-gray-400" aria-hidden>
-        ›
-      </span>
-    </Link>
+      </Link>
+    </div>
   );
 }
 
@@ -389,65 +419,88 @@ export function GameCard({
   );
 }
 
-/** A finished match day from the player's point of view. */
-export function MatchDayCard({ day }: { day: RecentMatchDay }) {
+/**
+ * A finished match day from the player's point of view, in the organiser's games-list card: the
+ * date block, their team, then two numbers kept apart (their results, and Player of the Match),
+ * then the vote and sharing.
+ */
+export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: number }) {
   const played = day.record.w + day.record.d + day.record.l;
-  const won = day.myTeam && day.teamOfTheDay === day.myTeam;
+  const won = !!day.myTeam && day.teamOfTheDay === day.myTeam;
+  const date = new Date(`${String(day.date).slice(0, 10)}T00:00:00`);
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-bold text-gray-500">{niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}</p>
-          <p className="font-display text-lg font-extrabold text-ink leading-tight truncate">{day.groupName}</p>
-        </div>
-        {day.myTeam && (
-          <span className="flex items-center gap-1.5 text-[11px] font-extrabold text-ink bg-chalk border border-gray-200 rounded-full px-2.5 py-1">
-            <span className={`w-2.5 h-2.5 rounded-sm ${TEAMS[day.myTeam].swatch}`} />
-            {teamName(day.myTeam, day.captains)}
-          </span>
-        )}
-      </div>
+    <div className="animate-rise p-3.5 bg-white rounded-3xl border border-gray-100 shadow-card" style={stagger(Math.min(index, 10), 35, 0)}>
+      <Link href={`/me/games/${day.sessionId}`} className="press group flex items-center gap-3 rounded-2xl">
+        <span className="w-14 shrink-0 rounded-2xl py-2 text-center bg-chalk text-ink" aria-hidden>
+          <span className="block text-[10px] font-extrabold uppercase tracking-[0.12em] text-gray-500">{date.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
+          <span className="block font-display text-[22px] leading-none font-extrabold tabular-nums mt-0.5">{date.getDate()}</span>
+          <span className="block text-[11px] font-bold mt-0.5">{date.toLocaleDateString('en-GB', { month: 'short' })}</span>
+        </span>
+        <span className="flex-1 min-w-0">
+          {won ? (
+            <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap ${toneCls.live}`}>🏆 Team of the Day</span>
+          ) : (
+            <span className={`inline-flex items-center gap-1 text-[11px] font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap ${toneCls.done}`}>Played</span>
+          )}
+          <span className="mt-1 block text-[16px] font-bold text-ink truncate">{day.groupName}</span>
+          {day.myTeam ? (
+            <span className="flex items-center gap-1.5 text-[13px] text-gray-600 truncate">
+              <span className={`w-2.5 h-2.5 rounded-sm shrink-0 ${TEAMS[day.myTeam].swatch}`} aria-hidden />
+              {teamName(day.myTeam, day.captains)}
+            </span>
+          ) : (
+            <span className="block text-[13px] text-gray-600">No team picked</span>
+          )}
+        </span>
+        <svg className="w-5 h-5 shrink-0 self-center text-gray-400 group-hover:text-ink group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+        </svg>
+      </Link>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {played > 0 && (
-          <span className="text-xs font-bold text-ink bg-chalk rounded-full px-2.5 py-1 tabular-nums">
-            W{day.record.w} D{day.record.d} L{day.record.l}
-          </span>
-        )}
-        {won && <span className="text-xs font-extrabold text-ink bg-volt-400 rounded-full px-2.5 py-1">🏆 Team of the Day</span>}
-        {day.potm && (
-          <span className={`text-xs font-bold rounded-full px-2.5 py-1 ${day.potm.isMe ? 'bg-sun-400 text-ink' : 'bg-chalk text-gray-600'}`}>
-            ★ POTM: {day.potm.isMe ? 'You!' : day.potm.name}
-          </span>
-        )}
-        {!played && !day.potm && <span className="text-xs text-gray-500">No results recorded</span>}
-        {day.shareToken && (played > 0 || day.potm) && (
-          <ShareCardButton
-            token={day.shareToken}
-            caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-            className="ml-auto text-xs font-bold text-ink bg-white border-2 border-ink rounded-full px-2.5 py-0.5 hover:bg-volt-300 transition-colors"
-          >
-            Share ↗
-          </ShareCardButton>
-        )}
+      <div className="mt-3 pt-3 border-t border-gray-100 grid grid-cols-2 gap-4">
+        <Stat
+          label="Your games"
+          value={played ? `${day.record.w}-${day.record.d}-${day.record.l}` : '—'}
+          note={played ? 'won · drawn · lost' : 'No results recorded'}
+          tone={played ? 'ink' : 'muted'}
+        />
+        <Stat
+          label="Player of the Match"
+          value={day.potm ? (day.potm.isMe ? 'You! ★' : day.potm.name) : '—'}
+          note={day.potm ? `${day.potm.votes} vote${day.potm.votes === 1 ? '' : 's'}` : day.vote ? 'When the vote closes' : 'No vote'}
+          tone={day.potm ? 'ink' : 'muted'}
+        />
       </div>
 
       {day.vote && (
         <Link
           href={`/v/${day.vote.token}`}
-          className={`mt-3 flex items-center justify-between rounded-2xl px-3.5 py-2.5 text-sm font-bold ${
-            day.vote.voted ? 'bg-chalk text-gray-600' : 'bg-sun-400 text-ink border-2 border-ink'
+          className={`press mt-3 flex items-center justify-between gap-3 min-h-12 rounded-2xl px-4 text-[14px] font-bold ${
+            day.vote.voted ? 'bg-chalk text-gray-700' : 'bg-sun-400 text-ink border-2 border-ink shadow-sticker'
           }`}
         >
-          {day.vote.voted ? 'You voted — see results' : 'Vote for the stars of the night'}
-          <span>›</span>
+          {day.vote.voted ? 'You voted · change your picks' : 'Vote for Player of the Match'}
+          <span aria-hidden>›</span>
         </Link>
       )}
 
-      {day.teamOpen && (
-        <Link href={`/me/games/${day.sessionId}`} className="mt-3 block text-center text-xs font-bold text-pitch-600 hover:text-ink">
-          {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
-        </Link>
+      {(day.teamOpen || (day.shareToken && (played > 0 || day.potm))) && (
+        <div className="mt-2 flex items-center gap-2">
+          {day.teamOpen && (
+            <Link href={`/me/games/${day.sessionId}`} className="press inline-flex items-center min-h-11 px-1 text-[13px] font-bold text-pitch-700">
+              {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
+            </Link>
+          )}
+          {day.shareToken && (played > 0 || day.potm) && (
+            <ShareCardButton
+              token={day.shareToken}
+              caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+              className="press ml-auto inline-flex items-center min-h-11 px-4 rounded-full border border-gray-200 bg-white text-[13px] font-bold text-ink hover:border-ink"
+            >
+              Share ↗
+            </ShareCardButton>
+          )}
+        </div>
       )}
     </div>
   );
