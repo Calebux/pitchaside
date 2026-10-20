@@ -72,6 +72,14 @@ export class SignupDto {
   password: string;
 }
 
+/** "Playing" switch: the code from their email, when the server asked for one. */
+export class FromOrganiserDto {
+  @IsOptional()
+  @IsString()
+  @Matches(/^\s*\d{6}\s*$/, { message: 'The code is the 6 numbers in the email' })
+  code?: string;
+}
+
 export class LoginDto {
   @IsEmail({}, { message: 'Enter a valid email address' })
   email: string;
@@ -217,7 +225,14 @@ export class PlayerAuthController {
   @UseGuards(JwtAuthGuard)
   @AllowTreasurer()
   @Post('player-auth/from-organiser')
-  async fromOrganiser(@CurrentUser() user: User, @Res({ passthrough: true }) res: Response) {
+  async fromOrganiser(@CurrentUser() user: User, @Body() dto: FromOrganiserDto, @Res({ passthrough: true }) res: Response) {
+    if (await this.auth.organiserNeedsProof(user)) {
+      if (!dto?.code) {
+        const sent = await this.auth.requestCode(user.email);
+        return { needsCode: true as const, email: user.email, devCode: sent.devCode };
+      }
+      await this.auth.proveOrganiserEmail(user, dto.code);
+    }
     await this.auth.ensureOrganiserPlayer(user);
     const token = await this.startSession(res, user.email);
     return { token };
