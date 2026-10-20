@@ -154,6 +154,61 @@ export function emptyVotes(): Record<VoteCategory, number> {
 }
 
 /** Ratings for someone who hasn't played: zeros, and no card yet. */
+/**
+ * The trial rating (decided 19 Oct: 40 individual stats, 40 votes, 20 team results), worked out
+ * beside the card's rating so the organiser can compare before it replaces anything.
+ *
+ * Each part is where the player stands in the club on one measure (a percentile), pulled toward
+ * the middle while there's little evidence, then put on the card's 40–99 scale:
+ * - stats: goals plus three quarters of an assist, per game;
+ * - votes: how often the ballots they could be on named them Player of the Match (40%) or put
+ *   them in a Best VII (40%), plus their average share of the awards with enough evidence (20%).
+ *   Shares, not raw counts, so a big group's votes don't outweigh a small one's;
+ * - results: the results rating that balances teams.
+ * No evidence on a measure counts as the middle, never as a penalty.
+ */
+export const TRIAL_WEIGHTS = { stats: 0.4, votes: 0.4, results: 0.2 } as const;
+/** How much evidence it takes before a part can move far from the middle: half way at this many. */
+const TRIAL_PRIOR = { stats: 3, votes: 6, results: 3 } as const;
+
+export interface TrialRating {
+  trial: number;
+  parts: { stats: number; votes: number; results: number };
+}
+
+export function trialRatings(rows: (PlayerRatings & { player: { id: string } })[]): Map<string, TrialRating> {
+  const played = rows.filter((r) => r.games > 0);
+  const awardShare = (r: PlayerRatings) => {
+    const shares = Object.values(r.evidence ?? {}).filter((e): e is AwardEvidence => !!e && e.enough).map((e) => e.share);
+    return shares.length ? shares.reduce((a, b) => a + b, 0) / shares.length : 0;
+  };
+  const measure = {
+    stats: (r: PlayerRatings) => (r.games ? (r.goals + 0.75 * r.assists) / r.games : null),
+    votes: (r: PlayerRatings) =>
+      r.ballotsSeen ? 0.4 * (r.votes.potm ?? 0) / r.ballotsSeen + 0.4 * Math.min(1, r.viiPicks / r.ballotsSeen) + 0.2 * awardShare(r) : null,
+    results: (r: PlayerRatings) => (r.games ? r.skill : null),
+  };
+  const evidence = { stats: (r: PlayerRatings) => r.games, votes: (r: PlayerRatings) => r.ballotsSeen, results: (r: PlayerRatings) => r.games };
+  const out = new Map<string, TrialRating>();
+  const parts = (Object.keys(TRIAL_WEIGHTS) as (keyof typeof TRIAL_WEIGHTS)[]).map((k) => {
+    const values = played.map((r) => measure[k](r)).filter((v): v is number => v !== null);
+    return { k, values };
+  });
+  for (const r of rows) {
+    const p = {} as TrialRating['parts'];
+    for (const { k, values } of parts) {
+      const v = r.games ? measure[k](r) : null;
+      // Percentile: share below, plus half of those level (so a tie in the middle sits at the middle).
+      const pct = v === null || values.length < 2 ? 0.5 : (values.filter((x) => x < v).length + 0.5 * (values.filter((x) => x === v).length - 1)) / (values.length - 1);
+      const n = evidence[k](r);
+      const pulled = 0.5 + (pct - 0.5) * (n / (n + TRIAL_PRIOR[k]));
+      p[k] = Math.round(40 + 59 * pulled);
+    }
+    out.set(r.player.id, { parts: p, trial: Math.round(TRIAL_WEIGHTS.stats * p.stats + TRIAL_WEIGHTS.votes * p.votes + TRIAL_WEIGHTS.results * p.results) });
+  }
+  return out;
+}
+
 /** The numbers a player's stats compare with everyone else's. */
 export const COMPARED = ['goals', 'assists', 'potmWins', 'viiOfDay', 'wins', 'points', 'games', 'bestOnTeam', 'teamOfDay'] as const;
 export type ComparedStat = (typeof COMPARED)[number];
@@ -1349,6 +1404,31 @@ export class RatingsService {
         return { ...r, form, move: was === undefined || !before.length ? null : was - i };
       }),
     };
+  }
+
+  /**
+   * The trial 40/40/20 rating for a group's players, beside the card's rating, for the organiser
+   * only. Worked out across the club, all time, like the card. Changes nothing anyone else sees.
+   */
+  async getRatingTrial(groupId: string, organizationId: string) {
+    const group = await this.groupsRepo.findOne({ where: { id: groupId, organizationId }, relations: ['memberships'] });
+    if (!group) throw new NotFoundException('Group not found');
+    const members = new Set((group.memberships ?? []).map((m) => m.playerId));
+    const everyone = [...(await this.aggregate(await this.gamesQuery(organizationId).getMany(), await this.skills(organizationId))).values()];
+    const trial = trialRatings(everyone);
+    const rows = everyone
+      .filter((r) => members.has(r.player.id) && r.games > 0)
+      .map((r) => ({
+        player: r.player,
+        games: r.games,
+        ballotsSeen: r.ballotsSeen,
+        goals: r.goals,
+        assists: r.assists,
+        ovr: r.ovr,
+        ...trial.get(r.player.id)!,
+      }))
+      .sort((a, b) => b.trial - a.trial || (b.ovr ?? 0) - (a.ovr ?? 0));
+    return { weights: TRIAL_WEIGHTS, rows };
   }
 
   /**

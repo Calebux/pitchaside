@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { RatingsService, blankRatings, compareStats } from './ratings.service';
+import { RatingsService, blankRatings, compareStats, trialRatings } from './ratings.service';
 import { SessionKind, SessionStatus } from '../sessions/entities/session.entity';
 import { VoteCategory } from './entities/vote.entity';
 import { localDate } from '../common/time.util';
@@ -389,5 +389,45 @@ describe('compareStats', () => {
   });
   it('ranks 0 for someone who has not played', () => {
     expect(compareStats([row('a', 1, 1)], 'z').goals.rank).toBe(0);
+  });
+});
+
+describe('trialRatings (40 stats / 40 votes / 20 results)', () => {
+  const row = (id: string, o: Partial<{ games: number; goals: number; assists: number; potm: number; vii: number; ballots: number; skill: number }>) =>
+    ({
+      ...blankRatings(),
+      player: { id },
+      games: o.games ?? 10,
+      goals: o.goals ?? 0,
+      assists: o.assists ?? 0,
+      viiPicks: o.vii ?? 0,
+      ballotsSeen: o.ballots ?? 60,
+      skill: o.skill ?? 1500,
+      votes: { ...blankRatings().votes, potm: o.potm ?? 0 },
+    }) as any;
+
+  it('puts the scorer who is voted for and wins at the top, on the 40–99 scale', () => {
+    const t = trialRatings([
+      row('star', { goals: 20, assists: 10, potm: 20, vii: 50, skill: 1700 }),
+      row('mid', { goals: 5, assists: 5, potm: 3, vii: 20, skill: 1500 }),
+      row('quiet', { skill: 1300 }),
+    ]);
+    expect(t.get('star')!.trial).toBeGreaterThan(t.get('mid')!.trial);
+    expect(t.get('mid')!.trial).toBeGreaterThan(t.get('quiet')!.trial);
+    for (const r of t.values()) {
+      expect(r.trial).toBeGreaterThanOrEqual(40);
+      expect(r.trial).toBeLessThanOrEqual(99);
+    }
+  });
+
+  it('weighs stats and votes 40 each and results 20', () => {
+    const t = trialRatings([row('a', { goals: 9 }), row('b', {})]).get('a')!;
+    expect(t.trial).toBe(Math.round(0.4 * t.parts.stats + 0.4 * t.parts.votes + 0.2 * t.parts.results));
+  });
+
+  it('keeps someone with little evidence near the middle, and no votes is not a penalty', () => {
+    const t = trialRatings([row('new', { games: 1, goals: 3, ballots: 0 }), row('b', {}), row('c', { goals: 2 })]);
+    expect(t.get('new')!.parts.votes).toBe(70);
+    expect(t.get('new')!.parts.stats).toBeLessThan(85);
   });
 });
