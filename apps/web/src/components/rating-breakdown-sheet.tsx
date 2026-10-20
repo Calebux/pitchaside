@@ -57,7 +57,7 @@ export function RatingBreakdownSheet({ name, load, onClose }: { name: string; lo
           lines: data.votes.ballots
             ? [
                 `Player of the Match on ${data.votes.potmVotes} of ${plural(data.votes.ballots, 'ballot')} they could be on${data.votes.potmWins ? ` (won it ${plural(data.votes.potmWins, 'time')})` : ''}`,
-                `In ${plural(data.votes.viiPicks, 'Best VII')} picked`,
+                data.votes.viiPicks ? `In ${plural(data.votes.viiPicks, 'Best VII')} picked by teammates` : 'Not in anyone’s Best VII yet',
                 data.votes.awards.length ? `${plural(data.votes.awards.length, 'award')} with enough voters` : 'No awards with enough voters yet',
               ]
             : ['No votes yet, so this sits in the middle. It never counts against them.'],

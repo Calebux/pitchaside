@@ -5,9 +5,18 @@ import Link from 'next/link';
 import { Avatar } from '@/components/ratings';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { stagger } from '@/components/motion';
-import { getGroupTable, getRatingTrial, type LeagueTable, type RatingTrial } from '@/lib/api';
+import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
+import { getGroupTable, getRatingBreakdown, getRatingTrial, type LeagueTable, type RatingTrial } from '@/lib/api';
 
 type Row = LeagueTable['rows'][number];
+type Parts = RatingTrial['rows'][number]['parts'];
+const PARTS = [
+  ['stats', 'Stats'],
+  ['votes', 'Votes'],
+  ['results', 'Results'],
+] as const;
+/** Where a 40–99 score sits along a bar, and where the club's middle (70) is. */
+const along = (n: number) => `${Math.max(0, Math.min(100, ((n - 40) / 59) * 100))}%`;
 export type StatSort =
   | 'rating'
   | 'goals'
@@ -52,6 +61,7 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
   const [parts, setParts] = useState<Map<string, RatingTrial['rows'][number]>>(new Map());
   const [failed, setFailed] = useState<string | false>(false);
   const [per, setPer] = useState<'total' | 'game'>('total');
+  const [explaining, setExplaining] = useState<Row | null>(null);
 
   const load = useCallback(() => {
     setFailed(false);
@@ -131,51 +141,67 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
               : ''}
         </p>
       ) : (
-        <ol className="mt-3 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden" aria-label={`Ranked by ${stat.label}`}>
-          {rows.map((r, i) => {
-            const v = value(r);
-            // Level players share a place.
-            const place = 1 + rows.findIndex((x) => value(x) === v);
-            const p = parts.get(r.player.id);
-            const name = nameOf(r);
-            return (
-              <li key={r.player.id} className="animate-rise" style={stagger(Math.min(i, 12), 20, 0)}>
-                <Link href={`/players/${r.player.id}`} className="press flex items-center gap-3 min-h-16 px-3.5 py-2.5 hover:bg-chalk/60">
-                  <span className={`w-6 shrink-0 text-center font-display text-[15px] font-extrabold tabular-nums ${place <= 3 && v > 0 ? 'text-pitch-700' : 'text-gray-400'}`}>
-                    {place}
-                  </span>
-                  <Avatar name={name} photoKey={r.player.photoKey} className="w-9 h-9 text-[11px]" />
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-bold text-ink truncate">{name}</span>
-                    {sort === 'rating' && p ? (
-                      <span className="mt-1 grid grid-cols-3 gap-1.5" aria-label={`Stats ${p.parts.stats}, votes ${p.parts.votes}, results ${p.parts.results}`}>
-                        {(['stats', 'votes', 'results'] as const).map((k) => (
-                          <span key={k} className="min-w-0" aria-hidden>
-                            <span className="flex items-baseline justify-between text-[10px] font-bold text-gray-500">
-                              <span className="capitalize">{k}</span>
-                              <span className="tabular-nums text-ink">{p.parts[k]}</span>
-                            </span>
-                            <span className="mt-0.5 block h-1 rounded-full bg-gray-100">
-                              <span className="block h-1 rounded-full bg-pitch-500" style={{ width: `${((p.parts[k] - 40) / 59) * 100}%` }} />
-                            </span>
+        <>
+          {sort === 'rating' && <RatingSpotlight top={rows.filter((r) => value(r) === value(rows[0]))} parts={parts} of={played.length} onExplain={setExplaining} />}
+          <div className="mt-3 bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
+            {sort === 'rating' && (
+              <div className="flex items-center gap-3 px-3.5 pt-2.5 pb-2 border-b border-gray-100 text-[9px] font-extrabold uppercase tracking-[0.1em] text-gray-500" aria-hidden>
+                <span className="w-6 shrink-0 text-center">#</span>
+                <span className="w-9 shrink-0" />
+                <span className="flex-1 min-w-0 grid grid-cols-3 gap-2">
+                  {PARTS.map(([k, label]) => (
+                    <span key={k}>{label}</span>
+                  ))}
+                </span>
+                <span className="w-12 shrink-0 text-center">OVR</span>
+              </div>
+            )}
+            <ol className="divide-y divide-gray-100" aria-label={`Ranked by ${stat.label}`}>
+              {rows.map((r, i) => {
+                const v = value(r);
+                // Level players share a place.
+                const place = 1 + rows.findIndex((x) => value(x) === v);
+                const joint = rows.filter((x) => value(x) === v).length > 1;
+                const p = parts.get(r.player.id);
+                const name = nameOf(r);
+                return (
+                  <li key={r.player.id} className="animate-rise" style={stagger(Math.min(i, 12), 20, 0)}>
+                    <Link href={`/players/${r.player.id}`} className="press flex items-center gap-3 min-h-16 px-3.5 py-2.5 hover:bg-chalk/60">
+                      <span
+                        className={`w-6 shrink-0 text-center font-display text-[15px] font-extrabold tabular-nums ${place <= 3 && v > 0 ? 'text-pitch-700' : 'text-gray-400'}`}
+                        aria-label={joint ? `Joint ${place}` : `${place}`}
+                      >
+                        {i > 0 && value(rows[i - 1]) === v ? '=' : place}
+                      </span>
+                      <Avatar name={name} photoKey={r.player.photoKey} className="w-9 h-9 text-[11px]" />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-[15px] font-bold text-ink truncate">{name}</span>
+                        {sort === 'rating' && p ? (
+                          <PartBars parts={p.parts} />
+                        ) : (
+                          <span className="block text-[12px] text-gray-500 tabular-nums truncate">
+                            {r.games} played · {r.goals} G · {r.assists} A{r.potmWins ? ` · ★ ${r.potmWins}` : ''}
                           </span>
-                        ))}
+                        )}
                       </span>
-                    ) : (
-                      <span className="block text-[12px] text-gray-500 tabular-nums truncate">
-                        {r.games} played · {r.goals} G · {r.assists} A{r.potmWins ? ` · ★ ${r.potmWins}` : ''}
-                      </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block font-display text-[20px] leading-none font-extrabold text-ink tabular-nums">{fmt(v)}</span>
-                    <span className="block mt-0.5 text-[10px] font-bold text-gray-500">{byGame ? `${stat.unit} a game` : stat.unit}</span>
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ol>
+                      {sort === 'rating' ? (
+                        <span className="shrink-0 w-12 h-12 rounded-xl bg-ink flex flex-col items-center justify-center leading-none">
+                          <span className="font-display text-[19px] font-extrabold text-volt-300 tabular-nums">{fmt(v)}</span>
+                          <span className="mt-0.5 text-[8px] font-extrabold tracking-[0.14em] text-white/60">OVR</span>
+                        </span>
+                      ) : (
+                        <span className="shrink-0 text-right">
+                          <span className="block font-display text-[20px] leading-none font-extrabold text-ink tabular-nums">{fmt(v)}</span>
+                          <span className="block mt-0.5 text-[10px] font-bold text-gray-500">{byGame ? `${stat.unit} a game` : stat.unit}</span>
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        </>
       )}
       {table && rows.length > 0 && none > 0 && (
         <p className="mt-2 px-1 text-[12px] text-gray-500">
@@ -187,12 +213,99 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
           {notYet} player{notYet === 1 ? ' hasn’t' : 's haven’t'} played a game with scores yet.
         </p>
       )}
-      {sort === 'rating' && (
-        <p className="mt-2 px-1 text-[11px] leading-snug text-gray-500">
-          Rating: 40% stats (goals, assists and saves; cards take a little off), 40% votes (Player of the Match, Best VII, awards), 20% team results, each against the rest of the club. 70 is
-          the middle.
-        </p>
+      {explaining && (
+        <RatingBreakdownSheet
+          name={`${explaining.player.firstName} ${explaining.player.lastName}`}
+          load={() => getRatingBreakdown(explaining.player.id)}
+          onClose={() => setExplaining(null)}
+        />
       )}
+    </section>
+  );
+}
+
+/** A rating's three parts as thin bars, each with a tick at the club's middle (70). */
+function PartBars({ parts }: { parts: Parts }) {
+  return (
+    <span className="mt-1.5 grid grid-cols-3 gap-2" aria-label={`Stats ${parts.stats}, votes ${parts.votes}, results ${parts.results}`}>
+      {PARTS.map(([k]) => (
+        <span key={k} className="min-w-0" aria-hidden>
+          <span className={`block font-display text-[13px] leading-none font-extrabold tabular-nums ${parts[k] > 70 ? 'text-pitch-700' : parts[k] < 70 ? 'text-kit-600' : 'text-ink'}`}>{parts[k]}</span>
+          <span className="relative mt-1 block h-1.5 rounded-full bg-gray-100">
+            <span className="block h-1.5 rounded-full bg-pitch-500" style={{ width: along(parts[k]) }} />
+            <span className="absolute -top-0.5 h-2.5 w-px bg-ink/40" style={{ left: along(70) }} />
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * The top of the rating list as a hero: who leads the club (or who shares the lead), their card
+ * number, what it is made of against the club's middle, and how the number is built. "How it's
+ * made" opens the same breakdown as tapping a player card.
+ */
+function RatingSpotlight({ top, parts, of, onExplain }: { top: Row[]; parts: Map<string, RatingTrial['rows'][number]>; of: number; onExplain: (r: Row) => void }) {
+  const lead = top[0];
+  const p = parts.get(lead.player.id)?.parts;
+  const name = `${lead.player.firstName} ${lead.player.lastName}`.trim();
+  const others = top.length - 1;
+  return (
+    <section aria-label="Top rated" className="mt-3 relative overflow-hidden rounded-3xl bg-ink text-white shadow-card animate-pop-in">
+      <span className="absolute inset-0 turf-stripes" aria-hidden />
+      <div className="relative p-4">
+        <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-volt-300">
+          {others ? `Joint top rated · ${top.length} players` : `Top rated of ${of}`}
+        </p>
+        <div className="mt-3 flex items-center gap-3.5">
+          <span className="relative shrink-0">
+            <Avatar name={name} photoKey={lead.player.photoKey} className="w-16 h-16 text-[18px] ring-2 ring-white/20" />
+            <span className="absolute -bottom-1.5 -right-1.5 min-w-9 h-9 px-1 rounded-xl bg-ink border-2 border-volt-300 text-volt-300 flex items-center justify-center font-display text-[17px] font-extrabold tabular-nums">
+              {lead.ovr ?? '–'}
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[22px] leading-tight font-extrabold break-words">{name}</span>
+            {lead.player.nickname && <span className="block text-[13px] font-bold text-volt-300 truncate">“{lead.player.nickname}”</span>}
+            <span className="block mt-0.5 text-[12px] text-white/70 tabular-nums">
+              {lead.games} played · {lead.goals} G · {lead.assists} A{lead.potmWins ? ` · ${lead.potmWins} POTM` : ''}
+            </span>
+            {others > 0 && (
+              <span className="block mt-0.5 text-[12px] text-white/70">
+                Level with {top
+                  .slice(1, 3)
+                  .map((r) => r.player.nickname || r.player.firstName)
+                  .join(', ')}
+                {others > 2 ? ` and ${others - 2} more` : ''}
+              </span>
+            )}
+          </span>
+        </div>
+        {p && (
+          <dl className="mt-4 grid grid-cols-3 gap-2">
+            {PARTS.map(([k, label]) => (
+              <div key={k} className="min-w-0 rounded-2xl bg-white/[0.07] px-2.5 py-2">
+                <dt className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/60 truncate">{label}</dt>
+                <dd className="mt-0.5 font-display text-[20px] leading-none font-extrabold tabular-nums">{p[k]}</dd>
+                <dd className="relative mt-1.5 h-1.5 rounded-full bg-white/10" aria-hidden>
+                  <span className="block h-1.5 rounded-full bg-volt-300 animate-fill-grow" style={{ width: along(p[k]) }} />
+                  <span className="absolute -top-0.5 h-2.5 w-px bg-white/60" style={{ left: along(70) }} />
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        <p className="mt-3 text-[12px] leading-snug text-white/70">
+          Every rating is 40% stats, 40% votes and 20% team results, each against the rest of the club. The line on each bar is the middle, 70.
+        </p>
+        <button
+          onClick={() => onExplain(lead)}
+          className="press mt-3 w-full min-h-11 rounded-full bg-white/10 text-[14px] font-bold text-white hover:bg-white/15"
+        >
+          How {lead.player.nickname || lead.player.firstName}’s {lead.ovr} is made
+        </button>
+      </div>
     </section>
   );
 }
