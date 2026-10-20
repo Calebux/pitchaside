@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches, IsIn } from 'class-validator';
+import { IsInt, Max, IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches, IsIn } from 'class-validator';
 import { PaymentType, CONTRIBUTIONS_VISIBILITY, type ContributionsVisibility } from '../entities/group.entity';
 
 export class CreateGroupDto {
@@ -93,4 +93,11 @@ export class UpdateGroupDto {
   @IsOptional()
   @IsIn(CONTRIBUTIONS_VISIBILITY)
   contributionsVisibility?: ContributionsVisibility;
+
+  /** How long each game usually lasts on match day, in minutes; null for the usual 7. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  gameMinutes?: number | null;
 }

@@ -17,6 +17,7 @@ import { MatchGoal } from './entities/match-goal.entity';
 import { MatchEvent, type MatchEventKind } from './entities/match-event.entity';
 import { GamePaid, paidForGames } from '../payments/game-dues';
 import { localDate } from '../common/time.util';
+import { timerChange, timerOf } from './timer';
 import { pitchName, sheetName } from '../players/player-name';
 import { Payment } from '../payments/entities/payment.entity';
 import { DEFAULT_START, LEVEL_START, PROVISIONAL_UNDER, cardRating, replaySkill, type Skill, type SkillGame } from './skill';
@@ -779,6 +780,44 @@ export class RatingsService {
       standings: table.rows,
       teamOfTheDay: table.teamOfTheDay,
     };
+  }
+
+  /** The match-day timer, as the organiser sees it. */
+  async getTimer(sessionId: string, organizationId: string) {
+    return timerOf(await this.loadSession(sessionId, organizationId));
+  }
+
+  async setTimer(sessionId: string, organizationId: string, input: { start?: boolean; minutes?: number }) {
+    const session = await this.loadSession(sessionId, organizationId);
+    return this.changeTimer(session, input);
+  }
+
+  private async changeTimer(session: Session, input: { start?: boolean; minutes?: number }) {
+    if (session.kind !== SessionKind.GAME) throw new BadRequestException('Only games have a timer');
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    let patch;
+    try {
+      patch = timerChange(input);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    if (Object.keys(patch).length) await this.sessionsRepo.update(session.id, patch);
+    return timerOf({ ...session, ...patch });
+  }
+
+  /** The timer for anyone playing in the game, so the whole squad sees the clock. */
+  async playerTimer(sessionId: string, playerIds: string[]) {
+    const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['group', 'payments'] });
+    if (!session || session.kind !== SessionKind.GAME || !session.payments?.some((p) => playerIds.includes(p.playerId))) {
+      throw new NotFoundException("You're not in this game");
+    }
+    return timerOf(session);
+  }
+
+  /** Today's captains start and stop the clock too, like keeping the score. */
+  async captainTimer(sessionId: string, playerIds: string[], input: { start?: boolean; minutes?: number }) {
+    const { session } = await this.captainToday(sessionId, playerIds);
+    return this.changeTimer(session, input);
   }
 
   async setLineup(

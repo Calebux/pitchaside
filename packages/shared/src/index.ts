@@ -44,6 +44,8 @@ export interface IGroup {
   requireRsvp?: boolean;
   kickoffTime?: string | null;
   contributionsVisibility?: ContributionsVisibility;
+  /** How long each game usually lasts on match day, in minutes; null for the usual 7. */
+  gameMinutes?: number | null;
   inviteCode?: string;
   accountNumber?: string;
   accountName?: string;
@@ -326,4 +328,19 @@ export interface ICompetitionStanding {
   goalsAgainst: number;
   goalDifference: number;
   points: number;
+}
+
+// ── Match-day timer ──
+
+/** A game's length when the group hasn't set one (the API keeps its own copy: DEFAULT_GAME_MINUTES). */
+export const DEFAULT_GAME_MINUTES = 7;
+
+/** The match-day clock as every phone gets it. */
+export interface GameTimer {
+  /** Today's game length in minutes: the day's own, else the group's, else 7. */
+  minutes: number;
+  /** When the running game's clock started; null while it isn't running. */
+  startedAt: string | null;
+  /** The server's time when sent, so every phone counts down from the same clock. */
+  now: string;
 }

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNumber, IsObject, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +18,7 @@ import { PhotoDto } from '../players/dto/photo.dto';
 import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
-import { EventDto, GameDto, GoalDto } from '../ratings/ratings.controller';
+import { EventDto, GameDto, GoalDto, TimerDto } from '../ratings/ratings.controller';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
 
@@ -341,6 +341,17 @@ export class PlayerPortalController {
   @Get('games/:id/match-day')
   matchDay(@Param('id') id: string, @CurrentPerson() person: Person) {
     return this.portal.matchDay(person, id);
+  }
+
+  /** The match-day clock: everyone in the game sees it; today's captains start and stop it. */
+  @Get('games/:id/timer')
+  timer(@Param('id') id: string, @CurrentPerson() person: Person) {
+    return this.portal.timer(person, id);
+  }
+
+  @Put('games/:id/timer')
+  setTimer(@Param('id') id: string, @Body() dto: TimerDto, @CurrentPerson() person: Person) {
+    return this.portal.setTimer(person, id, dto);
   }
 
   @Post('games/:id/match-day/games')

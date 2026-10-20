@@ -16,6 +16,7 @@ import type {
   CompetitionScope,
   CompetitionVisibility,
   CompetitionStatus,
+  GameTimer,
 } from '@pitchaside/shared';
 import { http } from './http';
 
@@ -105,6 +106,7 @@ export function updateGroup(
     requireRsvp: boolean;
     kickoffTime: string;
     contributionsVisibility: ContributionsVisibility;
+    gameMinutes: number | null;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);
@@ -816,6 +818,16 @@ export function saveLineup(
   data: { teamCount?: number; teams?: Record<string, TeamKey | null>; captains?: Partial<Record<TeamKey, string | null>> },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
+}
+
+/** The match-day clock. */
+export function getTimer(sessionId: string): Promise<GameTimer> {
+  return http.get(`/sessions/${sessionId}/timer`);
+}
+
+/** Start (from now) or stop the clock, and/or set today's game length. */
+export function setTimer(sessionId: string, change: { start?: boolean; minutes?: number }): Promise<GameTimer> {
+  return http.put(`/sessions/${sessionId}/timer`, change);
 }
 
 export function balanceLineup(sessionId: string, teamCount?: number): Promise<Lineup> {

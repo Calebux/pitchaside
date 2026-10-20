@@ -12,6 +12,8 @@ import { TEAMS, teamName } from '@/lib/teams';
 import { Swatch, shortName } from './teams-step';
 import { ScorerSheet } from './scorer-sheet';
 import { EventsSection } from './events-section';
+import { GameTimer, type TimerApi } from '@/components/game-timer';
+import { getTimer, setTimer } from '@/lib/api';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
@@ -29,6 +31,8 @@ const ORGANISER: ScoresApi = retryKeys(
   ['addGame', 'addGoal', 'addEvent'],
 );
 
+const ORGANISER_TIMER: TimerApi = { load: getTimer, save: setTimer };
+
 /**
  * Step 3 of match day: each short game's score. A scoreboard with big − and + for each side
  * (two teams are fixed; with more, tap a side's name to pick who's playing), then the games so
@@ -44,6 +48,8 @@ export function ScoresStep({
   onError,
   onPickTeams,
   api = ORGANISER,
+  timer = ORGANISER_TIMER,
+  timerOn = true,
   canRemove = () => true,
 }: {
   sessionId: string;
@@ -55,6 +61,10 @@ export function ScoresStep({
   onPickTeams: () => void;
   /** Where scores are saved: the organiser's routes, or a captain's from the player app. */
   api?: ScoresApi;
+  /** The match-day clock: the organiser's routes, or a captain's. */
+  timer?: TimerApi;
+  /** Show the clock: while the day is on, not after full time. */
+  timerOn?: boolean;
   /** Whether this person can delete a score or a scorer someone recorded ("Ada (captain)"). */
   canRemove?: (recordedBy: string | null | undefined) => boolean;
 }) {
@@ -220,6 +230,11 @@ export function ScoresStep({
 
   return (
     <section aria-label="Scores">
+      {timerOn && (
+        <div className="mb-3">
+          <GameTimer sessionId={sessionId} api={timer} onError={onError} />
+        </div>
+      )}
       <div className="rounded-3xl bg-ink turf-stripes p-4">
         <p className="text-center text-[12px] font-bold text-white/60">Game {lineup.games.length + 1}</p>
         <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-start gap-1">

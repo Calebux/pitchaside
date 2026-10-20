@@ -5,7 +5,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
 import { GroupEditSheet, type GroupEditData } from '@/components/group/group-edit-sheet';
 import { deleteGroup, updateGroup, type IGroupWithMembers } from '@/lib/api';
-import { PaymentType } from '@pitchaside/shared';
+import { DEFAULT_GAME_MINUTES, PaymentType } from '@pitchaside/shared';
 
 /**
  * A group's settings, opened from the group switch on any screen: its details (name, pitch, day,
@@ -38,6 +38,7 @@ export function GroupSettingsSheet({
     paymentType: group.paymentType,
     requireRsvp: !!group.requireRsvp,
     contributionsVisibility: group.contributionsVisibility ?? 'private',
+    gameMinutes: group.gameMinutes ?? DEFAULT_GAME_MINUTES,
   };
 
   async function save(d: GroupEditData) {
@@ -54,6 +55,7 @@ export function GroupSettingsSheet({
         paymentType: d.paymentType as PaymentType,
         requireRsvp: d.requireRsvp,
         contributionsVisibility: d.contributionsVisibility,
+        gameMinutes: d.gameMinutes,
       });
       toast.success('Changes saved');
       onSaved();

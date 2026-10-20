@@ -445,7 +445,7 @@ export default function GamePage() {
       ))}
 
       {isGame && step === 'scores' && (lineup ? (
-        <ScoresStep sessionId={id} lineup={lineup} dateLabel={gameLabel(session)} onLineup={setLineup} onError={(m) => toast.error(m)} onPickTeams={() => chooseStep('teams')} />
+        <ScoresStep sessionId={id} lineup={lineup} dateLabel={gameLabel(session)} timerOn={session.status === 'upcoming'} onLineup={setLineup} onError={(m) => toast.error(m)} onPickTeams={() => chooseStep('teams')} />
       ) : (
         <LineupFailed reason={lineupError} onRetry={() => getLineup(id).then((l) => { setLineup(l); setLineupError(null); }).catch((err) => { setLineupError(err instanceof Error ? err.message : null); toast.error('Still not loading.'); })} />
       ))}

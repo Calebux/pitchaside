@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import type { ContributionsVisibility } from '@pitchaside/shared';
+import { DEFAULT_GAME_MINUTES, type ContributionsVisibility } from '@pitchaside/shared';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
@@ -21,6 +21,8 @@ export interface GroupEditData {
   paymentType: string;
   requireRsvp: boolean;
   contributionsVisibility: ContributionsVisibility;
+  /** How long each game lasts on match day, in minutes; the timer starts from this. */
+  gameMinutes: number;
 }
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -145,7 +147,7 @@ export function GroupEditSheet({
   const [day, setDay] = useState(() => dayOf(initial.schedule));
   const set = (patch: Partial<GroupEditData>) => setD((x) => ({ ...x, ...patch }));
   const times = d.kickoffTime && !TIMES.includes(d.kickoffTime.slice(0, 5)) ? [d.kickoffTime.slice(0, 5), ...TIMES] : TIMES;
-  const valid = d.name.trim().length > 0 && d.targetPlayers >= 2 && d.feePerPlayer >= 0;
+  const valid = d.name.trim().length > 0 && d.targetPlayers >= 2 && d.feePerPlayer >= 0 && d.gameMinutes >= 1 && d.gameMinutes <= 60;
   const freq = frequencyOptions.find((o) => o.value === d.paymentType);
 
   function pickDay(v: string) {
@@ -236,6 +238,23 @@ export function GroupEditSheet({
               </option>
             ))}
           </Select>
+        </div>
+
+        <div>
+          <span className={label} id="g-length-label">
+            Each game lasts
+          </span>
+          <Stepper
+            id="g-length"
+            labelledBy="g-length-label"
+            value={d.gameMinutes}
+            onChange={(v) => set({ gameMinutes: Math.min(60, v) })}
+            step={1}
+            min={1}
+            less="One minute less"
+            more="One minute more"
+          />
+          <p className="mt-1.5 text-xs text-gray-500">Minutes. The match-day timer starts from this; change it on the day if you need to.</p>
         </div>
 
         {/* Players and money */}
