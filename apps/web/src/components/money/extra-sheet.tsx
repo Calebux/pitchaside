@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
-import { kitFor } from '@/components/illustrations';
+import { Avatar } from '@/components/ratings';
 import { formatCurrency, getGiveExtraPreview, type ExtraMoney, type ExtraSource, type GiveExtraPreview, type OwedItem } from '@/lib/api';
 import { owedLabel, type MatchMember } from '@/lib/give-outcome';
 
@@ -84,12 +84,12 @@ export function ExtraSheet({
   const options: { key: Choice; title: string; hint: string }[] = waiting
     ? [
         { key: 'someone', title: 'It was for a player in the group', hint: 'It pays what they owe now' },
-        { key: 'release', title: `Put it back with ${first}’s extra`, hint: 'Then keep it for them or send it back' },
+        { key: 'release', title: `Put it back with ${first}’s extra`, hint: 'It wasn’t for anyone else' },
       ]
     : [
         { key: 'someone', title: 'Paying for someone else', hint: 'Like a friend’s game fee' },
-        { key: 'unknown', title: 'For someone not in the group yet', hint: 'Or you don’t know who. It waits until you find out' },
-        { key: 'keep', title: `Keep it for ${first}’s next game`, hint: 'It pays their next game once it’s the next one' },
+        { key: 'unknown', title: 'For someone not in the group yet', hint: 'Or you don’t know who yet' },
+        { key: 'keep', title: `Keep it for ${first}’s next game`, hint: 'They paid ahead' },
         { key: 'back', title: `Send it back to ${first}`, hint: 'Refund it from the group account' },
       ];
 
@@ -141,44 +141,75 @@ export function ExtraSheet({
       </button>
     );
 
+  // What a choice does, in a line, shown under it once picked.
+  const detail = (key: Choice) =>
+    key === 'unknown' ? (
+      <>
+        <label className="block">
+          <span className="sr-only">Who might it be for? (optional)</span>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 80))}
+            maxLength={80}
+            placeholder="Who might it be for? (optional)"
+            className="w-full h-11 px-3.5 bg-white border border-gray-200 rounded-xl text-[15px] placeholder:text-gray-500 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+          />
+        </label>
+        <p className="mt-2 text-[13px] leading-snug text-gray-600">Kept apart from {first}’s money. It pays no game until you give it to someone.</p>
+      </>
+    ) : key === 'keep' ? (
+      <p className="text-[13px] leading-snug text-gray-600">Pays {first}’s next game once it’s the next one, never games further ahead.</p>
+    ) : key === 'back' ? (
+      <p className="text-[13px] leading-snug text-gray-600">Opens Send money with a refund to {first}’s own account ready.</p>
+    ) : key === 'release' ? (
+      <p className="text-[13px] leading-snug text-gray-600">Back to {first}’s extra, to keep for them or send back.</p>
+    ) : null;
+
   return (
     <Sheet titleId={titleId} onClose={onClose} align="left" footer={footer}>
-      <SheetTitle
-        id={titleId}
-        title={waiting ? `${formatCurrency(amount)} waiting for a player` : `What was the extra ${formatCurrency(amount)} for?`}
-        sub={
-          waiting
-            ? `Sent by ${item.name}${item.waitingNote ? `, for “${item.waitingNote}”` : ''}. It pays nothing until you say who it’s for.`
-            : `${item.name} sent more than they owed${sent ? ` (${sent})` : ', over earlier transfers'}. Nothing happens with it until you choose.`
-        }
-        onClose={onClose}
-      />
+      <SheetTitle id={titleId} title={waiting ? 'Money waiting for a player' : 'What was the extra for?'} onClose={onClose} />
 
-      <div role="radiogroup" aria-label="What was it for?" className="mt-4 space-y-2">
+      {/* The money in question, first: how much, from whom, when */}
+      <div className="mt-3 flex items-center gap-3 rounded-2xl bg-chalk px-3.5 py-3">
+        {waiting ? (
+          <span className="w-10 h-10 shrink-0 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center font-display text-[15px] font-extrabold text-gray-500" aria-hidden>
+            ?
+          </span>
+        ) : (
+          <Avatar name={item.name} className="w-10 h-10 text-[13px]" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-[15px] font-bold text-ink truncate">{waiting ? (item.waitingNote ? `For ${item.waitingNote}` : 'Not known yet') : item.name}</p>
+          <p className="text-[13px] text-gray-500 truncate">
+            {waiting ? `Sent by ${item.name}` : sent ? `Sent ${sent}` : 'From earlier payments'}
+          </p>
+        </div>
+        <p className="shrink-0 font-display text-[22px] font-extrabold tabular-nums text-ink">{formatCurrency(amount)}</p>
+      </div>
+      <p className="mt-2 px-1 text-[12px] text-gray-500">{waiting ? 'It pays nothing until you choose.' : `More than ${first} owed. Nothing happens with it until you choose.`}</p>
+
+      <div role="radiogroup" aria-label={waiting ? 'Who was it for?' : 'What was it for?'} className="mt-4 rounded-3xl bg-white border border-gray-200 divide-y divide-gray-100 overflow-hidden">
         {options.map((o) => {
           const on = choice === o.key;
+          const more = on ? detail(o.key) : null;
           return (
-            <button
-              key={o.key}
-              role="radio"
-              aria-checked={on}
-              onClick={() => setChoice(o.key)}
-              className={`press w-full flex items-center gap-3 min-h-16 px-4 py-2.5 rounded-2xl border text-left transition-colors ${
-                on ? 'bg-ink border-ink text-white' : 'bg-white border-gray-200 text-ink hover:border-ink'
-              }`}
-            >
-              <span className="flex-1 min-w-0">
-                <span className={`block text-[15px] font-bold ${on ? 'text-volt-300' : ''}`}>{o.title}</span>
-                <span className={`block text-[13px] leading-snug ${on ? 'text-white/75' : 'text-gray-500'}`}>{o.hint}</span>
-              </span>
-              <span className={`w-6 h-6 shrink-0 rounded-full flex items-center justify-center ${on ? 'bg-volt-300 text-ink' : 'border-2 border-gray-200'}`} aria-hidden>
-                {on && (
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={3.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                  </svg>
-                )}
-              </span>
-            </button>
+            <div key={o.key} className={on ? 'bg-volt-300/25' : ''}>
+              <button
+                role="radio"
+                aria-checked={on}
+                onClick={() => setChoice(o.key)}
+                className="press w-full flex items-center gap-3 min-h-14 px-4 py-2.5 text-left transition-colors hover:bg-chalk/60"
+              >
+                <span className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${on ? 'bg-ink' : 'border-2 border-gray-300'}`} aria-hidden>
+                  {on && <span className="w-2 h-2 rounded-full bg-volt-300" />}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[15px] font-bold text-ink">{o.title}</span>
+                  {!on && <span className="block text-[13px] leading-snug text-gray-500 truncate">{o.hint}</span>}
+                </span>
+              </button>
+              {more && <div className="pl-12 pr-4 pb-3.5 -mt-1 animate-fade-in-up">{more}</div>}
+            </div>
           );
         })}
       </div>
@@ -204,7 +235,6 @@ export function ExtraSheet({
             <ul role="radiogroup" aria-label="Who was it for?" className="rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden">
               {others.map((m) => {
                 const on = to?.playerId === m.playerId;
-                const kit = kitFor(m.name);
                 const due = owes(m.playerId);
                 return (
                   <li key={m.playerId}>
@@ -214,9 +244,7 @@ export function ExtraSheet({
                       onClick={() => setTo(m)}
                       className={`w-full flex items-center gap-3 min-h-16 px-3.5 py-2.5 text-left transition-colors ${on ? 'bg-volt-300/35' : 'hover:bg-chalk'}`}
                     >
-                      <span className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display`} aria-hidden>
-                        {m.name.charAt(0)}
-                      </span>
+                      <Avatar name={m.name} className="w-10 h-10 text-[13px]" />
                       <span className="flex-1 min-w-0">
                         <span className="block text-[15px] font-bold text-ink truncate">{m.name}</span>
                         <span className={`block text-[13px] ${due ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>{due ? `Owes ${formatCurrency(due)}` : 'Owes nothing'}</span>
@@ -228,41 +256,6 @@ export function ExtraSheet({
             </ul>
           )}
         </div>
-      )}
-
-      {choice === 'unknown' && (
-        <div className="mt-4">
-          <label className="block">
-            <span className="block px-1 mb-1.5 text-[13px] font-semibold text-gray-500">Who might it be for? (optional)</span>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value.slice(0, 80))}
-              maxLength={80}
-              placeholder="e.g. Kunle’s friend, new player Tobi"
-              className="w-full h-11 px-3.5 bg-chalk rounded-xl text-[15px] placeholder:text-gray-500 focus:outline-none focus:bg-white focus:ring-4 focus:ring-volt-300/70"
-            />
-          </label>
-          <p className="mt-3 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
-            It stays in the group account under “Waiting for a player”, not as {first}’s money, and pays no one’s game. When you know who it was
-            for, add them to the group and give it to them there.
-          </p>
-        </div>
-      )}
-      {choice === 'release' && (
-        <p className="mt-4 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
-          It goes back to {first}’s extra to sort, where you can keep it for their next game or send it back to them.
-        </p>
-      )}
-      {choice === 'keep' && (
-        <p className="mt-4 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
-          It shows as paid ahead for {first}. It pays their next game when that game is the next one, never games further ahead. You can still send it back
-          later from Send money.
-        </p>
-      )}
-      {choice === 'back' && (
-        <p className="mt-4 rounded-2xl bg-chalk px-4 py-3 text-[13px] leading-snug text-gray-700">
-          Opens Send money with a refund to {first} ready. Send it to their own account.
-        </p>
       )}
     </Sheet>
   );

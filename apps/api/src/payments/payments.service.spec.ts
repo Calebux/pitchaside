@@ -101,7 +101,7 @@ describe('PaymentsService', () => {
       expect(sessionsRepo.update).toHaveBeenCalledWith('session-1', { collectedAmount: 0 });
     });
 
-    it('moves a due already paid by transfer to the member\'s credit', async () => {
+    it('moves a due already paid by transfer to the member\'s extra to sort', async () => {
       const payment = { ...mockPayment, status: PaymentStatus.PAID, source: 'transfer', session: { groupId: 'group-1' } };
       const membership = { groupId: 'group-1', playerId: 'player-1', credit: '0.00' };
       const tx = { findOne: jest.fn().mockResolvedValue(membership), save: jest.fn() };
@@ -111,7 +111,7 @@ describe('PaymentsService', () => {
 
       await service.waive('pay-1', 'org-1', 'admin-1');
 
-      expect(membership.credit).toBe('1000.00');
+      expect(membership).toMatchObject({ credit: '0.00', extra: '1000.00' });
       expect(payment.status).toBe(PaymentStatus.WAIVED);
     });
   });
@@ -128,11 +128,11 @@ describe('PaymentsService', () => {
       return { payment, membership };
     };
 
-    it("didn't come: nothing to pay, and transfer money is kept for their next game", async () => {
+    it("didn't come: nothing to pay, and transfer money waits as extra to sort", async () => {
       const { payment, membership } = transferPaid();
       await service.markNoShow('pay-1', 'org-1', 'Tunde B');
       expect(payment).toMatchObject({ status: PaymentStatus.WAIVED, attendance: 'no_show', source: null });
-      expect(membership.credit).toBe('1000.00');
+      expect(membership).toMatchObject({ credit: '0.00', extra: '1000.00' });
     });
 
     it('came after all: back to owing', async () => {
@@ -144,11 +144,11 @@ describe('PaymentsService', () => {
       expect(payment).toMatchObject({ status: PaymentStatus.PENDING, attendance: 'came' });
     });
 
-    it('undoing a transfer payment keeps the money for their next game', async () => {
+    it('undoing a transfer payment puts the money in extra to sort, not on another game', async () => {
       const { payment, membership } = transferPaid();
       await service.markAsUnpaid('pay-1', 'org-1');
       expect(payment.status).toBe(PaymentStatus.PENDING);
-      expect(membership.credit).toBe('1000.00');
+      expect(membership).toMatchObject({ credit: '0.00', extra: '1000.00' });
     });
   });
 

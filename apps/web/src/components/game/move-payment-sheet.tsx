@@ -84,7 +84,7 @@ export function MovePaymentSheet({
         message={
           picked
             ? `${owedLabel(picked)} becomes paid. ${fromLabel} goes back to ${formatCurrency(amount)} to pay.${
-                extra > 0 ? ` The other ${formatCurrency(extra)} is kept for ${name}’s next game.` : ''
+                extra > 0 ? ` The other ${formatCurrency(extra)} goes to Extra money to sort on Money.` : ''
               }`
             : ''
         }

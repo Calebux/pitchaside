@@ -240,11 +240,12 @@ export class SessionsService {
     if (session.status === SessionStatus.COMPLETED && !session.voteOpensAt) session.voteOpensAt = new Date();
     const saved = await this.sessionsRepo.save(session);
 
-    // Called off: what members paid for it by transfer goes back to their credit. Back on: its
-    // dues are payable from credit again.
+    // Called off: what members paid for it by transfer goes back to them as extra to sort. Back
+    // on: their dues are paid again from that money if it's still there, and from kept money.
     if (!wasCancelled && saved.status === SessionStatus.CANCELLED) {
       await this.billing.releaseTransferDues(session, { reopen: true });
     } else if (wasCancelled && saved.status !== SessionStatus.CANCELLED) {
+      await this.billing.repayCalledOff(session);
       await this.billing.applyCredits(session.groupId, (session.payments ?? []).map((p) => p.playerId));
     }
 

@@ -8,37 +8,44 @@ export function paidByTransfer(p: Payment) {
 }
 
 /**
- * Dues paid from transfers that no longer stand (game deleted or cancelled, due waived): their
- * amounts go back to each member's credit in `groupId`, where they pay the member's next due.
- * Dues marked paid by hand give back only what came from transfers (`fromCredit`): the rest never
- * reached the group's account.
- * Returns the members credited.
+ * Dues paid from transfers that no longer stand (payment undone, taken off, didn't come, game
+ * called off or deleted, due waived). What a transfer paid in full goes to the member's extra,
+ * to sort: it never pays another game by itself. The organiser says what it was for (keep it
+ * for their next game, someone else's, not in the group yet, or send it back).
+ * A due marked paid by hand on top of a part payment gives back only that part (`fromCredit`),
+ * and it goes back to what they've kept, a part payment again: the rest never reached the
+ * group's account.
+ * Returns the members given money back.
  */
-export async function refundToCredit(manager: EntityManager, groupId: string, payments: Payment[]): Promise<string[]> {
-  const byPlayer = new Map<string, number>();
+export async function releaseToExtra(manager: EntityManager, groupId: string, payments: Payment[]): Promise<string[]> {
+  const byPlayer = new Map<string, { extra: number; kept: number }>();
   for (const p of payments) {
-    // By transfer: all of it. Marked paid by hand: only the part that came from their transfers.
-    const back = paidByTransfer(p) ? Number(p.amount) : p.status === PaymentStatus.PAID ? Number(p.fromCredit ?? 0) : 0;
-    if (back > 0) byPlayer.set(p.playerId, (byPlayer.get(p.playerId) ?? 0) + back);
+    const whole = paidByTransfer(p) ? Number(p.amount) : 0;
+    const part = !whole && p.status === PaymentStatus.PAID ? Number(p.fromCredit ?? 0) : 0;
+    if (whole + part > 0) {
+      const sum = byPlayer.get(p.playerId) ?? { extra: 0, kept: 0 };
+      byPlayer.set(p.playerId, { extra: sum.extra + whole, kept: sum.kept + part });
+    }
     // Given back: the caller saves the payment with nothing left from transfers on it.
-    if (!paidByTransfer(p) && back > 0) p.fromCredit = '0';
+    if (part > 0) p.fromCredit = '0';
   }
   if (!byPlayer.size) return [];
 
   return manager.transaction(async (tx) => {
-    const credited: string[] = [];
-    for (const [playerId, amount] of byPlayer) {
+    const given: string[] = [];
+    for (const [playerId, { extra, kept }] of byPlayer) {
       const membership = await tx.findOne(GroupMembership, {
         where: { groupId, playerId },
         lock: { mode: 'pessimistic_write' },
       });
       // No longer a member: the money is still on the transfer, for an admin to sort out.
       if (!membership) continue;
-      membership.credit = (Number(membership.credit) + amount).toFixed(2);
+      if (extra > 0) membership.extra = (Number(membership.extra ?? 0) + extra).toFixed(2);
+      if (kept > 0) membership.credit = (Number(membership.credit) + kept).toFixed(2);
       await tx.save(membership);
-      credited.push(playerId);
+      given.push(playerId);
     }
-    return credited;
+    return given;
   });
 }
 

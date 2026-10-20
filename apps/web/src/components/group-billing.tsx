@@ -19,6 +19,7 @@ import { NotPlayerSheet } from '@/components/money/not-player-sheet';
 import { MonthList } from '@/components/money/month-list';
 import { ExtraSheet } from '@/components/money/extra-sheet';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
+import { Avatar } from '@/components/ratings';
 import { DateRangePicker, inRange, rangeLabel, type DateRange } from '@/components/date-range';
 import { MONEY_IN } from '@/lib/money-categories';
 import {
@@ -680,6 +681,28 @@ function TransferRecordSheet({
   );
 }
 
+/** One amount in "Money to sort": who or what, where it came from, and what tapping it does. */
+function SortRow({ avatar, title, sub, amount, cta, busy, onClick }: { avatar: React.ReactNode; title: string; sub: string; amount: number; cta: string; busy: boolean; onClick: () => void }) {
+  return (
+    <button
+      disabled={busy}
+      onClick={onClick}
+      aria-label={`${title}, ${formatCurrency(amount)}. ${cta}`}
+      className="press w-full flex items-center gap-3 px-4 min-h-[72px] py-3 text-left hover:bg-chalk transition-colors disabled:opacity-50"
+    >
+      {avatar}
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] font-bold text-ink truncate">{title}</span>
+        <span className="block text-[13px] text-gray-500 truncate">{sub}</span>
+      </span>
+      <span className="shrink-0 font-display text-[16px] font-extrabold tabular-nums text-ink">{formatCurrency(amount)}</span>
+      <svg className="w-4 h-4 shrink-0 -mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m9 5 7 7-7 7" />
+      </svg>
+    </button>
+  );
+}
+
 /** Money received into the group account: who paid, and the few payments no one could put a name to. */
 export function TransfersPanel({
   groupId,
@@ -984,75 +1007,71 @@ export function TransfersPanel({
         />
       )}
 
-      {/* Sent more than they owed: waits for the organiser, never used on its own */}
-      {extras.length > 0 && (
+      {/* Money that isn't on a game: extra to sort, and what's waiting for a player. Never used on its own. */}
+      {extras.length + waitingMoney.length > 0 && (
         <section aria-labelledby="extra-title" className="pt-3">
-          <h2 id="extra-title" className="scroll-mt-32 text-base font-bold text-ink">
-            Extra money to sort
-          </h2>
-          <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">
-            {extras.length === 1 ? 'Someone' : `${extras.length} players`} sent more than they owed. Nothing happens with it until you say what it was for.
-          </p>
-          <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
-            {extras.map((x) => {
-              // Only name the transfer when it alone explains the extra; otherwise it built up over several.
-              const one = x.lastTransfer && x.lastTransfer.amount + 0.001 >= x.extra ? x.lastTransfer : null;
-              return (
-                <li key={x.playerId}>
-                  <button
-                    disabled={workingId === `extra-${x.playerId}`}
-                    onClick={() => setSorting({ ...x, source: 'extra' })}
-                    className="w-full flex items-center gap-3 px-4 min-h-16 py-3 text-left hover:bg-chalk transition-colors disabled:opacity-50"
-                  >
-                    <span className="flex-1 min-w-0">
-                      <span className="block text-[15px] font-bold text-ink truncate">{x.name}</span>
-                      <span className="block text-[13px] text-gray-500 truncate">
-                        {one
-                          ? `Sent ${formatCurrency(one.amount)}, ${new Date(one.receivedAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}`
-                          : 'From earlier transfers'}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-right">
-                      <span className="block font-display text-[15px] font-extrabold tabular-nums text-ink">{formatCurrency(x.extra)}</span>
-                      <span className="block text-[12px] font-bold text-pitch-700">What was it for? ›</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
-      {/* Extra put aside for someone not in the group yet: it pays no one until it's given */}
-      {waitingMoney.length > 0 && (
-        <section aria-labelledby="waiting-title" className="pt-3">
-          <h2 id="waiting-title" className="scroll-mt-32 text-base font-bold text-ink">
-            Waiting for a player
-          </h2>
-          <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">
-            Paid for someone not in the group yet, or you don’t know who. When you find out, add them and give it to them here.
-          </p>
-          <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
-            {waitingMoney.map((x) => (
-              <li key={x.playerId}>
-                <button
-                  disabled={workingId === `extra-${x.playerId}`}
-                  onClick={() => setSorting({ ...x, source: 'waiting' })}
-                  className="w-full flex items-center gap-3 px-4 min-h-16 py-3 text-left hover:bg-chalk transition-colors disabled:opacity-50"
-                >
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-bold text-ink truncate">{x.waitingNote ? `For ${x.waitingNote}` : 'For someone, not known yet'}</span>
-                    <span className="block text-[13px] text-gray-500 truncate">Sent by {x.name}</span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block font-display text-[15px] font-extrabold tabular-nums text-ink">{formatCurrency(x.waiting)}</span>
-                    <span className="block text-[12px] font-bold text-pitch-700">Give it ›</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="extra-title" className="scroll-mt-32 text-base font-bold text-ink">
+              Money to sort
+            </h2>
+            <p className="font-display text-[15px] font-extrabold tabular-nums text-ink">
+              {formatCurrency(extras.reduce((n, x) => n + x.extra, 0) + waitingMoney.reduce((n, x) => n + x.waiting, 0))}
+            </p>
+          </div>
+          <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">Not on any game yet. Tap one to say what it was for.</p>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
+            {extras.length > 0 && (
+              <ul aria-label="Extra to sort" className="divide-y divide-gray-100">
+                {extras.map((x) => {
+                  // Only name the transfer when it alone explains the extra; otherwise it built up over several.
+                  const one = x.lastTransfer && x.lastTransfer.amount + 0.001 >= x.extra ? x.lastTransfer : null;
+                  return (
+                    <li key={x.playerId}>
+                      <SortRow
+                        avatar={<Avatar name={x.name} className="w-10 h-10 text-[13px]" />}
+                        title={x.name}
+                        sub={
+                          one
+                            ? `Sent ${formatCurrency(one.amount)} · ${new Date(one.receivedAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '')}`
+                            : 'From earlier payments'
+                        }
+                        amount={x.extra}
+                        cta="What was it for?"
+                        busy={workingId === `extra-${x.playerId}`}
+                        onClick={() => setSorting({ ...x, source: 'extra' })}
+                      />
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {waitingMoney.length > 0 && (
+              <>
+                <h3 id="waiting-title" className="scroll-mt-32 px-4 py-1.5 bg-chalk border-y border-gray-100 first:border-t-0 text-[12px] font-bold text-gray-700">
+                  Waiting for a player · not in the group yet
+                </h3>
+                <ul aria-labelledby="waiting-title" className="divide-y divide-gray-100">
+                  {waitingMoney.map((x) => (
+                    <li key={x.playerId}>
+                      <SortRow
+                        avatar={
+                          <span className="w-10 h-10 shrink-0 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center font-display text-[15px] font-extrabold text-gray-500" aria-hidden>
+                            ?
+                          </span>
+                        }
+                        title={x.waitingNote ? `For ${x.waitingNote}` : 'Not known yet'}
+                        sub={`Sent by ${x.name}`}
+                        amount={x.waiting}
+                        cta="Give it"
+                        busy={workingId === `extra-${x.playerId}`}
+                        onClick={() => setSorting({ ...x, source: 'waiting' })}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
         </section>
       )}
 

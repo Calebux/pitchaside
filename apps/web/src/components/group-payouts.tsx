@@ -337,9 +337,9 @@ export function PayoutsPanel({
               <p className="font-bold">
                 This includes money that isn’t the group’s to spend yet:{' '}
                 <InfoTip label="What's this money?" align="right">
-                  <b>Extra to sort:</b> players sent more than they owed, maybe for a friend. It waits on Money in until you say what it was for.
+                  <b>Extra to sort:</b> players sent more than they owed (maybe for a friend), or money came back off a game. It waits on Money in until you say what it was for.
                   <span className="block mt-1.5">
-                    <b>Kept for players:</b> part of a game they still owe, a called-off game’s money, or extra you chose to keep. It pays their next game, or you
+                    <b>Kept for players:</b> part of a game they still owe, or extra you chose to keep for their next game. It pays that game, or you
                     can send it back from Send money.
                   </span>
                 </InfoTip>

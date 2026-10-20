@@ -48,7 +48,7 @@ export function GameMenu({
       : []),
     { key: 'download', title: 'Download payments', detail: 'A spreadsheet of who paid, how and when.', onPick: onDownload },
     ...(phase !== 'cancelled' && phase !== 'ended'
-      ? [{ key: 'cancel', title: 'Cancel game', detail: 'Players are told it’s off. Money paid by transfer becomes paid ahead for their next game.', danger: true, onPick: () => setConfirm('cancel') }]
+      ? [{ key: 'cancel', title: 'Cancel game', detail: 'Players are told it’s off. Money paid by transfer goes to Extra money to sort on Money.', danger: true, onPick: () => setConfirm('cancel') }]
       : []),
     { key: 'delete', title: 'Delete game', detail: 'Removes the game and its payments for good.', danger: true, onPick: () => setConfirm('delete') },
   ];
@@ -96,7 +96,7 @@ export function GameMenu({
       <ConfirmDialog
         open={confirm === 'cancel'}
         title="Cancel this game?"
-        message="Players are told it’s off. Anyone who paid by transfer keeps the money for their next game. You can bring it back later."
+        message="Players are told it’s off. What anyone paid by transfer goes to Extra money to sort on Money. If you bring the game back, it pays it again."
         confirmLabel="Cancel game"
         cancelLabel="Keep it"
         variant="danger"
@@ -109,7 +109,7 @@ export function GameMenu({
       <ConfirmDialog
         open={confirm === 'delete'}
         title="Delete this game?"
-        message="The game and its payments are removed for good. Anyone who paid by transfer keeps the money for their next game."
+        message="The game and its payments are removed for good. What anyone paid by transfer goes to Extra money to sort on Money."
         confirmLabel="Delete game"
         cancelLabel="Keep it"
         variant="danger"

@@ -2,7 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { MockPulseClient } from './pulse/mock-pulse.client';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
-import { refundToCredit } from '../payments/credit';
+import { releaseToExtra } from '../payments/credit';
 import { GroupsService } from '../groups/groups.service';
 
 /** An in-memory member per player; the transaction hands back the same objects. */
@@ -18,17 +18,17 @@ function manager(credits: Record<string, number>) {
 const due = (playerId: string, status: PaymentStatus, source?: string): Payment =>
   ({ id: `pay-${playerId}`, sessionId: 's1', playerId, amount: 1000, status, source }) as unknown as Payment;
 
-describe('refundToCredit', () => {
-  it('credits dues paid by transfer and leaves cash and unpaid dues alone', async () => {
+describe('releaseToExtra', () => {
+  it('puts dues paid by transfer in extra to sort and leaves cash and unpaid dues alone', async () => {
     const { memberships, manager: m } = manager({ p1: 0, p2: 0, p3: 50 });
-    const credited = await refundToCredit(m, 'g1', [
+    const credited = await releaseToExtra(m, 'g1', [
       due('p1', PaymentStatus.PAID, 'transfer'),
       due('p2', PaymentStatus.PAID, 'manual'),
       due('p3', PaymentStatus.PENDING),
     ]);
 
     expect(credited).toEqual(['p1']);
-    expect(memberships.p1.credit).toBe('1000.00');
+    expect(memberships.p1).toMatchObject({ credit: '0.00', extra: '1000.00' });
     expect(memberships.p2.credit).toBe('0.00');
     expect(memberships.p3.credit).toBe('50.00');
   });
@@ -37,7 +37,7 @@ describe('refundToCredit', () => {
     const { memberships, manager: m } = manager({ p1: 0 });
     const handPaid = { ...due('p1', PaymentStatus.PAID, 'manual'), amount: 1500, fromCredit: '1000.00' } as unknown as Payment;
 
-    const credited = await refundToCredit(m, 'g1', [handPaid]);
+    const credited = await releaseToExtra(m, 'g1', [handPaid]);
 
     expect(credited).toEqual(['p1']);
     expect(memberships.p1.credit).toBe('1000.00');
@@ -46,7 +46,7 @@ describe('refundToCredit', () => {
 
   it("skips a player who is no longer a member", async () => {
     const { manager: m } = manager({});
-    await expect(refundToCredit(m, 'g1', [due('gone', PaymentStatus.PAID, 'transfer')])).resolves.toEqual([]);
+    await expect(releaseToExtra(m, 'g1', [due('gone', PaymentStatus.PAID, 'transfer')])).resolves.toEqual([]);
   });
 });
 
@@ -64,25 +64,25 @@ describe('releaseTransferDues', () => {
     return { service, memberships, paymentsRepo, paymentsService, applyCredits };
   }
 
-  it('on cancel, reopens the paid due and moves the money to credit', async () => {
+  it('on cancel, reopens the paid due and moves the money to extra to sort', async () => {
     const { service, memberships, paymentsService, applyCredits } = setup();
     const payment = due('p1', PaymentStatus.PAID, 'transfer');
 
     await service.releaseTransferDues({ groupId: 'g1', payments: [payment] }, { reopen: true });
 
-    expect(memberships.p1.credit).toBe('1000.00');
+    expect(memberships.p1).toMatchObject({ credit: '0.00', extra: '1000.00' });
     expect(payment.status).toBe(PaymentStatus.PENDING);
     expect(payment.source).toBeNull();
     expect(paymentsService.recalculateSessionTotal).toHaveBeenCalledWith('s1');
     expect(applyCredits).toHaveBeenCalledWith('g1', ['p1']);
   });
 
-  it('on delete, only credits the member', async () => {
+  it('on delete, only gives the member the money back to sort', async () => {
     const { service, memberships, paymentsRepo, applyCredits } = setup();
 
     await service.releaseTransferDues({ groupId: 'g1', payments: [due('p1', PaymentStatus.PAID, 'transfer')] }, { reopen: false });
 
-    expect(memberships.p1.credit).toBe('1000.00');
+    expect(memberships.p1).toMatchObject({ credit: '0.00', extra: '1000.00' });
     expect(paymentsRepo.save).not.toHaveBeenCalled();
     expect(applyCredits).toHaveBeenCalledWith('g1', ['p1']);
   });
@@ -140,4 +140,35 @@ describe('GroupsService money guards', () => {
     expect(groupsRepo.remove).toHaveBeenCalled();
   });
 
+});
+
+describe('repayCalledOff', () => {
+  function setup(extra: number) {
+    const m: any = { groupId: 'g1', playerId: 'p1', credit: '0.00', extra: extra.toFixed(2) };
+    const tx = { findOne: async () => m, save: async (x: unknown) => x };
+    const membershipsRepo = { manager: { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) } };
+    const paymentsService = { recalculateSessionTotal: jest.fn() };
+    const service = new BillingService(
+      {} as any, membershipsRepo as any, {} as any, {} as any, {} as any, {} as any, {} as any,
+      {} as any, {} as any,
+      new MockPulseClient('secret'), paymentsService as any, {} as any, {} as any, {} as any, {} as any,
+    );
+    return { service, m };
+  }
+
+  it('a game back on is paid again from the money it gave back, if still there', async () => {
+    const { service, m } = setup(1000);
+    const p = due('p1', PaymentStatus.PENDING);
+    await service.repayCalledOff({ groupId: 'g1', payments: [p] });
+    expect(p).toMatchObject({ status: PaymentStatus.PAID, source: 'transfer' });
+    expect(m.extra).toBe('0.00');
+  });
+
+  it("leaves the due unpaid when that money has been sorted since", async () => {
+    const { service, m } = setup(400);
+    const p = due('p1', PaymentStatus.PENDING);
+    await service.repayCalledOff({ groupId: 'g1', payments: [p] });
+    expect(p.status).toBe(PaymentStatus.PENDING);
+    expect(m.extra).toBe('400.00');
+  });
 });

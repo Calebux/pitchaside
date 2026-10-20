@@ -45,10 +45,10 @@ describe('moving a payment to another game', () => {
     expect(membership.credit).toBe('0.00');
   });
 
-  it('keeps the difference for their next game when the other game costs less', async () => {
+  it('the difference waits as extra to sort when the other game costs less', async () => {
     const { service, membership } = setup(1500, 1000, 200);
     await expect(service.moveToGame('from', 'to', 'org')).resolves.toMatchObject({ kept: 500 });
-    expect(membership.credit).toBe('700.00');
+    expect(membership).toMatchObject({ credit: '200.00', extra: '500.00' });
   });
 
   it("won't move onto a game that costs more than the payment", async () => {
