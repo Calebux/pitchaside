@@ -2,19 +2,42 @@
 
 import { useEffect, useState } from 'react';
 import { PayIntoCard } from '@/components/account-card';
-import { PageTitle, Section, niceDate } from '@/components/player-ui';
+import { LoadError, PageTitle, Section, niceDate } from '@/components/player-ui';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerPayments, type GroupKitty, type PlayerPayments } from '@/lib/player';
 
 export default function PlayerPayPage() {
   const [data, setData] = useState<PlayerPayments | null>(null);
 
-  const load = () => getPlayerPayments().then(setData).catch(() => {});
+  const [failed, setFailed] = useState<unknown>(null);
+  const load = () =>
+    getPlayerPayments()
+      .then((d) => {
+        setData(d);
+        setFailed(null);
+      })
+      .catch(setFailed);
   useEffect(() => {
     load();
   }, []);
   // Matched straight away: refresh so the due moves to History.
   const onClaimed = (status: 'matched' | 'waiting') => status === 'matched' && load();
+
+  if (!data && failed) {
+    return (
+      <>
+        <PageTitle eyebrow="Money" title="Pay" />
+        <LoadError
+          what="Your payments"
+          error={failed}
+          onRetry={() => {
+            setFailed(null);
+            load();
+          }}
+        />
+      </>
+    );
+  }
 
   if (!data) {
     return (

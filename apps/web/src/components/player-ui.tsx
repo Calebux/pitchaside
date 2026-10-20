@@ -39,6 +39,27 @@ export function prettyTime(hhmm?: string | null) {
   return m ? `${hour}:${String(m).padStart(2, '0')}${suffix}` : `${hour}${suffix}`;
 }
 
+/**
+ * A player screen that didn't load: says so plainly, with the server's own words when there are
+ * any, and a way to try again. A lost connection reads as one, not as "Failed to fetch".
+ */
+export function LoadError({ what, error, onRetry }: { what: string; error: unknown; onRetry: () => void }) {
+  const offline = error instanceof TypeError || (typeof navigator !== 'undefined' && !navigator.onLine);
+  // A server crash has no words worth showing; a refusal ("You're not in this game") does.
+  const said = !offline && error instanceof Error && error.message && !/internal server error/i.test(error.message) ? error.message : null;
+  return (
+    <div className="rounded-3xl bg-chalk px-5 py-8 text-center" role="alert">
+      <p className="text-[15px] font-bold text-ink">{what} didn’t load.</p>
+      <p className="mt-1 text-[13px] text-gray-600">
+        {offline ? 'Looks like you’re offline or the signal is weak. Check your connection.' : said ? `The server said: “${said}”` : 'Something went wrong on our side.'}
+      </p>
+      <button onClick={onRetry} className="press mt-3 min-h-11 px-5 rounded-full bg-ink text-sm font-bold text-volt-300 hover:bg-pitch-900">
+        Try again
+      </button>
+    </div>
+  );
+}
+
 export function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <section className="mt-7">

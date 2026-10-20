@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ratings';
 import { InstallCard, PushToggle } from '@/components/pwa';
-import { GameCard, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
+import { GameCard, LoadError, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerHome, getPlayerRatingBreakdown, subscribePlayerPush, type PlayerHome } from '@/lib/player';
 import { usePlayerProfile } from '@/components/player-shell';
@@ -15,11 +15,35 @@ export default function PlayerHomePage() {
   const { profile } = usePlayerProfile();
   // "How this 80 is made", opened from the card's number.
   const [explaining, setExplaining] = useState(false);
-  const load = useCallback(() => getPlayerHome().then(setHome).catch(() => {}), []);
+  const [failed, setFailed] = useState<unknown>(null);
+  // A failed refresh after it has loaded keeps what's on screen; only a first load shows the error.
+  const load = useCallback(
+    () =>
+      getPlayerHome()
+        .then((h) => {
+          setHome(h);
+          setFailed(null);
+        })
+        .catch(setFailed),
+    [],
+  );
 
   useEffect(() => {
     load();
   }, [load]);
+
+  if (!home && failed) {
+    return (
+      <LoadError
+        what="Your home"
+        error={failed}
+        onRetry={() => {
+          setFailed(null);
+          load();
+        }}
+      />
+    );
+  }
 
   if (!home) {
     return (

@@ -315,19 +315,26 @@ export class PlayerPortalService {
 
   async home(person: Person) {
     const memberships = await this.memberships(person);
+    // Games and money are what Home is for; the card, votes and table only decorate it. If one of
+    // those can't be worked out it's left out (and logged), so Home still opens.
+    const decor = <T>(what: string, fallback: T) => (err: unknown) => {
+      this.logger.error(`${what} for ${person.key}'s home failed: ${err instanceof Error ? err.stack : err}`);
+      return fallback;
+    };
     const [upcoming, owed, organiser, ratings] = await Promise.all([
       this.upcoming(person, memberships),
       this.owed(person),
       this.organiser(person),
-      this.ratingsByClub(person),
+      this.ratingsByClub(person).catch(decor('Ratings', { primary: null as PlayerRatings | null })),
     ]);
     const openVotes = (
-      await Promise.all(person.players.map((p) => this.ratings.openVotesFor(p.id, p.organizationId)))
+      await Promise.all(person.players.map((p) => this.ratings.openVotesFor(p.id, p.organizationId).catch(decor('Open votes', []))))
     ).flat();
 
     const tables = [];
     for (const m of memberships) {
-      const table = await this.ratings.getGroupTable(m.groupId, m.group.organizationId);
+      const table = await this.ratings.getGroupTable(m.groupId, m.group.organizationId).catch(decor(`The ${m.group.name} table`, null));
+      if (!table) continue;
       const rank = table.rows.findIndex((r) => r.player.id === m.playerId);
       tables.push({
         groupId: m.groupId,
