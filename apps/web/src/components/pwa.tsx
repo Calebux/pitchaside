@@ -66,7 +66,8 @@ function useInstall() {
     const onPrompt = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
-      setState((x) => ({ ...x, show: true }));
+      // Phones only, also when a desktop browser offers its own install.
+      setState((x) => ({ ...x, show: x.platform !== 'other' }));
     };
     const onInstalled = () => {
       try {
@@ -174,6 +175,15 @@ export function InstallNudge() {
       setClosed(false);
     }
   }, []);
+
+  // While the card floats over the page, the page gets that much more room at the bottom, so
+  // nothing (the last "I've sent it", say) is left underneath it.
+  const visible = show && !closed;
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--install-nudge', visible ? '5.5rem' : '0px');
+    return () => root.style.setProperty('--install-nudge', '0px');
+  }, [visible]);
 
   if (!show) return null;
 

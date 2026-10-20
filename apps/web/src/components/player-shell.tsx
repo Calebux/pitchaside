@@ -189,7 +189,7 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      <div className="min-h-screen pb-28 md:pb-12 md:pl-60">
+      <div className="min-h-screen pb-[calc(7rem_+_var(--install-nudge,0px))] md:pb-12 md:pl-60">
         {/* No phone header bar, like the organiser app: each screen opens on its own title. An
             organiser can always get back to organising: the Playing ⇄ Organising switch sits in
             Home's header, above every other tab's title on phones, and in the desktop sidebar. */}
