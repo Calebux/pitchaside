@@ -1,7 +1,8 @@
 'use client';
 
+import { PageHeader } from '@/components/brand';
 import { useCallback, useEffect, useState } from 'react';
-import { GameCard, GameRow, LoadError, MatchDayCard, PageTitle, Section } from '@/components/player-ui';
+import { GameCard, GameRow, LoadError, MatchDayCard, Section } from '@/components/player-ui';
 import { getPlayerGames, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
 export default function PlayerGamesPage() {
@@ -24,7 +25,7 @@ export default function PlayerGamesPage() {
 
   return (
     <>
-      <PageTitle eyebrow="Fixtures & results" title="Games" />
+      <PageHeader title="Games" subtitle="Your next games, and how the last ones went." />
       {!data && failed ? (
         <LoadError
           what="Your games"

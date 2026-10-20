@@ -1,8 +1,9 @@
 'use client';
 
+import { PageHeader } from '@/components/brand';
 import { useEffect, useState } from 'react';
 import { PayIntoCard } from '@/components/account-card';
-import { LoadError, PageTitle, Section, niceDate } from '@/components/player-ui';
+import { LoadError, Section, niceDate } from '@/components/player-ui';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerPayments, type GroupKitty, type PlayerPayments } from '@/lib/player';
 
@@ -26,7 +27,7 @@ export default function PlayerPayPage() {
   if (!data && failed) {
     return (
       <>
-        <PageTitle eyebrow="Money" title="Pay" />
+        <PageHeader title="Pay" subtitle="What you owe, where to send it, and what you’ve paid." />
         <LoadError
           what="Your payments"
           error={failed}
@@ -42,7 +43,7 @@ export default function PlayerPayPage() {
   if (!data) {
     return (
       <>
-        <PageTitle eyebrow="Money" title="Pay" />
+        <PageHeader title="Pay" subtitle="What you owe, where to send it, and what you’ve paid." />
         <div className="space-y-3 animate-pulse">
           <div className="h-24 bg-gray-100 rounded-3xl" />
           <div className="h-44 bg-gray-100 rounded-[28px]" />
@@ -62,7 +63,7 @@ export default function PlayerPayPage() {
 
   return (
     <>
-      <PageTitle eyebrow="Money" title="Pay" />
+      <PageHeader title="Pay" subtitle="What you owe, where to send it, and what you’ve paid." />
 
       <div className={`rounded-3xl px-5 py-4 ${total > 0 ? 'bg-ink text-white' : 'bg-volt-100 border border-volt-300 text-ink'}`}>
         <p className={`text-[11px] font-extrabold uppercase tracking-[0.12em] ${total > 0 ? 'text-white/50' : 'text-ink/50'}`}>
