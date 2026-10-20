@@ -27,20 +27,13 @@ import {
 } from '@/lib/api';
 import { photoUrl } from '@/lib/http';
 import { CardPhotoButton } from '@/components/photo-picker';
-import { StatCard } from '@/components/stat-card';
+import { Collapse } from '@/components/collapse';
+import { niceDate } from '@/components/player-ui';
 import { AttributeRow } from '@/components/ratings';
 import { PlayerStats } from '@/components/player-stats';
 import { Player, Ball, JerseyBadge, kitFor, skins } from '@/components/illustrations';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
 
-const paymentStatusStyles: Record<string, string> = {
-  paid: 'bg-volt-300 text-ink',
-  pending: 'bg-sun-400/25 text-amber-800',
-  waived: 'bg-gray-100 text-gray-500',
-};
-
-/** The app's words for a payment's state, not the database's. */
-const PAYMENT_WORDS: Record<string, string> = { paid: 'Paid', pending: 'To pay', waived: 'Free' };
 
 export default function PlayerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -317,15 +310,8 @@ export default function PlayerDetailPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      {stats && (
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          <StatCard label="Games" value={stats.totalSessions} />
-          <StatCard label="Payment rate" value={`${stats.paymentRate}%`} tone="volt" />
-          <StatCard label="Total paid" value={formatCurrency(stats.totalPaid)} />
-          <StatCard label="To pay" value={formatCurrency(stats.totalOwed)} tone={Number(stats.totalOwed) > 0 ? 'ink' : 'white'} />
-        </div>
-      )}
+      {/* Money: one answer first (what they owe, or all paid), then each game they've paid or owe for */}
+      <PlayerMoney stats={stats} payments={payments} />
 
       {ratings && (
         <div className="mb-6">
@@ -368,46 +354,115 @@ export default function PlayerDetailPage() {
         )}
       </div>
 
-      {/* Payment History */}
-      <div>
-        <h2 className="text-lg font-bold text-ink mb-3">Payment history</h2>
-        {payments.length === 0 ? (
-          <EmptyState
-            icon="receipt"
-            title="No payments"
-            description="Payments show up here once they play in a game."
-          />
+    </div>
+  );
+}
+
+type PaymentRow = IPayment & { session?: { date: string; label?: string | null; kind?: string; status?: string; group?: { name: string } } };
+
+/** How a payment reads: the app's words, never the database's. */
+function paymentChip(p: PaymentRow) {
+  if (p.attendance === 'no_show') return { text: 'Didn’t come', cls: 'bg-gray-100 text-gray-600' };
+  if (p.session?.status === 'cancelled') return { text: 'Called off', cls: 'bg-gray-100 text-gray-600' };
+  if (p.status === 'paid') return { text: '✓ Paid', cls: 'bg-volt-300 text-ink' };
+  if (p.status === 'waived' || Number(p.amount) === 0) return { text: 'Free', cls: 'bg-gray-100 text-gray-600' };
+  return { text: 'To pay', cls: 'bg-kit-500/15 text-kit-600' };
+}
+
+const SHOWN = 4;
+
+/**
+ * A player's money in one card: what they owe now (or that they're all paid), how many games
+ * they've paid for, and each game, newest first, with its date and group. Older ones fold away.
+ */
+function PlayerMoney({
+  stats,
+  payments,
+}: {
+  stats: { totalSessions: number; totalPaid: number; totalOwed: number; paymentRate: number } | null;
+  payments: IPayment[];
+}) {
+  const [all, setAll] = useState(false);
+  const rows = [...(payments as PaymentRow[])].sort((a, b) => (b.session?.date ?? '').localeCompare(a.session?.date ?? ''));
+  const due = rows.filter((p) => p.status !== 'waived' && Number(p.amount) > 0 && p.attendance !== 'no_show' && p.session?.status !== 'cancelled');
+  const paid = due.filter((p) => p.status === 'paid').length;
+  const owed = Number(stats?.totalOwed ?? 0);
+
+  const Row = ({ p }: { p: PaymentRow }) => {
+    const chip = paymentChip(p);
+    const when = p.session?.date ? niceDate(p.session.date, { weekday: 'short', day: 'numeric', month: 'short' }) : null;
+    return (
+      <li className="flex items-center gap-3 px-4 py-3">
+        <span className="min-w-0 flex-1">
+          <span className="block text-[14px] font-bold text-ink truncate">{p.session?.label ?? (when ? `Game · ${when}` : 'Game')}</span>
+          <span className="block text-[12px] text-gray-500 truncate">
+            {p.session?.group?.name}
+            {p.status === 'paid' && p.paidAt ? ` · paid ${niceDate(p.paidAt, { day: 'numeric', month: 'short' })}` : ''}
+          </span>
+        </span>
+        <span className="shrink-0 text-right">
+          <span className="block font-display text-[15px] font-extrabold text-ink tabular-nums">{formatCurrency(p.amount)}</span>
+          <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold ${chip.cls}`}>{chip.text}</span>
+        </span>
+      </li>
+    );
+  };
+
+  return (
+    <section aria-labelledby="money-title" className="mb-6 rounded-3xl bg-white border border-gray-100 shadow-card overflow-hidden">
+      <div className="px-4 pt-4 pb-3">
+        <h2 id="money-title" className="text-[13px] font-bold text-gray-500">
+          Money
+        </h2>
+        {stats == null ? (
+          <p className="mt-1 text-[15px] text-gray-600">Couldn’t load their money right now.</p>
+        ) : owed > 0 ? (
+          <p className="mt-0.5 font-display text-[28px] leading-tight font-extrabold text-kit-600 tabular-nums">Owes {formatCurrency(owed)}</p>
         ) : (
-          <div className="space-y-2">
-            {payments.map((payment) => (
-              <div
-                key={payment.id}
-                className="flex items-center justify-between bg-white p-3.5 rounded-2xl border border-gray-100 shadow-card"
-              >
-                <div>
-                  <p className="text-sm font-bold text-ink tabular-nums">{formatCurrency(payment.amount)}</p>
-                  {payment.paidAt && (
-                    <p className="text-xs text-gray-500">
-                      {new Date(payment.paidAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </p>
-                  )}
-                </div>
-                <span
-                  className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                    paymentStatusStyles[payment.status] || 'bg-gray-100 text-gray-500'
-                  }`}
-                >
-                  {payment.attendance === 'no_show' ? 'Didn’t come' : PAYMENT_WORDS[payment.status] ?? payment.status}
-                </span>
-              </div>
-            ))}
-          </div>
+          <p className="mt-0.5 font-display text-[28px] leading-tight font-extrabold text-ink">All paid ✓</p>
+        )}
+        {stats && (
+          <p className="mt-1 text-[13px] text-gray-600">
+            {due.length > 0 ? (
+              <>
+                Paid for <b className="text-ink tabular-nums">{paid}</b> of {due.length} game{due.length === 1 ? '' : 's'} · <b className="text-ink tabular-nums">{formatCurrency(stats.totalPaid)}</b> in all
+              </>
+            ) : (
+              'Nothing to pay for yet.'
+            )}
+          </p>
         )}
       </div>
-    </div>
+      {rows.length === 0 ? (
+        <p className="border-t border-gray-100 px-4 py-4 text-[13px] text-gray-500">Their games show here once they’re in one.</p>
+      ) : (
+        <>
+          <ul className="border-t border-gray-100 divide-y divide-gray-100">
+            {rows.slice(0, SHOWN).map((p) => (
+              <Row key={p.id} p={p} />
+            ))}
+          </ul>
+          {rows.length > SHOWN && (
+            <>
+              <Collapse open={all} id="older-payments">
+                <ul className="border-t border-gray-100 divide-y divide-gray-100">
+                  {rows.slice(SHOWN).map((p) => (
+                    <Row key={p.id} p={p} />
+                  ))}
+                </ul>
+              </Collapse>
+              <button
+                onClick={() => setAll((v) => !v)}
+                aria-expanded={all}
+                aria-controls="older-payments"
+                className="press w-full min-h-12 border-t border-gray-100 text-[14px] font-bold text-pitch-700 hover:bg-chalk"
+              >
+                {all ? 'Show fewer' : `Show all ${rows.length} games`}
+              </button>
+            </>
+          )}
+        </>
+      )}
+    </section>
   );
 }
