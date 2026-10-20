@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TEAMS, teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { BallSpinner } from '@/components/skeleton';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -52,7 +52,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
     setSaving(next);
     try {
       setLineup(await pickBib(sessionId, next));
-      toast.success(lineup?.captains[next] ? `Bib saved: Team ${lineup.captains[next]}` : `Bib saved: ${TEAMS[next].name.toLowerCase()}`);
+      toast.success(lineup?.captains[next] ? `Bib saved: ${teamName(next, lineup.captains, lineup.bibs)}` : `Bib saved: ${teamName(next, undefined, lineup?.bibs)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save your team");
     } finally {
@@ -69,9 +69,9 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
       <ConfirmDialog
         open={!!switching}
         variant="danger"
-        title={myTeam ? `Stop captaining ${teamName(myTeam, lineup.captains)}?` : 'Stop being captain?'}
-        message={`You captain ${myTeam ? teamName(myTeam, lineup.captains) : 'your side'} today. Moving to ${
-          switching ? teamName(switching, lineup.captains) : 'another team'
+        title={myTeam ? `Stop captaining ${teamName(myTeam, lineup.captains, lineup.bibs)}?` : 'Stop being captain?'}
+        message={`You captain ${myTeam ? teamName(myTeam, lineup.captains, lineup.bibs) : 'your side'} today. Moving to ${
+          switching ? teamName(switching, lineup.captains, lineup.bibs) : 'another team'
         } means you stop being captain and can't keep the score. The organiser can make you captain again.`}
         confirmLabel="Move and stop captaining"
         cancelLabel="Stay captain"
@@ -80,7 +80,7 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
       />
       {lineup.bibsOpen ? (
         <div>
-          <p className="text-[13px] font-bold text-white mb-2">{Object.keys(lineup.captains).length ? 'Which team are you in?' : 'Which bib are you in?'}</p>
+          <p className="text-[13px] font-bold text-white mb-2">{Object.keys(lineup.captains).length || lineup.bibs && Object.values(lineup.bibs).some((b) => b?.name) ? 'Which team are you in?' : 'Which bib are you in?'}</p>
           <div className="flex flex-wrap gap-2">
             {teams.map((t) => {
               const mine = lineup.myTeam === t;
@@ -94,8 +94,8 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
                     mine ? 'bg-volt-400 text-ink' : 'bg-white/10 text-white border border-white/15 hover:border-white/40'
                   }`}
                 >
-                  {saving === t ? <BallSpinner /> : <span className={`w-5 h-5 rounded-full ${TEAMS[t].swatch}`} aria-hidden />}
-                  {teamName(t, lineup.captains)}
+                  {saving === t ? <BallSpinner /> : <span className="w-5 h-5 rounded-full" style={bibFill(t, lineup.bibs)} aria-hidden />}
+                  {teamName(t, lineup.captains, lineup.bibs)}
                 </button>
               );
             })}
@@ -115,8 +115,8 @@ export function MatchDayBibs({ sessionId }: { sessionId: string }) {
             .map((t) => (
               <div key={t}>
                 <p className="flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-white/60 mb-1">
-                  <span className={`w-2.5 h-2.5 rounded-sm ${TEAMS[t].swatch}`} aria-hidden />
-                  {teamName(t, lineup.captains)} · {byTeam(t).length}
+                  <span className="w-2.5 h-2.5 rounded-sm" style={bibFill(t, lineup.bibs)} aria-hidden />
+                  {teamName(t, lineup.captains, lineup.bibs)} · {byTeam(t).length}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {byTeam(t).map((p) => (

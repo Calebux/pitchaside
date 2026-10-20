@@ -8,7 +8,7 @@ import { BibShirt } from '@/components/bib-shirt';
 import { Avatar } from '@/components/ratings';
 import { buzz, stagger } from '@/components/motion';
 import type { Ballot, TeamKey, VoteCategory } from '@/lib/api';
-import { TEAMS } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 
 export type Picks = Partial<Record<VoteCategory, string | string[]>>;
 type Player = Ballot['squad'][number];
@@ -57,7 +57,7 @@ export function BallotSteps({
   const sides = keys.map((key) => ({
     key,
     mine: !!key && key === myTeam,
-    label: key ? `${TEAMS[key].name}${ballot.captains[key] ? ` · Team ${ballot.captains[key]}` : ''}` : keys.length > 1 ? 'No team' : 'Who played',
+    label: key ? (teamName(key, ballot.captains, ballot.bibs) === bibOf(key, ballot.bibs).label ? bibOf(key, ballot.bibs).label : `${bibOf(key, ballot.bibs).label} · ${teamName(key, ballot.captains, ballot.bibs)}`) : keys.length > 1 ? 'No team' : 'Who played',
     players: others.filter((p) => p.team === key),
   }));
   const byId = (id: unknown) => others.find((p) => p.id === id);
@@ -104,14 +104,14 @@ export function BallotSteps({
       <button
         type="button"
         aria-pressed={selected}
-        aria-label={`${p.nickname ? `${full(p)}, “${p.nickname}”` : full(p)}${p.team ? `, ${TEAMS[p.team].name}` : ''}${mark && selected ? `, ${mark}` : ''}`}
+        aria-label={`${p.nickname ? `${full(p)}, “${p.nickname}”` : full(p)}${p.team ? `, ${bibOf(p.team, ballot.bibs).label}` : ''}${mark && selected ? `, ${mark}` : ''}`}
         onClick={onTap}
         disabled={disabled && !selected}
         className={`press relative w-full flex flex-col items-center gap-1 min-h-[96px] px-1.5 pt-2.5 pb-2 rounded-2xl border-2 text-center transition-colors disabled:opacity-40 ${
           selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
         }`}
       >
-        <BibShirt team={p.team} label={initials(p)} className="w-11 h-11" />
+        <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className="w-11 h-11" />
         <span className="w-full truncate text-[13px] font-bold text-ink leading-tight">{short(p)}</span>
         {selected && (
           <span className="absolute top-1.5 right-1.5 min-w-6 h-6 px-1.5 rounded-full bg-ink text-volt-300 text-[11px] font-extrabold leading-6 text-center animate-pop-in" aria-hidden>
@@ -129,7 +129,7 @@ export function BallotSteps({
       return (
         <section key={side.key ?? 'all'} aria-label={side.label} className="mt-3.5">
           <h3 className="flex items-center gap-2 mb-1.5 text-[13px] font-bold text-gray-700">
-            {side.key && <span className={`w-3 h-3 rounded-sm shrink-0 ${TEAMS[side.key as TeamKey].swatch}`} aria-hidden />}
+            {side.key && <span className="w-3 h-3 rounded-sm shrink-0" style={bibFill(side.key as TeamKey, ballot.bibs)} aria-hidden />}
             {side.label}
             {side.mine && <span className="text-[11px] font-semibold text-gray-500">· your team</span>}
           </h3>
@@ -206,7 +206,7 @@ export function BallotSteps({
                 Best on your team
               </h2>
               <p className="text-sm text-gray-600 mt-0.5">
-                One of your {TEAMS[myTeam].name}
+                One of your {bibOf(myTeam, ballot.bibs).label}
                 {ballot.captains[myTeam] ? ` (Team ${ballot.captains[myTeam]})` : ''} teammates.
               </p>
               <ul className="mt-2.5 grid grid-cols-3 gap-2" role="radiogroup" aria-labelledby="best-mate">
@@ -241,7 +241,7 @@ export function BallotSteps({
                     >
                       {p ? (
                         <span className="animate-pop-in">
-                          <BibShirt team={p.team} label={initials(p)} className="w-12 h-12" />
+                          <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className="w-12 h-12" />
                         </span>
                       ) : (
                         <BibShirt empty label={String(i + 1)} className="w-12 h-12 text-white/60" />
@@ -262,7 +262,7 @@ export function BallotSteps({
               >
                 {sub ? (
                   <>
-                    <BibShirt team={byId(sub)!.team} label={initials(byId(sub)!)} className="w-9 h-9" />
+                    <BibShirt team={byId(sub)!.team} bibs={ballot.bibs} label={initials(byId(sub)!)} className="w-9 h-9" />
                     <span className="truncate text-[13px] font-bold">{short(byId(sub)!)}</span>
                   </>
                 ) : (

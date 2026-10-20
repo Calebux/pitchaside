@@ -8,7 +8,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { BallSpinner } from '@/components/skeleton';
 import { buzz, stagger } from '@/components/motion';
 import { addGoal, addMatchEvent, addMatchGame, deleteGoal, deleteMatchEvent, deleteMatchGame, type GoalInput, type Lineup, type MatchEventKind, type MatchGame, type TeamKey } from '@/lib/api';
-import { TEAMS, teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { Swatch, shortName } from './teams-step';
 import { ScorerSheet } from './scorer-sheet';
 import { EventsSection } from './events-section';
@@ -91,7 +91,7 @@ export function ScoresStep({
     );
   }
 
-  const name = (t: TeamKey) => teamName(t, lineup.captains);
+  const name = (t: TeamKey) => teamName(t, lineup.captains, lineup.bibs);
   const who = (id: string | null | undefined) => {
     const m = id ? lineup.squad.find((x) => x.id === id) : null;
     return m ? shortName(m) : 'Someone';
@@ -182,7 +182,7 @@ export function ScoresStep({
           className="press max-w-full min-h-11 inline-flex items-center gap-1.5 px-3 rounded-full bg-white/10 text-[13px] font-bold text-white disabled:cursor-default"
           aria-label={teams.length > 2 ? `${name(t)}: change team` : undefined}
         >
-          <Swatch team={t} className="w-3.5 h-3.5 rounded" />
+          <Swatch team={t} bibs={lineup.bibs} className="w-3.5 h-3.5 rounded" />
           <span className="truncate">{name(t)}</span>
           {teams.length > 2 && (
             <svg className="w-3.5 h-3.5 shrink-0 text-white/60" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
@@ -287,7 +287,7 @@ export function ScoresStep({
                 }`}
               >
                 <span className="min-w-0 flex items-center gap-2 font-bold text-ink">
-                  <Swatch team={r.team} />
+                  <Swatch team={r.team} bibs={lineup.bibs} />
                   <span className="truncate">{name(r.team)}</span>
                 </span>
                 {[r.p, r.w, r.d, r.l].map((v, i) => (
@@ -319,7 +319,7 @@ export function ScoresStep({
                   <span className="block text-[11px] font-extrabold text-gray-500">GAME {i + 1} · FULL TIME</span>
                   <span className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
                     <span className="min-w-0 flex items-center gap-1.5 text-[15px] font-bold text-ink">
-                      <Swatch team={g.teamA} />
+                      <Swatch team={g.teamA} bibs={lineup.bibs} />
                       <span className="truncate">{name(g.teamA)}</span>
                     </span>
                     <span className="font-display text-[26px] leading-none font-extrabold text-ink tabular-nums">
@@ -327,7 +327,7 @@ export function ScoresStep({
                     </span>
                     <span className="min-w-0 flex items-center justify-end gap-1.5 text-[15px] font-bold text-ink">
                       <span className="truncate">{name(g.teamB)}</span>
-                      <Swatch team={g.teamB} />
+                      <Swatch team={g.teamB} bibs={lineup.bibs} />
                     </span>
                   </span>
                   <span className={`mt-1.5 block text-[12px] leading-snug truncate ${g.goals.length || !(g.scoreA + g.scoreB) ? 'text-gray-600' : 'font-bold text-pitch-700'}`}>
@@ -426,7 +426,7 @@ export function ScoresStep({
               return (
                 <div key={t} className="mt-4">
                   <p className="flex items-center gap-1.5 text-[13px] font-extrabold text-ink">
-                    <Swatch team={t} />
+                    <Swatch team={t} bibs={lineup.bibs} />
                     {name(t)} · {score} goal{score === 1 ? '' : 's'}
                   </p>
                   <ul className="mt-1">
@@ -497,7 +497,7 @@ export function ScoresStep({
                   }`}
                   style={stagger(i, 30, 20)}
                 >
-                  <Swatch team={t} className="w-5 h-5 rounded-md" />
+                  <Swatch team={t} bibs={lineup.bibs} className="w-5 h-5 rounded-md" />
                   <span className="min-w-0">
                     <span className="block text-[14px] font-bold text-ink truncate">{name(t)}</span>
                     {taken && <span className="block text-[12px] text-gray-500">On the other side</span>}

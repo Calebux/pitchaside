@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { cleanBibs } from '../ratings/bibs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CONTRIBUTIONS_VISIBILITY, Group } from './entities/group.entity';
@@ -75,8 +76,28 @@ export class GroupsService {
     if (dto.contributionsVisibility !== undefined && !CONTRIBUTIONS_VISIBILITY.includes(dto.contributionsVisibility)) {
       throw new BadRequestException('contributionsVisibility must be private, totals or names');
     }
+    if (dto.bibs !== undefined) {
+      try {
+        dto.bibs = cleanBibs(dto.bibs);
+      } catch (err) {
+        throw new BadRequestException((err as Error).message);
+      }
+    }
+    const before = group.bibs ?? {};
     Object.assign(group, dto);
-    const saved = await this.groupsRepo.save(group);
+    const saved = await this.groupsRepo.manager.transaction(async (em) => {
+      // Games already played keep the bibs they were played in: the group's new colours and
+      // names apply from the next game on, never to old results.
+      if (dto.bibs !== undefined) {
+        await em.query(
+          `UPDATE sessions s SET bibs = $1::jsonb
+            WHERE s.group_id = $2 AND s.bibs IS NULL
+              AND EXISTS (SELECT 1 FROM session_games g WHERE g.session_id = s.id)`,
+          [JSON.stringify(before), id],
+        );
+      }
+      return em.save(group);
+    });
     // Switching to a periodic type opens the current dues period straight away.
     await this.billing.ensureCurrentPeriod(saved);
     // The fee and how the group collects apply to what's still unpaid, not just to dues

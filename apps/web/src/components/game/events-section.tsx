@@ -7,7 +7,7 @@ import { Avatar } from '@/components/ratings';
 import { BallSpinner } from '@/components/skeleton';
 import { buzz } from '@/components/motion';
 import type { Lineup, MatchEventKind, TeamKey } from '@/lib/api';
-import { TEAMS, teamName } from '@/lib/teams';
+import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { Swatch, shortName } from './teams-step';
 
 type Member = Lineup['squad'][number];
@@ -111,16 +111,16 @@ export function EventsSection({
           <SheetTitle
             id={titleId}
             title={who ? `${shortName(who)}: what was it?` : 'Card or save: who?'}
-            sub={who ? (who.team ? teamName(who.team as TeamKey, lineup.captains) : undefined) : 'Tap the player.'}
+            sub={who ? (who.team ? teamName(who.team as TeamKey, lineup.captains, lineup.bibs) : undefined) : 'Tap the player.'}
             onClose={close}
           />
           {!who ? (
             teams.map((t) => (
               <div key={t ?? 'none'} className="mt-4">
                 <p className="flex items-center gap-1.5 text-[13px] font-extrabold text-ink">
-                  {t && <Swatch team={t as TeamKey} />}
-                  {t ? teamName(t as TeamKey, lineup.captains) : 'No team'}
-                  {t && <span className="sr-only">({TEAMS[t as TeamKey].name})</span>}
+                  {t && <Swatch team={t as TeamKey} bibs={lineup.bibs} />}
+                  {t ? teamName(t as TeamKey, lineup.captains, lineup.bibs) : 'No team'}
+                  {t && <span className="sr-only">({bibOf(t as TeamKey, lineup.bibs).label})</span>}
                 </p>
                 <ul className="mt-1.5 grid grid-cols-3 gap-2">
                   {lineup.squad

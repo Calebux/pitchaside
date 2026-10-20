@@ -1,3 +1,4 @@
+import type { Bibs } from '@pitchaside/shared';
 import type {
   ContributionsVisibility,
   IGroup,
@@ -105,6 +106,7 @@ export function updateGroup(
     requireRsvp: boolean;
     kickoffTime: string;
     contributionsVisibility: ContributionsVisibility;
+    bibs: Bibs | null;
   }>,
 ): Promise<IGroup> {
   return http.patch<IGroup>(`/groups/${id}`, data);
@@ -798,6 +800,8 @@ export interface Lineup {
   scoresOpen: boolean;
   /** Side → its captain's name; a side with a captain goes by "Team <name>". */
   captains: Partial<Record<TeamKey, string>>;
+  /** Each side's bib colour and name for this game (its own, else the group's). */
+  bibs?: Bibs;
   /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
   squad: (SquadMember & { team: TeamKey | null; captain: boolean; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
   games: MatchGame[];
@@ -816,6 +820,11 @@ export function saveLineup(
   data: { teamCount?: number; teams?: Record<string, TeamKey | null>; captains?: Partial<Record<TeamKey, string | null>> },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
+}
+
+/** One game's bibs and team names (null: back to the group's). Allowed after scores too; it's only how sides look. */
+export function setGameBibs(sessionId: string, bibs: Bibs | null): Promise<Lineup> {
+  return http.patch(`/sessions/${sessionId}/bibs`, { bibs });
 }
 
 export function balanceLineup(sessionId: string, teamCount?: number): Promise<Lineup> {
@@ -935,6 +944,7 @@ export interface SquadMember {
 }
 
 export interface VoteResults {
+  bibs?: Bibs;
   ballots: number;
   squadSize: number;
   /** The vote is still open: only the turnout is shown, the winners come at the close. */
@@ -977,6 +987,8 @@ export interface Ballot {
   squad: (SquadMember & { team: TeamKey | null })[];
   teamCount: number;
   captains: Partial<Record<TeamKey, string>>;
+  /** Each side's bib colour and name for this game (its own, else the group's). */
+  bibs?: Bibs;
   ballots: number;
   squadSize: number;
 }

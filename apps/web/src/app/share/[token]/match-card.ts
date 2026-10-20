@@ -1,5 +1,8 @@
+import type { Bibs } from '@pitchaside/shared';
 /** Server-side: the match-day summary behind the share card and its page. */
 export interface MatchCard {
+  /** Each side's bib colour and name for this game. */
+  bibs?: Bibs;
   groupName: string;
   clubName: string | null;
   date: string;

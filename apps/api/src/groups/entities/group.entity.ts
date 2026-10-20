@@ -1,3 +1,4 @@
+import type { Bibs } from '@pitchaside/shared';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -64,6 +65,10 @@ export class Group {
   /** What players can see of the group's contributions: 'private' | 'totals' | 'names'. */
   @Column({ name: 'contributions_visibility', type: 'varchar', length: 10, default: 'private' })
   contributionsVisibility: ContributionsVisibility;
+
+  /** The sides' bibs: colour and an optional name each ("Red Devils"). Null: the default colours. */
+  @Column({ type: 'jsonb', nullable: true })
+  bibs: Bibs | null;
 
   /** Public code used in the group's join / pay link. */
   @Column({ name: 'invite_code', nullable: true, unique: true })
