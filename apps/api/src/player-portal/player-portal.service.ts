@@ -478,6 +478,25 @@ export class PlayerPortalService {
     return this.ratings.captainDeleteGoal(sessionId, goalId, this.ids(person));
   }
 
+  /** A group this person plays in, or a 404 (never another group's table or stats). */
+  private async myGroup(person: Person, groupId: string) {
+    const m = (await this.memberships(person)).find((x) => x.groupId === groupId);
+    if (!m) throw new NotFoundException('Group not found');
+    return m.group;
+  }
+
+  /** The Club tab's table: the same table the organiser sees, for a group they play in. */
+  async groupTable(person: Person, groupId: string, lastDays?: number) {
+    const group = await this.myGroup(person, groupId);
+    return this.ratings.getGroupTable(groupId, group.organizationId, lastDays);
+  }
+
+  /** The Club tab's rating parts per player (stats, votes, results), for a group they play in. */
+  async groupRatings(person: Person, groupId: string) {
+    const group = await this.myGroup(person, groupId);
+    return this.ratings.getRatingTrial(groupId, group.organizationId);
+  }
+
   /** Any player's, as long as they're in a club this person plays for. */
   async ratingBreakdown(person: Person, playerId: string) {
     const target = await this.playersRepo.findOne({ where: { id: playerId }, select: ['id', 'organizationId'] });
