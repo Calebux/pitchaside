@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
-import { RatingsService } from './ratings.service';
+import { RatingsService, blankRatings, compareStats } from './ratings.service';
 import { SessionKind, SessionStatus } from '../sessions/entities/session.entity';
 import { VoteCategory } from './entities/vote.entity';
 import { localDate } from '../common/time.util';
@@ -376,5 +376,18 @@ describe('award evidence', () => {
     const ada = (await table(pace)).find((r) => r.player.id === 'ada')!;
     expect(ada.evidence.engine).toMatchObject({ nominations: 3, enough: true });
     expect(ada.attributes.PHY!).toBeGreaterThan(ada.attributes.SHO!);
+  });
+});
+
+describe('compareStats', () => {
+  const row = (id: string, goals: number, games: number, w = 0) =>
+    ({ ...blankRatings(), player: { id }, goals, games, record: { w, d: 0, l: 0 } }) as any;
+  it('gives the average, per game too, and a shared rank for ties', () => {
+    const c = compareStats([row('a', 6, 3, 2), row('b', 2, 2), row('c', 6, 6)], 'c');
+    expect(c.goals).toEqual({ avg: 4.7, avgPerGame: 1.33, rank: 1, of: 3 });
+    expect(c.wins.rank).toBe(2);
+  });
+  it('ranks 0 for someone who has not played', () => {
+    expect(compareStats([row('a', 1, 1)], 'z').goals.rank).toBe(0);
   });
 });

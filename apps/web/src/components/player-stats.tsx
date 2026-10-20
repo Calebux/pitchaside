@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import type { PlayerRatings, VoteCategory } from '@/lib/api';
+import type { ComparedStat, PlayerRatings, StatCompare, VoteCategory } from '@/lib/api';
+import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { InfoTip } from '@/components/info-tip';
 
 /** The awards voted on after games, in the ballot's order, with the old Fastest kept as The Engine. */
@@ -22,6 +23,112 @@ function Stat({ label, value }: { label: string; value: string | number }) {
     <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-2 py-3 text-center">
       <p className="font-display text-2xl font-extrabold text-ink tabular-nums leading-none">{value}</p>
       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mt-1">{label}</p>
+    </div>
+  );
+}
+
+/** The numbers the tracker compares with the club, in their usual order. */
+const TRACKED: { key: ComparedStat; label: string }[] = [
+  { key: 'goals', label: 'Goals' },
+  { key: 'assists', label: 'Assists' },
+  { key: 'potmWins', label: 'Player of the Match' },
+  { key: 'viiOfDay', label: 'Best VII of the Day' },
+  { key: 'wins', label: 'Games won' },
+  { key: 'bestOnTeam', label: 'Best on their team' },
+  { key: 'teamOfDay', label: 'Team of the Day' },
+];
+
+const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
+const valueOf = (r: PlayerRatings, k: ComparedStat) => (k === 'wins' ? r.record.w : r[k]);
+
+/**
+ * Each number beside the club's: a bar for theirs with a tick at the club average, and where
+ * they rank. In totals or per game, in the usual order or best rank first.
+ */
+function Tracker({ r, compare }: { r: PlayerRatings; compare: StatCompare }) {
+  const [per, setPer] = useState<'total' | 'game'>('total');
+  const [sort, setSort] = useState<'usual' | 'rank'>('usual');
+  const rows = TRACKED.map(({ key, label }) => {
+    const c = compare[key];
+    const raw = valueOf(r, key);
+    const mine = per === 'game' ? (r.games ? raw / r.games : 0) : raw;
+    const avg = per === 'game' ? c.avgPerGame : c.avg;
+    // Room for both their number and the average, so neither sits at the very end.
+    const scale = Math.max(mine, avg * 2, per === 'game' ? 0.5 : 1);
+    return { key, label, c, mine, avg, w: (mine / scale) * 100, a: (avg / scale) * 100 };
+  });
+  // A rank only means something once they have one: a 0 isn't "1st" because everyone else has 0 too.
+  const placed = (x: (typeof rows)[number]) => (valueOf(r, x.key) > 0 ? x.c.rank : 999);
+  if (sort === 'rank') rows.sort((x, y) => placed(x) - placed(y));
+  // Numbers no one in the club has yet say nothing: one line under the list instead of a row each.
+  const nobody = rows.filter((x) => x.c.avg === 0 && valueOf(r, x.key) === 0);
+  const shown = rows.filter((x) => !nobody.includes(x));
+  const fmt = (n: number) => (per === 'game' ? String(Math.round(n * 100) / 100) : String(n));
+  return (
+    <div className="mt-5">
+      <FilterBar>
+        <h3 className="shrink-0 mr-1 text-[15px] font-bold text-ink">Against the club</h3>
+        <FilterMenu
+          label="Show"
+          value={per}
+          onChange={setPer}
+          columns={2}
+          options={[
+            { value: 'total', label: 'Totals' },
+            { value: 'game', label: 'Per game' },
+          ]}
+        />
+        <FilterMenu
+          label="Sort"
+          title="Sort by"
+          value={sort}
+          onChange={setSort}
+          columns={2}
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+            </svg>
+          }
+          options={[
+            { value: 'usual', label: 'Usual order' },
+            { value: 'rank', label: 'Where they rank best' },
+          ]}
+        />
+      </FilterBar>
+      {shown.length > 0 && (
+      <ul className="mt-2 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 px-4">
+        {shown.map((x) => (
+          <li key={x.key} className="py-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[14px] font-bold text-ink">{x.label}</span>
+              <span className="shrink-0 tabular-nums">
+                <span className="font-display text-[18px] font-extrabold text-ink">{fmt(x.mine)}</span>
+                <span className="text-[12px] text-gray-500"> · club avg {fmt(x.avg)}</span>
+              </span>
+            </div>
+            <div className="relative mt-1.5 h-2 rounded-full bg-gray-100" aria-hidden>
+              <div className="h-2 rounded-full bg-pitch-500 animate-fill-grow" style={{ width: `${Math.min(100, x.w)}%` }} />
+              <span className="absolute -top-[3px] w-0.5 h-3.5 bg-ink rounded" style={{ left: `${Math.min(99, x.a)}%` }} />
+            </div>
+            <p className={`mt-1 text-[12px] font-bold ${placed(x) <= 3 ? 'text-pitch-700' : 'text-gray-500'}`}>
+              {x.c.rank === 0
+                ? 'Not played yet'
+                : placed(x) === 999
+                  ? x.avg > 0
+                    ? 'None yet'
+                    : ''
+                  : `${ordinal(x.c.rank)} of ${x.c.of} in the club${per === 'game' ? ' in total' : ''}`}
+            </p>
+          </li>
+        ))}
+      </ul>
+      )}
+      {nobody.length > 0 && (
+        <p className="mt-2 px-1 text-[13px] text-gray-600">
+          No one in the club has {nobody.map((x) => x.label).join(', ').replace(/, ([^,]*)$/, ' or $1')} yet.
+        </p>
+      )}
+      <p className="mt-1.5 px-1 text-[11px] text-gray-500">The dark tick is the club average. Players level on a number share a place.</p>
     </div>
   );
 }
@@ -78,17 +185,22 @@ export function PlayerStats({ ratings, you = false }: { ratings: PlayerRatings; 
           {range === 'season' ? 'No games this season yet.' : 'No games yet.'}
         </p>
       ) : (
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <Stat label="Games" value={r.games} />
-          <Stat label="W-D-L" value={`${r.record.w}-${r.record.d}-${r.record.l}`} />
-          <Stat label="Points" value={r.points} />
-          <Stat label="Goals" value={r.goals} />
-          <Stat label="Assists" value={r.assists} />
-          <Stat label="POTM" value={r.potmWins} />
-          <Stat label="Best VII" value={r.viiOfDay} />
-          <Stat label="Best on team" value={r.bestOnTeam} />
-          <Stat label="Team of day" value={r.teamOfDay} />
-        </div>
+        <>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <Stat label="Games" value={r.games} />
+            <Stat label="W-D-L" value={`${r.record.w}-${r.record.d}-${r.record.l}`} />
+            <Stat label="Points" value={r.points} />
+          </div>
+          {r.compare ? (
+            <Tracker r={r} compare={r.compare} />
+          ) : (
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <Stat label="Goals" value={r.goals} />
+              <Stat label="Assists" value={r.assists} />
+              <Stat label="POTM" value={r.potmWins} />
+            </div>
+          )}
+        </>
       )}
 
       <h3 className="mt-6 text-[15px] font-bold text-ink">What teammates say</h3>

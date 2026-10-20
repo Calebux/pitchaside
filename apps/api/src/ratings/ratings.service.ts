@@ -154,6 +154,37 @@ export function emptyVotes(): Record<VoteCategory, number> {
 }
 
 /** Ratings for someone who hasn't played: zeros, and no card yet. */
+/** The numbers a player's stats compare with everyone else's. */
+export const COMPARED = ['goals', 'assists', 'potmWins', 'viiOfDay', 'wins', 'points', 'games', 'bestOnTeam', 'teamOfDay'] as const;
+export type ComparedStat = (typeof COMPARED)[number];
+/** Per number: the average in total and per game, this player's rank (ties share it; 0 if not played) and out of how many. */
+export type StatCompare = Record<ComparedStat, { avg: number; avgPerGame: number; rank: number; of: number }>;
+
+const statOf = (r: PlayerRatings, k: ComparedStat) => (k === 'wins' ? r.record.w : r[k]);
+
+/** How `playerId` compares with everyone in `rows` (those who played), number by number. */
+export function compareStats(rows: (PlayerRatings & { player: { id: string } })[], playerId: string): StatCompare {
+  const me = rows.find((r) => r.player.id === playerId);
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return Object.fromEntries(
+    COMPARED.map((k) => {
+      const values = rows.map((r) => statOf(r, k));
+      const total = values.reduce((n, v) => n + v, 0);
+      const perGame = rows.reduce((n, r) => n + (r.games ? statOf(r, k) / r.games : 0), 0);
+      const mine = me ? statOf(me, k) : 0;
+      return [
+        k,
+        {
+          avg: rows.length ? round(total / rows.length) : 0,
+          avgPerGame: rows.length ? Math.round((perGame / rows.length) * 100) / 100 : 0,
+          rank: me ? 1 + values.filter((v) => v > mine).length : 0,
+          of: rows.length,
+        },
+      ];
+    }),
+  ) as StatCompare;
+}
+
 export function blankRatings(): PlayerRatings {
   return {
     games: 0,
@@ -1293,22 +1324,28 @@ export class RatingsService {
     return { games: sessions.length, points: POINTS, rows };
   }
 
-  /** A player's ratings across the club, all time, with this calendar year's alongside. */
-  async getPlayerRatings(playerId: string, organizationId: string): Promise<PlayerRatings & { season: PlayerRatings }> {
+  /**
+   * A player's ratings across the club, all time, with this calendar year's alongside. Each
+   * carries `compare`: for the main numbers, the club's average (in total and per game) and
+   * where this player ranks, among everyone who has played in that period.
+   */
+  async getPlayerRatings(playerId: string, organizationId: string): Promise<PlayerRatings & { compare: StatCompare; season: PlayerRatings & { compare: StatCompare } }> {
     const sessions = await this.gamesQuery(organizationId).getMany();
-    const mine = sessions.filter((s) => s.payments?.some((p) => p.playerId === playerId));
     const skills = await this.skills(organizationId);
     const year = String(new Date().getFullYear());
-    const of = async (list: Session[]): Promise<PlayerRatings> => {
-      const s = (await this.aggregate(list, skills)).get(playerId);
+    const of = async (list: Session[]): Promise<PlayerRatings & { compare: StatCompare }> => {
+      const everyone = await this.aggregate(list, skills);
+      const compare = compareStats([...everyone.values()].filter((r) => r.games > 0), playerId);
+      const s = everyone.get(playerId);
       if (s) {
         const { player: _player, ...ratings } = s;
-        return ratings;
+        return { ...ratings, compare };
       }
       // Not played yet: the card starts from their level.
-      return { ...blankRatings(), ...playerCard(skills.get(playerId), noEvidence(), 0, 0) };
+      return { ...blankRatings(), ...playerCard(skills.get(playerId), noEvidence(), 0, 0), compare };
     };
-    return { ...(await of(mine)), season: await of(mine.filter((s) => String(s.date).startsWith(year))) };
+    return { ...(await of(sessions)), season: await of(sessions.filter((s) => String(s.date).startsWith(year))) };
   }
+
 
 }

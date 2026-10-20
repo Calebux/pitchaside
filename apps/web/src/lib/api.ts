@@ -982,7 +982,13 @@ export interface PlayerRatings {
   evidenceGames: number;
   /** This calendar year's, when asked for one player. */
   season?: PlayerRatings;
+  /** When asked for one player: the club's average per number, and where they rank. */
+  compare?: StatCompare;
 }
+
+export type ComparedStat = 'goals' | 'assists' | 'potmWins' | 'viiOfDay' | 'wins' | 'points' | 'games' | 'bestOnTeam' | 'teamOfDay';
+/** Per number: the club's average in total and per game, this player's rank (ties share it; 0 if not played) and out of how many. */
+export type StatCompare = Record<ComparedStat, { avg: number; avgPerGame: number; rank: number; of: number }>;
 
 export interface LeagueTable {
   games: number;
