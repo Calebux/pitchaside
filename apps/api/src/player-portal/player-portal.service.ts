@@ -1,3 +1,4 @@
+import type { MatchEventKind } from '../ratings/entities/match-event.entity';
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, LessThanOrEqual, MoreThanOrEqual, Not, Repository } from 'typeorm';
@@ -436,6 +437,14 @@ export class PlayerPortalService {
 
   deleteGoal(person: Person, sessionId: string, goalId: string) {
     return this.ratings.captainDeleteGoal(sessionId, goalId, this.ids(person));
+  }
+
+  addEvent(person: Person, sessionId: string, input: { playerId: string; kind: MatchEventKind }) {
+    return this.ratings.captainAddEvent(sessionId, this.ids(person), input);
+  }
+
+  deleteEvent(person: Person, sessionId: string, eventId: string) {
+    return this.ratings.captainDeleteEvent(sessionId, eventId, this.ids(person));
   }
 
   pickTeam(person: Person, sessionId: string, team: string | null) {

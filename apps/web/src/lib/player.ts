@@ -3,7 +3,7 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { PaymentType } from '@pitchaside/shared';
-import type { GoalInput, Lineup, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import type { GoalInput, Lineup, MatchEventKind, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -383,6 +383,14 @@ export function deleteCaptainGame(sessionId: string, gameId: string) {
 
 export function deleteCaptainGoal(sessionId: string, goalId: string) {
   return request<Lineup>('DELETE', `/me/games/${sessionId}/match-day/goals/${goalId}`);
+}
+
+export function addCaptainEvent(sessionId: string, event: { playerId: string; kind: MatchEventKind }) {
+  return request<Lineup>('POST', `/me/games/${sessionId}/match-day/events`, event);
+}
+
+export function deleteCaptainEvent(sessionId: string, eventId: string) {
+  return request<Lineup>('DELETE', `/me/games/${sessionId}/match-day/events/${eventId}`);
 }
 
 export function pickBib(sessionId: string, team: TeamKey | null) {

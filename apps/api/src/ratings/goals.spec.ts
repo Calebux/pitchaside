@@ -21,7 +21,7 @@ function setup(existing: { team: string }[] = []) {
     manager: { transaction: (fn: (t: typeof tx) => unknown) => fn(tx) },
   };
   const goalsRepo = { create: (g: unknown) => g, find: async () => existing, save: async (g: any) => savedGoals.push(g) };
-  const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, {} as never, {} as never);
+  const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, {} as never, {} as never, { find: async () => [] } as never);
   jest.spyOn(service as any, 'loadSession').mockResolvedValue(session);
   jest.spyOn(service, 'getLineup').mockResolvedValue({} as never);
   return { service, savedGoals };
@@ -86,7 +86,7 @@ describe("captains keeping the score", () => {
     const sessionsRepo = { findOne: async () => session };
     const gamesRepo = { findOne: async () => ({ id: 'g1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
     const goalsRepo = { findOne: async () => ({ id: 'x1', recordedBy: over.recordedBy ?? 'Tunde (organiser)' }) };
-    const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, {} as never);
+    const service = new RatingsService({} as never, gamesRepo as never, goalsRepo as never, sessionsRepo as never, {} as never, { find: async () => [] } as never);
     const addGame = jest.spyOn(service, 'addGame').mockResolvedValue({ squad: [] } as never);
     const deleteGame = jest.spyOn(service, 'deleteGame').mockResolvedValue({ squad: [] } as never);
     return { service, addGame, deleteGame };

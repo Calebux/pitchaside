@@ -6,10 +6,11 @@ import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { BallSpinner } from '@/components/skeleton';
 import { buzz, stagger } from '@/components/motion';
-import { addGoal, addMatchGame, deleteGoal, deleteMatchGame, type GoalInput, type Lineup, type MatchGame, type TeamKey } from '@/lib/api';
+import { addGoal, addMatchEvent, addMatchGame, deleteGoal, deleteMatchEvent, deleteMatchGame, type GoalInput, type Lineup, type MatchEventKind, type MatchGame, type TeamKey } from '@/lib/api';
 import { TEAMS, teamName } from '@/lib/teams';
 import { Swatch, shortName } from './teams-step';
 import { ScorerSheet } from './scorer-sheet';
+import { EventsSection } from './events-section';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
@@ -18,9 +19,11 @@ export interface ScoresApi {
   deleteGame: (sessionId: string, gameId: string) => Promise<Lineup>;
   addGoal: (sessionId: string, gameId: string, goal: GoalInput) => Promise<Lineup>;
   deleteGoal: (sessionId: string, goalId: string) => Promise<Lineup>;
+  addEvent: (sessionId: string, event: { playerId: string; kind: MatchEventKind }) => Promise<Lineup>;
+  deleteEvent: (sessionId: string, eventId: string) => Promise<Lineup>;
 }
 
-const ORGANISER: ScoresApi = { addGame: addMatchGame, deleteGame: deleteMatchGame, addGoal, deleteGoal };
+const ORGANISER: ScoresApi = { addGame: addMatchGame, deleteGame: deleteMatchGame, addGoal, deleteGoal, addEvent: addMatchEvent, deleteEvent: deleteMatchEvent };
 
 /**
  * Step 3 of match day: each short game's score. A scoreboard with big − and + for each side
@@ -232,6 +235,32 @@ export function ScoresStep({
         </button>
         {!lineup.locked && <p className="mt-2 text-center text-[12px] text-white/60">Saving the first score locks the teams.</p>}
       </div>
+
+      <EventsSection
+        lineup={lineup}
+        busy={busy}
+        canRemove={canRemove}
+        onAdd={async (playerId, kind) => {
+          setBusy('event');
+          try {
+            onLineup(await api.addEvent(sessionId, { playerId, kind }));
+          } catch (err) {
+            onError(err instanceof Error ? err.message : 'That didn’t save. Try again.');
+          } finally {
+            setBusy(null);
+          }
+        }}
+        onRemove={async (eventId) => {
+          setBusy(eventId);
+          try {
+            onLineup(await api.deleteEvent(sessionId, eventId));
+          } catch (err) {
+            onError(err instanceof Error ? err.message : 'That didn’t save. Try again.');
+          } finally {
+            setBusy(null);
+          }
+        }}
+      />
 
       {lineup.games.length > 0 && (
         <>

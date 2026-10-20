@@ -5,10 +5,17 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ScoresStep, type ScoresApi } from '@/components/game/scores-step';
 import { useToast } from '@/components/toast';
-import { addCaptainGame, addCaptainGoal, deleteCaptainGame, deleteCaptainGoal, getMatchDay } from '@/lib/player';
+import { addCaptainEvent, addCaptainGame, addCaptainGoal, deleteCaptainEvent, deleteCaptainGame, deleteCaptainGoal, getMatchDay } from '@/lib/player';
 import type { Lineup } from '@/lib/api';
 
-const CAPTAIN: ScoresApi = { addGame: addCaptainGame, deleteGame: deleteCaptainGame, addGoal: addCaptainGoal, deleteGoal: deleteCaptainGoal };
+const CAPTAIN: ScoresApi = {
+  addGame: addCaptainGame,
+  deleteGame: deleteCaptainGame,
+  addGoal: addCaptainGoal,
+  deleteGoal: deleteCaptainGoal,
+  addEvent: addCaptainEvent,
+  deleteEvent: deleteCaptainEvent,
+};
 
 /**
  * Keeping the score from a captain's phone, on match day: the organiser's scoreboard, games and

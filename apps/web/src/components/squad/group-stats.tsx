@@ -8,7 +8,20 @@ import { stagger } from '@/components/motion';
 import { getGroupTable, getRatingTrial, type LeagueTable, type RatingTrial } from '@/lib/api';
 
 type Row = LeagueTable['rows'][number];
-export type StatSort = 'rating' | 'goals' | 'assists' | 'contrib' | 'potm' | 'vii' | 'wins' | 'bestOnTeam' | 'teamOfDay' | 'games';
+export type StatSort =
+  | 'rating'
+  | 'goals'
+  | 'assists'
+  | 'contrib'
+  | 'potm'
+  | 'vii'
+  | 'wins'
+  | 'bestOnTeam'
+  | 'teamOfDay'
+  | 'saves'
+  | 'yellow'
+  | 'red'
+  | 'games';
 
 /** Every number the list can rank by: its name, the short label beside the value, and how to read it. */
 const STATS: { key: StatSort; label: string; unit: string; of: (r: Row) => number; perGame: boolean }[] = [
@@ -21,6 +34,9 @@ const STATS: { key: StatSort; label: string; unit: string; of: (r: Row) => numbe
   { key: 'wins', label: 'Games won', unit: 'won', of: (r) => r.record.w, perGame: true },
   { key: 'bestOnTeam', label: 'Best on their team', unit: 'best on team', of: (r) => r.bestOnTeam, perGame: true },
   { key: 'teamOfDay', label: 'Team of the Day', unit: 'Team of Day', of: (r) => r.teamOfDay, perGame: true },
+  { key: 'saves', label: 'Saves', unit: 'saves', of: (r) => r.saves ?? 0, perGame: true },
+  { key: 'yellow', label: 'Yellow cards', unit: 'yellows', of: (r) => r.yellowCards ?? 0, perGame: true },
+  { key: 'red', label: 'Red cards', unit: 'reds', of: (r) => r.redCards ?? 0, perGame: true },
   { key: 'games', label: 'Games played', unit: 'played', of: (r) => r.games, perGame: false },
 ];
 
@@ -58,7 +74,10 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
   const fmt = (n: number) => (byGame ? String(Math.round(n * 100) / 100) : String(n));
 
   const played = (table?.rows ?? []).filter((r) => r.games > 0);
-  const rows = [...played].sort((a, b) => value(b) - value(a) || (b.ovr ?? 0) - (a.ovr ?? 0) || nameOf(a).localeCompare(nameOf(b)));
+  // Counting stats list only players who have one; the rest fold into a line (a 0 isn't a place).
+  const counts = sort !== 'rating' && sort !== 'games';
+  const none = counts ? played.filter((r) => stat.of(r) === 0).length : 0;
+  const rows = [...(counts ? played.filter((r) => stat.of(r) > 0) : played)].sort((a, b) => value(b) - value(a) || (b.ovr ?? 0) - (a.ovr ?? 0) || nameOf(a).localeCompare(nameOf(b)));
   const notYet = (table?.rows.length ?? 0) - played.length;
 
   return (
@@ -100,8 +119,17 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
         </div>
       ) : !table ? (
         <div className="mt-3 h-64 rounded-3xl bg-gray-100 animate-pulse" aria-busy aria-label="Loading stats" />
-      ) : rows.length === 0 ? (
+      ) : played.length === 0 ? (
         <p className="mt-3 rounded-3xl bg-chalk px-4 py-8 text-center text-sm text-gray-600">No one has played a game with scores yet.</p>
+      ) : rows.length === 0 ? (
+        <p className="mt-3 rounded-3xl bg-chalk px-4 py-8 text-center text-sm text-gray-600">
+          No {stat.label.toLowerCase()} recorded yet.{' '}
+          {sort === 'goals' || sort === 'assists' || sort === 'contrib'
+            ? 'Add scorers on match day.'
+            : sort === 'saves' || sort === 'yellow' || sort === 'red'
+              ? 'Add them under Cards and saves on match day.'
+              : ''}
+        </p>
       ) : (
         <ol className="mt-3 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden" aria-label={`Ranked by ${stat.label}`}>
           {rows.map((r, i) => {
@@ -149,6 +177,11 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
           })}
         </ol>
       )}
+      {table && rows.length > 0 && none > 0 && (
+        <p className="mt-2 px-1 text-[12px] text-gray-500">
+          {none} other player{none === 1 ? ' has' : 's have'} none.
+        </p>
+      )}
       {table && notYet > 0 && (
         <p className="mt-2 px-1 text-[12px] text-gray-500">
           {notYet} player{notYet === 1 ? ' hasn’t' : 's haven’t'} played a game with scores yet.
@@ -156,7 +189,7 @@ export function GroupStats({ groupId, sort, onSort }: { groupId: string; sort: S
       )}
       {sort === 'rating' && (
         <p className="mt-2 px-1 text-[11px] leading-snug text-gray-500">
-          Rating: 40% stats (goals and assists), 40% votes (Player of the Match, Best VII, awards), 20% team results, each against the rest of the club. 70 is
+          Rating: 40% stats (goals, assists and saves; cards take a little off), 40% votes (Player of the Match, Best VII, awards), 20% team results, each against the rest of the club. 70 is
           the middle.
         </p>
       )}

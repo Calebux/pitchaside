@@ -801,6 +801,8 @@ export interface Lineup {
   /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
   squad: (SquadMember & { team: TeamKey | null; captain: boolean; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
   games: MatchGame[];
+  /** Cards and saves recorded today, oldest first. */
+  events: MatchEvent[];
   standings: TeamStanding[];
   teamOfTheDay: TeamKey | null;
 }
@@ -834,6 +836,24 @@ export function addGoal(sessionId: string, gameId: string, goal: GoalInput): Pro
 
 export function deleteGoal(sessionId: string, goalId: string): Promise<Lineup> {
   return http.delete(`/sessions/${sessionId}/goals/${goalId}`);
+}
+
+export type MatchEventKind = 'yellow' | 'red' | 'save';
+export interface MatchEvent {
+  id: string;
+  playerId: string;
+  kind: MatchEventKind;
+  /** "Tunde (organiser)", "Ada (captain)". */
+  recordedBy: string | null;
+}
+
+/** A yellow card, red card or save on match day. */
+export function addMatchEvent(sessionId: string, event: { playerId: string; kind: MatchEventKind }): Promise<Lineup> {
+  return http.post(`/sessions/${sessionId}/events`, event);
+}
+
+export function deleteMatchEvent(sessionId: string, eventId: string): Promise<Lineup> {
+  return http.delete(`/sessions/${sessionId}/events/${eventId}`);
 }
 
 export function deleteMatchGame(sessionId: string, gameId: string): Promise<Lineup> {
@@ -971,6 +991,10 @@ export interface PlayerRatings {
   attributes: Record<Attribute, number | null>;
   goals: number;
   assists: number;
+  /** Cards and saves recorded on match day. */
+  yellowCards: number;
+  redCards: number;
+  saves: number;
   /** Times someone put them in their Best VII. */
   viiPicks: number;
   /** Times they made the Best VII of the Day. */
@@ -986,7 +1010,19 @@ export interface PlayerRatings {
   compare?: StatCompare;
 }
 
-export type ComparedStat = 'goals' | 'assists' | 'potmWins' | 'viiOfDay' | 'wins' | 'points' | 'games' | 'bestOnTeam' | 'teamOfDay';
+export type ComparedStat =
+  | 'goals'
+  | 'assists'
+  | 'potmWins'
+  | 'viiOfDay'
+  | 'wins'
+  | 'points'
+  | 'games'
+  | 'bestOnTeam'
+  | 'teamOfDay'
+  | 'saves'
+  | 'yellowCards'
+  | 'redCards';
 /** Per number: the club's average in total and per game, this player's rank (ties share it; 0 if not played) and out of how many. */
 export type StatCompare = Record<ComparedStat, { avg: number; avgPerGame: number; rank: number; of: number }>;
 

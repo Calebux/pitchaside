@@ -36,7 +36,13 @@ const TRACKED: { key: ComparedStat; label: string }[] = [
   { key: 'wins', label: 'Games won' },
   { key: 'bestOnTeam', label: 'Best on their team' },
   { key: 'teamOfDay', label: 'Team of the Day' },
+  { key: 'saves', label: 'Saves' },
+  { key: 'yellowCards', label: 'Yellow cards' },
+  { key: 'redCards', label: 'Red cards' },
 ];
+
+/** Numbers where more is worse: ranked "most", never shown in green. */
+const WORSE = new Set<ComparedStat>(['yellowCards', 'redCards']);
 
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')}`;
 const valueOf = (r: PlayerRatings, k: ComparedStat) => (k === 'wins' ? r.record.w : r[k]);
@@ -58,7 +64,7 @@ function Tracker({ r, compare }: { r: PlayerRatings; compare: StatCompare }) {
     return { key, label, c, mine, avg, w: (mine / scale) * 100, a: (avg / scale) * 100 };
   });
   // A rank only means something once they have one: a 0 isn't "1st" because everyone else has 0 too.
-  const placed = (x: (typeof rows)[number]) => (valueOf(r, x.key) > 0 ? x.c.rank : 999);
+  const placed = (x: (typeof rows)[number]) => (valueOf(r, x.key) > 0 && !WORSE.has(x.key) ? x.c.rank : 999);
   if (sort === 'rank') rows.sort((x, y) => placed(x) - placed(y));
   // Numbers no one in the club has yet say nothing: one line under the list instead of a row each.
   const nobody = rows.filter((x) => x.c.avg === 0 && valueOf(r, x.key) === 0);
@@ -107,17 +113,17 @@ function Tracker({ r, compare }: { r: PlayerRatings; compare: StatCompare }) {
               </span>
             </div>
             <div className="relative mt-1.5 h-2 rounded-full bg-gray-100" aria-hidden>
-              <div className="h-2 rounded-full bg-pitch-500 animate-fill-grow" style={{ width: `${Math.min(100, x.w)}%` }} />
+              <div className={`h-2 rounded-full animate-fill-grow ${WORSE.has(x.key) ? 'bg-kit-400' : 'bg-pitch-500'}`} style={{ width: `${Math.min(100, x.w)}%` }} />
               <span className="absolute -top-[3px] w-0.5 h-3.5 bg-ink rounded" style={{ left: `${Math.min(99, x.a)}%` }} />
             </div>
-            <p className={`mt-1 text-[12px] font-bold ${placed(x) <= 3 ? 'text-pitch-700' : 'text-gray-500'}`}>
+            <p className={`mt-1 text-[12px] font-bold ${placed(x) <= 3 && !WORSE.has(x.key) ? 'text-pitch-700' : 'text-gray-500'}`}>
               {x.c.rank === 0
                 ? 'Not played yet'
-                : placed(x) === 999
+                : valueOf(r, x.key) === 0
                   ? x.avg > 0
                     ? 'None yet'
                     : ''
-                  : `${ordinal(x.c.rank)} of ${x.c.of} in the club${per === 'game' ? ' in total' : ''}`}
+                  : `${WORSE.has(x.key) ? `${ordinal(x.c.rank)} most` : ordinal(x.c.rank)} of ${x.c.of} in the club${per === 'game' ? ' in total' : ''}`}
             </p>
           </li>
         ))}
