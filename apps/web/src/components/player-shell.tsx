@@ -1,5 +1,7 @@
 'use client';
 
+import { InstallNudge } from '@/components/pwa';
+
 import { createContext, useContext, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -199,6 +201,11 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
           )}
           {children}
         </main>
+      </div>
+
+      {/* Until it's on their home screen: a nudge just above the tab bar, every visit */}
+      <div className="md:hidden fixed bottom-[calc(max(env(safe-area-inset-bottom),0.75rem)+5rem)] inset-x-3 z-40 max-w-md mx-auto">
+        <InstallNudge />
       </div>
 
       {/* Phone tab bar */}
