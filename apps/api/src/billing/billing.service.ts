@@ -1,3 +1,4 @@
+import type { ExtraSource } from './dto/transfer.dto';
 import {
   BadGatewayException,
   BadRequestException,
@@ -1224,7 +1225,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .createQueryBuilder('m')
       .innerJoinAndSelect('m.player', 'player')
       .where('m.groupId = :groupId', { groupId })
-      .andWhere('m.extra > 0')
+      .andWhere('(m.extra > 0 OR m.waiting > 0)')
       .getMany();
     return Promise.all(
       members.map(async (m) => {
@@ -1236,6 +1237,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
           playerId: m.playerId,
           name: `${m.player.firstName} ${m.player.lastName}`.trim(),
           extra: Number(m.extra),
+          waiting: Number(m.waiting ?? 0),
+          waitingNote: m.waitingNote ?? null,
           lastTransfer: last ? { id: last.id, amount: Number(last.amount), receivedAt: last.receivedAt } : null,
         };
       }),
@@ -1247,7 +1250,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
    * pay now (played, and their next one), whole games first, any rest a part payment towards
    * the next. What isn't needed stays with `fromId`, still to sort.
    */
-  private async giveExtraPlan(tx: EntityManager, groupId: string, fromId: string, toId: string, lock = false) {
+  private async giveExtraPlan(tx: EntityManager, groupId: string, fromId: string, toId: string, source: ExtraSource, lock = false) {
     const lockOpt = lock ? { lock: { mode: 'pessimistic_write' as const } } : {};
     // Always lock in the same order, so two sorts at once can't deadlock.
     const [first, second] = [fromId, toId].sort();
@@ -1256,7 +1259,7 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     const from = first === fromId ? a : b;
     const to = first === fromId ? b : a;
     if (!from || !to) throw new NotFoundException("That player isn't in this group");
-    const extra = Number(from.extra ?? 0);
+    const extra = Number(from[source] ?? 0);
     const payable = await this.payableDues(tx, groupId, toId);
     const kept = Number(to.credit);
     const owed = Math.max(0, payable.reduce((n, p) => n + Number(p.amount), 0) - kept);
@@ -1278,9 +1281,9 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async giveExtraPreview(groupId: string, fromId: string, toId: string, organizationId: string) {
+  async giveExtraPreview(groupId: string, fromId: string, toId: string, organizationId: string, source: ExtraSource = 'extra') {
     await this.findGroup(groupId, organizationId);
-    const plan = await this.giveExtraPlan(this.membershipsRepo.manager, groupId, fromId, toId);
+    const plan = await this.giveExtraPlan(this.membershipsRepo.manager, groupId, fromId, toId, source);
     const due = (p: Payment) => ({ paymentId: p.id, date: p.session.date, label: p.session.label ?? null, kind: p.session.kind, amount: Number(p.amount) });
     return {
       move: plan.move,
@@ -1290,20 +1293,60 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  /** The extra was for someone else: it pays what they owe now; anything not needed stays to sort. */
-  async giveExtra(groupId: string, fromId: string, toId: string, organizationId: string) {
+  /**
+   * The extra (or money waiting for a player) was for someone else: it pays what they owe now;
+   * anything not needed stays where it was.
+   */
+  async giveExtra(groupId: string, fromId: string, toId: string, organizationId: string, source: ExtraSource = 'extra') {
     await this.findGroup(groupId, organizationId);
-    if (fromId === toId) throw new BadRequestException('To keep it for them, choose "Keep it for their next game".');
+    if (fromId === toId && source === 'extra') throw new BadRequestException('To keep it for them, choose "Keep it for their next game".');
     const settled = await this.membershipsRepo.manager.transaction(async (tx) => {
-      const plan = await this.giveExtraPlan(tx, groupId, fromId, toId, true);
-      if (Number(plan.from.extra ?? 0) <= 0.001) throw new BadRequestException('There’s no extra left to sort.');
+      const plan = await this.giveExtraPlan(tx, groupId, fromId, toId, source, true);
+      if (Number(plan.from[source] ?? 0) <= 0.001) throw new BadRequestException(source === 'waiting' ? 'Nothing is waiting here any more.' : 'There’s no extra left to sort.');
       if (plan.move <= 0.001) throw new BadRequestException('They don’t owe anything that can be paid now.');
-      plan.from.extra = (Number(plan.from.extra) - plan.move).toFixed(2);
+      plan.from[source] = (Number(plan.from[source]) - plan.move).toFixed(2);
+      if (source === 'waiting' && Number(plan.from.waiting) <= 0.001) plan.from.waitingNote = null;
       await tx.save(plan.from);
       return (await this.creditIn(tx, groupId, toId, plan.move)).settled;
     });
     await this.afterPaid(settled);
     return { settled: settled.length };
+  }
+
+  /**
+   * The extra was for someone the organiser can't place yet: not in the group, or no one knows
+   * who. It moves apart from the sender's money and waits, with what's known about who it's for.
+   */
+  async holdExtra(groupId: string, playerId: string, organizationId: string, note?: string) {
+    await this.findGroup(groupId, organizationId);
+    return this.membershipsRepo.manager.transaction(async (tx) => {
+      const m = await tx.findOne(GroupMembership, { where: { groupId, playerId }, lock: { mode: 'pessimistic_write' } });
+      if (!m) throw new NotFoundException("That player isn't in this group");
+      const extra = Number(m.extra ?? 0);
+      if (extra <= 0.001) throw new BadRequestException('There’s no extra left to sort.');
+      m.waiting = (Number(m.waiting ?? 0) + extra).toFixed(2);
+      m.extra = '0.00';
+      const said = note?.trim();
+      if (said) m.waitingNote = [m.waitingNote, said].filter(Boolean).join(' · ').slice(0, 120);
+      await tx.save(m);
+      return { waiting: Number(m.waiting) };
+    });
+  }
+
+  /** Money waiting for a player goes back with the sender's extra, still to sort. */
+  async releaseWaiting(groupId: string, playerId: string, organizationId: string) {
+    await this.findGroup(groupId, organizationId);
+    return this.membershipsRepo.manager.transaction(async (tx) => {
+      const m = await tx.findOne(GroupMembership, { where: { groupId, playerId }, lock: { mode: 'pessimistic_write' } });
+      if (!m) throw new NotFoundException("That player isn't in this group");
+      const waiting = Number(m.waiting ?? 0);
+      if (waiting <= 0.001) throw new BadRequestException('Nothing is waiting here any more.');
+      m.extra = (Number(m.extra ?? 0) + waiting).toFixed(2);
+      m.waiting = '0.00';
+      m.waitingNote = null;
+      await tx.save(m);
+      return { extra: Number(m.extra) };
+    });
   }
 
   /** The extra really was paid ahead: kept for their next game (and paid towards it once it's next). */

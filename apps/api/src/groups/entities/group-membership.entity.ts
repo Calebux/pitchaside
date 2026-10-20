@@ -58,6 +58,18 @@ export class GroupMembership {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   extra: string;
 
+  /**
+   * Extra this member sent for someone the organiser can't place yet: not in the group, or no
+   * one knows who. It isn't this member's money and pays nothing until it's given to a player
+   * or put back with their extra.
+   */
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  waiting: string;
+
+  /** What the organiser knows about who the waiting money is for, e.g. "Kunle's friend". */
+  @Column({ name: 'waiting_note', type: 'varchar', length: 120, nullable: true })
+  waitingNote: string | null;
+
   @CreateDateColumn()
   joinedAt: Date;
 }

@@ -22,6 +22,8 @@ export type Membership = {
   credit: number;
   /** Sent beyond what they owed, waiting for the organiser to sort. */
   extra?: number;
+  /** Extra they sent for someone not in the group yet, or no one knows who. */
+  waiting?: number;
   /** Their code for transfer descriptions; null until they've opened their payment details. */
   paymentCode?: string | null;
   due: MemberDue;
@@ -126,6 +128,11 @@ export function PlayerSheet({
       v: formatCurrency(membership!.extra!),
       note: 'Sent more than they owed. Say what it was for on Money.',
       tone: 'text-amber-700',
+    },
+    (membership?.waiting ?? 0) > 0 && {
+      k: 'Waiting for a player',
+      v: formatCurrency(membership!.waiting!),
+      note: 'They paid it for someone you can’t place yet. Give it to them on Money.',
     },
     credit > 0 && {
       k: 'Paid ahead',

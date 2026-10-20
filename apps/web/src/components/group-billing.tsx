@@ -25,6 +25,9 @@ import {
   getExtraMoney,
   giveExtra,
   keepExtra,
+  holdExtra,
+  releaseWaiting,
+  type ExtraSource,
   type ExtraMoney,
   getGroupOwed,
   type OwedItem,
@@ -763,8 +766,11 @@ export function TransfersPanel({
   const [classifying, setClassifying] = useState<BankTransfer | null>(null);
   // More than someone owed: it waits here until the organiser says what it was for.
   const panelRouter = useRouter();
-  const [extras, setExtras] = useState<ExtraMoney[]>([]);
-  const [sorting, setSorting] = useState<ExtraMoney | null>(null);
+  const [extraMoney, setExtras] = useState<ExtraMoney[]>([]);
+  const extras = extraMoney.filter((x) => x.extra > 0.001);
+  // Put aside for someone not in the group yet, or no one knows who.
+  const waitingMoney = extraMoney.filter((x) => x.waiting > 0.001);
+  const [sorting, setSorting] = useState<(ExtraMoney & { source: ExtraSource }) | null>(null);
   const loadExtras = () => getExtraMoney(groupId).then(setExtras).catch(() => {});
   useEffect(() => {
     loadExtras();
@@ -949,6 +955,7 @@ export function TransfersPanel({
       {sorting && (
         <ExtraSheet
           groupId={groupId}
+          source={sorting.source}
           item={sorting}
           members={members}
           owed={owed}
@@ -957,7 +964,7 @@ export function TransfersPanel({
           onGive={async (to, done) => {
             const item = sorting;
             setSorting(null);
-            await run(`extra-${item.playerId}`, () => giveExtra(groupId, item.playerId, to.playerId), done);
+            await run(`extra-${item.playerId}`, () => giveExtra(groupId, item.playerId, to.playerId, item.source), done);
             loadExtras();
           }}
           onKeep={async () => {
@@ -970,6 +977,18 @@ export function TransfersPanel({
             const item = sorting;
             setSorting(null);
             panelRouter.push(`/money?group=${groupId}&view=payouts&refund=${item.playerId}`);
+          }}
+          onHold={async (note) => {
+            const item = sorting;
+            setSorting(null);
+            await run(`extra-${item.playerId}`, () => holdExtra(groupId, item.playerId, note || undefined), `${formatCurrency(item.extra)} is waiting for a player`);
+            loadExtras();
+          }}
+          onRelease={async () => {
+            const item = sorting;
+            setSorting(null);
+            await run(`extra-${item.playerId}`, () => releaseWaiting(groupId, item.playerId), `${formatCurrency(item.waiting)} back with ${item.name.split(' ')[0]}’s extra to sort`);
+            loadExtras();
           }}
         />
       )}
@@ -991,7 +1010,7 @@ export function TransfersPanel({
                 <li key={x.playerId}>
                   <button
                     disabled={workingId === `extra-${x.playerId}`}
-                    onClick={() => setSorting(x)}
+                    onClick={() => setSorting({ ...x, source: 'extra' })}
                     className="w-full flex items-center gap-3 px-4 min-h-16 py-3 text-left hover:bg-chalk transition-colors disabled:opacity-50"
                   >
                     <span className="flex-1 min-w-0">
@@ -1010,6 +1029,38 @@ export function TransfersPanel({
                 </li>
               );
             })}
+          </ul>
+        </section>
+      )}
+
+      {/* Extra put aside for someone not in the group yet: it pays no one until it's given */}
+      {waitingMoney.length > 0 && (
+        <section aria-labelledby="waiting-title" className="pt-3">
+          <h2 id="waiting-title" className="scroll-mt-32 text-base font-bold text-ink">
+            Waiting for a player
+          </h2>
+          <p className="mt-0.5 mb-2.5 text-[13px] text-gray-600">
+            Paid for someone not in the group yet, or you don’t know who. When you find out, add them and give it to them here.
+          </p>
+          <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
+            {waitingMoney.map((x) => (
+              <li key={x.playerId}>
+                <button
+                  disabled={workingId === `extra-${x.playerId}`}
+                  onClick={() => setSorting({ ...x, source: 'waiting' })}
+                  className="w-full flex items-center gap-3 px-4 min-h-16 py-3 text-left hover:bg-chalk transition-colors disabled:opacity-50"
+                >
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[15px] font-bold text-ink truncate">{x.waitingNote ? `For ${x.waitingNote}` : 'For someone, not known yet'}</span>
+                    <span className="block text-[13px] text-gray-500 truncate">Sent by {x.name}</span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block font-display text-[15px] font-extrabold tabular-nums text-ink">{formatCurrency(x.waiting)}</span>
+                    <span className="block text-[12px] font-bold text-pitch-700">Give it ›</span>
+                  </span>
+                </button>
+              </li>
+            ))}
           </ul>
         </section>
       )}
