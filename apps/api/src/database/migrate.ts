@@ -1,4 +1,5 @@
 import { DataSource } from 'typeorm';
+import { addMissingSchema } from './schema-drift';
 
 /**
  * The newest migration that every existing database already has.
@@ -59,6 +60,8 @@ export async function runMigrations(dataSource: DataSource, log: Log = console.l
     await baselineMigrations(dataSource, log);
     const ran = await dataSource.runMigrations({ transaction: 'each' });
     log(ran.length ? `Ran ${ran.length} migration(s): ${ran.map((m) => m.name).join(', ')}` : 'Database is up to date');
+    // A database first built by synchronize can still lack something the code reads: add it.
+    await addMissingSchema(dataSource, log).catch((err) => log(`[schema] Check failed: ${err instanceof Error ? err.message : err}`));
   } finally {
     await dataSource.destroy();
   }
