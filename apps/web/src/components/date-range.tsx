@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { btnPrimary, btnSecondary } from '@/components/buttons';
+import { btnPrimary } from '@/components/buttons';
 
 export type DateRange = { from: string; to: string };
 
@@ -53,16 +53,14 @@ export function DateRangePicker({
           </label>
         ))}
       </div>
-      <div className="mt-3 flex gap-2">
-        {onClear && (
-          <button type="button" onClick={onClear} className={`${btnSecondary} flex-1`}>
-            Any time
-          </button>
-        )}
-        <button type="button" disabled={!draft.from && !draft.to} onClick={() => onApply(draft)} className={`${btnPrimary} flex-1`}>
-          {showLabel}
+      <button type="button" disabled={!draft.from && !draft.to} onClick={() => onApply(draft)} className={`${btnPrimary} mt-3 w-full`}>
+        {showLabel}
+      </button>
+      {onClear && (
+        <button type="button" onClick={onClear} className="mt-1 w-full min-h-11 text-sm font-bold text-pitch-700">
+          Clear dates
         </button>
-      </div>
+      )}
     </div>
   );
 }
