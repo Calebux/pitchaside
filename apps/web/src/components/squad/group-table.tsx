@@ -6,17 +6,26 @@ import { getGroupTable, type LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
 
+const RECENT_DAYS = 5;
+
 /** A group's season table, with its own loading and "didn't load" states. */
 export function GroupTable({ groupId }: { groupId: string }) {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [failed, setFailed] = useState<string | false>(false);
+  // The whole season, or only the latest match days.
+  const [recent, setRecent] = useState(false);
+  // How many match days the season has, so the switch only shows when it changes something.
+  const [seasonDays, setSeasonDays] = useState(0);
 
   const load = useCallback(() => {
     setFailed(false);
-    getGroupTable(groupId)
-      .then(setTable)
+    getGroupTable(groupId, recent ? RECENT_DAYS : undefined)
+      .then((t) => {
+        setTable(t);
+        if (!recent) setSeasonDays(t.games);
+      })
       .catch((err) => setFailed(err instanceof Error ? err.message : ''));
-  }, [groupId]);
+  }, [groupId, recent]);
 
   useEffect(() => {
     setTable(null);
@@ -42,6 +51,24 @@ export function GroupTable({ groupId }: { groupId: string }) {
         </h2>
         <p className="text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
       </div>
+      {seasonDays > RECENT_DAYS && (
+        <div role="radiogroup" aria-label="Which match days" className="mb-3 flex gap-2">
+          {[
+            { on: !recent, label: 'This season', pick: () => setRecent(false) },
+            { on: recent, label: `Last ${RECENT_DAYS} match days`, pick: () => setRecent(true) },
+          ].map((o) => (
+            <button
+              key={o.label}
+              role="radio"
+              aria-checked={o.on}
+              onClick={o.pick}
+              className={`press min-h-11 px-3.5 rounded-2xl text-sm font-bold transition-colors ${o.on ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-ink hover:border-ink'}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
       {table ? (
         <>
           <LeagueTableView table={table} />
