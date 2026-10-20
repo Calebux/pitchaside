@@ -486,7 +486,17 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
             day.vote.voted ? 'bg-chalk text-gray-700' : 'bg-sun-400 text-ink border-2 border-ink shadow-sticker'
           }`}
         >
-          {day.vote.voted ? 'You voted · change your picks' : 'Vote for Player of the Match'}
+          {day.vote.voted ? 'You voted · see who else has' : 'Vote for Player of the Match'}
+          <span aria-hidden>›</span>
+        </Link>
+      )}
+      {/* Once the vote has closed, the same link shows how it ended */}
+      {!day.vote && day.shareToken && day.potm && (
+        <Link
+          href={`/v/${day.shareToken}`}
+          className="press mt-3 flex items-center justify-between gap-3 min-h-12 rounded-2xl px-4 bg-chalk text-[14px] font-bold text-ink hover:bg-gray-100"
+        >
+          See how the vote ended
           <span aria-hidden>›</span>
         </Link>
       )}

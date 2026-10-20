@@ -8,13 +8,17 @@ import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
 import { VoteResultsList, closeTime } from '@/components/ratings';
 import { BallotSteps, type Picks } from '@/components/vote/ballot-steps';
-import { getBallot, type Ballot, type VoteResults } from '@/lib/api';
+import { getBallot, getVoteResults, type Ballot, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
 import { ShareCardButton } from '@/components/share-card';
 import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
-/** `notPlayer`: signed in, but not among the players who played this game. */
-type Stage = 'signin' | 'notPlayer' | 'ballot' | 'done';
+/**
+ * `notPlayer`: signed in, but not among the players who played this game. `done`: they've voted
+ * (just now, or earlier and came back). `results`: the vote has closed, and anyone with the link
+ * sees how it ended.
+ */
+type Stage = 'signin' | 'notPlayer' | 'ballot' | 'done' | 'results';
 
 export default function VotePage() {
   const { token } = useParams<{ token: string }>();
@@ -26,6 +30,10 @@ export default function VotePage() {
   const [results, setResults] = useState<VoteResults | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Just sent their ballot, rather than coming back to one they sent before.
+  const [justVoted, setJustVoted] = useState(false);
+  // The ballot couldn't be fetched for a reason other than who they are (a dropped connection).
+  const [loadFailed, setLoadFailed] = useState(false);
 
   async function loadMyBallot() {
     setBusy(true);
@@ -34,15 +42,24 @@ export default function VotePage() {
       const v = await getMyBallot(token);
       setVoter({ playerId: v.playerId, firstName: v.firstName });
       setPicks(v.picks);
-      setStage('ballot');
+      // Already voted: show where it stands (and the winners, once it's closed), not step 1 again.
+      if (v.picks.potm) {
+        setResults(await getVoteResults(token).catch(() => null));
+        setStage('done');
+      } else {
+        setStage('ballot');
+      }
     } catch (err: any) {
-      // Signed out: sign in. Signed in but didn't play: say so, rather than asking them to sign in again.
+      // Signed out: sign in. Signed in but didn't play: say so. Anything else is a connection
+      // problem, not who they are, so it offers a retry instead.
       if (err instanceof PlayerAuthError) {
         setError(null);
         setStage('signin');
-      } else {
+      } else if (err?.status === 403 || /played/i.test(err?.message ?? '')) {
         setError(err.message);
         setStage('notPlayer');
+      } else {
+        setLoadFailed(true);
       }
     } finally {
       setBusy(false);
@@ -50,9 +67,18 @@ export default function VotePage() {
   }
 
   useEffect(() => {
-    getBallot(token).then(setBallot).catch(() => setInvalid(true));
-    // Try loading ballot with existing player session cookie
-    loadMyBallot();
+    getBallot(token)
+      .then((b) => {
+        setBallot(b);
+        // Closed: the results are for everyone with the link, no sign-in needed.
+        if (!b.open && !b.notYet) {
+          getVoteResults(token).then(setResults).catch(() => setLoadFailed(true));
+          setStage('results');
+        } else {
+          loadMyBallot();
+        }
+      })
+      .catch(() => setInvalid(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -66,6 +92,7 @@ export default function VotePage() {
     try {
       const res = await submitMyVotes(token, picks);
       setResults(res);
+      setJustVoted(true);
       setBallot((b) => (b ? { ...b, ballots: res.ballots } : b));
       setStage('done');
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -134,7 +161,48 @@ export default function VotePage() {
         </div>
         {header}
 
-        {!ballot.open && stage !== 'done' ? (
+        {loadFailed ? (
+          <div className="mt-6 text-center bg-chalk rounded-3xl p-6" role="alert">
+            <p className="font-display text-xl font-extrabold text-ink">The vote didn’t load</p>
+            <p className="text-sm text-gray-600 mt-1">Check your connection and try again.</p>
+            <button onClick={() => window.location.reload()} className="press mt-4 min-h-11 px-5 rounded-full bg-ink text-sm font-bold text-volt-300">
+              Try again
+            </button>
+          </div>
+        ) : stage === 'results' ? (
+          results ? (
+            <div className="mt-6">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="font-display text-[22px] font-extrabold text-ink">How the vote ended</h2>
+                <p className="text-[13px] text-gray-600 tabular-nums">
+                  {results.ballots} of {results.squadSize} voted
+                </p>
+              </div>
+              {ballot.closesAt && <p className="text-[13px] text-gray-600">Closed {closeTime(ballot.closesAt)}.</p>}
+              <div className="mt-4">
+                {results.categories.some((c) => c.standings.length) ? (
+                  <VoteResultsList results={results} />
+                ) : (
+                  <p className="rounded-3xl bg-chalk px-5 py-6 text-center text-sm text-gray-600">Nobody voted in this game.</p>
+                )}
+              </div>
+              <ShareCardButton
+                token={token}
+                caption={`⚽ ${ballot.groupName} — match day. Who was Player of the Match?`}
+                className="press mt-5 w-full min-h-12 inline-flex items-center justify-center rounded-2xl bg-volt-400 text-ink text-[15px] font-extrabold hover:bg-volt-300"
+              >
+                Share the match card
+              </ShareCardButton>
+              <Link href="/me/games?tab=played" className="press mt-2 w-full min-h-12 flex items-center justify-center rounded-2xl border border-gray-200 bg-white text-[15px] font-bold text-ink hover:border-ink">
+                Back to my games
+              </Link>
+            </div>
+          ) : (
+            <div className="py-10 flex justify-center">
+              <BallSpinner className="w-8 h-8" />
+            </div>
+          )
+        ) : !ballot.open && stage !== 'done' ? (
           <div className="mt-6 text-center bg-chalk rounded-3xl p-6 border border-gray-200">
             <p className="font-display text-xl font-extrabold text-ink">
               {ballot.notYet ? 'The vote opens at full time' : 'Voting has closed'}
@@ -189,7 +257,9 @@ export default function VotePage() {
             <div className="mt-6">
               <div className="text-center">
                 <Trophy className="w-40 h-32 mx-auto" />
-                <h2 className="text-2xl font-extrabold text-ink mt-1">Vote in. Cheers, {voter?.firstName}!</h2>
+                <h2 className="text-2xl font-extrabold text-ink mt-1">
+                  {justVoted ? `Vote in. Cheers, ${voter?.firstName}!` : `You’ve voted, ${voter?.firstName}`}
+                </h2>
                 <p className="text-sm text-gray-500 mt-1">
                   {results.ballots} of {results.squadSize} have voted.{' '}
                   {results.hidden
@@ -220,7 +290,7 @@ export default function VotePage() {
               <button
                 onClick={() => setStage('ballot')}
                 disabled={!ballot.open}
-                className="mt-2 w-full py-3 text-sm font-semibold text-gray-500 hover:text-ink disabled:hidden"
+                className="press mt-2 w-full min-h-11 text-sm font-bold text-gray-600 hover:text-ink disabled:hidden"
               >
                 Change my vote
               </button>
