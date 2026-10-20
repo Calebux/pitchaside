@@ -186,23 +186,21 @@ export function ScoresStep({
         <span className="font-display text-[56px] leading-none font-extrabold text-white tabular-nums" aria-live="polite" aria-label={`${name(t)} ${value}`}>
           {value}
         </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={minus}
-            disabled={value === 0}
-            aria-label={`${name(t)} minus one`}
-            className="press w-12 h-12 rounded-full bg-white/10 text-2xl font-bold text-white hover:bg-white/20 disabled:opacity-30"
-          >
-            −
-          </button>
-          <button
-            onClick={() => (hasPlayers ? setScoring({ team: t, side }) : goalFor(side, { scorerId: null, assistId: null }))}
-            aria-label={`${name(t)} plus one`}
-            className="press w-12 h-12 rounded-full bg-volt-400 text-2xl font-bold text-ink hover:bg-volt-300"
-          >
-            +
-          </button>
-        </div>
+        <button
+          onClick={() => (hasPlayers ? setScoring({ team: t, side }) : goalFor(side, { scorerId: null, assistId: null }))}
+          aria-label={`Goal for ${name(t)}`}
+          className="press w-full min-h-12 rounded-2xl bg-white text-[15px] font-bold text-ink hover:bg-chalk"
+        >
+          + Goal
+        </button>
+        <button
+          onClick={minus}
+          disabled={value === 0}
+          aria-label={`Take a goal off ${name(t)}`}
+          className="press min-h-11 px-3 rounded-full text-[13px] font-bold text-white/70 hover:text-white disabled:opacity-30"
+        >
+          − Take one off
+        </button>
         {sideGoals.length > 0 && (
           <p className="max-w-full text-center text-[12px] leading-snug font-semibold text-white/75">
             <span aria-hidden>⚽ </span>
@@ -219,7 +217,7 @@ export function ScoresStep({
         <p className="text-center text-[12px] font-bold text-white/60">Game {lineup.games.length + 1}</p>
         <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-start gap-1">
           <Side side="teamA" />
-          <span className="pt-[70px] font-display text-2xl font-extrabold text-white/30" aria-hidden>
+          <span className="pt-[60px] font-display text-2xl font-extrabold text-white/30" aria-hidden>
             –
           </span>
           <Side side="teamB" />
@@ -237,57 +235,6 @@ export function ScoresStep({
 
       {lineup.games.length > 0 && (
         <>
-          <h3 className="mt-5 px-1 text-[13px] font-extrabold text-ink">
-            Games today <span className="text-gray-500 tabular-nums">· {lineup.games.length}</span>
-          </h3>
-          <ol className="mt-1.5 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
-            {lineup.games.map((g, i) => (
-              <li key={g.id} className="flex items-center gap-1 pl-1.5 pr-1 animate-rise" style={stagger(Math.min(i, 10), 25, 0)}>
-                <button
-                  onClick={() => setEditing(g.id)}
-                  aria-label={`Game ${i + 1}: ${name(g.teamA)} ${g.scoreA}, ${name(g.teamB)} ${g.scoreB}. Scorers`}
-                  className="press flex-1 min-w-0 min-h-12 py-2 px-2 rounded-2xl text-left hover:bg-chalk/70"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className="w-5 text-[11px] font-extrabold text-gray-500 tabular-nums">{i + 1}</span>
-                    <span className="flex-1 min-w-0 flex items-center justify-end gap-1.5 text-[14px] font-bold text-ink">
-                      <span className="truncate">{name(g.teamA)}</span>
-                      <Swatch team={g.teamA} />
-                    </span>
-                    <span className="font-display text-[17px] font-extrabold text-ink tabular-nums px-1">
-                      {g.scoreA}–{g.scoreB}
-                    </span>
-                    <span className="flex-1 min-w-0 flex items-center gap-1.5 text-[14px] font-bold text-ink">
-                      <Swatch team={g.teamB} />
-                      <span className="truncate">{name(g.teamB)}</span>
-                    </span>
-                  </span>
-                  <span className="mt-0.5 block pl-7 text-[12px] leading-snug text-gray-600 truncate">
-                    {g.goals.length ? `⚽ ${scorersLine(g.goals)}` : g.scoreA + g.scoreB ? 'Tap to name the scorers' : 'No goals'}
-                  </span>
-                </button>
-                {canRemove(g.recordedBy) ? (
-                <button
-                  onClick={() => setRemoving(g)}
-                  disabled={!!busy}
-                  className="w-11 h-11 shrink-0 flex items-center justify-center rounded-full text-gray-400 hover:text-kit-600"
-                  aria-label={`Delete game ${i + 1}`}
-                >
-                  {busy === g.id ? (
-                    <BallSpinner className="w-4 h-4" />
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-                    </svg>
-                  )}
-                </button>
-                ) : (
-                  <span className="w-11 shrink-0" aria-hidden />
-                )}
-              </li>
-            ))}
-          </ol>
-
           <h3 className="mt-5 px-1 text-[13px] font-extrabold text-ink">Today’s table</h3>
           <div className="mt-1.5 bg-white rounded-3xl border border-gray-100 shadow-card overflow-hidden">
             <div className="grid grid-cols-[1fr_repeat(4,26px)_34px_36px] gap-1 px-3.5 py-2 bg-gray-50 text-[11px] font-extrabold text-gray-500">
@@ -325,6 +272,55 @@ export function ScoresStep({
               </p>
             )}
           </div>
+          <h3 className="mt-5 px-1 text-[13px] font-extrabold text-ink">
+            Games today <span className="text-gray-500 tabular-nums">· {lineup.games.length}</span>
+          </h3>
+          <ol className="mt-1.5 space-y-2">
+            {lineup.games.map((g, i) => (
+              <li key={g.id} className="relative bg-white rounded-3xl border border-gray-100 shadow-card animate-rise" style={stagger(Math.min(i, 10), 25, 0)}>
+                <button
+                  onClick={() => setEditing(g.id)}
+                  aria-label={`Game ${i + 1}: ${name(g.teamA)} ${g.scoreA}, ${name(g.teamB)} ${g.scoreB}. Scorers`}
+                  className="press w-full min-h-12 pl-4 pr-12 py-3 rounded-3xl text-left hover:bg-chalk/60"
+                >
+                  <span className="block text-[11px] font-extrabold text-gray-500">GAME {i + 1} · FULL TIME</span>
+                  <span className="mt-1 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                    <span className="min-w-0 flex items-center gap-1.5 text-[15px] font-bold text-ink">
+                      <Swatch team={g.teamA} />
+                      <span className="truncate">{name(g.teamA)}</span>
+                    </span>
+                    <span className="font-display text-[26px] leading-none font-extrabold text-ink tabular-nums">
+                      {g.scoreA}–{g.scoreB}
+                    </span>
+                    <span className="min-w-0 flex items-center justify-end gap-1.5 text-[15px] font-bold text-ink">
+                      <span className="truncate">{name(g.teamB)}</span>
+                      <Swatch team={g.teamB} />
+                    </span>
+                  </span>
+                  <span className={`mt-1.5 block text-[12px] leading-snug truncate ${g.goals.length || !(g.scoreA + g.scoreB) ? 'text-gray-600' : 'font-bold text-pitch-700'}`}>
+                    {g.goals.length ? `⚽ ${scorersLine(g.goals)}` : g.scoreA + g.scoreB ? 'Tap to name the scorers ›' : 'No goals'}
+                  </span>
+                </button>
+                {canRemove(g.recordedBy) && (
+                  <button
+                    onClick={() => setRemoving(g)}
+                    disabled={!!busy}
+                    className="absolute top-1.5 right-1.5 w-11 h-11 flex items-center justify-center rounded-full text-gray-400 hover:text-kit-600"
+                    aria-label={`Delete game ${i + 1}`}
+                  >
+                    {busy === g.id ? (
+                      <BallSpinner className="w-4 h-4" />
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ol>
+
         </>
       )}
 
@@ -369,6 +365,9 @@ export function ScoresStep({
           team={scoring.team}
           lineup={lineup}
           allowUnnamed={!scoring.gameId}
+          scoreAfter={
+            scoring.side ? (scoring.side === 'teamA' ? `${draft.scoreA + 1}–${draft.scoreB}` : `${draft.scoreA}–${draft.scoreB + 1}`) : undefined
+          }
           onClose={() => setScoring(null)}
           onPick={(goal) => {
             const s = scoring;
