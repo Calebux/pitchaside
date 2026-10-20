@@ -103,6 +103,9 @@ export function GameTimer({
   const take = useCallback((t: Timer) => {
     setTimer(t);
     setOffset(Date.parse(t.now) - Date.now());
+    // Move the clock on with each answer too: once time's up the tick stops, and this is what
+    // lets a watching phone drop "Time's up" a few minutes later.
+    setNow(Date.now());
     setFailed(false);
   }, []);
 
@@ -149,19 +152,28 @@ export function GameTimer({
   }, [up, mine, timer?.startedAt, left]);
 
   // Keep the starting phone's screen on while the clock runs, so it's awake to buzz at time.
+  // Phones drop the lock whenever the page is hidden (a quick look at WhatsApp), so it's asked
+  // for again each time the page comes back.
   useEffect(() => {
     if (!running || !mine || !('wakeLock' in navigator)) return;
+    const wakeLock = (navigator as unknown as { wakeLock: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock;
     let lock: { release: () => Promise<void> } | null = null;
     let gone = false;
-    (navigator as unknown as { wakeLock: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock
-      .request('screen')
-      .then((l) => {
-        if (gone) void l.release();
-        else lock = l;
-      })
-      .catch(() => {});
+    const ask = () => {
+      if (gone || document.visibilityState !== 'visible') return;
+      wakeLock
+        .request('screen')
+        .then((l) => {
+          if (gone) void l.release().catch(() => {});
+          else lock = l;
+        })
+        .catch(() => {});
+    };
+    ask();
+    document.addEventListener('visibilitychange', ask);
     return () => {
       gone = true;
+      document.removeEventListener('visibilitychange', ask);
       void lock?.release().catch(() => {});
     };
   }, [running, mine]);
