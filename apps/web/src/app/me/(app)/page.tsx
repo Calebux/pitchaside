@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Avatar } from '@/components/ratings';
 import { InstallCard, PushToggle } from '@/components/pwa';
-import { GameCard, LoadError, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
+import { GameCard, GameRow, LoadError, PlayerCardHero, Section, niceDate } from '@/components/player-ui';
+import { CountUpNaira } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerHome, getPlayerRatingBreakdown, subscribePlayerPush, type PlayerHome } from '@/lib/player';
 import { ModeSwitch, usePlayerProfile } from '@/components/player-shell';
@@ -91,13 +92,103 @@ export default function PlayerHomePage() {
     </div>
     <div className="md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:gap-8 md:items-start">
       <div>
-      <PlayerCardHero
-        firstName={home.player.firstName}
-        lastName={home.player.lastName}
-        ratings={r}
-        caption={caption}
-        onRatingTap={profile?.ratingsPlayerId && r.games > 0 ? () => setExplaining(true) : undefined}
-      />
+      {/* Money first, as on the organiser's home: what to send now, in one dark strip */}
+      <Link
+        href="/me/pay"
+        aria-label={totalOwed > 0 ? `To pay now: ${formatCurrency(totalOwed)}. Open Pay` : 'Nothing to pay. Open Pay'}
+        className="press relative block overflow-hidden rounded-[28px] bg-ink text-white shadow-card"
+      >
+        <span className="absolute inset-0 turf-stripes-soft" aria-hidden />
+        <span className="relative flex items-center gap-3 p-5">
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] font-semibold text-white/70">{totalOwed > 0 ? 'To pay now' : 'Your money'}</span>
+            {totalOwed > 0 ? (
+              <CountUpNaira value={totalOwed} className="block mt-0.5 font-display text-[40px] leading-none font-extrabold text-volt-300" />
+            ) : (
+              <span className="block mt-0.5 font-display text-[30px] leading-none font-extrabold">All square ✓</span>
+            )}
+            <span className="block mt-2 text-[13px] text-white/70">
+              {totalOwed > 0 ? `For ${owedNow} game${owedNow === 1 ? '' : 's'} · put your payment code on the transfer` : 'Nothing owed right now'}
+            </span>
+            {extra > 0 && (
+              <span className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-sun-400">
+                <span className="w-2 h-2 rounded-full bg-sun-400" aria-hidden />
+                {formatCurrency(extra)} of yours is with your organiser to sort
+              </span>
+            )}
+          </span>
+          <span className="w-11 h-11 shrink-0 rounded-full bg-white/10 flex items-center justify-center" aria-hidden>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+            </svg>
+          </span>
+        </span>
+      </Link>
+
+      {/* This week's game, in the organiser's match-day card */}
+      <div className="mt-3">
+        {home.upcoming.length === 0 ? (
+          <div className="rounded-3xl bg-chalk px-5 py-6 text-center">
+            <p className="text-[15px] font-bold text-ink">No game coming up</p>
+            <p className="mt-1 text-[13px] text-gray-600">
+              {home.groups.length ? 'You’ll get a ping when your organiser sets the next one.' : 'Join a group with the link your organiser shares.'}
+            </p>
+          </div>
+        ) : (
+          <GameCard game={home.upcoming[0]} onChange={load} />
+        )}
+      </div>
+
+      {pendingVotes.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {pendingVotes.map((v) => (
+            <Link
+              key={v.token}
+              href={`/v/${v.token}`}
+              className="press flex items-center gap-3 min-h-16 rounded-3xl border-2 border-ink bg-sun-400 px-4 py-3 shadow-sticker"
+            >
+              <span className="w-10 h-10 rounded-2xl bg-ink text-sun-400 flex items-center justify-center font-extrabold shrink-0" aria-hidden>
+                ★
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-extrabold text-ink">Vote for Player of the Match</span>
+                <span className="block text-xs text-ink/70 truncate">
+                  {v.groupName} · {niceDate(v.date, { weekday: 'short', day: 'numeric', month: 'short' })}
+                </span>
+              </span>
+              <span className="text-[13px] font-extrabold text-ink">Vote ›</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {home.upcoming.length > 1 && (
+        <Section
+          title="Coming up"
+          action={
+            <Link href="/me/games" className="inline-flex items-center min-h-11 text-[13px] font-bold text-pitch-700">
+              All games ›
+            </Link>
+          }
+        >
+          <div className="space-y-2">
+            {home.upcoming.slice(1).map((g) => (
+              <GameRow key={g.id} game={g} />
+            ))}
+          </div>
+        </Section>
+      )}
+
+      <Section title="Your card">
+        <PlayerCardHero
+          firstName={home.player.firstName}
+          lastName={home.player.lastName}
+          ratings={r}
+          caption={caption}
+          photoKey={home.player.photoKey}
+          onRatingTap={profile?.ratingsPlayerId && r.games > 0 ? () => setExplaining(true) : undefined}
+        />
+      </Section>
       {explaining && profile?.ratingsPlayerId && (
         <RatingBreakdownSheet
           name={`${home.player.firstName} ${home.player.lastName}`}
@@ -105,88 +196,9 @@ export default function PlayerHomePage() {
           onClose={() => setExplaining(false)}
         />
       )}
-
-      <div className="mt-4 space-y-2 md:hidden">
-        <InstallCard />
-        <PushToggle save={subscribePlayerPush} />
-      </div>
-
-      {pendingVotes.length > 0 && (
-        <Section title="Votes waiting">
-          <div className="space-y-2">
-            {pendingVotes.map((v) => (
-              <Link
-                key={v.token}
-                href={`/v/${v.token}`}
-                className="flex items-center gap-3 rounded-2xl border-2 border-ink bg-sun-400 px-4 py-3 hover:shadow-sticker transition-all"
-              >
-                <span className="w-9 h-9 rounded-xl bg-ink text-sun-400 flex items-center justify-center font-extrabold shrink-0">★</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-extrabold text-ink">Vote for Player of the Match</span>
-                  <span className="block text-xs text-ink/60 truncate">
-                    {v.groupName} · {niceDate(v.date, { weekday: 'short', day: 'numeric', month: 'short' })}
-                  </span>
-                </span>
-                <span className="text-xs font-bold text-ink">Vote ›</span>
-              </Link>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <Section
-        title="Next up"
-        action={
-          <Link href="/me/games" className="text-xs font-bold text-pitch-600">
-            All games ›
-          </Link>
-        }
-      >
-        {home.upcoming.length === 0 ? (
-          <p className="text-sm text-gray-500 bg-chalk rounded-2xl px-4 py-5 text-center">
-            {home.groups.length ? 'No games scheduled yet. We’ll ping you when there is one.' : 'Join a group with the link your organiser shares.'}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {home.upcoming.map((g) => (
-              <GameCard key={g.id} game={g} onChange={load} />
-            ))}
-          </div>
-        )}
-      </Section>
-
       </div>
 
       <div>
-      <div className="hidden md:block space-y-2">
-        <InstallCard />
-        <PushToggle save={subscribePlayerPush} />
-      </div>
-
-      <Link
-        href="/me/pay"
-        className={`mt-7 md:mt-4 flex items-center justify-between gap-3 rounded-3xl px-5 py-4 ${
-          totalOwed > 0 ? 'bg-ink text-white' : 'bg-volt-100 border border-volt-300 text-ink'
-        }`}
-      >
-        <span>
-          <span className={`block text-[11px] font-extrabold uppercase tracking-[0.12em] ${totalOwed > 0 ? 'text-white/50' : 'text-ink/50'}`}>
-            {totalOwed > 0 ? 'To pay now' : 'Money'}
-          </span>
-          <span className="font-display text-2xl font-extrabold tabular-nums">
-            {totalOwed > 0 ? formatCurrency(totalOwed) : 'All square ✅'}
-          </span>
-          {extra > 0 && (
-            <span className={`block mt-0.5 text-xs font-semibold ${totalOwed > 0 ? 'text-white/70' : 'text-ink/70'}`}>
-              {formatCurrency(extra)} of yours is with your organiser to sort
-            </span>
-          )}
-        </span>
-        <span className={`shrink-0 text-xs font-bold ${totalOwed > 0 ? 'text-volt-300' : 'text-ink'}`}>
-          {totalOwed > 0 ? `${owedNow} item${owedNow === 1 ? '' : 's'} ›` : 'History ›'}
-        </span>
-      </Link>
-
       {home.tables.some((t) => t.top.some((row) => row.points > 0)) && (
         <Section title="The table">
           <div className="space-y-3">
@@ -219,6 +231,10 @@ export default function PlayerHomePage() {
           </div>
         </Section>
       )}
+      <div className="mt-6 space-y-2">
+        <InstallCard />
+        <PushToggle save={subscribePlayerPush} />
+      </div>
       </div>
     </div>
     </>
