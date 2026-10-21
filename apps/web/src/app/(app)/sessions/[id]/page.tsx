@@ -45,6 +45,7 @@ import { HowPaidSheet } from '@/components/group/how-paid-sheet';
 import { daysFromToday, gameDay } from '@/components/money-card';
 import { GameHero } from '@/components/game/game-hero';
 import { GameMenu } from '@/components/game/game-actions';
+import { EditGameSheet } from '@/components/game/edit-game-sheet';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
 import { coveredByDues as coversByDues, gamePhase, gameTally, leftToPay } from '@/lib/game-player';
@@ -77,6 +78,7 @@ export default function GamePage() {
   // Match day in four steps, one on screen at a time: players, teams, scores, full time.
   const [step, setStep] = useState<Step | null>(null);
   const [lineup, setLineup] = useState<Lineup | null | undefined>(undefined);
+  const [moving, setMoving] = useState(false);
   const [lineupError, setLineupError] = useState<string | null>(null);
   const [board, setBoard] = useState<RsvpBoard | null>(null);
   // Money in the group account no one could put a name to: one may be a player's payment.
@@ -344,6 +346,8 @@ export default function GamePage() {
         <BackButton label="Back" />
         <GameMenu
           phase={phase}
+          // A game moves until its first score is in; dues periods don't move.
+          onEdit={session.kind !== 'dues' && !lineup?.games.length ? () => setMoving(true) : undefined}
           onEnd={() => setEnding(true)}
           onReopen={() => setStatus('upcoming', cancelled ? 'Game is back on' : 'Game reopened')}
           onDownload={() => exportSessionPaymentsCsv(id).catch(() => toast.error('The download didn’t start. Try again.'))}
@@ -359,6 +363,18 @@ export default function GamePage() {
           }}
         />
       </div>
+
+      {moving && (
+        <EditGameSheet
+          session={session}
+          onClose={() => setMoving(false)}
+          onSaved={(s) => {
+            setSession(s);
+            setMoving(false);
+            toast.success('Game moved');
+          }}
+        />
+      )}
 
       {howPaid && (() => {
         const p = payments.find((x) => x.id === howPaid);
