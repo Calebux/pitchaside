@@ -60,7 +60,7 @@ export default function PlayerProfilePage() {
               caption={`⚽ My PitchAside card${r.ovr != null ? `: ${r.ovr} OVR` : ''}`}
               className={shareIconDark}
             >
-              <ShareIcon />
+              <ShareIcon className="w-[18px] h-[18px]" />
             </ShareCardButton>
           ) : undefined
         }

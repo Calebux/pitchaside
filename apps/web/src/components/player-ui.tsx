@@ -13,7 +13,7 @@ import { MatchDayBibs } from '@/components/match-day-bibs';
 import { KeepScoreLink } from '@/components/keep-score-link';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { ShareCardButton, ShareIcon, shareIconLight } from '@/components/share-card';
+import { ShareCardButton, ShareIcon, shareIconTile } from '@/components/share-card';
 import { CountUp, LiveDot, stagger } from '@/components/motion';
 import { Stat } from '@/components/stat';
 import { toneCls } from '@/lib/game-status';
@@ -137,7 +137,7 @@ export function PlayerCardHero({
   photoButton?: React.ReactNode;
   /** Tapping the big number explains how it's made. */
   onRatingTap?: () => void;
-  /** A round button beside the name, e.g. share the card. */
+  /** Card actions (e.g. share), in a toolbar row across the top like the organiser's player card. */
   action?: React.ReactNode;
 }) {
   const fullName = `${firstName} ${lastName}`;
@@ -146,6 +146,12 @@ export function PlayerCardHero({
   return (
     <div className="relative rounded-[28px] bg-ink text-white overflow-hidden shadow-lift">
       <div className="absolute inset-0 turf-stripes" />
+      {action && (
+        <div className="relative flex items-center justify-between gap-2 pl-5 pr-4 pt-3 -mb-3">
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Your card</p>
+          <div className="flex">{action}</div>
+        </div>
+      )}
       <div className="relative grid grid-cols-[auto_1fr] gap-4 p-5">
         <div className="relative w-24 self-start">
         <div className="relative rounded-2xl bg-gradient-to-b from-pitch-600 to-pitch-800 border border-white/15 overflow-hidden">
@@ -200,10 +206,7 @@ export function PlayerCardHero({
         {photoButton && <span className="absolute z-10 -bottom-2 -right-2">{photoButton}</span>}
         </div>
         <div className="min-w-0">
-          <div className="flex items-start gap-2">
-            <h2 className="flex-1 min-w-0 font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h2>
-            {action && <div className="-mt-1 -mr-1">{action}</div>}
-          </div>
+          <h2 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h2>
           <div className="mt-3">
             <AttributeRow ratings={ratings} dark />
           </div>
@@ -539,47 +542,56 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
         />
       </div>
 
-      {day.vote && (
-        <Link
-          href={`/v/${day.vote.token}`}
-          className={`press mt-3 flex items-center justify-between gap-3 min-h-12 rounded-2xl px-4 text-[14px] font-bold ${
-            day.vote.voted ? 'bg-chalk text-gray-700' : 'bg-sun-400 text-ink border-2 border-ink shadow-sticker'
-          }`}
-        >
-          {day.vote.voted ? 'You voted · see who else has' : 'Vote for Player of the Match'}
-          <span aria-hidden>›</span>
-        </Link>
-      )}
-      {/* Once the vote has closed, the same link shows how it ended */}
-      {!day.vote && day.shareToken && day.potm && (
-        <Link
-          href={`/v/${day.shareToken}`}
-          className="press mt-3 flex items-center justify-between gap-3 min-h-12 rounded-2xl px-4 bg-chalk text-[14px] font-bold text-ink hover:bg-gray-100"
-        >
-          See how the vote ended
-          <span aria-hidden>›</span>
-        </Link>
-      )}
-
-      {(day.teamOpen || (day.shareToken && (played > 0 || day.potm))) && (
-        <div className="mt-2 flex items-center gap-2">
-          {day.teamOpen && (
-            <Link href={`/me/games/${day.sessionId}`} className="press inline-flex items-center min-h-11 px-1 text-[13px] font-bold text-pitch-700">
-              {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
-            </Link>
-          )}
-          {day.shareToken && (played > 0 || day.potm) && (
-            <ShareCardButton
-              token={day.shareToken}
-              caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-              label="Share the match card"
-              className={`${shareIconLight} ml-auto`}
-            >
-              <ShareIcon />
-            </ShareCardButton>
-          )}
-        </div>
-      )}
+      {(() => {
+        const canShare = !!day.shareToken && (played > 0 || !!day.potm);
+        // Once the vote has closed, the same link shows how it ended
+        const voteLink = day.vote ? (
+          <Link
+            href={`/v/${day.vote.token}`}
+            className={`press flex-1 min-w-0 flex items-center justify-between gap-3 min-h-12 rounded-2xl px-4 text-[14px] font-bold ${
+              day.vote.voted ? 'bg-chalk text-gray-700' : 'bg-sun-400 text-ink border-2 border-ink shadow-sticker'
+            }`}
+          >
+            <span className="truncate">{day.vote.voted ? 'You voted · see who else has' : 'Vote for Player of the Match'}</span>
+            <span aria-hidden>›</span>
+          </Link>
+        ) : day.shareToken && day.potm ? (
+          <Link
+            href={`/v/${day.shareToken}`}
+            className="press flex-1 min-w-0 flex items-center justify-between gap-3 min-h-12 rounded-2xl px-4 bg-chalk text-[14px] font-bold text-ink hover:bg-gray-100"
+          >
+            <span className="truncate">See how the vote ended</span>
+            <span aria-hidden>›</span>
+          </Link>
+        ) : null;
+        if (!voteLink && !canShare && !day.teamOpen) return null;
+        return (
+          <>
+            {day.teamOpen && (
+              <Link href={`/me/games/${day.sessionId}`} className="press mt-2 inline-flex items-center min-h-11 px-1 text-[13px] font-bold text-pitch-700">
+                {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
+              </Link>
+            )}
+            {(voteLink || canShare) && (
+              <div className={`${day.teamOpen ? 'mt-1' : 'mt-3'} flex items-center gap-2`}>
+                {voteLink ?? (
+                  <p className="flex-1 min-w-0 px-1 text-[13px] font-bold text-gray-600">Share how the day went</p>
+                )}
+                {canShare && (
+                  <ShareCardButton
+                    token={day.shareToken!}
+                    caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
+                    label="Share the match card"
+                    className={shareIconTile}
+                  >
+                    <ShareIcon />
+                  </ShareCardButton>
+                )}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
