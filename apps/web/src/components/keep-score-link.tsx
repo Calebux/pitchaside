@@ -16,7 +16,10 @@ export function KeepScoreLink({ sessionId, today }: { sessionId: string; today: 
       .then(setLineup)
       .catch(() => setLineup(null));
   }, [sessionId]);
-  const role = lineup?.myRole;
+  // What they lead: from the server, or worked out from the team sheet when the server is an
+  // older one that doesn't say (it still says whether they can keep the score today).
+  const me = lineup?.squad.find((p) => p.me);
+  const role = lineup?.myRole ?? (me?.captain ? 'captain' : me?.vice ? 'vice' : lineup?.canKeepScore ? 'captain' : null);
   if (!lineup || !role || !lineup.myTeam) return null;
 
   const what = role === 'captain' ? 'captain' : 'vice-captain';
