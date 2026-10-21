@@ -56,6 +56,13 @@ export class SessionsController {
     return this.sessionsService.sendReminders(id, user.organizationId);
   }
 
+  /** Nudge the players who came and haven't voted; at most once every two hours. */
+  @AllowTreasurer()
+  @Post(':id/remind-vote')
+  remindToVote(@Param('id') id: string, @CurrentUser() user: User) {
+    return this.sessionsService.remindToVote(id, user.organizationId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
     return this.sessionsService.findOne(id, user.organizationId);

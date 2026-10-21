@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Like, MoreThan, Repository } from 'typeorm';
+import { ReminderLog } from '../reminders/entities/reminder-log.entity';
 import { markPartPaid } from '../payments/part-paid';
 import { Session, SessionKind, SessionStatus, kickoffFor } from './entities/session.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
@@ -37,6 +38,7 @@ export class SessionsService {
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
     @InjectRepository(Payment) private paymentsRepo: Repository<Payment>,
+    @InjectRepository(ReminderLog) private logRepo: Repository<ReminderLog>,
     private mailService: MailService,
     private rsvp: RsvpService,
     private ratings: RatingsService,
@@ -332,6 +334,35 @@ export class SessionsService {
       missedTotal += missed;
     }
     return { sent, missed: missedTotal };
+  }
+
+  /** How long the organiser waits between reminders to vote for one game, so nobody is pestered. */
+  static readonly VOTE_NUDGE_GAP_MS = 2 * 3600_000;
+
+  /**
+   * The organiser nudges the players who came and haven't voted yet. At most once every two
+   * hours per game; the vote's own morning-after nudge is separate.
+   */
+  async remindToVote(sessionId: string, organizationId: string) {
+    const session = await this.findOne(sessionId, organizationId);
+    if (!this.ratings.isVoteOpen(session)) throw new BadRequestException('The vote isn’t open for this game.');
+    const voted = new Set(await this.ratings.votersOf(session.id));
+    const waiting = (session.payments ?? []).filter((p) => p.attendance !== 'no_show' && !voted.has(p.playerId)).map((p) => p.playerId);
+    if (!waiting.length) return { sent: 0, missed: 0, waiting: 0 };
+    const recent = await this.logRepo.findOne({
+      where: { key: Like(`votenudge-org:${session.id}:%`), createdAt: MoreThan(new Date(Date.now() - SessionsService.VOTE_NUDGE_GAP_MS)) },
+    });
+    if (recent) throw new ConflictException('Players were reminded to vote in the last two hours. Try again later.');
+    await this.logRepo.insert({ key: `votenudge-org:${session.id}:${Date.now()}` });
+    const token = await this.ratings.ensureVotingToken(session.id);
+    const squad = (session.payments ?? []).filter((p) => p.attendance !== 'no_show').length;
+    const { delivered, missed } = await this.notifications.notifyPlayers(waiting, {
+      kind: 'vote_nudge',
+      title: 'Who was Player of the Match? 🏆',
+      body: `${session.group?.name ?? 'Your group'}: ${voted.size}/${squad} have voted. About a minute.`,
+      url: `/v/${token}`,
+    });
+    return { sent: delivered, missed, waiting: waiting.length };
   }
 
   async totalCollectedByOrganization(organizationId: string): Promise<number> {

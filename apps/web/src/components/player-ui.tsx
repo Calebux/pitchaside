@@ -6,7 +6,8 @@ import { Ticket } from '@/components/ticket';
 import { photoUrl } from '@/lib/http';
 import { Ball, Player, kitFor, skins } from '@/components/illustrations';
 import { BallSpinner } from '@/components/skeleton';
-import { AttributeRow } from '@/components/ratings';
+import { Avatar, AttributeRow } from '@/components/ratings';
+import { PeopleRow, namesLine } from '@/components/people-row';
 import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { MatchDayBibs } from '@/components/match-day-bibs';
 import { KeepScoreLink } from '@/components/keep-score-link';
@@ -395,6 +396,18 @@ export function GameCard({
           </>
         )}
 
+        {/* Who's playing, as faces: them first */}
+        {!played && (game.playingCount ?? 0) > 0 && game.faces && (
+          <PeopleRow
+            onDark
+            className="mt-2"
+            people={game.faces}
+            total={game.playingCount}
+            title={game.requireRsvp ? "Who's in" : "Who's playing"}
+            sub={namesLine(game.faces, 2, game.playingCount)}
+          />
+        )}
+
         {/* Their money for this game, as a row like the organiser's */}
         {game.myStatus === 'in' && game.payment && game.payment.amount > 0 && (
           <ul className="mt-2.5 -mx-1.5">
@@ -516,6 +529,7 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
           value={day.potm ? (day.potm.isMe ? 'You! ★' : day.potm.name) : '—'}
           note={day.potm ? `${day.potm.votes} vote${day.potm.votes === 1 ? '' : 's'}` : day.vote ? 'When the vote closes' : 'No vote'}
           tone={day.potm ? 'ink' : 'muted'}
+          face={day.potm ? <Avatar name={day.potm.name} photoKey={day.potm.photoKey} className="w-8 h-8 text-[11px]" /> : undefined}
         />
       </div>
 

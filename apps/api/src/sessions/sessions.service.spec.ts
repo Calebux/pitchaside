@@ -12,6 +12,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { BillingService } from '../billing/billing.service';
 import { PaymentsService } from '../payments/payments.service';
 import { RecurrenceType } from './dto/create-session.dto';
+import { ReminderLog } from '../reminders/entities/reminder-log.entity';
 
 describe('SessionsService', () => {
   let paymentsService: { markNoShow: jest.Mock };
@@ -21,6 +22,8 @@ describe('SessionsService', () => {
   let membershipsRepo: Record<string, jest.Mock>;
   let paymentsRepo: Record<string, jest.Mock>;
   let mailService: Record<string, jest.Mock>;
+  let logRepo: { findOne: jest.Mock; insert: jest.Mock };
+  let ratings: { ensureVotingToken: jest.Mock; isVoteOpen: jest.Mock; votersOf: jest.Mock };
 
   const mockGroup = {
     id: 'group-1',
@@ -84,6 +87,8 @@ describe('SessionsService', () => {
     };
 
     paymentsService = { markNoShow: jest.fn() };
+    logRepo = { findOne: jest.fn().mockResolvedValue(null), insert: jest.fn() };
+    ratings = { ensureVotingToken: jest.fn().mockResolvedValue('tok'), isVoteOpen: jest.fn().mockReturnValue(true), votersOf: jest.fn().mockResolvedValue([]) };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SessionsService,
@@ -93,7 +98,8 @@ describe('SessionsService', () => {
         { provide: getRepositoryToken(Payment), useValue: paymentsRepo },
         { provide: MailService, useValue: mailService },
         { provide: RsvpService, useValue: { announceGame: jest.fn() } },
-        { provide: RatingsService, useValue: { ensureVotingToken: jest.fn() } },
+        { provide: RatingsService, useValue: ratings },
+        { provide: getRepositoryToken(ReminderLog), useValue: logRepo },
         { provide: NotificationsService, useValue: notificationsService },
         { provide: BillingService, useValue: { applyCredits: jest.fn() } },
         { provide: PaymentsService, useValue: paymentsService },
@@ -238,6 +244,44 @@ describe('SessionsService', () => {
     jest.spyOn(service, 'findOne').mockResolvedValue({ ...mockSession, status: 'cancelled', payments: [{ id: 'p1', status: PaymentStatus.PENDING }] } as any);
     expect(await service.sendReminders('session-1', 'org-1')).toEqual({ sent: 0, missed: 0 });
     expect(notificationsService.notifyPlayers).not.toHaveBeenCalled();
+  });
+
+  describe('remindToVote', () => {
+    const game = {
+      ...mockSession,
+      group: { name: 'Ballers' },
+      payments: [
+        { playerId: 'a', attendance: 'came' },
+        { playerId: 'b', attendance: 'came' },
+        { playerId: 'c', attendance: 'no_show' },
+      ],
+    };
+
+    it('nudges only the players who came and haven’t voted', async () => {
+      notificationsService.notifyPlayers.mockClear();
+      jest.spyOn(service, 'findOne').mockResolvedValue(game as any);
+      ratings.votersOf.mockResolvedValue(['a']);
+      const r = await service.remindToVote('session-1', 'org-1');
+      expect(notificationsService.notifyPlayers).toHaveBeenCalledWith(['b'], expect.objectContaining({ kind: 'vote_nudge', url: '/v/tok' }));
+      expect(r.waiting).toBe(1);
+      expect(logRepo.insert).toHaveBeenCalled();
+    });
+
+    it('waits two hours between reminders', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue(game as any);
+      logRepo.findOne.mockResolvedValue({ key: 'votenudge-org:session-1:1' });
+      await expect(service.remindToVote('session-1', 'org-1')).rejects.toThrow('last two hours');
+    });
+
+    it('refuses when the vote isn’t open, and sends nothing when everyone has voted', async () => {
+      notificationsService.notifyPlayers.mockClear();
+      jest.spyOn(service, 'findOne').mockResolvedValue(game as any);
+      ratings.isVoteOpen.mockReturnValueOnce(false);
+      await expect(service.remindToVote('session-1', 'org-1')).rejects.toThrow('isn’t open');
+      ratings.votersOf.mockResolvedValue(['a', 'b']);
+      expect(await service.remindToVote('session-1', 'org-1')).toEqual({ sent: 0, missed: 0, waiting: 0 });
+      expect(notificationsService.notifyPlayers).not.toHaveBeenCalled();
+    });
   });
 
   it('refuses a status that isn’t a game status', async () => {

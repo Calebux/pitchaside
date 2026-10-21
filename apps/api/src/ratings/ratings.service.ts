@@ -470,8 +470,16 @@ export class RatingsService {
       open: w.open,
       notYet: w.notYet,
       closesAt: w.closesAt,
+      /** Who has voted (never what they picked), so the organiser can see who's still to vote. */
+      voted: await this.votersOf(session.id),
       ...(await this.results(session)),
     };
+  }
+
+  /** The players who've voted in a game: their ids only, never what they picked. */
+  async votersOf(sessionId: string) {
+    const rows = await this.votesRepo.find({ where: { sessionId }, select: { voterId: true } });
+    return [...new Set(rows.map((v) => v.voterId))];
   }
 
   /** Games this player can vote in right now, and whether they already have. */
@@ -484,8 +492,23 @@ export class RatingsService {
     const result = [];
     for (const s of open) {
       const token = await this.ensureVotingToken(s.id);
-      const voted = await this.votesRepo.count({ where: { sessionId: s.id, voterId: playerId } });
-      result.push({ token, sessionId: s.id, groupName: s.group?.name, date: s.date, voted: voted > 0 });
+      // Turnout, with the faces of who's voted (never what they picked): nobody is named for not voting.
+      const full = await this.sessionsRepo.findOne({ where: { id: s.id }, relations: ['payments', 'payments.player'] });
+      const squad = full ? this.squad(full) : [];
+      const voters = new Set(await this.votersOf(s.id));
+      result.push({
+        token,
+        sessionId: s.id,
+        groupName: s.group?.name,
+        date: s.date,
+        voted: voters.has(playerId),
+        ballots: squad.filter((p) => voters.has(p.id)).length,
+        squadSize: squad.length,
+        voters: squad
+          .filter((p) => voters.has(p.id) && p.id !== playerId)
+          .slice(0, 6)
+          .map((p) => ({ id: p.id, name: sheetName(p), photoKey: p.photoKey ?? null })),
+      });
     }
     return result;
   }
@@ -1593,7 +1616,7 @@ export class RatingsService {
           teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
           record,
           games: dayGames.length,
-          potm: potmPlayer ? { name: sheetName(potmPlayer), votes: potmVotes, isMe: potmId === playerId } : null,
+          potm: potmPlayer ? { name: sheetName(potmPlayer), votes: potmVotes, isMe: potmId === playerId, photoKey: potmPlayer.photoKey ?? null } : null,
           vote:
             w.open && this.cameTo(s, playerId)
               ? { token: await this.ensureVotingToken(s.id), voted: votes.some((v) => v.sessionId === s.id && v.voterId === playerId) }

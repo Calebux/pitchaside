@@ -12,6 +12,7 @@ import {
   getRsvpBoard,
   getSession,
   sendReminders,
+  remindToVote,
   updateSessionStatus,
   type BankTransfer,
   type GroupBalance,
@@ -35,6 +36,7 @@ import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
 import { moneyHref } from '@/lib/money-href';
 import { Ticket } from '@/components/ticket';
+import { PeopleRow, namesLine, type Face } from '@/components/people-row';
 
 // ── Dates ──
 
@@ -203,56 +205,6 @@ export function useGroupMoney(groupId: string | null, gameId: string | null) {
 
 // ── Pieces ──
 
-const SHIRT_PATH = 'M14 6 L19 4 Q24 8 29 4 L34 6 L45 13 L40 22 L35 19 L35 44 L13 44 L13 19 L8 22 L3 13 Z';
-
-/**
- * One shirt per player, filled when paid and dashed while they owe — the squad board from
- * the game page, in one row (paid first, then "+N") so it reads at a glance on a small phone.
- * TODO(shared): the game page draws the same shirts inline; it could use this too.
- */
-export function ShirtRow({ payments, max = 12 }: { payments: ISessionWithDetails['payments']; max?: number }) {
-  const list = payments ?? [];
-  if (!list.length) return null;
-  // Paid first so the row fills from the left like the bar above it.
-  const order = { [PaymentStatus.PAID]: 0, [PaymentStatus.WAIVED]: 1, [PaymentStatus.PENDING]: 2 } as Record<string, number>;
-  const sorted = [...list].sort((a, b) => (order[gameStatusOf(a)] ?? 3) - (order[gameStatusOf(b)] ?? 3));
-  const extra = sorted.length > max ? sorted.length - (max - 1) : 0;
-  const shown = extra ? sorted.slice(0, max - 1) : sorted.slice(0, max);
-  return (
-    <div className="grid gap-x-1.5" style={{ gridTemplateColumns: `repeat(${max}, minmax(0, 1fr))` }} aria-hidden>
-      {shown.map((p, i) => {
-        const st = gameStatusOf(p);
-        return (
-          <svg key={p.id} viewBox="0 0 48 48" className="w-full h-auto animate-pop-in" style={stagger(i, 25, 250)}>
-            <path
-              d={SHIRT_PATH}
-              fill={st === PaymentStatus.PAID ? '#d4f53c' : st === PaymentStatus.WAIVED ? 'rgba(255,255,255,0.25)' : 'transparent'}
-              stroke={st === PaymentStatus.PENDING ? '#ffc93c' : 'transparent'}
-              strokeWidth="3"
-              strokeDasharray={st === PaymentStatus.PENDING ? '4 3' : undefined}
-              strokeLinejoin="round"
-            />
-            <text
-              x="24"
-              y="34"
-              textAnchor="middle"
-              fontSize="16"
-              fontWeight="800"
-              fill={st === PaymentStatus.PAID ? '#0f1a14' : 'rgba(255,255,255,0.75)'}
-            >
-              {p.player?.firstName?.charAt(0) ?? '?'}
-            </text>
-          </svg>
-        );
-      })}
-      {extra > 0 && (
-        <span className="flex items-center justify-center text-[10px] font-extrabold text-white/70 tabular-nums">+{extra}</span>
-      )}
-    </div>
-  );
-}
-
-
 const EyeIcon = ({ off }: { off: boolean }) => (
   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
     {off ? (
@@ -268,6 +220,7 @@ const EyeIcon = ({ off }: { off: boolean }) => (
 
 const HIDE_KEY = 'pitchaside_hide_balance';
 
+/** Remembered per phone: organisers often check the balance with players looking over their shoulder. */
 /** Remembered per phone: organisers often check the balance with players looking over their shoulder. */
 function useHiddenBalance() {
   const [hidden, setHidden] = useState(false);
@@ -1015,6 +968,9 @@ function GameSection({
       >
         {coveredByDues ? (
           <div className="h-full bg-volt-400 rounded-full transition-[width] duration-500 origin-left animate-fill-grow" style={{ width: `${duesPct}%` }} />
+        ) : played && owedAmount <= 0 && collected > 0 ? (
+          // All in: one solid bar. How much was marked by hand is said in words below.
+          <div className="h-full w-full bg-volt-400 rounded-full origin-left animate-fill-grow" />
         ) : (
           <div className="flex h-full origin-left animate-fill-grow">
             <div className="h-full bg-volt-400 transition-[width] duration-500" style={{ width: `${pct(byTransfer)}%` }} />
@@ -1042,11 +998,8 @@ function GameSection({
         </ul>
       )}
 
-      {/* The squad as shirts: a picture of the lines above, with its key */}
-      <div className="mt-3">
-        <ShirtRow payments={payments} />
-        <p className="mt-1.5 text-[11px] text-white/60">Filled shirt = paid · dashed = not paid yet</p>
-      </div>
+      {/* The people this moment is about: who's in, who still owes, who's still to vote, who won */}
+      <GamePeople game={game} rsvp={rsvp} phase={phase} owing={owing} payments={payments} vote={vote} />
 
       </Collapse>
 
@@ -1066,6 +1019,115 @@ function GameSection({
         </button>
       )}
     </div>
+  );
+}
+
+/** A player as a face: full name (for initials), photo when they have one. */
+const faceOf = (p: { id: string; firstName: string; lastName: string; photoKey?: string | null }): Face => ({
+  id: p.id,
+  name: `${p.firstName} ${p.lastName}`.trim(),
+  photoKey: p.photoKey ?? null,
+});
+
+/**
+ * Who the game card is about right now, as faces: before the game, who's in; after it, who
+ * still owes; once everyone's paid and the vote is on, who's still to vote (with a reminder);
+ * when it's closed, the Player of the Match. Nothing to act on, no row.
+ */
+function GamePeople({
+  game,
+  rsvp,
+  phase,
+  owing,
+  payments,
+  vote,
+}: {
+  game: ISessionWithDetails;
+  rsvp: RsvpBoard | null;
+  phase: GamePhase;
+  owing: NonNullable<ISessionWithDetails['payments']>;
+  payments: NonNullable<ISessionWithDetails['payments']>;
+  vote?: SessionVoting | null;
+}) {
+  const toast = useToast();
+  const [nudging, setNudging] = useState(false);
+  const gameHref = `/sessions/${game.id}`;
+  const squad = payments.filter((p) => p.player && p.attendance !== 'no_show');
+
+  if (phase !== 'after') {
+    const inNow = rsvp?.requireRsvp ? rsvp.in.map(faceOf) : squad.map((p) => faceOf(p.player!));
+    if (!inNow.length) return null;
+    return (
+      <PeopleRow onDark className="mt-2" people={inNow} title="Who's in" sub={namesLine(inNow, 2)} href={`${gameHref}?tab=players`} />
+    );
+  }
+
+  if (owing.length) {
+    const owe = owing.filter((p) => p.player).map((p) => faceOf(p.player!));
+    return (
+      <PeopleRow onDark className="mt-2" people={owe} title={`${owe.length} still to pay`} sub={namesLine(owe, 2)} href={`${gameHref}?tab=payments`} />
+    );
+  }
+
+  if (!vote || game.status !== 'completed') return null;
+
+  if (vote.open) {
+    const voted = new Set(vote.voted ?? []);
+    const waiting = squad.filter((p) => !voted.has(p.playerId)).map((p) => faceOf(p.player!));
+    if (!waiting.length) {
+      const all = squad.map((p) => faceOf(p.player!));
+      return <PeopleRow onDark className="mt-2" people={all} title="Everyone has voted" sub="The winners show when the vote closes" />;
+    }
+    async function nudge() {
+      setNudging(true);
+      try {
+        const r = await remindToVote(game.id);
+        toast.success(
+          r.missed
+            ? `Reminder pushed to ${r.sent}. ${r.missed} don’t have notifications on yet`
+            : `Reminder pushed to ${r.sent} player${r.sent === 1 ? '' : 's'}`,
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'The reminder didn’t send. Try again.');
+      } finally {
+        setNudging(false);
+      }
+    }
+    return (
+      <PeopleRow
+        onDark
+        className="mt-2"
+        people={waiting}
+        title={`${waiting.length} still to vote`}
+        sub={namesLine(waiting, 2)}
+        action={
+          <button
+            onClick={nudge}
+            disabled={nudging}
+            className="press shrink-0 min-h-11 px-3.5 rounded-xl border border-white/20 text-[13px] font-extrabold text-white hover:bg-white/10 disabled:opacity-60"
+          >
+            {nudging ? 'Sending…' : 'Remind'}
+          </button>
+        }
+      />
+    );
+  }
+
+  // Closed: the Player of the Match (shared when it's a tie).
+  const potm = vote.categories.find((c) => c.key === 'potm');
+  const top = potm?.standings[0];
+  if (!top) return null;
+  const winners = potm!.standings.filter((s) => s.count === top.count);
+  const faces = winners.map((w) => faceOf(w.player));
+  return (
+    <PeopleRow
+      onDark
+      className="mt-2"
+      people={faces}
+      title={`Player of the Match${winners.length > 1 ? ' (shared)' : ''}`}
+      sub={`${faces.map((f) => f.name).join(' & ')} · ${top.count} vote${top.count === 1 ? '' : 's'}`}
+      href={`${gameHref}?tab=full`}
+    />
   );
 }
 
