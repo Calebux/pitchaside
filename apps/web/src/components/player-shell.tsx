@@ -1,6 +1,8 @@
 'use client';
 
 import { InstallNudge } from '@/components/pwa';
+import { TourHost } from '@/components/onboarding/tour';
+import { openTour } from '@/lib/onboarding';
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -174,6 +176,12 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-white/70 mt-1.5 leading-relaxed">Start a group — collect payments, RSVPs and votes.</p>
           </Link>
         )}
+        <button
+          onClick={openTour}
+          className="mx-3 mb-3 py-2 rounded-lg text-xs font-semibold text-white/60 bg-white/[0.06] hover:text-white hover:bg-white/10 transition-colors"
+        >
+          How PitchAside works
+        </button>
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-3 px-2 py-2">
             <div className="w-9 h-9 rounded-full bg-volt-400 text-ink flex items-center justify-center text-xs font-extrabold shrink-0">
@@ -202,6 +210,8 @@ export function PlayerShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      <TourHost side="player" done={!!profile.player.photoKey} />
 
       {/* Until it's on their home screen: a nudge just above the tab bar, every visit */}
       <div className="md:hidden fixed bottom-[calc(max(env(safe-area-inset-bottom),0.75rem)+5rem)] inset-x-3 z-40 max-w-md mx-auto">

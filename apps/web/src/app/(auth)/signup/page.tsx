@@ -39,7 +39,7 @@ export default function SignUpPage() {
         country: form.country || undefined,
         state: form.state || undefined,
       });
-      router.push('/dashboard');
+      router.push('/dashboard?welcome=1');
     } catch (err: any) {
       toast.error(err.message || 'Sign up failed');
     } finally {

@@ -57,7 +57,7 @@ export default function JoinPage() {
     const groups = club?.groups ?? [];
     if (!groups.length) {
       toast.success(`Welcome to ${club?.clubName}, ${name}!`);
-      router.replace('/me');
+      router.replace('/me?welcome=1');
       return;
     }
     const profile = await getPlayerProfile().catch(() => null);
@@ -116,7 +116,7 @@ export default function JoinPage() {
         chosen.length === 1 ? `You're in ${chosen[0].name}, ${firstName}!` : `You're in ${chosen.length} groups, ${firstName}!`,
       );
       // Pay tab has their reference and the account to pay into.
-      router.replace('/me/pay');
+      router.replace('/me/pay?welcome=1');
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -242,7 +242,7 @@ export default function JoinPage() {
               {picked.size > 1 ? `Join ${picked.size} groups` : 'Join & get payment details'}
             </button>
             <button
-              onClick={() => router.replace('/me')}
+              onClick={() => router.replace('/me?welcome=1')}
               className="mt-2 w-full py-2 text-xs font-semibold text-gray-500 hover:text-ink"
             >
               Skip for now

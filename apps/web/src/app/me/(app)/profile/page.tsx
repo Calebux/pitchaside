@@ -14,6 +14,7 @@ import { PlayerAccountSettings } from '@/components/player-account';
 import { getPlayerRatingBreakdown, logoutPlayer, removeMyPhoto, setMyPhoto, subscribePlayerPush } from '@/lib/player';
 import { CardPhotoButton } from '@/components/photo-picker';
 import { btnSecondary } from '@/components/buttons';
+import { openTour } from '@/lib/onboarding';
 
 export default function PlayerProfilePage() {
   const router = useRouter();
@@ -154,6 +155,9 @@ export default function PlayerProfilePage() {
         <div className="space-y-2">
           <InstallCard />
           <PushToggle save={subscribePlayerPush} />
+          <button onClick={openTour} className={`${btnSecondary} w-full`}>
+            How PitchAside works
+          </button>
           <button
             onClick={async () => {
               await logoutPlayer();
