@@ -6,11 +6,23 @@ import type { LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
 import { ORGANISER_CLUB, type ClubApi, type StatSort } from './group-stats';
+import { ShareCardButton } from '@/components/share-card';
 
 const RECENT_DAYS = 5;
 
 /** A group's season table, with its own loading and "didn't load" states. */
-export function GroupTable({ groupId, onSeeAll, api = ORGANISER_CLUB }: { groupId: string; onSeeAll?: (sort: StatSort) => void; api?: ClubApi }) {
+export function GroupTable({
+  groupId,
+  groupName,
+  onSeeAll,
+  api = ORGANISER_CLUB,
+}: {
+  groupId: string;
+  /** For the shared table's message. */
+  groupName?: string;
+  onSeeAll?: (sort: StatSort) => void;
+  api?: ClubApi;
+}) {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [failed, setFailed] = useState<string | false>(false);
   // The whole season, or only the latest match days.
@@ -36,7 +48,8 @@ export function GroupTable({ groupId, onSeeAll, api = ORGANISER_CLUB }: { groupI
 
   return (
     <section aria-labelledby="table-title">
-      <div className="mb-2">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
         <h2 id="table-title" className="flex items-center gap-2 text-base font-bold text-ink">
           Table
           {table && (
@@ -52,6 +65,19 @@ export function GroupTable({ groupId, onSeeAll, api = ORGANISER_CLUB }: { groupI
           )}
         </h2>
         <p className="text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
+        </div>
+        {/* The table as an image for WhatsApp: the season, or the last few match days, as shown */}
+        {table?.shareCode && table.rows.length > 0 && (
+          <ShareCardButton
+            page={`/g/${table.shareCode}/table${recent ? `?last=${RECENT_DAYS}` : ''}`}
+            heading="Share the table"
+            fileName="pitchaside-table.png"
+            caption={`📊 ${groupName ?? 'Our'} table${recent ? ` · last ${RECENT_DAYS} match days` : ''}. Where do you stand?`}
+            className="press shrink-0 inline-flex items-center gap-1.5 min-h-11 px-4 rounded-full border border-gray-200 bg-white text-[13px] font-bold text-ink hover:border-ink"
+          >
+            Share ↗
+          </ShareCardButton>
+        )}
       </div>
       {seasonDays > RECENT_DAYS && (
         <div role="radiogroup" aria-label="Which match days" className="mb-3 flex gap-2">

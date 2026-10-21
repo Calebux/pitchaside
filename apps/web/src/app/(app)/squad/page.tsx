@@ -161,7 +161,7 @@ export default function SquadPage() {
               onPaymentsChanged={() => loadSessions().catch(() => {})}
             />
           ) : view === 'table' ? (
-            <GroupTable groupId={group.id} onSeeAll={(s) => pickView('stats', s)} />
+            <GroupTable groupId={group.id} groupName={group.name} onSeeAll={(s) => pickView('stats', s)} />
           ) : (
             <GroupStats
               groupId={group.id}

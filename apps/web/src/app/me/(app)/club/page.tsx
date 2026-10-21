@@ -90,7 +90,7 @@ export default function PlayerClubPage() {
           </div>
 
           {view === 'table' ? (
-            <GroupTable key={group.id} groupId={group.id} api={PLAYER_CLUB} onSeeAll={(s) => pickView('stats', s)} />
+            <GroupTable key={group.id} groupId={group.id} groupName={group.name} api={PLAYER_CLUB} onSeeAll={(s) => pickView('stats', s)} />
           ) : (
             <GroupStats
               key={group.id}
