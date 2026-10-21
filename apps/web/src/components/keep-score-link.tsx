@@ -28,21 +28,26 @@ export function KeepScoreLink({ sessionId, today }: { sessionId: string; today: 
   );
 
   if (lineup.canKeepScore) {
+    // The day's job for a captain: a white button on the dark card, so it reads as the thing to tap.
     return (
       <Link
         href={`/me/games/${sessionId}/score`}
-        className="press mt-4 flex items-center gap-3 min-h-14 px-4 rounded-2xl bg-ink text-white hover:bg-pitch-900"
+        className="press mt-4 flex items-center gap-3 min-h-16 pl-3 pr-3.5 py-2.5 rounded-2xl bg-white text-ink shadow-card hover:bg-chalk"
       >
-        {badge}
+        <span className="w-10 h-10 shrink-0 rounded-xl bg-ink text-volt-300 flex items-center justify-center font-display font-extrabold text-[13px]" aria-hidden>
+          {role === 'captain' ? 'C' : 'VC'}
+        </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-[15px] font-bold">Keep the score</span>
-          <span className="block text-[12px] text-white/70">
-            You’re {what} of {side} today: add each game and who scored.
+          <span className="block font-display text-[17px] leading-tight font-extrabold">Keep the score</span>
+          <span className="block text-[13px] leading-snug text-gray-600 line-clamp-2 break-words">
+            {role === 'captain' ? 'Captain' : 'Vice-captain'} of {side}
           </span>
         </span>
-        <svg className="w-4 h-4 shrink-0 text-white/60" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-        </svg>
+        <span className="w-9 h-9 shrink-0 rounded-full bg-volt-400 flex items-center justify-center" aria-hidden>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.75} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12h15m0 0-6.75-6.75M19.5 12l-6.75 6.75" />
+          </svg>
+        </span>
       </Link>
     );
   }

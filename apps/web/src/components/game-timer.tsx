@@ -75,7 +75,7 @@ const clock = (ms: number) => {
 };
 
 /**
- * The match-day clock: whoever runs the day (the organiser, or a captain) picks today's length
+ * The match-day clock: the organiser picks today's length
  * and taps Start; every phone in the game then counts down from the same moment. The phone that
  * started it buzzes and beeps at time and stays awake while it runs. Scores are still added by
  * hand. `watch` is the players' view: nothing until a clock is running.

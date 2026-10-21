@@ -890,12 +890,6 @@ export class RatingsService {
     return timerOf(session);
   }
 
-  /** Today's captains start and stop the clock too, like keeping the score. */
-  async captainTimer(sessionId: string, playerIds: string[], input: { start?: boolean; minutes?: number }) {
-    const { session } = await this.captainToday(sessionId, playerIds);
-    return this.changeTimer(session, input);
-  }
-
   /**
    * This game's bibs, changed on the day (colours and names). Allowed after the scores are in:
    * it changes what the sides are called and wear, not who played. Null goes back to the group's.

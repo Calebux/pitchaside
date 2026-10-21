@@ -390,11 +390,6 @@ export function getGameTimer(sessionId: string) {
   return request<GameTimer>('GET', `/me/games/${sessionId}/timer`);
 }
 
-/** Today's captains start and stop the clock. */
-export function setGameTimer(sessionId: string, change: { start?: boolean; minutes?: number }) {
-  return request<GameTimer>('PUT', `/me/games/${sessionId}/timer`, change);
-}
-
 export function getGameLineup(sessionId: string) {
   return request<GameLineup>('GET', `/me/games/${sessionId}/lineup`);
 }

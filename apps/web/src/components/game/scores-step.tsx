@@ -50,6 +50,7 @@ export function ScoresStep({
   api = ORGANISER,
   timer = ORGANISER_TIMER,
   timerOn = true,
+  timerWatch = false,
   canRemove = () => true,
   ended = false,
 }: {
@@ -66,6 +67,8 @@ export function ScoresStep({
   timer?: TimerApi;
   /** Show the clock: while the day is on, not after full time. */
   timerOn?: boolean;
+  /** Only watch the clock (captains): it shows once the organiser starts it. */
+  timerWatch?: boolean;
   /** Whether this person can delete a score or a scorer someone recorded ("Ada (captain)"). */
   canRemove?: (recordedBy: string | null | undefined) => boolean;
   /** Full time: the results come first and adding a game is folded away. */
@@ -451,7 +454,7 @@ export function ScoresStep({
           {/* The match-day clock, above the score box while the day is on */}
           {timerOn && (
             <div className="mb-3 empty:hidden">
-              <GameTimer sessionId={sessionId} api={timer} onError={onError} />
+              <GameTimer sessionId={sessionId} api={timer} watch={timerWatch} onError={onError} />
             </div>
           )}
           {entry}
