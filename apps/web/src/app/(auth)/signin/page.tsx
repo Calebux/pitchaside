@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
 import { loginWithPassword } from '@/lib/player';
+import { SignInSwitch } from '@/components/signin-switch';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -123,10 +124,13 @@ export default function SignInPage() {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <Logo />
-        <h1 className="mt-6 text-[28px] leading-tight font-extrabold text-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
+      </div>
+      <SignInSwitch current="organiser" email={form.email} />
+      <div className="text-center mt-6 mb-6">
+        <h1 className="text-[28px] leading-tight font-extrabold text-ink">Welcome back</h1>
+        <p className="mt-1 text-sm text-gray-500">Sign in to run your groups, games and money</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -182,12 +186,6 @@ export default function SignInPage() {
         Don&apos;t have an account?{' '}
         <Link href="/signup" className="text-pitch-600 font-semibold hover:text-pitch-700">
           Sign up
-        </Link>
-      </p>
-      <p className="mt-2 text-center text-sm text-gray-500">
-        Playing in a group?{' '}
-        <Link href="/me/login" className="text-pitch-600 font-semibold hover:text-pitch-700">
-          Player sign in
         </Link>
       </p>
     </div>
