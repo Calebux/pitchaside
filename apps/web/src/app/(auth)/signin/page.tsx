@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
+import { loginWithPassword } from '@/lib/player';
+import { SignInSwitch } from '@/components/signin-switch';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -37,7 +39,20 @@ export default function SignInPage() {
         router.push('/dashboard');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Sign in failed');
+      // Players sign in with the same email and password on the player side: if that's who this
+      // is, take them there instead of failing (the site's "Sign in" button opens this page).
+      if (/invalid credentials/i.test(err?.message ?? '')) {
+        try {
+          const res = await loginWithPassword(form.email.trim(), form.password);
+          router.replace('needsPassword' in res ? `/me/login?email=${encodeURIComponent(form.email.trim())}` : '/me');
+          return;
+        } catch {
+          // Not a player either.
+        }
+        toast.error('Wrong email or password.');
+      } else {
+        toast.error(err.message || 'Sign in failed');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -109,10 +124,13 @@ export default function SignInPage() {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <Logo />
-        <h1 className="mt-6 text-[28px] leading-tight font-extrabold text-ink">Welcome back</h1>
-        <p className="mt-1 text-sm text-gray-500">Sign in to your account</p>
+      </div>
+      <SignInSwitch current="organiser" email={form.email} />
+      <div className="text-center mt-6 mb-6">
+        <h1 className="text-[28px] leading-tight font-extrabold text-ink">Welcome back</h1>
+        <p className="mt-1 text-sm text-gray-500">Sign in to run your groups, games and money</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

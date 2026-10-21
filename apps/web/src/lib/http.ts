@@ -14,6 +14,9 @@ export function photoUrl(key?: string | null) {
  */
 const ORGANISER_PAGES = /^\/(dashboard|groups|players|sessions|competitions|admin|settings|hq)(\/|$)/;
 
+/** Signing in (or up) has no session to refresh: a 401 there is the answer itself ("Invalid credentials"). */
+const SIGN_IN_CALLS = /^\/auth\/(login|register|2fa\/validate|refresh)$/;
+
 function getCsrfToken(): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(/pitchaside_csrf=([^;]+)/);
@@ -85,6 +88,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body ? JSON.stringify(body) : undefined,
     credentials: 'include',
   });
+
+  if (res.status === 401 && SIGN_IN_CALLS.test(path)) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(serverMessage(res.status, data));
+  }
 
   if (res.status === 401) {
     // Try silent refresh before giving up
