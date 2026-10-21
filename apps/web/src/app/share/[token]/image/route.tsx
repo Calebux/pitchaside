@@ -1,11 +1,25 @@
 import { ImageResponse } from 'next/og';
-import { fit, loadFonts } from '@/lib/og';
-import { Brand, C, DISPLAY, Face, Label, initials, loadPhotos, names, oneLine } from '@/lib/og-card';
+import { loadFonts } from '@/lib/og';
+import { Brand, C, DISPLAY, Face, Star, initials, loadPhotos, names, oneLine } from '@/lib/og-card';
 import { getMatchCard, type CardPlayer, type MatchCard } from '../match-card';
 import { bibOf, teamName } from '@/lib/teams';
 import type { TeamKey } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
+
+/*
+ * The match-day card, "Floodlight Sticker": one loud thing (the Player of the Match, poster
+ * size on a volt sticker) and everything else in quiet order under it: the day's points as
+ * bars, the results as a grid of fixtures, the awards as a row of identical stickers, and the
+ * pitch taking whatever height is left, so the card always ends full.
+ */
+
+/** The width inside the card's margins; every block lines up to it. */
+const INNER = 968;
+const GAP = 20;
+const PANEL = { borderRadius: 28, background: 'rgba(0,0,0,0.3)', border: `2px solid ${C.line}` } as const;
+/** Small, wide-spaced labels: the third and smallest size of type on the card. */
+const LABEL = { fontSize: 17, fontWeight: 700, letterSpacing: 3, color: C.volt300 } as const;
 
 /** A side's colour and name on the card: the game's own bibs (custom name first, then captain, then colour). */
 function side(team: string, card: MatchCard) {
@@ -24,277 +38,236 @@ function dayDate(iso: string) {
 function leader(players: CardPlayer[], key: 'goals' | 'assists' | 'saves') {
   const top = Math.max(0, ...players.map((p) => p[key]));
   if (!top) return null;
-  const who = players.filter((p) => p[key] === top);
-  return { who, value: top };
+  return { who: players.filter((p) => p[key] === top), value: top };
+}
+
+/** On a sticker: their nickname, else first name and initial ("Emeka O."). */
+function stickerName(p: CardPlayer) {
+  if (p.nickname) return p.nickname;
+  const [first, ...rest] = (p.fullName || p.name).split(/\s+/);
+  const last = rest.at(-1);
+  return last ? `${first} ${last[0]}.` : first;
+}
+
+/** Poster type: the shorter the name, the bigger it's set. */
+const heroSize = (name: string) => (name.length <= 8 ? 92 : name.length <= 12 ? 74 : name.length <= 16 ? 58 : 44);
+
+/** The star's photo as a square sticker, tilted as if just pressed into the album; initials without one. */
+function Portrait({ p, size, tilt }: { p: { name: string; photo?: string | null }; size: number; tilt: number }) {
+  const frame = { width: size, height: size, borderRadius: 32, border: `6px solid ${C.ink}`, transform: `rotate(${tilt}deg)`, boxShadow: '8px 8px 0 rgba(0,0,0,0.35)' } as const;
+  return p.photo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={p.photo} width={size} height={size} style={{ ...frame, objectFit: 'cover' }} alt="" />
+  ) : (
+    <div style={{ ...frame, display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.pitch600, color: C.volt300, fontFamily: DISPLAY, fontWeight: 800, fontSize: Math.round(size * 0.36) }}>
+      {initials(p.name)}
+    </div>
+  );
 }
 
 /**
- * The Player of the Match as a FIFA-style card: rating top left, photo, name on a bar, and the
- * day's numbers underneath. Until the vote closes it's face down: a "?" and the turnout.
+ * The hero: the Player of the Match on a volt sticker, name at poster size, their day in three
+ * numbers. Until the vote closes it's the question instead: a "?" where the face will be.
  */
-function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
-  const potm = card.awards.find((a) => a.key === 'potm');
-  const winners = (potm?.ids ?? []).map((id) => players.find((p) => p.id === id)).filter((p): p is CardPlayer => !!p);
-  const W = 340;
-  const H = 396;
-
-  if (!potm || card.open) {
+function Hero({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
+  const H = 300;
+  const potm = card.open ? null : card.awards.find((a) => a.key === 'potm');
+  if (!potm) {
+    const turnout = card.squadSize ? Math.min(1, card.ballots / card.squadSize) : 0;
     return (
-      <div
-        style={{
-          width: W,
-          height: H,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 40,
-          background: `linear-gradient(160deg, ${C.pitch800} 0%, ${C.pitch950} 100%)`,
-          border: `4px dashed rgba(227,251,108,0.45)`,
-        }}
-      >
-        <Label>PLAYER OF THE MATCH</Label>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 160, color: C.volt300, lineHeight: 1, marginTop: 10 }}>?</div>
-        <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, marginTop: 18, textAlign: 'center', padding: '0 24px' }}>
-          {card.open ? 'Revealed when the vote closes' : card.notYet ? 'The vote opens at full time' : 'No vote this time'}
-        </div>
-        {card.open && (
-          <div style={{ display: 'flex', fontSize: 24, color: C.muted, marginTop: 8 }}>
-            {card.ballots} of {card.squadSize} have voted
+      <div style={{ display: 'flex', height: H, padding: '34px 40px', borderRadius: 40, border: '4px dashed rgba(227,251,108,0.5)', background: `linear-gradient(150deg, ${C.pitch800} 0%, ${C.pitch950} 100%)` }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, paddingRight: 30 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Star color={C.volt300} size={24} />
+            <div style={LABEL}>PLAYER OF THE MATCH</div>
           </div>
-        )}
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 64, lineHeight: 1, marginTop: 18 }}>
+            {card.open ? 'Who was it?' : card.notYet ? 'Match day' : 'No vote this time'}
+          </div>
+          <div style={{ display: 'flex', fontSize: 26, color: C.muted, marginTop: 14 }}>
+            {card.open ? 'Revealed when the vote closes' : card.notYet ? 'The vote opens at full time' : 'Nobody voted for this game'}
+          </div>
+          {card.open && card.squadSize > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 'auto' }}>
+              <div style={{ display: 'flex', fontSize: 22, fontWeight: 700 }}>{`${card.ballots} of ${card.squadSize} have voted`}</div>
+              <div style={{ display: 'flex', width: 420, height: 12, borderRadius: 12, background: 'rgba(255,255,255,0.12)', marginTop: 10 }}>
+                <div style={{ display: 'flex', width: Math.max(12, Math.round(420 * turnout)), height: 12, borderRadius: 12, background: C.volt400 }} />
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 230, height: 230, alignSelf: 'center', borderRadius: 32, border: '4px dashed rgba(227,251,108,0.45)', transform: 'rotate(4deg)' }}>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 180, lineHeight: 1, color: C.volt300 }}>?</div>
+        </div>
       </div>
     );
   }
 
-  const star = winners[0];
-  const shown =
-    winners.length > 1 ? { main: winners.map((w) => names(w).main).join(' & '), sub: null } : star ? names(star) : { main: potm.name, sub: null };
-  const stats = winners.length === 1 && star ? [
-    { k: 'GOALS', v: star.goals },
-    { k: 'ASSISTS', v: star.assists },
-    { k: 'VOTES', v: potm.votes },
-  ] : [{ k: 'VOTES', v: potm.votes }, { k: 'SHARED', v: winners.length || 2 }];
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const winners = (potm.ids ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
+  const star = winners.length === 1 ? winners[0] : null;
+  const shown = winners.length > 1 ? { main: winners.map((w) => names(w).main).join(' & '), sub: null } : star ? names(star) : { main: potm.name, sub: null };
+  const stats = [
+    star?.ovr != null ? { k: 'OVR', v: star.ovr } : null,
+    star ? { k: star.goals === 1 ? 'GOAL' : 'GOALS', v: star.goals } : null,
+    star && star.assists ? { k: star.assists === 1 ? 'ASSIST' : 'ASSISTS', v: star.assists } : null,
+    { k: potm.votes === 1 ? 'VOTE' : 'VOTES', v: potm.votes },
+  ].filter((x): x is { k: string; v: number } => !!x);
 
   return (
     <div
       style={{
-        width: W,
-        height: H,
         display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
+        height: H,
+        padding: '34px 40px',
         borderRadius: 40,
-        background: `linear-gradient(160deg, ${C.volt300} 0%, ${C.volt400} 45%, #a9c61f 100%)`,
         border: `4px solid ${C.ink}`,
+        background: `linear-gradient(150deg, ${C.volt300} 0%, ${C.volt400} 55%, #b8d42a 100%)`,
+        boxShadow: '12px 12px 0 rgba(0,0,0,0.45)',
         color: C.ink,
-        padding: '26px 28px',
       }}
     >
-      {/* Rating and label, top left, as on a FIFA card */}
-      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', top: 26, left: 30 }}>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 80, lineHeight: 1 }}>{star?.ovr ?? '★'}</div>
-        <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 3, marginTop: 2 }}>{star?.ovr ? 'OVR' : ''}</div>
-      </div>
-      <div style={{ display: 'flex', position: 'absolute', top: 30, right: 28 }}>
-        {winners.length > 1 ? (
-          <div style={{ display: 'flex' }}>
-            {winners.slice(0, 2).map((w, i) => (
-              <div key={w.id} style={{ display: 'flex', marginLeft: i ? -60 : 0 }}>
-                <Face p={w} size={140} ring={C.ink} />
-              </div>
-            ))}
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, paddingRight: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Star color={C.ink} size={24} />
+          <div style={{ ...LABEL, color: C.ink }}>
+            {winners.length > 1 || potm.name.includes('&') ? 'PLAYERS OF THE MATCH' : potm.shared ? 'PLAYER OF THE MATCH · JOINT' : 'PLAYER OF THE MATCH'}
           </div>
-        ) : (
-          <Face p={star ?? { name: potm.name }} size={148} ring={C.ink} />
-        )}
-      </div>
-
-      {/* Name bar: what the group calls them, and their real name under a nickname */}
-      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 24, right: 24, top: 190, alignItems: 'center' }}>
-        <div style={{ display: 'flex', fontSize: 18, fontWeight: 700, letterSpacing: 4 }}>PLAYER OF THE MATCH</div>
-        {/* A long name takes two lines rather than shrinking to nothing (one, under a nickname) */}
+        </div>
         <div
           style={{
             display: 'block',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
-            lineClamp: shown.sub ? 1 : 2,
-            maxWidth: W - 48,
-            textAlign: 'center',
+            lineClamp: 2,
             fontFamily: DISPLAY,
             fontWeight: 800,
-            fontSize: shown.main.length > 14 ? 29 : 42,
-            lineHeight: 1.05,
-            marginTop: 4,
+            fontSize: heroSize(shown.main),
+            lineHeight: 0.98,
+            letterSpacing: -1,
+            marginTop: 16,
           }}
         >
-          {shown.main}
+          {shown.main.toUpperCase()}
         </div>
-        {shown.sub && <div style={{ ...oneLine, maxWidth: W - 48, fontSize: 20, fontWeight: 700, color: 'rgba(15,26,20,0.7)' }}>{shown.sub}</div>}
-      </div>
-
-      {/* The day in numbers */}
-      <div
-        style={{
-          display: 'flex',
-          position: 'absolute',
-          left: 28,
-          right: 28,
-          bottom: 20,
-          borderTop: `3px solid ${C.ink}`,
-          paddingTop: 10,
-          justifyContent: 'space-around',
-        }}
-      >
-        {stats.map((s) => (
-          <div key={s.k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, lineHeight: 1 }}>{s.v}</div>
-            <div style={{ display: 'flex', fontSize: 16, fontWeight: 700, letterSpacing: 2, marginTop: 4 }}>{s.k}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** The day's table, Football Manager style: position, side in its bib colour, P, GD, Pts. */
-function DayTable({ card }: { card: MatchCard }) {
-  const rows = card.standings.slice(0, 4);
-  const rowH = rows.length > 3 ? 44 : 50;
-  const col = (w: number, align: 'flex-start' | 'center' | 'flex-end' = 'center') => ({ display: 'flex', width: w, justifyContent: align });
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 28, background: 'rgba(0,0,0,0.32)', border: `2px solid ${C.line}`, padding: '18px 22px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', fontSize: 18, fontWeight: 700, letterSpacing: 2, color: C.muted, paddingBottom: 8 }}>
-        <div style={col(44, 'flex-start')}>#</div>
-        <div style={{ display: 'flex', flex: 1 }}>THE DAY</div>
-        <div style={col(44)}>P</div>
-        <div style={col(64)}>GD</div>
-        <div style={col(70, 'flex-end')}>PTS</div>
-      </div>
-      {rows.map((r, i) => {
-        const s = side(r.team, card);
-        const gd = r.gf - r.ga;
-        const top = i === 0 && card.teamOfTheDay?.team === r.team;
-        return (
-          <div
-            key={r.team}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              height: rowH,
-              borderTop: `2px solid ${C.line}`,
-              fontSize: 28,
-              fontWeight: 700,
-              color: top ? C.volt300 : '#ffffff',
-            }}
-          >
-            <div style={col(44, 'flex-start')}>{i + 1}</div>
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, background: s.bg, border: `2px solid ${C.ink}`, display: 'flex' }} />
-              <div style={{ ...oneLine, flex: 1, minWidth: 0, paddingRight: 8 }}>{s.name}</div>
-            </div>
-            <div style={col(44)}>{r.p}</div>
-            <div style={col(64)}>{gd > 0 ? `+${gd}` : gd}</div>
-            <div style={{ ...col(70, 'flex-end'), fontFamily: DISPLAY, fontWeight: 800 }}>{r.pts}</div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/**
- * The side that won the day, under the table when the Best VII has the pitch: its bib colour and
- * name, its record, and its players' faces.
- */
-function WinningTeam({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
-  const tod = card.teamOfTheDay;
-  if (!tod) return null;
-  const s = side(tod.team, card);
-  const squad = players.filter((p) => p.team === tod.team);
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        marginTop: 12,
-        padding: '14px 20px',
-        borderRadius: 24,
-        background: 'rgba(0,0,0,0.32)',
-        border: `2px solid ${C.line}`,
-        borderLeft: `10px solid ${s.bg}`,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Label size={16}>TEAM OF THE DAY</Label>
-        <div style={{ display: 'flex', fontSize: 20, fontWeight: 700, color: C.muted }}>
-          W{tod.w} D{tod.d} L{tod.l} · {tod.pts} pts
-        </div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-        <div style={{ ...oneLine, flex: 1, minWidth: 0, paddingRight: 12, fontFamily: DISPLAY, fontWeight: 800, fontSize: 34 }}>{s.name}</div>
-        <div style={{ display: 'flex', flexShrink: 0 }}>
-          {squad.slice(0, 6).map((p, i) => (
-            <div key={p.id} style={{ display: 'flex', marginLeft: i ? -14 : 0 }}>
-              <Face p={p} size={50} ring={s.bg} />
+        {shown.sub && <div style={{ ...oneLine, fontSize: 24, fontWeight: 700, color: 'rgba(15,26,20,0.7)', marginTop: 8 }}>{shown.sub}</div>}
+        <div style={{ display: 'flex', gap: 34, marginTop: 'auto', paddingTop: 14, borderTop: `3px solid ${C.ink}` }}>
+          {stats.map((s) => (
+            <div key={s.k} style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 44, lineHeight: 1 }}>{s.v}</div>
+              <div style={{ display: 'flex', fontSize: 15, fontWeight: 700, letterSpacing: 2, marginTop: 4 }}>{s.k}</div>
             </div>
           ))}
-          {squad.length > 6 && (
-            <div style={{ display: 'flex', marginLeft: -14, width: 50, height: 50, borderRadius: 50, background: C.pitch800, border: `3px solid ${s.bg}`, alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>
-              +{squad.length - 6}
-            </div>
-          )}
         </div>
       </div>
-      {squad.length > 0 && (
-        <div style={{ ...oneLine, fontSize: 20, color: C.muted, marginTop: 8 }}>
-          {squad.map((p) => p.short).join(' · ')}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** FPL-style top performers: goals, assists, saves, each with the leader's face. */
-function Performers({ players, max = 3 }: { players: CardPlayer[]; max?: number }) {
-  const rows = (
-    [
-      ['GOALS', leader(players, 'goals')],
-      ['ASSISTS', leader(players, 'assists')],
-      ['SAVES', leader(players, 'saves')],
-    ] as const
-  )
-    // Two rows (beside the table): saves go with the awards instead.
-    .filter(([label, l]) => !!l && (max > 2 || label !== 'SAVES')) as unknown as [string, { who: CardPlayer[]; value: number }][];
-  if (!rows.length) return null;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, gap: 10 }}>
-      {rows.slice(0, max).map(([label, l]) => {
-        const who = l.who.length > 1 ? `${l.who[0].short} & ${l.who.length - 1} more` : names(l.who[0]).main;
-        return (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, height: 62, padding: '0 18px 0 8px', borderRadius: 999, background: 'rgba(255,255,255,0.07)' }}>
-            <Face p={l.who[0]} size={50} ring={C.pitch900} />
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-              <Label size={16}>{label === 'GOALS' ? 'TOP SCORER' : label === 'ASSISTS' ? 'MOST ASSISTS' : 'MOST SAVES'}</Label>
-              <div style={{ ...oneLine, fontSize: 26, fontWeight: 700 }}>{who}</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 280 }}>
+        {winners.length > 1 ? (
+          <div style={{ display: 'flex' }}>
+            <Portrait p={winners[0]} size={170} tilt={-5} />
+            <div style={{ display: 'flex', marginLeft: -60, marginTop: 60 }}>
+              <Portrait p={winners[1]} size={170} tilt={5} />
             </div>
-            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, color: C.volt300 }}>{l.value}</div>
           </div>
-        );
-      })}
+        ) : (
+          <Portrait p={star ?? { name: potm.name }} size={232} tilt={4} />
+        )}
+      </div>
     </div>
   );
 }
 
-/** What each voted award is called on the card; Best on your team is per side. */
-const AWARD_ORDER = ['engine', 'passing', 'shooting', 'playmaker', 'dribbling', 'defending', 'smartest', 'movement', 'keeper', 'teammate', 'pace'];
+/** The day's points as bars in each side's bib colour, longest first; the winner's in volt type. */
+function DayBars({ card }: { card: MatchCard }) {
+  const rows = card.standings.filter((r) => r.p > 0).slice(0, 4);
+  const max = Math.max(1, ...rows.map((r) => r.pts));
+  const barMax = 170;
+  return (
+    <div style={{ ...PANEL, display: 'flex', flexDirection: 'column', flex: 1, padding: '20px 24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={LABEL}>THE DAY</div>
+        <div style={{ ...LABEL, color: C.muted }}>PTS</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-around', marginTop: 8 }}>
+        {rows.map((r, i) => {
+          const s = side(r.team, card);
+          const won = card.teamOfTheDay?.team === r.team;
+          return (
+            <div key={r.team} style={{ display: 'flex', alignItems: 'center', height: 34 }}>
+              <div style={{ display: 'flex', width: 30, fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, color: won ? C.volt300 : C.muted }}>{i + 1}</div>
+              <div style={{ ...oneLine, width: 196, paddingRight: 12, fontSize: 23, fontWeight: 700, color: won ? C.volt300 : '#ffffff' }}>{s.name}</div>
+              <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
+                <div style={{ display: 'flex', width: Math.max(10, Math.round((barMax * r.pts) / max)), height: 24, borderRadius: 8, background: s.bg, border: `2px solid ${C.ink}` }} />
+                <div style={{ display: 'flex', marginLeft: 10, fontSize: 16, fontWeight: 700, color: C.muted }}>{`${r.w}-${r.d}-${r.l}`}</div>
+              </div>
+              <div style={{ display: 'flex', width: 44, justifyContent: 'flex-end', fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, color: won ? C.volt300 : '#ffffff' }}>{r.pts}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /**
- * The day's voted awards beyond Player of the Match, FIFA "team of the week" style: each winner's
- * face, the award, their name and votes. Only awards with enough voters have a winner; at most
- * six fit, the rest are counted.
+ * The winning side, with only the games it won ("2–0 v Yellow"): the day's results belong to the
+ * winners, not to a list of every score. Level at the top, it says so instead.
  */
+function Winners({ card, width }: { card: MatchCard; width: number }) {
+  const tod = card.teamOfTheDay;
+  const panel = { ...PANEL, display: 'flex', flexDirection: 'column', width, padding: '20px 24px' } as const;
+  if (!tod) {
+    const top = card.standings.filter((r) => r.p > 0);
+    const level = top.filter((r) => r.pts === top[0]?.pts).map((r) => side(r.team, card).name);
+    return (
+      <div style={panel}>
+        <div style={LABEL}>TEAM OF THE DAY</div>
+        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, lineHeight: 1.05, marginTop: 14 }}>Level at the top</div>
+        <div style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', lineClamp: 2, fontSize: 22, color: C.muted, marginTop: 8 }}>{`${level.join(' and ')} finished on ${top[0]?.pts ?? 0} points`}</div>
+      </div>
+    );
+  }
+  const s = side(tod.team, card);
+  const wins = card.games.flatMap((g) => {
+    const mine = g.teamA === tod.team ? { us: g.scoreA, them: g.scoreB, other: g.teamB } : g.teamB === tod.team ? { us: g.scoreB, them: g.scoreA, other: g.teamA } : null;
+    return mine && mine.us > mine.them ? [mine] : [];
+  });
+  const shown = wins.length > 4 ? wins.slice(0, 3) : wins;
+  const chipW = Math.floor((width - 48 - 4 - 8) / 2);
+  return (
+    <div style={panel}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Star color={C.volt300} size={20} />
+        <div style={LABEL}>TEAM OF THE DAY</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', marginTop: 10 }}>
+        <div style={{ display: 'flex', width: 22, height: 22, borderRadius: 6, background: s.bg, border: `2px solid ${C.ink}`, marginRight: 12, flexShrink: 0 }} />
+        <div style={{ ...oneLine, flex: 1, minWidth: 0, fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, lineHeight: 1.1 }}>{s.name}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, color: C.volt300 }}>{tod.pts}</div>
+          <div style={{ display: 'flex', fontSize: 15, fontWeight: 700, letterSpacing: 2, color: C.volt300 }}>PTS</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 'auto' }}>
+        {shown.map((w, i) => {
+          const o = side(w.other, card);
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', width: chipW, height: 34, borderRadius: 9, overflow: 'hidden', border: `2px solid ${C.line}`, background: 'rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 52, height: '100%', background: C.ink, fontFamily: DISPLAY, fontWeight: 800, fontSize: 19 }}>{`${w.us}–${w.them}`}</div>
+              <div style={{ display: 'flex', width: 10, height: 10, borderRadius: 3, background: o.bg, margin: '0 7px 0 9px', flexShrink: 0 }} />
+              <div style={{ ...oneLine, flex: 1, minWidth: 0, fontSize: 16, fontWeight: 700, paddingRight: 8 }}>{`v ${o.name}`}</div>
+            </div>
+          );
+        })}
+        {wins.length > shown.length && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: chipW, height: 34, borderRadius: 9, border: `2px dashed ${C.line}`, fontSize: 16, fontWeight: 700, color: C.muted }}>{`+${wins.length - shown.length} more wins`}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Voted awards first (the order they're asked in), then what the scores show. */
+const AWARD_ORDER = ['engine', 'passing', 'shooting', 'playmaker', 'dribbling', 'defending', 'smartest', 'movement', 'keeper', 'teammate', 'pace'];
 type Counted = { key: 'goals' | 'assists' | 'saves'; title: string; unit: string };
 const COUNTED: Counted[] = [
   { key: 'goals', title: 'Top Scorer', unit: 'goal' },
@@ -302,45 +275,40 @@ const COUNTED: Counted[] = [
   { key: 'saves', title: 'Most Saves', unit: 'save' },
 ];
 
-function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer[]; stats: Counted['key'][] }) {
-  const voted = card.awards
-    .filter((a) => a.key !== 'potm')
-    .sort((a, b) => AWARD_ORDER.indexOf(a.key) - AWARD_ORDER.indexOf(b.key));
-  // Counted from the scores, not voted: these come after the three headline awards.
-  const counted = COUNTED.filter((c) => stats.includes(c.key)).flatMap((c) => {
-    const l = leader(players, c.key);
-    return l
-      ? [{ key: c.key, title: c.title, team: null, name: l.who.map((p) => names(p).main).join(' & '), votes: l.value, shared: l.who.length > 1, ids: l.who.map((p) => p.id), unit: c.unit }]
-      : [];
-  });
-  const awards = [...voted.slice(0, 3), ...counted, ...voted.slice(3)];
-  if (!awards.length) return null;
-  const shown = awards.slice(0, 6);
-  const more = awards.length - shown.length;
+/** The awards as a row (or two) of identical stickers: face, award, name, how many. */
+function Stickers({ card, players, rows, tall = false }: { card: MatchCard; players: CardPlayer[]; rows: number; tall?: boolean }) {
   const byId = new Map(players.map((p) => [p.id, p]));
+  const voted = (card.open ? [] : card.awards.filter((a) => a.key !== 'potm')).sort((a, b) => AWARD_ORDER.indexOf(a.key) - AWARD_ORDER.indexOf(b.key));
+  const counted = COUNTED.flatMap((c) => {
+    const l = leader(players, c.key);
+    return l ? [{ key: c.key, title: c.title, team: null, name: l.who.map(stickerName).join(' & '), votes: l.value, shared: l.who.length > 1, ids: l.who.map((p) => p.id), unit: c.unit }] : [];
+  });
+  const all = [...voted.slice(0, 3), ...counted, ...voted.slice(3)];
+  if (!all.length) return null;
+  const perRow = 4;
+  const shown = all.slice(0, perRow * rows);
+  const more = all.length - shown.length;
+  const w = (INNER - (perRow - 1) * 16) / perRow;
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Label size={18}>{counted.length && voted.length ? 'AWARDS AND STATS' : counted.length ? 'THE DAY IN STATS' : 'AWARDS · VOTED BY THE PLAYERS'}</Label>
-        {more > 0 && <Label size={18} color={C.muted}>{`+${more} MORE`}</Label>}
+        <div style={LABEL}>{voted.length && counted.length ? 'AWARDS AND STATS' : voted.length ? 'AWARDS · VOTED BY THE PLAYERS' : 'THE DAY IN STATS'}</div>
+        {more > 0 && <div style={{ ...LABEL, color: C.muted }}>{`+${more} MORE`}</div>}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 12 }}>
         {shown.map((a) => {
           const who = (a.ids ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
           const title = a.key === 'teammate' && a.team ? `Best on ${side(a.team, card).name}` : a.title;
-          const name = who.length ? who.map((p) => names(p).main).join(' & ') : a.name;
+          const name = who.length ? who.map(stickerName).join(' & ') : a.name;
+          const count = 'unit' in a ? `${a.votes} ${a.unit}${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`;
           return (
-            <div
-              key={`${a.key}-${a.team ?? ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: 314, height: 78, padding: '0 14px 0 10px', borderRadius: 20, background: 'rgba(255,255,255,0.07)', border: `2px solid ${C.line}` }}
-            >
-              <Face p={who[0] ?? { name: a.name }} size={52} ring={C.pitch900} />
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                <div style={{ ...oneLine, fontSize: 15, fontWeight: 700, letterSpacing: 3, color: C.volt300 }}>{title.toUpperCase()}</div>
-                <div style={{ ...oneLine, fontSize: 23, fontWeight: 700, marginTop: 1 }}>{name}</div>
-                <div style={{ display: 'flex', fontSize: 16, color: C.muted }}>
-                  {'unit' in a ? `${a.votes} ${a.unit}${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`}
-                  {a.shared ? ' each' : ''}
+            <div key={`${a.key}-${a.team ?? ''}`} style={{ ...PANEL, display: 'flex', flexDirection: 'column', justifyContent: tall ? 'center' : 'flex-start', width: w, height: tall ? 176 : 122, borderRadius: 24, padding: '12px 16px', background: 'rgba(255,255,255,0.06)' }}>
+              <div style={{ ...oneLine, fontSize: 13, fontWeight: 700, letterSpacing: 1.5, color: C.volt300 }}>{title.toUpperCase()}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
+                <Face p={who[0] ?? { name: a.name }} size={tall ? 64 : 52} ring={C.pitch900} />
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                  <div style={{ ...oneLine, fontSize: 23, fontWeight: 700, lineHeight: 1.2 }}>{name}</div>
+                  <div style={{ ...oneLine, fontSize: 16, lineHeight: 1.2, color: C.muted, marginTop: 2 }}>{`${count}${a.shared ? ' each' : ''}`}</div>
                 </div>
               </div>
             </div>
@@ -349,6 +317,26 @@ function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer
       </div>
     </div>
   );
+}
+
+/** Who goes on the pitch: the Best VII once voted, else the winning side, else who played. */
+function onThePitch(card: MatchCard, players: CardPlayer[]) {
+  const byId = new Map(players.map((p) => [p.id, p]));
+  const vii = (card.vii ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
+  const tod = card.teamOfTheDay;
+  if (vii.length >= 6) return { title: 'BEST VII OF THE DAY', onPitch: vii.slice(0, 6), bench: vii[6] ?? null, more: 0 };
+  if (tod) {
+    const squad = players.length
+      ? players.filter((p) => p.team === tod.team)
+      : (tod.players ?? []).map((name) => ({ id: name, name, short: name, photoKey: null, team: tod.team, ovr: null, goals: 0, assists: 0, saves: 0, yellow: 0, red: 0 }));
+    if (squad.length) {
+      const onPitch = squad.slice(0, 8);
+      return { title: `TEAM OF THE DAY · ${side(tod.team, card).name.toUpperCase()} · W${tod.w} D${tod.d} L${tod.l}`, onPitch, bench: null, more: squad.length - onPitch.length };
+    }
+  }
+  if (!players.length) return null;
+  const onPitch = players.slice(0, 8);
+  return { title: `${card.notYet ? "WHO'S PLAYING" : 'WHO PLAYED'} · ${players.length}`, onPitch, bench: null as CardPlayer | null, more: players.length - onPitch.length };
 }
 
 /**
@@ -382,33 +370,13 @@ function PitchPlayer({ p, card, size }: { p: CardPlayer; card: MatchCard; size: 
  * fills whatever height the card has left, so it never runs into the footer.
  */
 function Pitch({ card, players, compact = false }: { card: MatchCard; players: CardPlayer[]; compact?: boolean }) {
-  const byId = new Map(players.map((p) => [p.id, p]));
-  const vii = (card.vii ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
-  const tod = card.teamOfTheDay;
-  let title: string;
-  let onPitch: CardPlayer[];
-  let bench: CardPlayer | null = null;
-  let more = 0;
-  if (vii.length >= 6) {
-    title = 'BEST VII OF THE DAY';
-    onPitch = vii.slice(0, 6);
-    bench = vii[6] ?? null;
-  } else if (tod) {
-    const s = side(tod.team, card);
-    const squad = players.filter((p) => p.team === tod.team);
-    title = `TEAM OF THE DAY · ${s.name.toUpperCase()} · W${tod.w} D${tod.d} L${tod.l}`;
-    onPitch = squad.slice(0, 8);
-    more = squad.length - onPitch.length;
-  } else {
-    title = `${card.notYet ? "WHO'S PLAYING" : 'WHO PLAYED'} · ${players.length}`;
-    onPitch = players.slice(0, 8);
-    more = players.length - onPitch.length;
-  }
-  if (!onPitch.length) return null;
+  const shown = onThePitch(card, players);
+  if (!shown) return null;
+  const { title, onPitch, bench, more } = shown;
   // Two lines of players, like a team sheet; smaller faces when the awards are showing above.
-  const front = onPitch.slice(0, Math.ceil(onPitch.length / 2));
+  const front = onPitch.length <= 4 ? onPitch : onPitch.slice(0, Math.ceil(onPitch.length / 2));
   const back = onPitch.slice(front.length);
-  const size = compact ? 68 : onPitch.length <= 4 ? 112 : 92;
+  const size = compact ? 64 : onPitch.length <= 4 ? 112 : 92;
   // The lines are drawn over the playing area; the sub's bench sits to the side of it.
   const benchW = bench ? 190 : 0;
   const field = 956 - benchW;
@@ -450,7 +418,7 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
       </div>
       {bench && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: benchW, background: C.pitch950, borderLeft: `3px solid ${C.line}` }}>
-          <Label size={16} color={C.muted}>SUB</Label>
+          <div style={{ ...LABEL, fontSize: 16, color: C.muted }}>SUB</div>
           <div style={{ display: 'flex', marginTop: 12 }}>
             <PitchPlayer p={bench} card={card} size={size} />
           </div>
@@ -460,69 +428,11 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
   );
 }
 
-/** The day's scorelines as a broadcast strip: each side in its bib colour. */
-function Results({ card }: { card: MatchCard }) {
-  if (!card.games.length) return null;
-  const shown = card.games.slice(-4);
-  const more = card.games.length - shown.length;
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
-      <Label size={18} color={C.muted}>FT</Label>
-      {shown.map((g, i) => {
-        const a = side(g.teamA, card);
-        const b = side(g.teamB, card);
-        return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', height: 48, borderRadius: 14, overflow: 'hidden', border: `2px solid ${C.line}`, fontWeight: 700 }}>
-            <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '0 12px', background: a.bg, color: a.fg, fontSize: 20 }}>{initials(a.name)}</div>
-            <div style={{ display: 'flex', padding: '0 12px', fontFamily: DISPLAY, fontWeight: 800, fontSize: 28, background: C.ink, height: '100%', alignItems: 'center' }}>
-              {g.scoreA}–{g.scoreB}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '0 12px', background: b.bg, color: b.fg, fontSize: 20 }}>{initials(b.name)}</div>
-          </div>
-        );
-      })}
-      {more > 0 && <div style={{ display: 'flex', fontSize: 22, color: C.muted }}>+{more} more</div>}
-    </div>
-  );
-}
-
-/** A day with no scores in yet: say where the results will be, plainly. */
-function NoScores({ final }: { final: boolean }) {
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        height: 396,
-        borderRadius: 28,
-        border: '3px dashed rgba(255,255,255,0.18)',
-        padding: '0 40px',
-      }}
-    >
-      <Label size={18} color={C.muted}>THE DAY</Label>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, marginTop: 10 }}>{final ? 'No scores recorded' : 'No scores in yet'}</div>
-      <div style={{ display: 'flex', fontSize: 24, color: C.muted, marginTop: 8 }}>
-        {final ? 'Nobody entered the scores for this game.' : 'The table, top scorer and assists show here once the scores are in.'}
-      </div>
-    </div>
-  );
-}
-
 function Card({ card }: { card: MatchCard }) {
   const players = card.players ?? [];
-  const hasTable = card.standings.some((r) => r.p > 0);
-  const hasStats = players.some((p) => p.goals || p.assists || p.saves);
-  // Nothing recorded yet: say so beside the Player of the Match; the pitch shows who played.
-  // Once the Best VII has the pitch, the day's winners get their own block under the table, and
-  // the counted stats join the awards. Otherwise, two stat rows fit beside the table and saves
-  // join the awards.
-  const viiOnPitch = (card.vii ?? []).filter((id) => players.some((p) => p.id === id)).length >= 6;
-  const winnersBlock = viiOnPitch && hasTable && !!card.teamOfTheDay;
-  const stats: Counted['key'][] = winnersBlock ? ['goals', 'assists', 'saves'] : hasTable ? ['saves'] : [];
-  const hasStatTiles = stats.some((k) => !!leader(players, k));
-  const hasAwards = (!card.open && card.awards.some((a) => a.key !== 'potm')) || hasStatTiles;
-  const squadOnly = !hasTable && !hasStats;
+  const hasDay = card.standings.some((r) => r.p > 0);
+  const hasPitch = !!onThePitch(card, players);
+  const status = card.open ? 'VOTING OPEN' : card.notYet ? 'MATCH DAY' : 'FULL TIME';
 
   return (
     <div
@@ -532,68 +442,59 @@ function Card({ card }: { card: MatchCard }) {
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        background: `linear-gradient(180deg, ${C.pitch900} 0%, ${C.pitch950} 55%)`,
+        background: `linear-gradient(180deg, ${C.pitch900} 0%, ${C.pitch950} 60%)`,
         fontFamily: 'DM Sans',
         color: '#ffffff',
-        padding: '48px 56px 36px',
+        padding: '44px 56px 34px',
       }}
     >
-      {/* Header: brand, then club, date and where the day stands */}
+      {/* Mowed stripes, barely there */}
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, display: 'flex' }}>
+        {Array.from({ length: 9 }).map((_, i) => (
+          <div key={i} style={{ flex: 1, background: i % 2 ? 'rgba(255,255,255,0.018)' : 'transparent' }} />
+        ))}
+      </div>
+
+      {/* Masthead: the mark and where the day stands; the club and date; the group */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Brand />
-        <div
-          style={{
-            display: 'flex',
-            padding: '10px 22px',
-            borderRadius: 999,
-            background: card.open || card.notYet ? C.volt400 : '#ffffff',
-            color: C.ink,
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: 2,
-          }}
-        >
-          {card.open ? 'VOTING OPEN' : card.notYet ? 'MATCH DAY' : 'FULL TIME'}
+        <div style={{ display: 'flex', padding: '10px 22px', borderRadius: 999, background: card.open || card.notYet ? C.volt400 : '#ffffff', color: C.ink, fontSize: 21, fontWeight: 700, letterSpacing: 2 }}>
+          {status}
         </div>
       </div>
-      <div style={{ display: 'flex', marginTop: 26 }}>
-        <Label size={22}>{[card.clubName, dayDate(card.date)].filter(Boolean).join(' · ').toUpperCase()}</Label>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 24, marginTop: 22 }}>
+        <div style={{ ...oneLine, flex: 1, minWidth: 0, fontFamily: DISPLAY, fontWeight: 800, fontSize: card.groupName.length > 20 ? 44 : 56, lineHeight: 1.05 }}>{card.groupName}</div>
+        <div style={{ display: 'flex', flexShrink: 0, ...LABEL, fontSize: 20 }}>{dayDate(card.date)}</div>
       </div>
-      <div style={{ ...oneLine, fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 56, 24), lineHeight: 1.1, marginTop: 2 }}>
-        {card.groupName}
-      </div>
-      <Results card={card} />
+      {card.clubName && card.clubName.toLowerCase() !== card.groupName.toLowerCase() && (
+        <div style={{ ...oneLine, ...LABEL, color: C.muted, marginTop: 4 }}>{card.clubName.toUpperCase()}</div>
+      )}
 
-      {/* The hero: Player of the Match card, and the day's table with who stood out */}
-      <div style={{ display: 'flex', gap: 24, marginTop: 20 }}>
-        <PotmCard card={card} players={players} />
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          {hasTable && <DayTable card={card} />}
-          {squadOnly ? <NoScores final={!card.open && !card.notYet} /> : winnersBlock ? <WinningTeam card={card} players={players} /> : <Performers players={players} max={hasTable ? 2 : 3} />}
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
+        <Hero card={card} players={players} />
       </div>
 
-      {hasAwards && (
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 20 }}>
-          <Awards card={card} players={players} stats={stats} />
+      {hasDay && (
+        <div style={{ display: 'flex', gap: GAP, height: hasPitch ? 214 : 250, marginTop: GAP + 8 }}>
+          <DayBars card={card} />
+          <Winners card={card} width={400} />
         </div>
       )}
 
-      <div style={{ display: 'flex', flex: 1, minHeight: 0, marginTop: 20 }}>
-        <Pitch card={card} players={players} compact={hasAwards} />
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: GAP }}>
+        <Stickers card={card} players={players} rows={hasPitch ? 1 : 2} tall={!hasPitch} />
       </div>
 
+      {hasPitch ? (
+        <div style={{ display: 'flex', flex: 1, minHeight: 0, marginTop: GAP }}>
+          <Pitch card={card} players={players} compact={hasDay} />
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flex: 1 }} />
+      )}
+
       {/* Footer, in the flow so nothing can run into it */}
-      <div
-        style={{
-          marginTop: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: 22,
-          color: C.muted,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, fontSize: 21, color: C.muted }}>
         <div style={{ display: 'flex' }}>{card.notYet ? `${players.length} playing` : card.squadSize ? `${card.ballots} of ${card.squadSize} voted` : ''}</div>
         <div style={{ display: 'flex', fontWeight: 700, color: card.open ? C.volt300 : '#ffffff' }}>
           {card.open ? 'Played? Have your say on PitchAside' : card.notYet ? 'PitchAside' : 'Final result · PitchAside'}
