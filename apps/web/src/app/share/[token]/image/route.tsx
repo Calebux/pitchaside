@@ -1,27 +1,11 @@
 import { ImageResponse } from 'next/og';
 import { fit, loadFonts } from '@/lib/og';
-import { API_URL, getMatchCard, type CardPlayer, type MatchCard } from '../match-card';
+import { Brand, C, DISPLAY, Face, Label, initials, loadPhotos, names, oneLine } from '@/lib/og-card';
+import { getMatchCard, type CardPlayer, type MatchCard } from '../match-card';
 import { bibOf, teamName } from '@/lib/teams';
 import type { TeamKey } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
-
-/** Brand colours (mirrors the @theme tokens in globals.css — satori can't read CSS variables). */
-const C = {
-  ink: '#0f1a14',
-  pitch950: '#071f10',
-  pitch900: '#0d331c',
-  pitch800: '#124326',
-  pitch600: '#1f743a',
-  volt300: '#e3fb6c',
-  volt400: '#d4f53c',
-  sun400: '#facc15',
-  kit500: '#f97316',
-  chalk: '#f5f3ea',
-  muted: 'rgba(255,255,255,0.6)',
-  line: 'rgba(255,255,255,0.12)',
-};
-const DISPLAY = 'Bricolage Grotesque';
 
 /** A side's colour and name on the card: the game's own bibs (custom name first, then captain, then colour). */
 function side(team: string, card: MatchCard) {
@@ -29,74 +13,12 @@ function side(team: string, card: MatchCard) {
   return { name: teamName(team as TeamKey, card.captains as Partial<Record<TeamKey, string>> | undefined, card.bibs), bg: bib.hex, fg: bib.ink ? C.ink : '#ffffff' };
 }
 
-function prettyDate(iso: string) {
+/** "SAT 10 OCT". */
+function dayDate(iso: string) {
   return new Date(`${iso}T12:00:00`)
     .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
     .toUpperCase();
 }
-
-function initials(name: string) {
-  return name
-    .split(/\s+|&/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('');
-}
-
-/** Initials discs get a steady brand colour per name, like the app's avatars. */
-const DISC = [
-  { bg: C.volt400, fg: C.ink },
-  { bg: C.sun400, fg: C.ink },
-  { bg: C.kit500, fg: C.ink },
-  { bg: '#38bdf8', fg: C.ink },
-  { bg: '#ffffff', fg: C.ink },
-  { bg: C.pitch600, fg: '#ffffff' },
-];
-const discOf = (name: string) => DISC[[...name].reduce((n, ch) => n + ch.charCodeAt(0), 0) % DISC.length];
-
-/** A player's face: their photo, else their initials on a disc. */
-function Face({ p, size, ring = C.pitch950 }: { p: Pick<CardPlayer, 'name' | 'photoKey'>; size: number; ring?: string }) {
-  const border = Math.max(3, Math.round(size / 22));
-  if (p.photoKey) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`${API_URL}/api/photos/${p.photoKey}`}
-        width={size}
-        height={size}
-        style={{ width: size, height: size, borderRadius: size, border: `${border}px solid ${ring}`, objectFit: 'cover' }}
-        alt=""
-      />
-    );
-  }
-  const d = discOf(p.name);
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size,
-        border: `${border}px solid ${ring}`,
-        background: d.bg,
-        color: d.fg,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: DISPLAY,
-        fontWeight: 800,
-        fontSize: Math.round(size * 0.38),
-      }}
-    >
-      {initials(p.name)}
-    </div>
-  );
-}
-
-/** Small caps label, like the broadcast graphics. */
-const Label = ({ children, color = C.volt300, size = 20 }: { children: React.ReactNode; color?: string; size?: number }) => (
-  <div style={{ display: 'flex', fontSize: size, fontWeight: 700, letterSpacing: 3, color }}>{children}</div>
-);
 
 /** Who led a stat on the day (ties share it), or null when nobody recorded any. */
 function leader(players: CardPlayer[], key: 'goals' | 'assists' | 'saves') {
@@ -146,6 +68,8 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
   }
 
   const star = winners[0];
+  const shown =
+    winners.length > 1 ? { main: winners.map((w) => names(w).main).join(' & '), sub: null } : star ? names(star) : { main: potm.name, sub: null };
   const stats = winners.length === 1 && star ? [
     { k: 'GOALS', v: star.goals },
     { k: 'ASSISTS', v: star.assists },
@@ -182,14 +106,32 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
             ))}
           </div>
         ) : (
-          <Face p={star ?? { name: potm.name, photoKey: null }} size={148} ring={C.ink} />
+          <Face p={star ?? { name: potm.name }} size={148} ring={C.ink} />
         )}
       </div>
 
-      {/* Name bar */}
-      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 0, right: 0, top: 188, alignItems: 'center' }}>
-        <div style={{ display: 'flex', fontSize: 20, fontWeight: 700, letterSpacing: 4 }}>PLAYER OF THE MATCH</div>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(potm.name, 44, 13), marginTop: 2, textAlign: 'center' }}>{potm.name}</div>
+      {/* Name bar: what the group calls them, and their real name under a nickname */}
+      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 24, right: 24, top: 190, alignItems: 'center' }}>
+        <div style={{ display: 'flex', fontSize: 18, fontWeight: 700, letterSpacing: 4 }}>PLAYER OF THE MATCH</div>
+        {/* A long name takes two lines rather than shrinking to nothing (one, under a nickname) */}
+        <div
+          style={{
+            display: 'block',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineClamp: shown.sub ? 1 : 2,
+            maxWidth: W - 48,
+            textAlign: 'center',
+            fontFamily: DISPLAY,
+            fontWeight: 800,
+            fontSize: shown.main.length > 14 ? 29 : 42,
+            lineHeight: 1.05,
+            marginTop: 4,
+          }}
+        >
+          {shown.main}
+        </div>
+        {shown.sub && <div style={{ ...oneLine, maxWidth: W - 48, fontSize: 20, fontWeight: 700, color: 'rgba(15,26,20,0.7)' }}>{shown.sub}</div>}
       </div>
 
       {/* The day in numbers */}
@@ -250,7 +192,7 @@ function DayTable({ card }: { card: MatchCard }) {
             <div style={col(44, 'flex-start')}>{i + 1}</div>
             <div style={{ display: 'flex', flex: 1, alignItems: 'center', gap: 12 }}>
               <div style={{ width: 22, height: 22, borderRadius: 6, background: s.bg, border: `2px solid ${C.ink}`, display: 'flex' }} />
-              <div style={{ display: 'flex', fontSize: fit(s.name, 28, 14) }}>{s.name}</div>
+              <div style={{ ...oneLine, flex: 1, minWidth: 0, paddingRight: 8 }}>{s.name}</div>
             </div>
             <div style={col(44)}>{r.p}</div>
             <div style={col(64)}>{gd > 0 ? `+${gd}` : gd}</div>
@@ -291,8 +233,8 @@ function WinningTeam({ card, players }: { card: MatchCard; players: CardPlayer[]
         </div>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(s.name, 34, 14) }}>{s.name}</div>
-        <div style={{ display: 'flex' }}>
+        <div style={{ ...oneLine, flex: 1, minWidth: 0, paddingRight: 12, fontFamily: DISPLAY, fontWeight: 800, fontSize: 34 }}>{s.name}</div>
+        <div style={{ display: 'flex', flexShrink: 0 }}>
           {squad.slice(0, 6).map((p, i) => (
             <div key={p.id} style={{ display: 'flex', marginLeft: i ? -14 : 0 }}>
               <Face p={p} size={50} ring={s.bg} />
@@ -306,9 +248,8 @@ function WinningTeam({ card, players }: { card: MatchCard; players: CardPlayer[]
         </div>
       </div>
       {squad.length > 0 && (
-        <div style={{ display: 'flex', fontSize: 20, color: C.muted, marginTop: 8 }}>
-          {squad.slice(0, 6).map((p) => p.short).join(' · ')}
-          {squad.length > 6 ? ` +${squad.length - 6}` : ''}
+        <div style={{ ...oneLine, fontSize: 20, color: C.muted, marginTop: 8 }}>
+          {squad.map((p) => p.short).join(' · ')}
         </div>
       )}
     </div>
@@ -330,13 +271,13 @@ function Performers({ players, max = 3 }: { players: CardPlayer[]; max?: number 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, gap: 10 }}>
       {rows.slice(0, max).map(([label, l]) => {
-        const who = l.who.length > 1 ? `${l.who[0].short} & ${l.who.length - 1} more` : l.who[0].name;
+        const who = l.who.length > 1 ? `${l.who[0].short} & ${l.who.length - 1} more` : names(l.who[0]).main;
         return (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, height: 62, padding: '0 18px 0 8px', borderRadius: 999, background: 'rgba(255,255,255,0.07)' }}>
             <Face p={l.who[0]} size={50} ring={C.pitch900} />
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
               <Label size={16}>{label === 'GOALS' ? 'TOP SCORER' : label === 'ASSISTS' ? 'MOST ASSISTS' : 'MOST SAVES'}</Label>
-              <div style={{ display: 'flex', fontSize: fit(who, 26, 18), fontWeight: 700 }}>{who}</div>
+              <div style={{ ...oneLine, fontSize: 26, fontWeight: 700 }}>{who}</div>
             </div>
             <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, color: C.volt300 }}>{l.value}</div>
           </div>
@@ -369,7 +310,7 @@ function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer
   const counted = COUNTED.filter((c) => stats.includes(c.key)).flatMap((c) => {
     const l = leader(players, c.key);
     return l
-      ? [{ key: c.key, title: c.title, team: null, name: l.who.map((p) => p.name).join(' & '), votes: l.value, shared: l.who.length > 1, ids: l.who.map((p) => p.id), unit: c.unit }]
+      ? [{ key: c.key, title: c.title, team: null, name: l.who.map((p) => names(p).main).join(' & '), votes: l.value, shared: l.who.length > 1, ids: l.who.map((p) => p.id), unit: c.unit }]
       : [];
   });
   const awards = [...voted.slice(0, 3), ...counted, ...voted.slice(3)];
@@ -387,15 +328,16 @@ function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer
         {shown.map((a) => {
           const who = (a.ids ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
           const title = a.key === 'teammate' && a.team ? `Best on ${side(a.team, card).name}` : a.title;
+          const name = who.length ? who.map((p) => names(p).main).join(' & ') : a.name;
           return (
             <div
               key={`${a.key}-${a.team ?? ''}`}
               style={{ display: 'flex', alignItems: 'center', gap: 12, width: 314, height: 78, padding: '0 14px 0 10px', borderRadius: 20, background: 'rgba(255,255,255,0.07)', border: `2px solid ${C.line}` }}
             >
-              <Face p={who[0] ?? { name: a.name, photoKey: null }} size={52} ring={C.pitch900} />
-              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <Label size={15}>{title.toUpperCase()}</Label>
-                <div style={{ display: 'flex', fontSize: fit(a.name, 24, 14), fontWeight: 700, marginTop: 2 }}>{a.name}</div>
+              <Face p={who[0] ?? { name: a.name }} size={52} ring={C.pitch900} />
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                <div style={{ ...oneLine, fontSize: 15, fontWeight: 700, letterSpacing: 3, color: C.volt300 }}>{title.toUpperCase()}</div>
+                <div style={{ ...oneLine, fontSize: 23, fontWeight: 700, marginTop: 1 }}>{name}</div>
                 <div style={{ display: 'flex', fontSize: 16, color: C.muted }}>
                   {'unit' in a ? `${a.votes} ${a.unit}${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`}
                   {a.shared ? ' each' : ''}
@@ -409,56 +351,35 @@ function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer
   );
 }
 
-/** A player on the pitch, FPL style: face, name tag, and a goal/assist badge when they had one. */
-function PitchPlayer({ p, card, sub = false, size = 92 }: { p: CardPlayer; card: MatchCard; sub?: boolean; size?: number }) {
+/**
+ * A player on the pitch, FPL style: face in their bib colour, the day's goals/assists/saves on a
+ * badge top right, their rating on a badge bottom left, and their name on a tag under the face.
+ */
+function PitchPlayer({ p, card, size }: { p: CardPlayer; card: MatchCard; size: number }) {
   const bib = p.team ? side(p.team, card) : null;
   const tally = [p.goals ? `${p.goals}G` : null, p.assists ? `${p.assists}A` : null, p.saves ? `${p.saves}S` : null].filter(Boolean).join(' ');
+  const badge = { display: 'flex', position: 'absolute', padding: '1px 9px', borderRadius: 999, fontSize: 17, fontWeight: 700, border: `2px solid ${C.ink}` } as const;
+  const width = size + 64;
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: size + 40, opacity: sub ? 0.92 : 1 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width }}>
       <div style={{ display: 'flex', position: 'relative' }}>
         <Face p={p} size={size} ring={bib?.bg ?? '#ffffff'} />
-        {tally && (
-          <div
-            style={{
-              display: 'flex',
-              position: 'absolute',
-              right: -14,
-              top: -6,
-              padding: '2px 10px',
-              borderRadius: 999,
-              background: C.volt400,
-              color: C.ink,
-              fontSize: 18,
-              fontWeight: 700,
-              border: `2px solid ${C.ink}`,
-            }}
-          >
-            {tally}
-          </div>
+        {tally && <div style={{ ...badge, right: -22, top: -4, background: C.volt400, color: C.ink }}>{tally}</div>}
+        {p.ovr != null && (
+          <div style={{ ...badge, left: -18, bottom: -2, background: C.ink, color: C.volt300, fontFamily: DISPLAY, fontWeight: 800 }}>{p.ovr}</div>
         )}
       </div>
-      <div
-        style={{
-          display: 'flex',
-          marginTop: -10,
-          padding: '4px 14px',
-          borderRadius: 10,
-          background: C.ink,
-          color: '#ffffff',
-          fontSize: fit(p.short, 22, 9),
-          fontWeight: 700,
-        }}
-      >
+      <div style={{ ...oneLine, maxWidth: 176, marginTop: 8, padding: '3px 12px', borderRadius: 10, background: C.ink, color: '#ffffff', fontSize: 20, fontWeight: 700 }}>
         {p.short}
       </div>
-      {p.ovr != null && <div style={{ display: 'flex', fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.85)', marginTop: 4 }}>{p.ovr} OVR</div>}
     </div>
   );
 }
 
 /**
  * The pitch, FPL style: the Best VII of the Day once the vote has closed (six on the pitch, the
- * sub on the bench); before that, the Team of the Day's side; with no results, who played.
+ * sub on the bench); before that, the Team of the Day's side; with no results, who played. It
+ * fills whatever height the card has left, so it never runs into the footer.
  */
 function Pitch({ card, players, compact = false }: { card: MatchCard; players: CardPlayer[]; compact?: boolean }) {
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -467,74 +388,74 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
   let title: string;
   let onPitch: CardPlayer[];
   let bench: CardPlayer | null = null;
+  let more = 0;
   if (vii.length >= 6) {
     title = 'BEST VII OF THE DAY';
     onPitch = vii.slice(0, 6);
     bench = vii[6] ?? null;
   } else if (tod) {
     const s = side(tod.team, card);
+    const squad = players.filter((p) => p.team === tod.team);
     title = `TEAM OF THE DAY · ${s.name.toUpperCase()} · W${tod.w} D${tod.d} L${tod.l}`;
-    onPitch = players.filter((p) => p.team === tod.team).slice(0, 7);
+    onPitch = squad.slice(0, 8);
+    more = squad.length - onPitch.length;
   } else {
     title = `${card.notYet ? "WHO'S PLAYING" : 'WHO PLAYED'} · ${players.length}`;
-    onPitch = players.slice(0, 7);
+    onPitch = players.slice(0, 8);
+    more = players.length - onPitch.length;
   }
   if (!onPitch.length) return null;
-  // Two lines of players, like a team sheet; a little shorter, with smaller faces, when the
-  // awards are showing above.
+  // Two lines of players, like a team sheet; smaller faces when the awards are showing above.
   const front = onPitch.slice(0, Math.ceil(onPitch.length / 2));
   const back = onPitch.slice(front.length);
-  const size = compact ? 72 : 92;
-  const h = compact ? 350 : 400;
+  const size = compact ? 68 : onPitch.length <= 4 ? 112 : 92;
   // The lines are drawn over the playing area; the sub's bench sits to the side of it.
-  const benchW = bench ? (compact ? 150 : 170) : 0;
-  const field = 962 - benchW;
+  const benchW = bench ? 190 : 0;
+  const field = 956 - benchW;
+  const chalk = 'rgba(255,255,255,0.3)';
+  const row = (list: CardPlayer[]) => (
+    <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+      {list.map((p) => (
+        <PitchPlayer key={p.id} p={p} card={card} size={size} />
+      ))}
+    </div>
+  );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', height: h, borderRadius: 36, overflow: 'hidden', border: `3px solid ${C.line}` }}>
-      {/* Mowed stripes and the lines of a 5-a-side pitch */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+    <div style={{ display: 'flex', flex: 1, position: 'relative', borderRadius: 36, overflow: 'hidden', border: `3px solid ${C.line}` }}>
+      {/* Mowed stripes, then the lines of a 5-a-side pitch: halfway line, centre circle, a box at each end */}
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: benchW, display: 'flex' }}>
         {Array.from({ length: 10 }).map((_, i) => (
           <div key={i} style={{ flex: 1, background: i % 2 ? '#14532d' : '#166534' }} />
         ))}
       </div>
-      {/* The lines of a 5-a-side pitch: halfway line, centre circle, a box at each end */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
-        <div style={{ position: 'absolute', top: 0, height: h, left: field / 2 - 1, width: 3, background: 'rgba(255,255,255,0.35)', display: 'flex' }} />
-        <div style={{ position: 'absolute', top: h / 2 - 60, left: field / 2 - 60, width: 120, height: 120, borderRadius: 120, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-        <div style={{ position: 'absolute', top: h / 2 - 85, left: -3, width: 90, height: 170, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-        <div style={{ position: 'absolute', top: h / 2 - 85, left: field - 87, width: 90, height: 170, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-      </div>
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: field / 2 - 1, width: 3, background: chalk, display: 'flex' }} />
+      <div style={{ position: 'absolute', top: '50%', marginTop: -55, left: field / 2 - 55, width: 110, height: 110, borderRadius: 110, border: `3px solid ${chalk}`, display: 'flex' }} />
+      <div style={{ position: 'absolute', top: '50%', marginTop: -75, left: -3, width: 70, height: 150, border: `3px solid ${chalk}`, display: 'flex' }} />
+      <div style={{ position: 'absolute', top: '50%', marginTop: -75, left: field - 64, width: 70, height: 150, border: `3px solid ${chalk}`, display: 'flex' }} />
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
-        <div style={{ display: 'flex', padding: '6px 18px', borderRadius: 999, background: 'rgba(7,31,16,0.85)' }}>
-          <Label size={18}>{title}</Label>
-        </div>
-      </div>
-      <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: compact ? 12 : 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-            {front.map((p) => (
-              <PitchPlayer key={p.id} p={p} card={card} size={size} />
-            ))}
+      <div style={{ display: 'flex', flexDirection: 'column', width: field, paddingBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+          <div style={{ ...oneLine, maxWidth: field - 60, padding: '6px 18px', borderRadius: 999, background: 'rgba(7,31,16,0.85)', fontSize: 18, fontWeight: 700, letterSpacing: 3, color: C.volt300 }}>
+            {title}
           </div>
-          {back.length > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-around' }}>
-              {back.map((p) => (
-                <PitchPlayer key={p.id} p={p} card={card} size={size} />
-              ))}
-            </div>
-          )}
         </div>
-        {bench && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: benchW, height: '100%', justifyContent: 'center', background: 'rgba(7,31,16,0.55)' }}>
-            <Label size={16} color={C.muted}>SUB</Label>
-            <div style={{ display: 'flex', marginTop: 8 }}>
-              <PitchPlayer p={bench} card={card} sub size={size} />
-            </div>
-          </div>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-around', paddingTop: 6 }}>
+          {row(front)}
+          {back.length > 0 && row(back)}
+        </div>
+        {more > 0 && (
+          <div style={{ display: 'flex', position: 'absolute', right: 18, bottom: 12, fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>+{more} more</div>
         )}
       </div>
+      {bench && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: benchW, background: C.pitch950, borderLeft: `3px solid ${C.line}` }}>
+          <Label size={16} color={C.muted}>SUB</Label>
+          <div style={{ display: 'flex', marginTop: 12 }}>
+            <PitchPlayer p={bench} card={card} size={size} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -614,24 +535,12 @@ function Card({ card }: { card: MatchCard }) {
         background: `linear-gradient(180deg, ${C.pitch900} 0%, ${C.pitch950} 55%)`,
         fontFamily: 'DM Sans',
         color: '#ffffff',
-        padding: '52px 56px',
+        padding: '48px 56px 36px',
       }}
     >
       {/* Header: brand, then club, date and where the day stands */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {/* Same mark as components/brand.tsx, on a volt tile so it reads on the dark card. */}
-          <svg width="56" height="56" viewBox="0 0 40 40">
-            <rect x="1" y="1" width="38" height="38" rx="11" fill={C.volt400} />
-            <rect x="7" y="8" width="26" height="24" rx="4" fill="none" stroke={C.ink} strokeWidth="2.4" />
-            <line x1="20" y1="8" x2="20" y2="32" stroke={C.ink} strokeWidth="2.4" />
-            <circle cx="20" cy="20" r="5" fill="none" stroke={C.ink} strokeWidth="2.4" />
-            <circle cx="20" cy="20" r="1.6" fill={C.ink} />
-          </svg>
-          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 36 }}>
-            Pitch<span style={{ color: C.volt300 }}>Aside</span>
-          </div>
-        </div>
+        <Brand />
         <div
           style={{
             display: 'flex',
@@ -648,15 +557,15 @@ function Card({ card }: { card: MatchCard }) {
         </div>
       </div>
       <div style={{ display: 'flex', marginTop: 26 }}>
-        <Label size={22}>{[card.clubName, prettyDate(card.date)].filter(Boolean).join(' · ').toUpperCase()}</Label>
+        <Label size={22}>{[card.clubName, dayDate(card.date)].filter(Boolean).join(' · ').toUpperCase()}</Label>
       </div>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 56, 24), lineHeight: 1.05, marginTop: 2 }}>
+      <div style={{ ...oneLine, fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 56, 24), lineHeight: 1.1, marginTop: 2 }}>
         {card.groupName}
       </div>
       <Results card={card} />
 
       {/* The hero: Player of the Match card, and the day's table with who stood out */}
-      <div style={{ display: 'flex', gap: 24, marginTop: 18 }}>
+      <div style={{ display: 'flex', gap: 24, marginTop: 20 }}>
         <PotmCard card={card} players={players} />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           {hasTable && <DayTable card={card} />}
@@ -665,22 +574,19 @@ function Card({ card }: { card: MatchCard }) {
       </div>
 
       {hasAwards && (
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 20 }}>
           <Awards card={card} players={players} stats={stats} />
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18 }}>
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, marginTop: 20 }}>
         <Pitch card={card} players={players} compact={hasAwards} />
       </div>
 
-      {/* Footer */}
+      {/* Footer, in the flow so nothing can run into it */}
       <div
         style={{
-          position: 'absolute',
-          left: 56,
-          right: 56,
-          bottom: 36,
+          marginTop: 16,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -699,9 +605,10 @@ function Card({ card }: { card: MatchCard }) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const card = await getMatchCard(token);
-  if (!card) return new Response('Not found', { status: 404 });
-  const fonts = await loadFonts();
+  const found = await getMatchCard(token);
+  if (!found) return new Response('Not found', { status: 404 });
+  const [fonts, photos] = await Promise.all([loadFonts(), loadPhotos((found.players ?? []).map((p) => p.photoKey))]);
+  const card = { ...found, players: (found.players ?? []).map((p) => ({ ...p, photo: p.photoKey ? (photos.get(p.photoKey) ?? null) : null })) };
   return new ImageResponse(<Card card={card} />, {
     width: 1080,
     height: 1350,

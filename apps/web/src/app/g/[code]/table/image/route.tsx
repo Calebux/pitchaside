@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { fit, loadFonts } from '@/lib/og';
 import { getTableCard, lastOf, type TableCard } from '../table-card';
-import { Arrow, Brand, C, DISPLAY, Face, Label, Star, prettyDate } from '@/lib/og-card';
+import { Arrow, Brand, C, DISPLAY, Face, Label, Star, loadPhotos, names, oneLine, prettyDate } from '@/lib/og-card';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,7 +58,8 @@ function Podium({ r, rank }: { r: Row; rank: 1 | 2 | 3 }) {
   const first = rank === 1;
   const accent = first ? C.volt400 : rank === 2 ? C.chalk : C.kit500;
   const W = first ? 320 : 290;
-  const H = first ? 420 : 360;
+  const H = first ? 440 : 384;
+  const n = names(r);
   return (
     <div
       style={{
@@ -87,8 +88,9 @@ function Podium({ r, rank }: { r: Row; rank: 1 | 2 | 3 }) {
       <div style={{ display: 'flex', marginTop: first ? 34 : 30 }}>
         <Face p={r} size={first ? 150 : 120} ring={first ? C.ink : accent} />
       </div>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(r.name, first ? 36 : 30, 13), marginTop: 12, textAlign: 'center' }}>{r.name}</div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: first ? 10 : 6 }}>
+      <div style={{ ...oneLine, maxWidth: W - 40, fontFamily: DISPLAY, fontWeight: 800, fontSize: first ? 34 : 28, marginTop: 12 }}>{n.main}</div>
+      <div style={{ ...oneLine, maxWidth: W - 40, height: 24, fontSize: 18, fontWeight: 700, color: first ? 'rgba(15,26,20,0.7)' : C.muted }}>{n.sub ?? ''}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: first ? 8 : 4 }}>
         <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: first ? 84 : 64, lineHeight: 1 }}>{r.points}</div>
         <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>PTS</div>
       </div>
@@ -114,13 +116,16 @@ function Rows({ rows, from }: { rows: Row[]; from: number }) {
         <div style={{ ...head, width: 70, justifyContent: 'flex-end' }}>PTS</div>
       </div>
       {rows.map((r, i) => (
-        <div key={r.id} style={{ display: 'flex', alignItems: 'center', height: 62, borderTop: `2px solid ${C.line}`, fontSize: 26, fontWeight: 700 }}>
+        <div key={r.id} style={{ display: 'flex', alignItems: 'center', height: 60, borderTop: `2px solid ${C.line}`, fontSize: 26, fontWeight: 700 }}>
           <div style={{ display: 'flex', width: 44 }}>{from + i}</div>
           <Move move={r.move} />
           <div style={{ display: 'flex', margin: '0 14px 0 4px' }}>
             <Face p={r} size={44} ring={C.pitch900} />
           </div>
-          <div style={{ display: 'flex', flex: 1, fontSize: fit(r.name, 26, 16) }}>{r.name}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, paddingRight: 10 }}>
+            <div style={{ ...oneLine, fontSize: 25, lineHeight: 1.15 }}>{names(r).main}</div>
+            {names(r).sub && <div style={{ ...oneLine, fontSize: 15, fontWeight: 500, color: C.muted }}>{names(r).sub}</div>}
+          </div>
           <div style={{ display: 'flex', width: 50, justifyContent: 'center' }}>{r.games}</div>
           <div style={{ display: 'flex', width: 120, justifyContent: 'center', fontSize: 22, color: C.muted }}>
             {r.w}-{r.d}-{r.l}
@@ -136,7 +141,7 @@ function Rows({ rows, from }: { rows: Row[]; from: number }) {
 function Card({ t }: { t: TableCard }) {
   const [first, second, third] = t.rows;
   const rest = t.rows.slice(3);
-  const when = t.last ? `LAST ${t.games} MATCH DAYS` : `AFTER ${t.games} MATCH DAY${t.games === 1 ? '' : 'S'}`;
+  const when = !t.games ? null : t.last ? `LAST ${t.games} MATCH DAYS` : `AFTER ${t.games} MATCH DAY${t.games === 1 ? '' : 'S'}`;
   const more = t.total - t.rows.length;
 
   return (
@@ -150,7 +155,7 @@ function Card({ t }: { t: TableCard }) {
         background: `linear-gradient(180deg, ${C.pitch900} 0%, ${C.pitch950} 55%)`,
         fontFamily: 'DM Sans',
         color: '#ffffff',
-        padding: '52px 56px',
+        padding: '48px 56px 36px',
       }}
     >
       {/* Mowed stripes, faint */}
@@ -170,7 +175,7 @@ function Card({ t }: { t: TableCard }) {
       <div style={{ display: 'flex', marginTop: 26 }}>
         <Label size={22}>{[t.clubName, when, t.lastDate ? prettyDate(t.lastDate) : null].filter(Boolean).join(' · ').toUpperCase()}</Label>
       </div>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(t.groupName, 62, 24), lineHeight: 1.05, marginTop: 4 }}>{t.groupName}</div>
+      <div style={{ ...oneLine, fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(t.groupName, 62, 24), lineHeight: 1.1, marginTop: 4 }}>{t.groupName}</div>
 
       {!first ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
@@ -196,10 +201,8 @@ function Card({ t }: { t: TableCard }) {
       {/* Footer: how points are won, and how many more are in the full table */}
       <div
         style={{
-          position: 'absolute',
-          left: 56,
-          right: 56,
-          bottom: 36,
+          marginTop: 'auto',
+          paddingTop: 16,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -219,9 +222,10 @@ function Card({ t }: { t: TableCard }) {
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   const last = lastOf(new URL(req.url).searchParams.get('last'));
-  const t = await getTableCard(code, last);
-  if (!t) return new Response('Not found', { status: 404 });
-  const fonts = await loadFonts();
+  const found = await getTableCard(code, last);
+  if (!found) return new Response('Not found', { status: 404 });
+  const [fonts, photos] = await Promise.all([loadFonts(), loadPhotos(found.rows.map((r) => r.photoKey))]);
+  const t = { ...found, rows: found.rows.map((r) => ({ ...r, photo: r.photoKey ? (photos.get(r.photoKey) ?? null) : null })) };
   return new ImageResponse(<Card t={t} />, {
     width: 1080,
     height: 1350,

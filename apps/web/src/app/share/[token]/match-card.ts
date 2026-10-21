@@ -28,7 +28,12 @@ export interface CardPlayer {
   name: string;
   /** Nickname or first name, for tight spots. */
   short: string;
+  /** Their real name and nickname, kept apart (newer servers only). */
+  fullName?: string;
+  nickname?: string | null;
   photoKey: string | null;
+  /** The photo itself, loaded before drawing (see loadPhotos). */
+  photo?: string | null;
   team: string | null;
   ovr: number | null;
   goals: number;
