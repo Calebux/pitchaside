@@ -208,36 +208,58 @@ function DayBars({ card }: { card: MatchCard }) {
   );
 }
 
-/** Every game of the day as a fixture: each side's bib colour and letter, the score between. */
-function Fixtures({ card, width }: { card: MatchCard; width: number }) {
-  const max = 9;
-  const games = card.games.length > max ? card.games.slice(0, max - 1) : card.games;
-  const more = card.games.length - games.length;
-  // Inside the panel's padding and border: one game to a row up to three, then two, then three.
-  const cols = card.games.length <= 3 ? 1 : card.games.length <= 6 ? 2 : 3;
-  const chipW = Math.floor((width - 48 - 4 - (cols - 1) * 8) / cols);
-  const chipH = 34;
-  const end = (team: string) => {
-    const s = side(team, card);
+/**
+ * The winning side, with only the games it won ("2–0 v Yellow"): the day's results belong to the
+ * winners, not to a list of every score. Level at the top, it says so instead.
+ */
+function Winners({ card, width }: { card: MatchCard; width: number }) {
+  const tod = card.teamOfTheDay;
+  const panel = { ...PANEL, display: 'flex', flexDirection: 'column', width, padding: '20px 24px' } as const;
+  if (!tod) {
+    const top = card.standings.filter((r) => r.p > 0);
+    const level = top.filter((r) => r.pts === top[0]?.pts).map((r) => side(r.team, card).name);
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: cols === 1 ? 120 : 28, height: '100%', padding: '0 6px', background: s.bg, color: s.fg, fontSize: 15, fontWeight: 700 }}>
-        <div style={{ ...oneLine, maxWidth: 108 }}>{cols === 1 ? s.name : initials(s.name).slice(0, 2)}</div>
+      <div style={panel}>
+        <div style={LABEL}>TEAM OF THE DAY</div>
+        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, lineHeight: 1.05, marginTop: 14 }}>Level at the top</div>
+        <div style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', lineClamp: 2, fontSize: 22, color: C.muted, marginTop: 8 }}>{`${level.join(' and ')} finished on ${top[0]?.pts ?? 0} points`}</div>
       </div>
     );
-  };
+  }
+  const s = side(tod.team, card);
+  const wins = card.games.flatMap((g) => {
+    const mine = g.teamA === tod.team ? { us: g.scoreA, them: g.scoreB, other: g.teamB } : g.teamB === tod.team ? { us: g.scoreB, them: g.scoreA, other: g.teamA } : null;
+    return mine && mine.us > mine.them ? [mine] : [];
+  });
+  const shown = wins.length > 4 ? wins.slice(0, 3) : wins;
+  const chipW = Math.floor((width - 48 - 4 - 8) / 2);
   return (
-    <div style={{ ...PANEL, display: 'flex', flexDirection: 'column', width, padding: '20px 24px' }}>
-      <div style={LABEL}>{`RESULTS · ${card.games.length} GAME${card.games.length === 1 ? '' : 'S'}`}</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        {games.map((g, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', width: chipW, height: chipH, borderRadius: 9, overflow: 'hidden', border: `2px solid ${C.line}` }}>
-            {end(g.teamA)}
-            <div style={{ display: 'flex', flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', background: C.ink, fontFamily: DISPLAY, fontWeight: 800, fontSize: 20 }}>{`${g.scoreA}–${g.scoreB}`}</div>
-            {end(g.teamB)}
-          </div>
-        ))}
-        {more > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: chipW, height: chipH, borderRadius: 9, border: `2px dashed ${C.line}`, fontSize: 17, fontWeight: 700, color: C.muted }}>{`+${more} more`}</div>
+    <div style={panel}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Star color={C.volt300} size={20} />
+        <div style={LABEL}>TEAM OF THE DAY</div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', marginTop: 10 }}>
+        <div style={{ display: 'flex', width: 22, height: 22, borderRadius: 6, background: s.bg, border: `2px solid ${C.ink}`, marginRight: 12, flexShrink: 0 }} />
+        <div style={{ ...oneLine, flex: 1, minWidth: 0, fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, lineHeight: 1.1 }}>{s.name}</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, color: C.volt300 }}>{tod.pts}</div>
+          <div style={{ display: 'flex', fontSize: 15, fontWeight: 700, letterSpacing: 2, color: C.volt300 }}>PTS</div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 'auto' }}>
+        {shown.map((w, i) => {
+          const o = side(w.other, card);
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', width: chipW, height: 34, borderRadius: 9, overflow: 'hidden', border: `2px solid ${C.line}`, background: 'rgba(255,255,255,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 52, height: '100%', background: C.ink, fontFamily: DISPLAY, fontWeight: 800, fontSize: 19 }}>{`${w.us}–${w.them}`}</div>
+              <div style={{ display: 'flex', width: 10, height: 10, borderRadius: 3, background: o.bg, margin: '0 7px 0 9px', flexShrink: 0 }} />
+              <div style={{ ...oneLine, flex: 1, minWidth: 0, fontSize: 16, fontWeight: 700, paddingRight: 8 }}>{`v ${o.name}`}</div>
+            </div>
+          );
+        })}
+        {wins.length > shown.length && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: chipW, height: 34, borderRadius: 9, border: `2px dashed ${C.line}`, fontSize: 16, fontWeight: 700, color: C.muted }}>{`+${wins.length - shown.length} more wins`}</div>
         )}
       </div>
     </div>
@@ -254,7 +276,7 @@ const COUNTED: Counted[] = [
 ];
 
 /** The awards as a row (or two) of identical stickers: face, award, name, how many. */
-function Stickers({ card, players, rows }: { card: MatchCard; players: CardPlayer[]; rows: number }) {
+function Stickers({ card, players, rows, tall = false }: { card: MatchCard; players: CardPlayer[]; rows: number; tall?: boolean }) {
   const byId = new Map(players.map((p) => [p.id, p]));
   const voted = (card.open ? [] : card.awards.filter((a) => a.key !== 'potm')).sort((a, b) => AWARD_ORDER.indexOf(a.key) - AWARD_ORDER.indexOf(b.key));
   const counted = COUNTED.flatMap((c) => {
@@ -280,10 +302,10 @@ function Stickers({ card, players, rows }: { card: MatchCard; players: CardPlaye
           const name = who.length ? who.map(stickerName).join(' & ') : a.name;
           const count = 'unit' in a ? `${a.votes} ${a.unit}${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`;
           return (
-            <div key={`${a.key}-${a.team ?? ''}`} style={{ ...PANEL, display: 'flex', flexDirection: 'column', width: w, height: 122, borderRadius: 24, padding: '12px 16px', background: 'rgba(255,255,255,0.06)' }}>
+            <div key={`${a.key}-${a.team ?? ''}`} style={{ ...PANEL, display: 'flex', flexDirection: 'column', justifyContent: tall ? 'center' : 'flex-start', width: w, height: tall ? 176 : 122, borderRadius: 24, padding: '12px 16px', background: 'rgba(255,255,255,0.06)' }}>
               <div style={{ ...oneLine, fontSize: 13, fontWeight: 700, letterSpacing: 1.5, color: C.volt300 }}>{title.toUpperCase()}</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
-                <Face p={who[0] ?? { name: a.name }} size={52} ring={C.pitch900} />
+                <Face p={who[0] ?? { name: a.name }} size={tall ? 64 : 52} ring={C.pitch900} />
                 <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                   <div style={{ ...oneLine, fontSize: 23, fontWeight: 700, lineHeight: 1.2 }}>{name}</div>
                   <div style={{ ...oneLine, fontSize: 16, lineHeight: 1.2, color: C.muted, marginTop: 2 }}>{`${count}${a.shared ? ' each' : ''}`}</div>
@@ -292,29 +314,6 @@ function Stickers({ card, players, rows }: { card: MatchCard; players: CardPlaye
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-/** When there's no pitch to draw: the winning side, poster size, in its bib colour. */
-function Champions({ card }: { card: MatchCard }) {
-  const tod = card.teamOfTheDay;
-  if (!tod) return null;
-  const s = side(tod.team, card);
-  return (
-    <div style={{ ...PANEL, display: 'flex', flex: 1, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, minWidth: 0, padding: '0 36px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Star color={C.volt300} size={22} />
-          <div style={LABEL}>TEAM OF THE DAY</div>
-        </div>
-        <div style={{ ...oneLine, fontFamily: DISPLAY, fontWeight: 800, fontSize: s.name.length > 14 ? 60 : 84, lineHeight: 1.05, marginTop: 8 }}>{s.name.toUpperCase()}</div>
-        <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, color: C.muted, marginTop: 6 }}>{`Won ${tod.w} · drew ${tod.d} · lost ${tod.l}`}</div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 230, background: s.bg, color: s.fg }}>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 110, lineHeight: 1 }}>{tod.pts}</div>
-        <div style={{ display: 'flex', fontSize: 20, fontWeight: 700, letterSpacing: 3, marginTop: 4 }}>POINTS</div>
       </div>
     </div>
   );
@@ -476,23 +475,19 @@ function Card({ card }: { card: MatchCard }) {
       </div>
 
       {hasDay && (
-        <div style={{ display: 'flex', gap: GAP, height: 196, marginTop: GAP + 8 }}>
+        <div style={{ display: 'flex', gap: GAP, height: hasPitch ? 214 : 250, marginTop: GAP + 8 }}>
           <DayBars card={card} />
-          <Fixtures card={card} width={400} />
+          <Winners card={card} width={400} />
         </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: GAP }}>
-        <Stickers card={card} players={players} rows={hasPitch || card.teamOfTheDay ? 1 : 2} />
+        <Stickers card={card} players={players} rows={hasPitch ? 1 : 2} tall={!hasPitch} />
       </div>
 
       {hasPitch ? (
         <div style={{ display: 'flex', flex: 1, minHeight: 0, marginTop: GAP }}>
           <Pitch card={card} players={players} compact={hasDay} />
-        </div>
-      ) : card.teamOfTheDay ? (
-        <div style={{ display: 'flex', flex: 1, minHeight: 0, marginTop: GAP }}>
-          <Champions card={card} />
         </div>
       ) : (
         <div style={{ display: 'flex', flex: 1 }} />
