@@ -1,5 +1,6 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { MonthList } from '@/components/money/month-list';
 import { PageHeader } from '@/components/brand';
 import { useEffect, useState } from 'react';
@@ -266,10 +267,11 @@ function KittyCard({ kitty }: { kitty: GroupKitty }) {
           {kitty.players.map((p, i) => (
             <li
               key={i}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+              className={`inline-flex items-center gap-1.5 pl-0.5 pr-2.5 py-0.5 rounded-full text-xs font-semibold ${
                 p.paid ? 'bg-volt-100 text-pitch-800' : 'bg-gray-100 text-gray-500'
               } ${p.me ? 'ring-2 ring-ink' : ''}`}
             >
+              <Avatar name={p.name} photoKey={p.photoKey} className={`w-6 h-6 text-[9px] ${p.paid ? '' : 'opacity-60'}`} />
               <span aria-hidden>{p.paid ? '✓' : '·'}</span>
               {p.me ? 'You' : p.name}
               <span className="sr-only">{p.paid ? ' paid' : ' not paid yet'}</span>

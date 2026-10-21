@@ -582,6 +582,8 @@ export interface NotPlayerPreview {
 export interface ExtraMoney {
   playerId: string;
   name: string;
+  nickname?: string | null;
+  photoKey?: string | null;
   extra: number;
   /** Extra put aside for someone not in the group yet, or no one knows who. */
   waiting: number;

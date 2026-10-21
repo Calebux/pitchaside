@@ -1,12 +1,13 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { kitFor } from '@/components/illustrations';
 import { stagger } from '@/components/motion';
 
-export type GroupMember = { playerId: string; name: string };
+/** `name` is what they go by (nickname first); `fullName` is for initials and search. */
+export type GroupMember = { playerId: string; name: string; fullName?: string; photoKey?: string | null };
 
 /**
  * Putting group members on a game by hand, for players who told the organiser rather than the
@@ -27,7 +28,7 @@ export function AddToGameSheet({
   const [busy, setBusy] = useState<string | null>(null);
   const [added, setAdded] = useState<Set<string>>(new Set());
   const q = query.trim().toLowerCase();
-  const shown = members.filter((m) => !q || m.name.toLowerCase().includes(q));
+  const shown = members.filter((m) => !q || `${m.name} ${m.fullName ?? ''}`.toLowerCase().includes(q));
 
   async function add(m: GroupMember) {
     setBusy(m.playerId);
@@ -60,13 +61,10 @@ export function AddToGameSheet({
       ) : (
         <ul className="mt-2 rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden">
           {shown.map((m, i) => {
-            const kit = kitFor(m.name);
             const isIn = added.has(m.playerId);
             return (
               <li key={m.playerId} className="animate-rise flex items-center gap-3 px-3.5 min-h-16 py-2.5" style={stagger(Math.min(i, 10), 25, 0)}>
-                <span className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display`} aria-hidden>
-                  {m.name.charAt(0)}
-                </span>
+                <Avatar name={m.fullName ?? m.name} photoKey={m.photoKey} className="w-10 h-10 text-sm" />
                 <span className="flex-1 min-w-0 text-[15px] font-bold text-ink truncate">{m.name}</span>
                 <button
                   onClick={() => add(m)}

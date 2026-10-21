@@ -9,6 +9,7 @@ import { LiveDot } from '@/components/motion';
 import type { TeamKey } from '@/lib/api';
 import { getGameLineup, getGameTimer, pickBib, type GameLineup, type GamePaid } from '@/lib/player';
 import { GameTimer, type TimerApi } from '@/components/game-timer';
+import { Avatar } from '@/components/ratings';
 
 const WATCH: TimerApi = { load: getGameTimer };
 
@@ -142,8 +143,9 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
                   {teamName(t, lineup.captains, lineup.bibs)} · {byTeam(t).length}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {byTeam(t).map((p) => (
-                    <span key={p.name} className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1">
+                  {byTeam(t).map((p, i) => (
+                    <span key={`${p.name}-${i}`} className="inline-flex items-center gap-1.5 bg-white/10 rounded-full pl-0.5 pr-2.5 py-0.5">
+                      <Avatar name={p.name} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
                       <span className={`text-xs ${p.me ? 'font-extrabold text-volt-300' : 'font-semibold text-white'}`}>{p.me ? 'You' : p.name}</span>
                       {p.captain && <span className="text-[10px] font-extrabold text-volt-300">(C)</span>}
                       {p.vice && <span className="text-[10px] font-extrabold text-volt-300">(VC)</span>}
@@ -154,9 +156,17 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
               </div>
             ))}
           {noBib.length > 0 && (
-            <p className="text-[11px] text-white/60">
-              No team yet: {noBib.map((p) => (p.me ? 'you' : p.name.split(' ')[0])).join(', ')}
-            </p>
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-white/60 mb-1">No team yet · {noBib.length}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {noBib.map((p, i) => (
+                  <span key={`${p.name}-${i}`} className="inline-flex items-center gap-1.5 bg-white/[0.06] rounded-full pl-0.5 pr-2.5 py-0.5">
+                    <Avatar name={p.name} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
+                    <span className={`text-xs ${p.me ? 'font-extrabold text-volt-300' : 'font-semibold text-white/80'}`}>{p.me ? 'You' : p.short ?? p.name}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}
@@ -224,11 +234,22 @@ function Live({
 
       <ol className="space-y-1.5">
         {[...live.games].reverse().map((g, i) => {
-          const scorers = (team: TeamKey) =>
-            g.goals
-              .filter((x) => x.team === team && x.scorer)
-              .map((x) => `${x.mine ? 'You' : x.scorer}${x.assist ? ` (${x.assist})` : ''}`)
-              .join(', ');
+          // Each goal with the scorer's face: "Ada (Tobi)", the one who set it up in brackets.
+          const scorers = (team: TeamKey, right: boolean) => (
+            <span className={`flex flex-col gap-1 ${right ? 'items-end' : 'items-start'}`}>
+              {g.goals
+                .filter((x) => x.team === team && x.scorer)
+                .map((x, n) => (
+                  <span key={n} className={`flex items-center gap-1 max-w-full ${right ? 'flex-row-reverse text-right' : ''}`}>
+                    <Avatar name={x.scorer!} photoKey={x.scorerPhoto} className="w-5 h-5 text-[8px]" />
+                    <span className="min-w-0 truncate">
+                      {x.mine ? 'You' : x.scorer}
+                      {x.assist && <span className="text-white/50"> ({x.assist})</span>}
+                    </span>
+                  </span>
+                ))}
+            </span>
+          );
           return (
             <li key={g.id} className="rounded-xl bg-white/[0.06] px-3 py-2">
               <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-white/50">Game {live.games.length - i}</p>
@@ -240,10 +261,10 @@ function Live({
                 <span className="flex-1 min-w-0 truncate">{teamName(g.teamB, captains, bibs)}</span>
               </p>
               {g.goals.some((x) => x.scorer) && (
-                <p className="mt-1 grid grid-cols-2 gap-3 text-[11px] text-white/70">
-                  <span className="text-right">{scorers(g.teamA) && `⚽ ${scorers(g.teamA)}`}</span>
-                  <span>{scorers(g.teamB) && `⚽ ${scorers(g.teamB)}`}</span>
-                </p>
+                <div className="mt-1.5 grid grid-cols-2 gap-3 text-[11px] text-white/75">
+                  {scorers(g.teamA, true)}
+                  {scorers(g.teamB, false)}
+                </div>
               )}
             </li>
           );
@@ -251,12 +272,18 @@ function Live({
       </ol>
 
       {live.events.some((e) => e.name) && (
-        <p className="text-[12px] text-white/70">
+        <ul className="flex flex-wrap gap-1.5 text-[12px] text-white/75">
           {live.events
             .filter((e) => e.name)
-            .map((e) => `${KIND_LABEL[e.kind]}: ${e.mine ? 'you' : e.name}`)
-            .join(' · ')}
-        </p>
+            .map((e, n) => (
+              <li key={n} className="inline-flex items-center gap-1.5 bg-white/[0.06] rounded-full pl-0.5 pr-2.5 py-0.5">
+                <Avatar name={e.name!} photoKey={e.photoKey} className="w-5 h-5 text-[8px]" />
+                <span>
+                  {e.mine ? 'You' : e.name} · {KIND_LABEL[e.kind]}
+                </span>
+              </li>
+            ))}
+        </ul>
       )}
     </div>
   );

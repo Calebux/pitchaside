@@ -1090,7 +1090,7 @@ export function TransfersPanel({
                   return (
                     <li key={x.playerId}>
                       <SortRow
-                        avatar={<Avatar name={x.name} className="w-10 h-10 text-[13px]" />}
+                        avatar={<Avatar name={x.name} photoKey={x.photoKey} className="w-10 h-10 text-[13px]" />}
                         title={x.name}
                         sub={
                           one

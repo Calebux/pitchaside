@@ -224,7 +224,7 @@ export function ExtraSheet({
             ?
           </span>
         ) : (
-          <Avatar name={item.name} className="w-10 h-10 text-[13px]" />
+          <Avatar name={item.name} photoKey={item.photoKey} className="w-10 h-10 text-[13px]" />
         )}
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-bold text-ink truncate">{waiting ? (item.waitingNote ? `For ${item.waitingNote}` : 'Not known yet') : item.name}</p>
@@ -292,7 +292,7 @@ export function ExtraSheet({
                       onClick={() => setTo(m)}
                       className={`w-full flex items-center gap-3 min-h-16 px-3.5 py-2.5 text-left transition-colors ${on ? 'bg-volt-300/35' : 'hover:bg-chalk'}`}
                     >
-                      <Avatar name={m.name} className="w-10 h-10 text-[13px]" />
+                      <Avatar name={m.name} photoKey={m.photoKey} className="w-10 h-10 text-[13px]" />
                       <span className="flex-1 min-w-0">
                         <span className="block text-[15px] font-bold text-ink truncate">{m.name}</span>
                         <span className={`block text-[13px] ${due ? 'text-amber-700 font-semibold' : 'text-gray-500'}`}>{due ? `Owes ${formatCurrency(due)}` : 'Owes nothing'}</span>

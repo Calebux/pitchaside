@@ -36,7 +36,7 @@ import { useToast } from '@/components/toast';
 import { prettyTime } from '@/components/player-ui';
 import { moneyHref } from '@/lib/money-href';
 import { Ticket } from '@/components/ticket';
-import { PeopleRow, namesLine, type Face } from '@/components/people-row';
+import { FaceStack, PeopleRow, namesLine, type Face } from '@/components/people-row';
 
 // ── Dates ──
 
@@ -1023,9 +1023,10 @@ function GameSection({
 }
 
 /** A player as a face: full name (for initials), photo when they have one. */
-const faceOf = (p: { id: string; firstName: string; lastName: string; photoKey?: string | null }): Face => ({
+export const faceOf = (p: { id: string; firstName: string; lastName: string; nickname?: string | null; photoKey?: string | null }): Face => ({
   id: p.id,
-  name: `${p.firstName} ${p.lastName}`.trim(),
+  name: p.nickname || `${p.firstName} ${p.lastName}`.trim(),
+  short: p.nickname || p.firstName,
   photoKey: p.photoKey ?? null,
 });
 
@@ -1369,6 +1370,8 @@ export interface NeedsItem {
   detail?: string;
   tone: 'kit' | 'sun' | 'volt' | 'sky';
   icon: React.ReactNode;
+  /** Who it's about, as faces beside the names. */
+  faces?: Face[];
 }
 
 const toneCls: Record<NeedsItem['tone'], string> = {
@@ -1393,7 +1396,14 @@ export function NeedsYou({ items }: { items: NeedsItem[] }) {
               <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${toneCls[it.tone]}`}>{it.icon}</span>
               <span className="flex-1 min-w-0">
                 <span className="block text-[15px] font-bold text-ink leading-snug">{it.title}</span>
-                {it.detail && <span className="block text-xs text-gray-500 mt-0.5 truncate">{it.detail}</span>}
+                {it.faces && it.faces.length > 0 ? (
+                  <span className="mt-1 flex items-center gap-2 min-w-0">
+                    <FaceStack people={it.faces} max={4} />
+                    {it.detail && <span className="min-w-0 text-xs text-gray-500 truncate">{it.detail}</span>}
+                  </span>
+                ) : (
+                  it.detail && <span className="block text-xs text-gray-500 mt-0.5 truncate">{it.detail}</span>
+                )}
               </span>
               <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />

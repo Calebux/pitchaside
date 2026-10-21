@@ -13,6 +13,7 @@ import { Swatch, shortName } from './teams-step';
 import { ScorerSheet } from './scorer-sheet';
 import { EventsSection } from './events-section';
 import { GameTimer, type TimerApi } from '@/components/game-timer';
+import { Avatar } from '@/components/ratings';
 import { getTimer, setTimer } from '@/lib/api';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
@@ -113,6 +114,11 @@ export function ScoresStep({
   const who = (id: string | null | undefined) => {
     const m = id ? lineup.squad.find((x) => x.id === id) : null;
     return m ? shortName(m) : 'Someone';
+  };
+  /** Their face: photo once they've added one, else their initials. */
+  const face = (id: string | null | undefined, className: string) => {
+    const m = id ? lineup.squad.find((x) => x.id === id) : null;
+    return <Avatar name={m ? `${m.firstName} ${m.lastName}` : '?'} photoKey={m?.photoKey} className={className} />;
   };
   /** "Ada (Chidi), Bisi": a side's scorers, with who set each one up. */
   const scorersLine = (goals: GoalInput[]) => goals.map((g) => `${who(g.scorerId)}${g.assistId ? ` (${who(g.assistId)})` : ''}`).join(', ');
@@ -227,10 +233,17 @@ export function ScoresStep({
           − Take one off
         </button>
         {sideGoals.length > 0 && (
-          <p className="max-w-full text-center text-[12px] leading-snug font-semibold text-white/75">
-            <span aria-hidden>⚽ </span>
-            {scorersLine(sideGoals)}
-          </p>
+          <ul className="max-w-full flex flex-col items-center gap-1 text-[12px] leading-snug font-semibold text-white/80">
+            {sideGoals.map((g, n) => (
+              <li key={n} className="flex items-center gap-1.5 max-w-full">
+                {face(g.scorerId, 'w-5 h-5 text-[8px]')}
+                <span className="min-w-0 truncate">
+                  {who(g.scorerId)}
+                  {g.assistId && <span className="text-white/55"> ({who(g.assistId)})</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     );
@@ -356,8 +369,19 @@ export function ScoresStep({
                       <Swatch team={g.teamB} bibs={lineup.bibs} />
                     </span>
                   </span>
-                  <span className={`mt-1.5 block text-[12px] leading-snug truncate ${g.goals.length || !(g.scoreA + g.scoreB) ? 'text-gray-600' : 'font-bold text-pitch-700'}`}>
-                    {g.goals.length ? `⚽ ${scorersLine(g.goals)}` : g.scoreA + g.scoreB ? 'Tap to name the scorers ›' : 'No goals'}
+                  <span className={`mt-1.5 flex items-center gap-1.5 text-[12px] leading-snug ${g.goals.length || !(g.scoreA + g.scoreB) ? 'text-gray-600' : 'font-bold text-pitch-700'}`}>
+                    {g.goals.length > 0 && (
+                      <span className="flex -space-x-1.5 shrink-0" aria-hidden>
+                        {g.goals.slice(0, 4).map((x, n) => (
+                          <span key={n} className="rounded-full ring-2 ring-white">
+                            {face(x.scorerId, 'w-5 h-5 text-[8px]')}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                    <span className="min-w-0 truncate">
+                      {g.goals.length ? scorersLine(g.goals) : g.scoreA + g.scoreB ? 'Tap to name the scorers ›' : 'No goals'}
+                    </span>
                   </span>
                 </button>
                 {canRemove(g.recordedBy) && (
@@ -413,7 +437,10 @@ export function ScoresStep({
               </div>
               {rows.map(([id, r]) => (
                 <div key={id} className="grid grid-cols-[1fr_52px_52px] gap-1 items-center px-3.5 min-h-11 border-t border-gray-100 text-[14px]">
-                  <span className="min-w-0 truncate font-bold text-ink">{who(id)}</span>
+                  <span className="min-w-0 flex items-center gap-2">
+                    {face(id, 'w-7 h-7 text-[10px]')}
+                    <span className="min-w-0 truncate font-bold text-ink">{who(id)}</span>
+                  </span>
                   <span className="text-center font-display font-extrabold text-ink tabular-nums">{r.goals}</span>
                   <span className="text-center text-gray-600 tabular-nums">{r.assists}</span>
                 </div>
@@ -502,10 +529,11 @@ export function ScoresStep({
                   </p>
                   <ul className="mt-1">
                     {goals.map((goal) => (
-                      <li key={goal.id} className="flex items-center gap-2 min-h-12 border-b border-gray-100">
+                      <li key={goal.id} className="flex items-center gap-2.5 min-h-12 py-1.5 border-b border-gray-100">
+                        {face(goal.scorerId, 'w-9 h-9 text-[11px]')}
                         <span className="flex-1 min-w-0">
                           <span className="block text-[15px] font-bold text-ink truncate">
-                            ⚽ {who(goal.scorerId)}
+                            {who(goal.scorerId)}
                             {goal.assistId && <span className="font-semibold text-gray-600"> · set up by {who(goal.assistId)}</span>}
                           </span>
                           {goal.recordedBy && <span className="block text-[12px] text-gray-500">Added by {goal.recordedBy}</span>}
