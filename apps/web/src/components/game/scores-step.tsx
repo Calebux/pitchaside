@@ -7,13 +7,15 @@ import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { BallSpinner } from '@/components/skeleton';
 import { buzz, stagger } from '@/components/motion';
-import { addGoal, addMatchEvent, addMatchGame, deleteGoal, deleteMatchEvent, deleteMatchGame, type GoalInput, type Lineup, type MatchEventKind, type MatchGame, type TeamKey } from '@/lib/api';
+import { addGoal, addMatchEvent, addMatchGame, deleteGoal, deleteMatchEvent, deleteMatchGame, updateMatchGame, type GoalInput, type Lineup, type MatchEventKind, type MatchGame, type TeamKey } from '@/lib/api';
 import { TEAMS, bibFill, bibOf, bibTint, teamName } from '@/lib/teams';
 import { Swatch, shortName } from './teams-step';
 import { ScorerSheet } from './scorer-sheet';
 import { EventsSection } from './events-section';
 import { GameTimer, type TimerApi } from '@/components/game-timer';
 import { Avatar } from '@/components/ratings';
+import { btnPrimary } from '@/components/buttons';
+import { useToast } from '@/components/toast';
 import { getTimer, setTimer } from '@/lib/api';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
@@ -21,6 +23,8 @@ const KEYS = Object.keys(TEAMS) as TeamKey[];
 export interface ScoresApi {
   addGame: (sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] }) => Promise<Lineup>;
   deleteGame: (sessionId: string, gameId: string) => Promise<Lineup>;
+  /** Correct a saved game's score: the organiser's only. */
+  updateGame?: (sessionId: string, gameId: string, score: { scoreA: number; scoreB: number }) => Promise<Lineup>;
   addGoal: (sessionId: string, gameId: string, goal: GoalInput) => Promise<Lineup>;
   deleteGoal: (sessionId: string, goalId: string) => Promise<Lineup>;
   addEvent: (sessionId: string, event: { playerId: string; kind: MatchEventKind }) => Promise<Lineup>;
@@ -28,7 +32,7 @@ export interface ScoresApi {
 }
 
 const ORGANISER: ScoresApi = retryKeys(
-  { addGame: addMatchGame, deleteGame: deleteMatchGame, addGoal, deleteGoal, addEvent: addMatchEvent, deleteEvent: deleteMatchEvent },
+  { addGame: addMatchGame, deleteGame: deleteMatchGame, updateGame: updateMatchGame, addGoal, deleteGoal, addEvent: addMatchEvent, deleteEvent: deleteMatchEvent },
   ['addGame', 'addGoal', 'addEvent'],
 );
 
@@ -86,6 +90,22 @@ export function ScoresStep({
   const [choosing, setChoosing] = useState<'teamA' | 'teamB' | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [removing, setRemoving] = useState<MatchGame | null>(null);
+  const toast = useToast();
+  // Changing a saved game's score, in its sheet: the new numbers until they're saved.
+  const [newScore, setNewScore] = useState<{ id: string; scoreA: number; scoreB: number } | null>(null);
+  async function saveScore() {
+    if (!newScore || !api.updateGame) return;
+    setBusy(`score-${newScore.id}`);
+    try {
+      onLineup(await api.updateGame(sessionId, newScore.id, { scoreA: newScore.scoreA, scoreB: newScore.scoreB }));
+      setNewScore(null);
+      toast.success('Score changed');
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'The score didn’t save. Try again.');
+    } finally {
+      setBusy(null);
+    }
+  }
   // After full time: the score box for a game that was missed, opened on request.
   const [adding, setAdding] = useState(false);
   const onSides = lineup.squad.filter((m) => m.team).length;
@@ -513,9 +533,68 @@ export function ScoresStep({
         const g = lineup.games.find((x) => x.id === editing);
         if (!g) return null;
         const n = lineup.games.indexOf(g) + 1;
+        const draftScore = newScore?.id === g.id ? newScore : null;
+        const changed = !!draftScore && (draftScore.scoreA !== g.scoreA || draftScore.scoreB !== g.scoreB);
+        const close = () => {
+          setEditing(null);
+          setNewScore(null);
+        };
         return (
-          <Sheet titleId={gamesTitle} onClose={() => setEditing(null)} align="left">
-            <SheetTitle id={gamesTitle} title={`Game ${n}: ${name(g.teamA)} ${g.scoreA}–${g.scoreB} ${name(g.teamB)}`} sub="Who scored, and who set it up." onClose={() => setEditing(null)} />
+          <Sheet
+            titleId={gamesTitle}
+            onClose={close}
+            align="left"
+            footer={
+              changed ? (
+                <button onClick={saveScore} disabled={busy === `score-${g.id}`} className={`${btnPrimary} w-full`}>
+                  {busy === `score-${g.id}` ? 'Saving…' : `Save score: ${name(g.teamA)} ${draftScore!.scoreA}–${draftScore!.scoreB} ${name(g.teamB)}`}
+                </button>
+              ) : undefined
+            }
+          >
+            <SheetTitle id={gamesTitle} title={`Game ${n}: ${name(g.teamA)} ${g.scoreA}–${g.scoreB} ${name(g.teamB)}`} sub="Who scored, and who set it up." onClose={close} />
+            {api.updateGame && (
+              <section className="mt-4 rounded-2xl bg-chalk p-3" aria-label="Change the score">
+                <p className="text-[13px] font-extrabold text-ink">Change the score</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {(['scoreA', 'scoreB'] as const).map((k) => {
+                    const t = k === 'scoreA' ? g.teamA : g.teamB;
+                    const value = draftScore ? draftScore[k] : g[k];
+                    const named = g.goals.filter((x) => x.team === t).length;
+                    const set = (v: number) => setNewScore({ id: g.id, scoreA: g.scoreA, scoreB: g.scoreB, ...draftScore, [k]: v });
+                    return (
+                      <div key={k} className="rounded-xl bg-white border border-gray-100 p-2">
+                        <p className="flex items-center gap-1.5 min-w-0 text-[12px] font-bold text-gray-600">
+                          <Swatch team={t} bibs={lineup.bibs} />
+                          <span className="truncate">{name(t)}</span>
+                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                          <button
+                            onClick={() => set(value - 1)}
+                            disabled={value <= named}
+                            aria-label={`One goal fewer for ${name(t)}`}
+                            className="press w-11 h-11 rounded-full border border-gray-200 text-lg font-bold text-ink disabled:opacity-30"
+                          >
+                            −
+                          </button>
+                          <span className="font-display text-[28px] font-extrabold text-ink tabular-nums" aria-live="polite">
+                            {value}
+                          </span>
+                          <button
+                            onClick={() => set(Math.min(99, value + 1))}
+                            aria-label={`One goal more for ${name(t)}`}
+                            className="press w-11 h-11 rounded-full border border-gray-200 text-lg font-bold text-ink"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {g.goals.length > 0 && <p className="mt-2 text-[12px] leading-snug text-gray-500">To go below the scorers named, take a scorer off below first.</p>}
+              </section>
+            )}
             {([
               [g.teamA, g.scoreA],
               [g.teamB, g.scoreB],
