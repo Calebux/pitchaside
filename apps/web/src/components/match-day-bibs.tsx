@@ -50,7 +50,9 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
   if (!lineup) return null;
   const teams = KEYS.slice(0, lineup.teamCount);
 
-  const amCaptain = !!lineup.squad.find((p) => p.me)?.captain;
+  const me = lineup.squad.find((p) => p.me);
+  const amCaptain = !!me?.captain || !!me?.vice;
+  const what = me?.captain ? 'captain' : 'vice-captain';
 
   /**
    * Their own side again does nothing: clearing it used to drop a captain's armband (and their
@@ -84,12 +86,12 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
       <ConfirmDialog
         open={!!switching}
         variant="danger"
-        title={myTeam ? `Stop captaining ${teamName(myTeam, lineup.captains, lineup.bibs)}?` : 'Stop being captain?'}
-        message={`You captain ${myTeam ? teamName(myTeam, lineup.captains, lineup.bibs) : 'your side'} today. Moving to ${
+        title={`Stop being ${what}?`}
+        message={`You're ${what} of ${myTeam ? teamName(myTeam, lineup.captains, lineup.bibs) : 'your side'} today. Moving to ${
           switching ? teamName(switching, lineup.captains, lineup.bibs) : 'another team'
-        } means you stop being captain and can't keep the score. The organiser can make you captain again.`}
-        confirmLabel="Move and stop captaining"
-        cancelLabel="Stay captain"
+        } means you stop being ${what} and can't keep the score. The organiser can pick you again.`}
+        confirmLabel={`Move and stop being ${what}`}
+        cancelLabel={`Stay ${what}`}
         onConfirm={() => switching && save(switching)}
         onCancel={() => setSwitching(null)}
       />
@@ -144,6 +146,7 @@ export function MatchDayBibs({ sessionId, live = false }: { sessionId: string; l
                     <span key={p.name} className="inline-flex items-center gap-1.5 bg-white/10 rounded-full px-2.5 py-1">
                       <span className={`text-xs ${p.me ? 'font-extrabold text-volt-300' : 'font-semibold text-white'}`}>{p.me ? 'You' : p.name}</span>
                       {p.captain && <span className="text-[10px] font-extrabold text-volt-300">(C)</span>}
+                      {p.vice && <span className="text-[10px] font-extrabold text-volt-300">(VC)</span>}
                       <PaidTag paid={p.paid} />
                     </span>
                   ))}

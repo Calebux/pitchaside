@@ -852,7 +852,7 @@ export interface Lineup {
   /** Each side's bib colour and name for this game (its own, else the group's). */
   bibs?: Bibs;
   /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
-  squad: (SquadMember & { team: TeamKey | null; captain: boolean; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
+  squad: (SquadMember & { team: TeamKey | null; captain: boolean; vice?: boolean; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
   games: MatchGame[];
   /** Cards and saves recorded today, oldest first. */
   events: MatchEvent[];
@@ -866,7 +866,12 @@ export function getLineup(sessionId: string): Promise<Lineup> {
 
 export function saveLineup(
   sessionId: string,
-  data: { teamCount?: number; teams?: Record<string, TeamKey | null>; captains?: Partial<Record<TeamKey, string | null>> },
+  data: {
+    teamCount?: number;
+    teams?: Record<string, TeamKey | null>;
+    captains?: Partial<Record<TeamKey, string | null>>;
+    vices?: Partial<Record<TeamKey, string | null>>;
+  },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
 }

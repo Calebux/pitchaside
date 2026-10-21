@@ -53,7 +53,7 @@ export default function CaptainScorePage() {
         Game
       </Link>
       <h1 className="font-display text-2xl font-extrabold text-ink">Keep the score</h1>
-      <p className="mt-1 mb-4 text-[14px] text-gray-600">You’re a captain today. The organiser sees every score and can change it.</p>
+      <p className="mt-1 mb-4 text-[14px] text-gray-600">Captains and vice-captains keep the score today. The organiser sees every score and can change it.</p>
 
       {error ? (
         <div className="py-10 text-center" role="alert">
@@ -74,7 +74,7 @@ export default function CaptainScorePage() {
           onPickTeams={() => router.push(`/me/games/${id}`)}
           api={CAPTAIN}
           timer={CAPTAIN_TIMER}
-          canRemove={(by) => !!by?.endsWith('(captain)')}
+          canRemove={(by) => !!by && /\((vice-)?captain\)$/.test(by)}
         />
       )}
     </>

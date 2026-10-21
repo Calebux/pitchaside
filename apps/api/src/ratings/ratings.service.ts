@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { bibsFor, cleanBibs } from './bibs';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -18,6 +19,8 @@ import { MatchGoal } from './entities/match-goal.entity';
 import { MatchEvent, type MatchEventKind } from './entities/match-event.entity';
 import { GamePaid, paidForGames } from '../payments/game-dues';
 import { localDate } from '../common/time.util';
+import { shortDate } from '../common/format.util';
+import { NotificationsService } from '../notifications/notifications.service';
 import { timerChange, timerOf } from './timer';
 import { pitchName, sheetName } from '../players/player-name';
 import { Payment } from '../payments/entities/payment.entity';
@@ -25,6 +28,10 @@ import { DEFAULT_START, LEVEL_START, PROVISIONAL_UNDER, cardRating, replaySkill,
 
 /** Sides on match day. Colours live in the UI (Orange, Yellow, Blue, White, Green, Red). */
 export const TEAM_KEYS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+/** What each side wears when nobody set bibs (DEFAULT_BIBS in @pitchaside/shared). */
+/** Whether a score or scorer was signed by a captain or vice-captain ("Ada (captain)"). */
+export const byCaptain = (by: string | null | undefined) => !!by && /\((vice-)?captain\)$/.test(by);
+const DEFAULT_SIDE_COLOURS: Record<string, string> = { A: 'orange', B: 'yellow', C: 'blue', D: 'white', E: 'green', F: 'red' };
 type TeamKey = (typeof TEAM_KEYS)[number];
 
 /** The vote opens at full time (when the organiser ends the game) and stays open this long. */
@@ -325,6 +332,7 @@ export class RatingsService {
     @InjectRepository(Session) private sessionsRepo: Repository<Session>,
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(MatchEvent) private eventsRepo: Repository<MatchEvent>,
+    @Optional() private notifications?: NotificationsService,
   ) {}
 
   // ── Voting window & squad ──
@@ -826,6 +834,7 @@ export class RatingsService {
           photoKey: p.player.photoKey ?? null,
           team: this.teamOf(session, p.team),
           captain: this.isCaptain(session, p),
+          vice: this.isVice(session, p),
           ovr: ovr.get(p.player.id) ?? cardRating(skills.get(p.player.id)?.rating ?? DEFAULT_START),
           skill: Math.round(skills.get(p.player.id)?.rating ?? DEFAULT_START),
           // Organisers always see who's paid for this game (or the period it falls in).
@@ -906,7 +915,12 @@ export class RatingsService {
   async setLineup(
     sessionId: string,
     organizationId: string,
-    input: { teamCount?: number; teams?: Record<string, string | null>; captains?: Record<string, string | null> },
+    input: {
+      teamCount?: number;
+      teams?: Record<string, string | null>;
+      captains?: Record<string, string | null>;
+      vices?: Record<string, string | null>;
+    },
   ) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.kind === SessionKind.DUES) throw new BadRequestException('Dues periods don’t have a lineup');
@@ -922,6 +936,7 @@ export class RatingsService {
       for (const p of dropped) {
         p.team = null;
         p.captain = false;
+        p.viceCaptain = false;
       }
       if (dropped.length) await this.sessionsRepo.manager.save(dropped);
       // No scores to drop: the teams are locked once any are in.
@@ -932,36 +947,48 @@ export class RatingsService {
       for (const p of changed) {
         const t = input.teams[p.playerId];
         const next = t && valid.has(t) ? t : null;
-        // A captain moved off their side stops captaining it.
-        if (next !== p.team) p.captain = false;
+        // A captain (or vice) moved off their side stops leading it.
+        if (next !== p.team) {
+          p.captain = false;
+          p.viceCaptain = false;
+        }
         p.team = next;
       }
       await this.sessionsRepo.manager.save(changed);
     }
-    if (input.captains) {
+    const named: { payment: Payment; role: 'captain' | 'vice' }[] = [];
+    for (const role of ['captain', 'vice'] as const) {
+      const picks = role === 'captain' ? input.captains : input.vices;
+      if (!picks) continue;
+      const flag = role === 'captain' ? 'captain' : 'viceCaptain';
+      const other = role === 'captain' ? 'viceCaptain' : 'captain';
       const valid = new Set<string>(TEAM_KEYS.slice(0, count));
       const payments = session.payments ?? [];
       const changed = new Set<Payment>();
-      for (const [team, playerId] of Object.entries(input.captains)) {
+      for (const [team, playerId] of Object.entries(picks)) {
         if (!valid.has(team)) throw new BadRequestException("That team isn't in this game");
         const pick = playerId ? payments.find((p) => p.playerId === playerId) : null;
         if (playerId && !pick) throw new BadRequestException("That player isn't in this game");
-        // One captain per side: whoever had the armband hands it over.
+        // One captain and one vice per side: whoever had the armband hands it over.
         for (const p of payments) {
-          if (p.captain && p.team === team && p !== pick) {
-            p.captain = false;
+          if (p[flag] && p.team === team && p !== pick) {
+            p[flag] = false;
             changed.add(p);
           }
         }
         if (pick) {
-          // Naming a captain puts them on the side they lead.
+          const already = pick[flag] && pick.team === team;
+          // Naming a captain puts them on the side they lead; nobody is both captain and vice.
           pick.team = team;
-          pick.captain = true;
+          pick[flag] = true;
+          pick[other] = false;
           changed.add(pick);
+          if (!already) named.push({ payment: pick, role });
         }
       }
       if (changed.size) await this.sessionsRepo.manager.save([...changed]);
     }
+    for (const { payment, role } of named) this.tellLeader(session, payment, role);
     return this.getLineup(sessionId, organizationId);
   }
 
@@ -973,6 +1000,39 @@ export class RatingsService {
 
   private isCaptain(session: Session, p: Payment) {
     return p.captain && !!this.teamOf(session, p.team);
+  }
+
+  private isVice(session: Session, p: Payment) {
+    return p.viceCaptain && !p.captain && !!this.teamOf(session, p.team);
+  }
+
+  /** Captains and vice-captains keep the score on match day. */
+  private keepsScore(session: Session, p: Payment) {
+    return this.isCaptain(session, p) || this.isVice(session, p);
+  }
+
+  /**
+   * A message to whoever was just given the armband, so they know before kick-off: what they
+   * lead, and that the score is theirs to keep on match day.
+   */
+  private tellLeader(session: Session, p: Payment, role: 'captain' | 'vice') {
+    if (!this.notifications || session.status !== SessionStatus.UPCOMING) return;
+    const bib = bibsFor(session)[p.team as TeamKey];
+    const colour = bib?.colour ?? DEFAULT_SIDE_COLOURS[p.team as TeamKey] ?? p.team;
+    const side = bib?.name || `${colour.charAt(0).toUpperCase()}${colour.slice(1)}`;
+    const today = localDate(0) === String(session.date).slice(0, 10);
+    const what = role === 'captain' ? 'captain' : 'vice-captain';
+    const when = today ? 'today' : `on ${shortDate(String(session.date))}`;
+    this.notifications.later(() =>
+      this.notifications!.notifyPlayers([p.playerId], {
+        kind: 'captain_named',
+        title: `You're ${what} of ${side} ⚽`,
+        body: today
+          ? `For ${session.group?.name ?? 'your game'} today. Open the game to keep the score and who scored.`
+          : `For ${session.group?.name ?? 'your game'} ${when}. On match day you can keep the score and who scored from your phone.`,
+        url: `/me/games/${session.id}`,
+      }),
+    );
   }
 
   /** Side → its captain's name ("Baba"), for sides that have one. The side goes by it: "Team Baba". */
@@ -1000,7 +1060,7 @@ export class RatingsService {
     const session = await this.sessionsRepo.findOne({ where: { id: sessionId }, relations: ['group', 'payments', 'payments.player'] });
     const mine = session?.payments?.find((p) => playerIds.includes(p.playerId));
     if (!session || session.kind !== SessionKind.GAME || !mine) throw new NotFoundException("You're not in this game");
-    if (!this.isCaptain(session, mine)) throw new BadRequestException('Only the captains can keep the score');
+    if (!this.keepsScore(session, mine)) throw new BadRequestException('Only the captains and vice-captains can keep the score');
     if (mine.attendance === 'no_show') throw new BadRequestException("You're marked as not here today, so you can't keep the score");
     if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
     // After full time the vote is on: scores feed it, so only the organiser changes them now.
@@ -1010,7 +1070,7 @@ export class RatingsService {
       session,
       organizationId: session.group.organizationId,
       team: this.teamOf(session, mine.team)!,
-      signedAs: `${pitchName(mine.player)} (captain)`,
+      signedAs: `${pitchName(mine.player)} (${this.isCaptain(session, mine) ? 'captain' : 'vice-captain'})`,
     };
   }
 
@@ -1086,7 +1146,7 @@ export class RatingsService {
 
   /** "The organiser saved this score: only they can delete it" / "Ada (captain) added this: ask them or the organiser". */
   private notYours(by: string | null, did: string, undo: string) {
-    return by?.endsWith('(captain)') ? `${by} ${did}: ask them or the organiser to ${undo}` : `The organiser ${did}: only they can ${undo}`;
+    return byCaptain(by) ? `${by} ${did}: ask them or the organiser to ${undo}` : `The organiser ${did}: only they can ${undo}`;
   }
 
   /**
@@ -1155,7 +1215,12 @@ export class RatingsService {
       bibs: bibsFor(session),
       /** They captain a side today, so they can keep the score from their phone. */
       canKeepScore:
-        this.isCaptain(session, mine) && session.status !== SessionStatus.CANCELLED && localDate(0) === String(session.date).slice(0, 10),
+        this.keepsScore(session, mine) &&
+        mine.attendance !== 'no_show' &&
+        session.status === SessionStatus.UPCOMING &&
+        localDate(0) === String(session.date).slice(0, 10),
+      /** What they lead today, if anything, so their card can say so. */
+      myRole: this.isCaptain(session, mine) ? 'captain' : this.isVice(session, mine) ? 'vice' : null,
       myPaid: paid.get(mine.playerId) ?? 'unpaid',
       showPaid,
       squad: (session.payments ?? [])
@@ -1165,6 +1230,7 @@ export class RatingsService {
           me: p.playerId === mine.playerId,
           team: this.teamOf(session, p.team),
           captain: this.isCaptain(session, p),
+          vice: this.isVice(session, p),
           // Everyone sees their own; others only when the group shares who's paid.
           paid: showPaid || p.playerId === mine.playerId ? (paid.get(p.playerId) ?? 'unpaid') : null,
         }))
@@ -1205,7 +1271,10 @@ export class RatingsService {
     if (team !== null && !TEAM_KEYS.slice(0, session.teamCount).includes(team as TeamKey)) {
       throw new BadRequestException("That team isn't in this game");
     }
-    if (team !== mine.team) mine.captain = false;
+    if (team !== mine.team) {
+      mine.captain = false;
+      mine.viceCaptain = false;
+    }
     mine.team = team;
     await this.sessionsRepo.manager.save(mine);
     return this.playerLineup(sessionId, playerIds);
@@ -1229,13 +1298,13 @@ export class RatingsService {
       return (results + (p.ovr ?? results)) / 2;
     };
     for (const p of lineup.squad) {
-      const side = p.captain && sides.find((x) => x.key === p.team);
+      const side = (p.captain || p.vice) && sides.find((x) => x.key === p.team);
       if (!side) continue;
       side.size++;
       side.total += strength(p);
     }
     const rest = lineup.squad
-      .filter((p) => !p.captain)
+      .filter((p) => !p.captain && !p.vice)
       .sort((a, b) => strength(b) - strength(a) || a.firstName.localeCompare(b.firstName));
     for (const p of rest) {
       const side = sides.reduce((best, x) => (x.size < best.size || (x.size === best.size && x.total < best.total) ? x : best));

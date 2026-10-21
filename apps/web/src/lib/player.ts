@@ -378,9 +378,11 @@ export interface GameLineup {
   /** Whether the group shares who's paid with players. */
   showPaid: boolean;
   /** `paid` is null for others when the group keeps that private. */
-  squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; paid: GamePaid | null }[];
-  /** They captain a side today, so they can keep the score from their phone. */
+  squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; vice?: boolean; paid: GamePaid | null }[];
+  /** They captain (or vice-captain) a side today, so they can keep the score from their phone. */
   canKeepScore?: boolean;
+  /** What they lead in this game, if anything. */
+  myRole?: 'captain' | 'vice' | null;
 }
 
 /** The match-day clock, for anyone in the game. */
