@@ -1,5 +1,7 @@
 'use client';
 
+import { PlayerGroupSwitch } from '@/components/player-group-switch';
+import { usePlayerGroup } from '@/lib/player-group';
 import { Avatar } from '@/components/ratings';
 import { MonthList } from '@/components/money/month-list';
 import { PageHeader } from '@/components/brand';
@@ -13,6 +15,8 @@ export default function PlayerPayPage() {
   const [data, setData] = useState<PlayerPayments | null>(null);
 
   const [failed, setFailed] = useState<unknown>(null);
+  // The group picked at the top of every tab: its money only, with a line for what's owed elsewhere.
+  const [groupId, pickGroup] = usePlayerGroup(data?.groups);
   const load = () =>
     getPlayerPayments()
       .then((d) => {
@@ -56,19 +60,29 @@ export default function PlayerPayPage() {
 
   // Every figure comes from the server: what to send now, what's for later games, money sent
   // ahead, and money of theirs the organiser has to sort.
-  const total = data.groups.reduce((s, g) => s + g.toPay, 0);
-  const later = data.groups.reduce((s, g) => s + g.later, 0);
-  const extra = data.groups.reduce((s, g) => s + g.extra, 0);
+  const group = data.groups.find((g) => g.id === groupId) ?? null;
+  const inGroup = (id: string | undefined, name: string) => !group || (id ? id === group.id : name === group.name);
+  const groups = group ? [group] : data.groups;
+  const total = groups.reduce((s, g) => s + g.toPay, 0);
+  const later = groups.reduce((s, g) => s + g.later, 0);
+  const extra = groups.reduce((s, g) => s + g.extra, 0);
+  // What's owed in the groups not picked, so picking one never hides money.
+  const elsewhere = group ? data.groups.filter((g) => g.id !== group.id && g.toPay > 0) : [];
+  const elsewhereTotal = elsewhere.reduce((s, g) => s + g.toPay, 0);
   // Groups you can pay right now first: money owed with an account to send it to.
-  const owedGroups = data.groups
+  const owedGroups = groups
     .filter((g) => data.owed.some((o) => o.groupId === g.id))
     .sort((a, b) => Number(!!b.account && b.toPay > 0) - Number(!!a.account && a.toPay > 0));
-  const sending = data.groups.filter((g) => g.toPay > 0);
+  const sending = groups.filter((g) => g.toPay > 0);
+  const kept = (data.keptByGroup ?? []).filter((k) => inGroup(k.groupId, k.groupName));
+  const kitties = data.contributions.filter((k) => inGroup(k.groupId, k.groupName));
+  const paid = data.paid.filter((p) => inGroup(p.groupId, p.groupName));
   const dueLabel = (o: (typeof data.owed)[number]) => o.label ?? `Game · ${niceDate(o.date, { weekday: 'short', day: 'numeric', month: 'short' })}`;
 
   return (
     <>
       <PageHeader title="Pay" subtitle="What you owe, where to send it, and what you’ve paid." />
+      <PlayerGroupSwitch className="mb-3" groups={data.groups} value={group?.id ?? null} onPick={pickGroup} />
 
       {/* Where to send it comes first: one card per group that wants money, as each group has its
           own account. The amount and what it's for follow inside the card. */}
@@ -79,9 +93,23 @@ export default function PlayerPayPage() {
           </span>
           <span className="min-w-0">
             <span className="block font-display text-[22px] leading-tight font-extrabold text-ink">All square</span>
-            <span className="block text-[13px] text-gray-600">{later > 0 ? 'Nothing to pay yet. Later games are below.' : 'Nothing to pay right now.'}</span>
+            <span className="block text-[13px] text-gray-600">
+              {later > 0 ? 'Nothing to pay yet. Later games are below.' : group ? `Nothing to pay in ${group.name} right now.` : 'Nothing to pay right now.'}
+            </span>
           </span>
         </div>
+      )}
+      {elsewhereTotal > 0 && (
+        <button
+          onClick={() => pickGroup(elsewhere.length === 1 ? elsewhere[0].id : null)}
+          className="press mt-3 mb-3 w-full flex items-center gap-3 min-h-14 rounded-2xl bg-sun-400/20 border border-sun-400/60 px-4 py-2.5 text-left"
+        >
+          <span className="w-2.5 h-2.5 shrink-0 rounded-full bg-sun-400" aria-hidden />
+          <span className="flex-1 min-w-0 text-[14px] leading-snug text-ink">
+            Also to pay: <b className="tabular-nums">{formatCurrency(elsewhereTotal)}</b> in {elsewhere.length === 1 ? elsewhere[0].name : `${elsewhere.length} other groups`}
+          </span>
+          <span className="shrink-0 text-[13px] font-bold text-pitch-700">{elsewhere.length === 1 ? 'See it ›' : 'See all ›'}</span>
+        </button>
       )}
       {sending.length > 1 && (
         <p className="mb-2.5 text-[13px] text-gray-600">
@@ -113,11 +141,11 @@ export default function PlayerPayPage() {
         </div>
       )}
 
-      {data.groups.length > 0 && owedGroups.length === 0 && (
+      {groups.length > 0 && owedGroups.length === 0 && (
         <Section title="Where to pay">
           <p className="-mt-1 mb-2.5 text-[13px] text-gray-600">For when you next owe for a game.</p>
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
-            {data.groups.map((g) => (
+            {groups.map((g) => (
               <SendCard
                 key={g.id}
                 groupName={g.name}
@@ -148,11 +176,11 @@ export default function PlayerPayPage() {
         </div>
       )}
 
-      {(data.keptByGroup?.length ?? 0) > 0 && (
+      {kept.length > 0 && (
         <Section title="Kept by the group">
           <p className="-mt-1 mb-2.5 text-[13px] text-gray-600">Money of yours your organiser kept for the group. Nobody owes anybody for it now.</p>
           <ul className="bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100">
-            {data.keptByGroup!.map((k) => (
+            {kept.map((k) => (
               <li key={k.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <span className="min-w-0">
                   <span className="block text-[15px] font-bold text-ink truncate">
@@ -172,10 +200,10 @@ export default function PlayerPayPage() {
         </Section>
       )}
 
-      {data.contributions.length > 0 && (
+      {kitties.length > 0 && (
         <Section title="Group kitty">
           <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
-            {data.contributions.map((k) => (
+            {kitties.map((k) => (
               <KittyCard key={k.groupId} kitty={k} />
             ))}
           </div>
@@ -183,16 +211,16 @@ export default function PlayerPayPage() {
       )}
 
       <Section title="History">
-        {data.paid.length === 0 ? (
+        {paid.length === 0 ? (
           <div className="rounded-3xl bg-chalk px-5 py-6 text-center">
-            <p className="text-[15px] font-bold text-ink">No payments yet</p>
+            <p className="text-[15px] font-bold text-ink">{group ? `No payments in ${group.name} yet` : 'No payments yet'}</p>
             <p className="mt-1 text-[13px] text-gray-600">Each game you pay for shows here, on the day it was paid.</p>
           </div>
         ) : (
           // Like the organiser's money list: month by month, each day with what went out, and
           // each line says which game it paid for (so an early payment reads as one).
           <MonthList
-            items={data.paid}
+            items={paid}
             idOf={(p) => p.id}
             dateOf={(p) => p.paidAt ?? p.date}
             amountOf={(p) => p.amount}

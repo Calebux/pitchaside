@@ -17,36 +17,49 @@ export interface SwitchGroup {
 }
 
 /**
- * The player's version of the organiser's group switch, at the top of Home: all their groups, or
- * one. Home, Games and Club follow it; Pay always lists every group so nothing owed is missed.
- * With one group it's just a label; with none it's not there.
+ * The player's version of the organiser's group switch, at the top of every tab: all their
+ * groups, or one, and the whole app follows it. Home and Pay still say what's owed in the other
+ * groups, so nothing is missed. With one group it's just a label; with none it's not there.
  */
-export function PlayerGroupSwitch({ groups, value, onPick }: { groups: SwitchGroup[]; value: string | null; onPick: (id: string | null) => void }) {
+export function PlayerGroupSwitch({
+  groups,
+  value,
+  onPick,
+  allowAll = true,
+  className = '',
+}: {
+  groups: SwitchGroup[];
+  value: string | null;
+  onPick: (id: string | null) => void;
+  /** Off where only one group at a time makes sense (Club's table): no "All my groups". */
+  allowAll?: boolean;
+  className?: string;
+}) {
   const titleId = useId();
   const [open, setOpen] = useState(false);
   if (!groups.length) return null;
-  const current = groups.find((g) => g.id === value) ?? null;
+  const current = groups.find((g) => g.id === value) ?? (allowAll ? null : groups[0]);
   // The same name in two clubs: say which club.
   const clubs = new Set(groups.map((g) => g.clubName).filter(Boolean));
   const sub = (g: SwitchGroup) => [clubs.size > 1 ? g.clubName : null, g.schedule].filter(Boolean).join(' · ');
 
   if (groups.length === 1) {
     return (
-      <span className="inline-flex items-center gap-2 max-w-full h-10 pl-1.5 pr-3.5 rounded-full bg-white border border-gray-200 shadow-card">
+      <span className={`inline-flex items-center gap-2 max-w-full h-10 pl-1.5 pr-3.5 rounded-full bg-white border border-gray-200 shadow-card ${className}`}>
         <Badge name={groups[0].name} />
         <span className="min-w-0 truncate text-[14px] font-bold text-ink">{groups[0].name}</span>
       </span>
     );
   }
 
-  const options: (SwitchGroup | null)[] = [null, ...groups];
+  const options: (SwitchGroup | null)[] = allowAll ? [null, ...groups] : groups;
   return (
     <>
       <button
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-label={`${current?.name ?? 'All my groups'}. Switch group`}
-        className="press inline-flex items-center gap-2 max-w-full h-10 pl-1.5 pr-3 rounded-full bg-white border border-gray-200 shadow-card hover:border-ink"
+        className={`press inline-flex items-center gap-2 max-w-full h-10 pl-1.5 pr-3 rounded-full bg-white border border-gray-200 shadow-card hover:border-ink ${className}`}
       >
         {current ? <Badge name={current.name} /> : <AllBadge />}
         <span className="min-w-0 truncate text-[14px] font-bold text-ink">{current?.name ?? 'All my groups'}</span>
@@ -57,7 +70,7 @@ export function PlayerGroupSwitch({ groups, value, onPick }: { groups: SwitchGro
 
       {open && (
         <Sheet titleId={titleId} onClose={() => setOpen(false)} align="left">
-          <SheetTitle id={titleId} title="Your groups" sub="Home, Games and Club follow the one you pick." onClose={() => setOpen(false)} />
+          <SheetTitle id={titleId} title="Your groups" sub="Every tab shows the one you pick." onClose={() => setOpen(false)} />
           <ul className="mt-4 rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden" role="radiogroup" aria-label="Groups">
             {options.map((g, i) => {
               const on = (g?.id ?? null) === (current?.id ?? null);
@@ -96,7 +109,7 @@ export function PlayerGroupSwitch({ groups, value, onPick }: { groups: SwitchGro
               );
             })}
           </ul>
-          <p className="mt-3 px-1 text-[12px] leading-snug text-gray-500">Pay always shows every group, so nothing you owe is missed.</p>
+          <p className="mt-3 px-1 text-[12px] leading-snug text-gray-500">With one group picked, Home and Pay still say what you owe in the others.</p>
         </Sheet>
       )}
     </>

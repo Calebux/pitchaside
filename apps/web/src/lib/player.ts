@@ -303,12 +303,12 @@ export function getPlayerGame(id: string) {
 
 export interface PlayerPayments {
   owed: PlayerHome['owed'];
-  paid: { id: string; amount: number; groupName: string; label: string | null; date: string; paidAt: string | null; viaTransfer: boolean }[];
+  paid: { id: string; amount: number; groupId?: string; groupName: string; label: string | null; date: string; paidAt: string | null; viaTransfer: boolean }[];
   groups: PlayerGroup[];
   /** Only groups whose organiser shares contributions with players. */
   contributions: GroupKitty[];
   /** Money of theirs a group kept (nobody owes anybody for it now), newest first, with why. */
-  keptByGroup?: { id: string; groupName: string; amount: number; reason: string; note: string | null; date: string }[];
+  keptByGroup?: { id: string; groupId?: string; groupName: string; amount: number; reason: string; note: string | null; date: string }[];
 }
 
 export interface GroupKitty {

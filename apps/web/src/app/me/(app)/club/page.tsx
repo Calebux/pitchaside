@@ -3,7 +3,7 @@
 import { usePlayerGroup } from '@/lib/player-group';
 import { useState } from 'react';
 import { PageHeader } from '@/components/brand';
-import { GroupChips } from '@/components/player-ui';
+import { PlayerGroupSwitch } from '@/components/player-group-switch';
 import { usePlayerProfile } from '@/components/player-shell';
 import { GroupTable } from '@/components/squad/group-table';
 import { GroupStats, type ClubApi, type StatSort } from '@/components/squad/group-stats';
@@ -62,10 +62,12 @@ export default function PlayerClubPage() {
         </div>
       ) : (
         <>
-          <GroupChips
+          <PlayerGroupSwitch
+            className="mb-3"
             groups={groups}
             value={group.id}
-            onChange={(id) => {
+            allowAll={false}
+            onPick={(id) => {
               if (!id) return;
               pickGroup(id);
               remember({ group: id });

@@ -2,7 +2,8 @@
 
 import { PageHeader } from '@/components/brand';
 import { useCallback, useEffect, useState } from 'react';
-import { GameCard, GameRow, GroupChips, LoadError, MatchDayCard } from '@/components/player-ui';
+import { GameCard, GameRow, LoadError, MatchDayCard } from '@/components/player-ui';
+import { PlayerGroupSwitch } from '@/components/player-group-switch';
 import { usePlayerProfile } from '@/components/player-shell';
 import { usePlayerGroup } from '@/lib/player-group';
 import { getPlayerGames, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
@@ -16,7 +17,7 @@ export default function PlayerGamesPage() {
   );
   // Players in more than one group can look at one at a time; all together by default.
   const { profile } = usePlayerProfile();
-  const groups = (profile?.clubs ?? []).flatMap((c) => c.groups);
+  const groups = (profile?.clubs ?? []).flatMap((c) => c.groups.map((g) => ({ ...g, clubName: c.clubName })));
   // The same pick as Home's group switch.
   const [groupId, pickGroup] = usePlayerGroup(groups);
   const picked = groups.find((g) => g.id === groupId) ?? null;
@@ -65,7 +66,7 @@ export default function PlayerGamesPage() {
         </div>
       ) : (
         <>
-          <GroupChips groups={groups} value={picked?.id ?? null} onChange={pickGroup} all="All groups" />
+          <PlayerGroupSwitch className="mb-3" groups={groups} value={picked?.id ?? null} onPick={pickGroup} />
           {/* The organiser's switch: games coming up, or played ones with results and votes */}
           <div className="grid grid-cols-2 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="Which games">
             {(

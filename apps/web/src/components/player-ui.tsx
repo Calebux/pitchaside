@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { Ticket } from '@/components/ticket';
 import { photoUrl } from '@/lib/http';
@@ -60,52 +60,6 @@ export function LoadError({ what, error, onRetry }: { what: string; error: unkno
       <button onClick={onRetry} className="press mt-3 min-h-11 px-5 rounded-full bg-ink text-sm font-bold text-volt-300 hover:bg-pitch-900">
         Try again
       </button>
-    </div>
-  );
-}
-
-/**
- * Which group to show, for players in more than one: a row of chips, the picked one dark. With
- * `all`, the first chip shows every group together. Shown only when there's a choice to make.
- */
-export function GroupChips({
-  groups,
-  value,
-  onChange,
-  all,
-}: {
-  groups: { id: string; name: string }[];
-  value: string | null;
-  onChange: (id: string | null) => void;
-  /** Words for the "every group" chip; left out, one group is always picked. */
-  all?: string;
-}) {
-  // The picked group in view, even when it's off the edge of a long row.
-  const row = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const on = row.current?.querySelector<HTMLElement>('[aria-checked="true"]');
-    if (on && row.current) row.current.scrollTo({ left: on.offsetLeft - 16, behavior: 'smooth' });
-  }, [value]);
-  if (groups.length < 2) return null;
-  const chips: { id: string | null; name: string }[] = [...(all ? [{ id: null, name: all }] : []), ...groups];
-  return (
-    <div ref={row} className="-mx-4 px-4 mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Which group">
-      {chips.map((g) => {
-        const on = g.id === value;
-        return (
-          <button
-            key={g.id ?? 'all'}
-            role="radio"
-            aria-checked={on}
-            onClick={() => onChange(g.id)}
-            className={`press shrink-0 max-w-[16rem] min-h-11 px-4 rounded-full text-[14px] font-bold truncate transition-colors ${
-              on ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-ink hover:border-ink'
-            }`}
-          >
-            {g.name}
-          </button>
-        );
-      })}
     </div>
   );
 }
