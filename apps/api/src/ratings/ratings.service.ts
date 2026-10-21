@@ -1708,6 +1708,40 @@ export class RatingsService {
   }
 
   /**
+   * A player's card for its share link (the player's id, which isn't guessable): their rating,
+   * attributes and numbers, and where they rank in the club. Nothing about money.
+   */
+  async getPublicPlayerCard(playerId: string) {
+    const player = await this.sessionsRepo.manager.findOne(Player, {
+      where: { id: playerId },
+      relations: ['organization', 'memberships', 'memberships.group'],
+    });
+    if (!player) throw new NotFoundException('This card link is not valid.');
+    const r = await this.getPlayerRatings(player.id, player.organizationId);
+    const rank = (k: keyof StatCompare) => (r.compare[k] ? { rank: r.compare[k].rank, of: r.compare[k].of } : null);
+    return {
+      name: sheetName(player),
+      nickname: player.nickname ?? null,
+      photoKey: player.photoKey ?? null,
+      clubName: player.organization?.name ?? null,
+      groups: (player.memberships ?? []).map((m) => m.group?.name).filter((n): n is string => !!n),
+      ovr: r.ovr,
+      provisional: r.provisional,
+      attributes: r.attributes,
+      games: r.games,
+      record: r.record,
+      points: r.points,
+      goals: r.goals,
+      assists: r.assists,
+      saves: r.saves,
+      potmWins: r.potmWins,
+      viiOfDay: r.viiOfDay,
+      teamOfDay: r.teamOfDay,
+      ranks: { goals: rank('goals'), assists: rank('assists'), potmWins: rank('potmWins'), points: rank('points'), viiOfDay: rank('viiOfDay'), wins: rank('wins') },
+    };
+  }
+
+  /**
    * A group's table for its share link, found by the group's join-link code (already public, and
    * the organiser can reset it): names, faces and points only, nothing about money. The top ten.
    */

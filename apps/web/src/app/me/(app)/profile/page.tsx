@@ -1,5 +1,6 @@
 'use client';
 
+import { ShareCardButton, ShareIcon, shareIconDark } from '@/components/share-card';
 import { PageHeader } from '@/components/brand';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -49,6 +50,20 @@ export default function PlayerProfilePage() {
           />
         }
         onRatingTap={profile.ratingsPlayerId && r.games > 0 ? () => setExplaining(true) : undefined}
+        action={
+          profile.ratingsPlayerId ? (
+            <ShareCardButton
+              page={`/card/${profile.ratingsPlayerId}`}
+              heading="Share your card"
+              label="Share your card"
+              fileName="pitchaside-player-card.png"
+              caption={`⚽ My PitchAside card${r.ovr != null ? `: ${r.ovr} OVR` : ''}`}
+              className={shareIconDark}
+            >
+              <ShareIcon className="w-[18px] h-[18px]" />
+            </ShareCardButton>
+          ) : undefined
+        }
       />
       {explaining && profile.ratingsPlayerId && (
         <RatingBreakdownSheet

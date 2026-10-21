@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsObject, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { MATCH_EVENT_KINDS, type MatchEventKind } from './entities/match-event.entity';
@@ -263,5 +263,19 @@ export class PublicTableController {
   table(@Param('code') code: string, @Query('last') last?: string) {
     const n = Number(last);
     return this.ratings.getPublicTable(code, Number.isInteger(n) && n > 0 && n <= 52 ? n : undefined);
+  }
+}
+
+/** A player's card behind its share link (their id): no account needed. */
+@UseGuards(ThrottlerGuard)
+@Controller('public/players')
+export class PublicPlayerCardController {
+  constructor(private readonly ratings: RatingsService) {}
+
+  /** Fetched by the web server for every viewer of the shared card, like the match card. */
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
+  @Get(':id/card')
+  card(@Param('id', ParseUUIDPipe) id: string) {
+    return this.ratings.getPublicPlayerCard(id);
   }
 }

@@ -12,9 +12,31 @@ import { BallSpinner } from '@/components/skeleton';
  * The image loads while the sheet is open so the Share tap can call
  * navigator.share straight away — iOS rejects a share that waits on a fetch.
  */
+/** The share mark (three linked dots), the same on every shareable card. */
+export function ShareIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z"
+      />
+    </svg>
+  );
+}
+
+/** A round share button, 44px like the buttons beside it: on a light surface, or on a dark card. */
+export const shareIconLight =
+  'press shrink-0 w-11 h-11 rounded-full border border-gray-200 bg-white text-ink flex items-center justify-center hover:border-ink transition-colors';
+/** On a dark card's toolbar, beside Edit and Delete: quiet until pressed. */
+export const shareIconDark = 'press shrink-0 w-11 h-11 rounded-full text-white/70 flex items-center justify-center hover:text-white hover:bg-white/10 transition-colors';
+/** At the end of a card's action row: a chalk tile the same height as the row beside it. */
+export const shareIconTile = 'press shrink-0 w-12 h-12 rounded-2xl bg-chalk text-ink flex items-center justify-center hover:bg-gray-100 transition-colors';
+
 export function ShareCardButton({
   token,
   page,
+  label,
   heading = 'Share the match day',
   fileName = 'pitchaside-match-day.png',
   caption,
@@ -26,6 +48,8 @@ export function ShareCardButton({
   /** Any other shareable card: its page path; the image is the page path + "/image" (query kept). */
   page?: string;
   heading?: string;
+  /** Said aloud (and shown on hover) when the button is just the share icon. */
+  label?: string;
   fileName?: string;
   /** Message sent with the card, e.g. "Tuesday Night 5s — match day". */
   caption: string;
@@ -36,7 +60,7 @@ export function ShareCardButton({
   const path = page ?? `/share/${token}`;
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className}>
+      <button type="button" onClick={() => setOpen(true)} className={className} aria-label={label} title={label}>
         {children}
       </button>
       {open && <ShareSheet path={path} heading={heading} fileName={fileName} caption={caption} onClose={() => setOpen(false)} />}
