@@ -1,5 +1,6 @@
 'use client';
 
+import { ShareCardButton } from '@/components/share-card';
 import { PageHeader } from '@/components/brand';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -56,6 +57,21 @@ export default function PlayerProfilePage() {
           load={() => getPlayerRatingBreakdown(profile.ratingsPlayerId!)}
           onClose={() => setExplaining(false)}
         />
+      )}
+
+      {/* Your card as an image for WhatsApp */}
+      {profile.ratingsPlayerId && (
+        <div className="mt-3 flex justify-end">
+          <ShareCardButton
+            page={`/card/${profile.ratingsPlayerId}`}
+            heading="Share your card"
+            fileName="pitchaside-player-card.png"
+            caption={`⚽ My PitchAside card${r.ovr != null ? `: ${r.ovr} OVR` : ''}`}
+            className="press inline-flex items-center gap-1.5 min-h-11 px-4 rounded-full border border-gray-200 bg-white text-[13px] font-bold text-ink hover:border-ink"
+          >
+            Share my card ↗
+          </ShareCardButton>
+        </div>
       )}
 
       {/* The card is one club's: with more than one, say which, and where the others are. */}

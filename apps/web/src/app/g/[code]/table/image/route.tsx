@@ -1,103 +1,11 @@
 import { ImageResponse } from 'next/og';
 import { fit, loadFonts } from '@/lib/og';
-import { API_URL, getTableCard, lastOf, type TableCard } from '../table-card';
+import { getTableCard, lastOf, type TableCard } from '../table-card';
+import { Arrow, Brand, C, DISPLAY, Face, Label, Star, prettyDate } from '@/lib/og-card';
 
 export const dynamic = 'force-dynamic';
 
-/** Brand colours (mirrors the @theme tokens in globals.css — satori can't read CSS variables). */
-const C = {
-  ink: '#0f1a14',
-  pitch950: '#071f10',
-  pitch900: '#0d331c',
-  pitch800: '#124326',
-  pitch600: '#1f743a',
-  volt300: '#e3fb6c',
-  volt400: '#d4f53c',
-  sun400: '#facc15',
-  kit500: '#f97316',
-  chalk: '#f5f3ea',
-  muted: 'rgba(255,255,255,0.6)',
-  line: 'rgba(255,255,255,0.12)',
-};
-const DISPLAY = 'Bricolage Grotesque';
 type Row = TableCard['rows'][number];
-
-function prettyDate(iso: string) {
-  return new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase();
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('');
-}
-
-const DISC = [
-  { bg: C.volt400, fg: C.ink },
-  { bg: C.sun400, fg: C.ink },
-  { bg: C.kit500, fg: C.ink },
-  { bg: '#38bdf8', fg: C.ink },
-  { bg: '#ffffff', fg: C.ink },
-  { bg: C.pitch600, fg: '#ffffff' },
-];
-const discOf = (name: string) => DISC[[...name].reduce((n, ch) => n + ch.charCodeAt(0), 0) % DISC.length];
-
-/** A player's face: their photo, else their initials on a disc. */
-function Face({ p, size, ring }: { p: Pick<Row, 'name' | 'photoKey'>; size: number; ring: string }) {
-  const border = Math.max(3, Math.round(size / 22));
-  if (p.photoKey) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={`${API_URL}/api/photos/${p.photoKey}`}
-        width={size}
-        height={size}
-        style={{ width: size, height: size, borderRadius: size, border: `${border}px solid ${ring}`, objectFit: 'cover' }}
-        alt=""
-      />
-    );
-  }
-  const d = discOf(p.name);
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size,
-        border: `${border}px solid ${ring}`,
-        background: d.bg,
-        color: d.fg,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: DISPLAY,
-        fontWeight: 800,
-        fontSize: Math.round(size * 0.38),
-      }}
-    >
-      {initials(p.name)}
-    </div>
-  );
-}
-
-/** Drawn, not typed: the card's fonts have no ★ ▲ ▼. */
-const Star = ({ color, size = 22 }: { color: string; size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24">
-    <path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6L2.5 9.4l6.6-.8z" fill={color} />
-  </svg>
-);
-const Arrow = ({ up, color }: { up: boolean; color: string }) => (
-  <svg width="16" height="14" viewBox="0 0 16 14">
-    <path d={up ? 'M8 1 L15 13 L1 13 Z' : 'M1 1 L15 1 L8 13 Z'} fill={color} />
-  </svg>
-);
-
-const Label = ({ children, color = C.volt300, size = 20 }: { children: React.ReactNode; color?: string; size?: number }) => (
-  <div style={{ display: 'flex', fontSize: size, fontWeight: 700, letterSpacing: 3, color }}>{children}</div>
-);
 
 /** Places up or down since the match day before: ▲2 green, ▼1 orange, or a dash. */
 function Move({ move }: { move: number | null }) {
@@ -254,18 +162,7 @@ function Card({ t }: { t: TableCard }) {
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <svg width="56" height="56" viewBox="0 0 40 40">
-            <rect x="1" y="1" width="38" height="38" rx="11" fill={C.volt400} />
-            <rect x="7" y="8" width="26" height="24" rx="4" fill="none" stroke={C.ink} strokeWidth="2.4" />
-            <line x1="20" y1="8" x2="20" y2="32" stroke={C.ink} strokeWidth="2.4" />
-            <circle cx="20" cy="20" r="5" fill="none" stroke={C.ink} strokeWidth="2.4" />
-            <circle cx="20" cy="20" r="1.6" fill={C.ink} />
-          </svg>
-          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 36 }}>
-            Pitch<span style={{ color: C.volt300 }}>Aside</span>
-          </div>
-        </div>
+        <Brand />
         <div style={{ display: 'flex', padding: '10px 22px', borderRadius: 999, background: '#ffffff', color: C.ink, fontSize: 22, fontWeight: 700, letterSpacing: 2 }}>
           THE TABLE
         </div>

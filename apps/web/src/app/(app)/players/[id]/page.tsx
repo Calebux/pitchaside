@@ -30,6 +30,7 @@ import { CardPhotoButton } from '@/components/photo-picker';
 import { Collapse } from '@/components/collapse';
 import { niceDate } from '@/components/player-ui';
 import { AttributeRow } from '@/components/ratings';
+import { ShareCardButton } from '@/components/share-card';
 import { PlayerStats } from '@/components/player-stats';
 import { Player, Ball, JerseyBadge, kitFor, skins } from '@/components/illustrations';
 import type { IPlayer, IPayment } from '@pitchaside/shared';
@@ -293,6 +294,19 @@ export default function PlayerDetailPage() {
                     </svg>
                   </a>
                 )}
+                {/* Their card as an image for WhatsApp */}
+                <ShareCardButton
+                  page={`/card/${player.id}`}
+                  heading={`Share ${player.firstName}’s card`}
+                  fileName="pitchaside-player-card.png"
+                  caption={`⚽ ${player.firstName} ${player.lastName}${ratings?.ovr != null ? ` · ${ratings.ovr} OVR` : ''}`}
+                  className="press ml-auto h-11 px-3.5 rounded-full bg-white/10 text-white text-[13px] font-bold inline-flex items-center gap-1.5 hover:bg-white/20"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
+                  </svg>
+                  Share card
+                </ShareCardButton>
               </div>
               {!player.email && <p className="mt-2 text-[11px] leading-snug text-white/60">No email yet: they can’t sign in until you add one.</p>}
               {player.phone && <p className="mt-2 text-[12px] text-white/60 tabular-nums truncate">{player.phone}</p>}
