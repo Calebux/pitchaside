@@ -378,19 +378,16 @@ export interface GameLineup {
   /** Whether the group shares who's paid with players. */
   showPaid: boolean;
   /** `paid` is null for others when the group keeps that private. */
-  squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; paid: GamePaid | null }[];
-  /** They captain a side today, so they can keep the score from their phone. */
+  squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; vice?: boolean; paid: GamePaid | null }[];
+  /** They captain (or vice-captain) a side today, so they can keep the score from their phone. */
   canKeepScore?: boolean;
+  /** What they lead in this game, if anything. */
+  myRole?: 'captain' | 'vice' | null;
 }
 
 /** The match-day clock, for anyone in the game. */
 export function getGameTimer(sessionId: string) {
   return request<GameTimer>('GET', `/me/games/${sessionId}/timer`);
-}
-
-/** Today's captains start and stop the clock. */
-export function setGameTimer(sessionId: string, change: { start?: boolean; minutes?: number }) {
-  return request<GameTimer>('PUT', `/me/games/${sessionId}/timer`, change);
 }
 
 export function getGameLineup(sessionId: string) {

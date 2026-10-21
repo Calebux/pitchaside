@@ -60,6 +60,10 @@ export class Payment {
   @Column({ default: false })
   captain: boolean;
 
+  /** Vice-captain of their side for this game: keeps the score too, like the captain. At most one per side. */
+  @Column({ name: 'vice_captain', default: false })
+  viceCaptain: boolean;
+
   /**
    * Whether they turned up: null until the organiser ends the game (counts as came), 'came', or
    * 'no_show' — said they were in and didn't come, so there's nothing to pay (status is WAIVED).

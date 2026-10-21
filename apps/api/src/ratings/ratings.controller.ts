@@ -26,6 +26,11 @@ export class LineupDto {
   @IsOptional()
   @IsObject()
   captains?: Record<string, string | null>;
+
+  /** 'A'…'F' → playerId | null: each side's vice-captain (they're moved onto it too). */
+  @IsOptional()
+  @IsObject()
+  vices?: Record<string, string | null>;
 }
 
 export class BalanceDto {

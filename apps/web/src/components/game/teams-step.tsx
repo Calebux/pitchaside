@@ -85,6 +85,10 @@ export function TeamsStep({
     setMoving(null);
     run(m.id, () => saveLineup(sessionId, { captains: { [team]: on ? m.id : null } }));
   };
+  const vice = (m: Member, team: TeamKey, on: boolean) => {
+    setMoving(null);
+    run(m.id, () => saveLineup(sessionId, { vices: { [team]: on ? m.id : null } }));
+  };
 
   const avg = (team: TeamKey) => {
     const rated = lineup.squad.filter((m) => m.team === team && m.ovr != null);
@@ -105,7 +109,7 @@ export function TeamsStep({
       <button
         onClick={() => setMoving(m)}
         disabled={locked || !!busy}
-        aria-label={`${shownName(m)}${m.captain ? ', captain' : ''}${m.paid === 'unpaid' ? ', not paid yet' : ''}${locked ? '' : ': move'}`}
+        aria-label={`${shownName(m)}${m.captain ? ', captain' : m.vice ? ', vice-captain' : ''}${m.paid === 'unpaid' ? ', not paid yet' : ''}${locked ? '' : ': move'}`}
         title={`${m.firstName} ${m.lastName}`}
         className="press w-full flex items-center gap-2 min-h-11 px-2 py-1 text-left rounded-xl hover:bg-white/70 disabled:hover:bg-transparent disabled:cursor-default"
       >
@@ -114,6 +118,7 @@ export function TeamsStep({
           <span className="flex items-center gap-1">
             <span className="text-[14px] font-bold text-ink truncate">{shortName(m)}</span>
             {m.captain && <span className="shrink-0 w-4 h-4 rounded-full bg-ink text-volt-300 text-[9px] font-extrabold leading-4 text-center">C</span>}
+            {m.vice && <span className="shrink-0 h-4 px-1 rounded-full bg-white border border-ink text-ink text-[9px] font-extrabold leading-[14px] text-center">VC</span>}
           </span>
           {m.paid === 'unpaid' && <span className="block text-[11px] font-semibold leading-tight text-amber-700">Not paid</span>}
         </span>
@@ -179,7 +184,7 @@ export function TeamsStep({
               {picked ? `Remake ${lineup.teamCount} fair teams` : `Make ${lineup.teamCount} fair teams`}
             </button>
             <p className="mt-2 text-[12px] leading-snug text-white/60">
-              Fair by rating; captains stay on their side. Tap a player to move them or make them captain.
+              Fair by rating; captains stay on their side. Tap a player to move them or make them captain or vice-captain.
             </p>
           </>
         )}
@@ -217,7 +222,7 @@ export function TeamsStep({
         {teams.map((t) => {
           const members = lineup.squad
             .filter((m) => m.team === t)
-            .sort((a, b) => Number(b.captain) - Number(a.captain) || shortName(a).localeCompare(shortName(b)));
+            .sort((a, b) => Number(b.captain) - Number(a.captain) || Number(!!b.vice) - Number(!!a.vice) || shortName(a).localeCompare(shortName(b)));
           const a = avg(t);
           const best = lineup.teamOfTheDay === t;
           return (
@@ -263,7 +268,7 @@ export function TeamsStep({
           <SheetTitle
             id={titleId}
             title={shownName(moving)}
-            sub={moving.team ? `On ${teamName(moving.team, lineup.captains, lineup.bibs)}${moving.captain ? ', captain' : ''}` : 'Not on a team yet'}
+            sub={moving.team ? `On ${teamName(moving.team, lineup.captains, lineup.bibs)}${moving.captain ? ', captain' : moving.vice ? ', vice-captain' : ''}` : 'Not on a team yet'}
             onClose={() => setMoving(null)}
           />
           <p className="mt-4 text-[13px] font-bold text-gray-600">Move to</p>
@@ -302,6 +307,23 @@ export function TeamsStep({
                     {moving.captain ? `${teamName(moving.team, lineup.captains, lineup.bibs)} goes back to ${bibOf(moving.team, lineup.bibs).name ?? 'its bib colour'}.` : bibOf(moving.team, lineup.bibs).name
                       ? `The team keeps its name, ${bibOf(moving.team, lineup.bibs).name}.`
                       : `The team goes by their name: Team ${moving.nickname || moving.firstName}.`}
+                    {!moving.captain && ' They get a message and keep the score on match day.'}
+                  </span>
+                </button>
+              </li>
+            )}
+            {moving.team && !moving.captain && (
+              <li>
+                <button onClick={() => vice(moving, moving.team!, !moving.vice)} className="press w-full text-left px-2 py-3 rounded-2xl hover:bg-chalk">
+                  <span className="block text-[15px] font-bold text-ink">
+                    {moving.vice ? 'Not vice-captain' : `Make vice-captain of ${teamName(moving.team, lineup.captains, lineup.bibs)}`}
+                  </span>
+                  <span className="block text-[13px] leading-snug text-gray-600">
+                    {moving.vice
+                      ? 'They stop keeping the score.'
+                      : `Keeps the score with the captain, in case the captain is busy playing. They get a message.${
+                          lineup.squad.some((m) => m.vice && m.team === moving.team) ? ' Takes over from the current vice-captain.' : ''
+                        }`}
                   </span>
                 </button>
               </li>

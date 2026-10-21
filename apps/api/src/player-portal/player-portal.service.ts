@@ -497,10 +497,6 @@ export class PlayerPortalService {
     return this.ratings.playerTimer(sessionId, this.ids(person));
   }
 
-  setTimer(person: Person, sessionId: string, input: { start?: boolean; minutes?: number }) {
-    return this.ratings.captainTimer(sessionId, this.ids(person), input);
-  }
-
   addMatchGame(person: Person, sessionId: string, input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string }) {
     return this.ratings.captainAddGame(sessionId, this.ids(person), input);
   }
