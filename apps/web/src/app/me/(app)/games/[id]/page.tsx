@@ -1,5 +1,6 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -114,12 +115,14 @@ function Names({ people, numbered = false }: { people: GamePlayer[]; numbered?: 
     <ul className="bg-white rounded-2xl border border-gray-100 shadow-card divide-y divide-gray-100">
       {people.map((p, i) => (
         <li key={`${p.name}-${i}`} className="flex items-center gap-3 px-4 py-2.5">
-          <span
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-extrabold shrink-0 ${
-              p.me ? 'bg-ink text-volt-300' : 'bg-volt-100 text-pitch-800'
-            }`}
-          >
-            {numbered ? i + 1 : initials(p.name)}
+          {/* The waitlist keeps its order: their place sits on the face. */}
+          <span className="relative shrink-0">
+            <Avatar name={p.name} photoKey={p.photoKey} className={`w-9 h-9 text-[11px] ${p.me ? 'ring-2 ring-ink' : ''}`} />
+            {numbered && (
+              <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-ink text-volt-300 text-[10px] font-extrabold leading-[18px] text-center tabular-nums">
+                {i + 1}
+              </span>
+            )}
           </span>
           <span className="text-sm font-semibold text-ink truncate flex-1">{p.name}</span>
           {p.me && <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-volt-400 text-ink">You</span>}
@@ -127,9 +130,4 @@ function Names({ people, numbered = false }: { people: GamePlayer[]; numbered?: 
       ))}
     </ul>
   );
-}
-
-function initials(name: string) {
-  const words = name.split(/\s+/).filter(Boolean);
-  return ((words[0]?.[0] ?? '') + (words[1]?.[0] ?? '')).toUpperCase();
 }

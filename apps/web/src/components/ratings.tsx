@@ -69,7 +69,8 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
       {results.categories.map((c) => {
         const meta = categoryMeta[c.key];
         const [winner, ...rest] = c.standings;
-        const winnerName = winner ? `${winner.player.firstName} ${winner.player.lastName}` : '';
+        const fullName = winner ? `${winner.player.firstName} ${winner.player.lastName}` : '';
+        const winnerName = winner ? winner.player.nickname || fullName : '';
         return (
           <div
             key={`${c.key}-${c.team ?? ''}`}
@@ -90,7 +91,7 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
               <ol className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
                 {c.standings.map((s, i) => (
                   <li key={s.playerId} className="flex items-center gap-2 min-w-0">
-                    <Avatar name={`${s.player.firstName} ${s.player.lastName}`} className="w-7 h-7 text-[10px]" />
+                    <Avatar name={`${s.player.firstName} ${s.player.lastName}`} photoKey={s.player.photoKey} className="w-7 h-7 text-[10px]" />
                     <span className="min-w-0 truncate text-[13px] font-bold">
                       {s.player.nickname || s.player.firstName}
                       {i === c.standings.length - 1 && c.standings.length === 7 && <span className="font-semibold text-gray-500"> · sub</span>}
@@ -104,15 +105,19 @@ export function VoteResultsList({ results, compact = false }: { results: VoteRes
               </p>
             ) : winner ? (
               <div className="flex items-center gap-3 mt-3">
-                <Avatar name={winnerName} className="w-10 h-10 text-sm" />
+                <Avatar name={fullName} photoKey={winner.player.photoKey} className="w-10 h-10 text-sm" />
                 <div className="min-w-0 flex-1">
                   <p className="font-display text-lg font-extrabold leading-tight truncate">{winnerName}</p>
                   {rest.length > 0 && (
-                    <p className={`text-[11px] truncate ${c.key === 'potm' && !compact ? 'text-white/50' : 'text-gray-500'}`}>
-                      {rest
-                        .slice(0, 3)
-                        .map((s) => `${s.player.firstName} ${s.count}`)
-                        .join(' · ')}
+                    <p className={`mt-0.5 flex items-center gap-2 text-[11px] min-w-0 ${c.key === 'potm' && !compact ? 'text-white/60' : 'text-gray-500'}`}>
+                      {rest.slice(0, 3).map((s) => (
+                        <span key={s.playerId} className="inline-flex items-center gap-1 min-w-0">
+                          <Avatar name={`${s.player.firstName} ${s.player.lastName}`} photoKey={s.player.photoKey} className="w-4 h-4 text-[7px]" />
+                          <span className="truncate">
+                            {s.player.nickname || s.player.firstName} {s.count}
+                          </span>
+                        </span>
+                      ))}
                     </p>
                   )}
                 </div>
@@ -257,7 +262,9 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
                   <span className="font-display text-[15px] font-extrabold text-ink tabular-nums">{first + i}</span>
                   <Move move={row.move} />
                 </span>
-                <span className="min-w-0">
+                <span className="min-w-0 flex items-center gap-2.5">
+                  <Avatar name={`${row.player.firstName} ${row.player.lastName}`} photoKey={row.player.photoKey} className="w-8 h-8 text-[10px]" />
+                  <span className="min-w-0 flex-1">
                   <span className="block text-sm font-bold text-ink truncate">{name}</span>
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">
                     {row.record.w}W {row.record.d}D {row.record.l}L
@@ -269,6 +276,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
                         <span aria-hidden>{row.teamOfDay}</span>
                       </span>
                     )}
+                  </span>
                   </span>
                 </span>
                 <span className="text-center text-sm text-gray-500 tabular-nums">{row.games}</span>

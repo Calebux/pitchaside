@@ -15,7 +15,7 @@ import { BillingService } from '../billing/billing.service';
 import { AuthService } from '../auth/auth.service';
 import { localDate } from '../common/time.util';
 import { owedSplit } from '../payments/credit';
-import { sheetName } from '../players/player-name';
+import { pitchName, sheetName } from '../players/player-name';
 import { Person, PlayerAuthService } from './player-auth.service';
 import type { GoalInput } from '../ratings/ratings.service';
 import { blankRatings } from '../ratings/ratings.service';
@@ -127,7 +127,7 @@ export class PlayerPortalService {
       playingCount: playing.length,
       faces: [...playing.filter((p) => ids.includes(p.id)), ...playing.filter((p) => !ids.includes(p.id))]
         .slice(0, 8)
-        .map((p) => ({ id: p.id, name: sheetName(p), photoKey: p.photoKey ?? null, me: ids.includes(p.id) })),
+        .map((p) => ({ id: p.id, name: sheetName(p), short: pitchName(p), photoKey: p.photoKey ?? null, me: ids.includes(p.id) })),
     };
   }
 
@@ -156,8 +156,9 @@ export class PlayerPortalService {
       this.paymentsRepo.find({ where: { sessionId: g.id }, relations: ['player'] }),
     ]);
     const payment = squad.find((p) => ids.includes(p.playerId));
-    const named = (p: { id: string; firstName: string; lastName: string; nickname?: string | null }) => ({
+    const named = (p: { id: string; firstName: string; lastName: string; nickname?: string | null; photoKey?: string | null }) => ({
       name: sheetName(p),
+      photoKey: p.photoKey ?? null,
       me: ids.includes(p.id),
     });
     // Without RSVPs everyone in the squad plays, except anyone who's said they can't make it.
@@ -299,7 +300,8 @@ export class PlayerPortalService {
           visibility === 'names'
             ? payments
                 .map((p) => ({
-                  name: `${p.player.firstName} ${p.player.lastName}`,
+                  name: sheetName(p.player),
+                  photoKey: p.player.photoKey ?? null,
                   paid: p.status === PaymentStatus.PAID,
                   me: p.playerId === m.playerId,
                 }))

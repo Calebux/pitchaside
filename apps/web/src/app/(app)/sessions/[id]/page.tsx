@@ -1,5 +1,6 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -299,7 +300,12 @@ export default function GamePage() {
   const onGame = new Set(payments.map((p) => p.playerId));
   const notOnGame = members
     .filter((m) => !onGame.has(m.player.id))
-    .map((m) => ({ playerId: m.player.id, name: `${m.player.firstName} ${m.player.lastName}` }))
+    .map((m) => ({
+      playerId: m.player.id,
+      name: m.player.nickname || `${m.player.firstName} ${m.player.lastName}`,
+      fullName: `${m.player.firstName} ${m.player.lastName}`,
+      photoKey: m.player.photoKey ?? null,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
   // The player's other unpaid games in this group: where a payment by transfer could move to.
   const otherDues = (p: IPayment) => owed.filter((o) => o.playerId === p.playerId && o.sessionId !== session.id);
@@ -515,10 +521,19 @@ export default function GamePage() {
               }}
             />
             {before && board && board.waitlist.length > 0 && (
-              <p className="mt-3 rounded-2xl bg-white border border-gray-100 px-4 py-3 text-[13px] leading-snug text-gray-600">
-                <b className="text-ink">Waitlist · {board.waitlist.length}:</b>{' '}
-                {board.waitlist.map((p) => p.nickname || `${p.firstName} ${p.lastName}`).join(', ')}. The first in line gets the next place that frees up.
-              </p>
+              <div className="mt-3 rounded-2xl bg-white border border-gray-100 px-4 py-3">
+                <p className="text-[13px] font-bold text-ink">Waitlist · {board.waitlist.length}</p>
+                <ol className="mt-2 flex flex-wrap gap-1.5">
+                  {board.waitlist.map((p, i) => (
+                    <li key={p.id} className="inline-flex items-center gap-1.5 pl-0.5 pr-2.5 py-0.5 rounded-full bg-chalk text-[13px] font-semibold text-ink">
+                      <Avatar name={`${p.firstName} ${p.lastName}`} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
+                      <span className="tabular-nums text-gray-500">{i + 1}.</span>
+                      {p.nickname || `${p.firstName} ${p.lastName}`}
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-2 text-[13px] leading-snug text-gray-600">The first in line gets the next place that frees up.</p>
+              </div>
             )}
           </>
         ))}

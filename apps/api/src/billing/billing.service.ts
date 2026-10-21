@@ -1263,6 +1263,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         return {
           playerId: m.playerId,
           name: `${m.player.firstName} ${m.player.lastName}`.trim(),
+          nickname: m.player.nickname ?? null,
+          photoKey: m.player.photoKey ?? null,
           extra: Number(m.extra),
           waiting: Number(m.waiting ?? 0),
           waitingNote: m.waitingNote ?? null,

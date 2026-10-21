@@ -1,10 +1,10 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
-import { kitFor } from '@/components/illustrations';
 import { nameFit, senderFrom } from '@/lib/name-match';
 import { accountHint } from '@/components/group/how-paid-sheet';
 import { formatCurrency, type BankTransfer, type OwedItem } from '@/lib/api';
@@ -39,11 +39,10 @@ function likeliness(t: BankTransfer, m: MatchMember) {
   };
 }
 
-function MemberAvatar({ name, className = 'w-10 h-10 text-sm' }: { name: string; className?: string }) {
-  const kit = kitFor(name);
+function MemberAvatar({ name, photoKey, className = 'w-10 h-10 text-sm' }: { name: string; photoKey?: string | null; className?: string }) {
   return (
-    <span className={`${className} shrink-0 rounded-full ${kit.bg} ${kit.fg} font-extrabold font-display flex items-center justify-center`} aria-hidden>
-      {name.charAt(0)}
+    <span aria-hidden>
+      <Avatar name={name} photoKey={photoKey} className={className} />
     </span>
   );
 }
@@ -108,7 +107,7 @@ export function MatchPlayerSheet({
                   onClick={() => setPicked(m.playerId)}
                   className={`w-full flex items-center gap-3 min-h-16 px-3.5 py-2.5 text-left transition-colors ${on ? 'bg-volt-300/35' : 'hover:bg-chalk'}`}
                 >
-                  <MemberAvatar name={m.name} />
+                  <MemberAvatar name={m.name} photoKey={m.photoKey} />
                   <span className="flex-1 min-w-0">
                     <span className="block text-[15px] font-bold text-ink truncate">
                       {m.name}

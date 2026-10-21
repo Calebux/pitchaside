@@ -1177,10 +1177,12 @@ export class RatingsService {
       this.eventsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
     ]);
     const showPaid = session.group.contributionsVisibility === 'names';
+    const playerOf = (id: string | null | undefined) => (id ? session.payments?.find((x) => x.playerId === id)?.player : null);
     const nameOf = (id: string | null | undefined) => {
-      const p = id ? session.payments?.find((x) => x.playerId === id)?.player : null;
+      const p = playerOf(id);
       return p ? sheetName(p) : null;
     };
+    const photoOf = (id: string | null | undefined) => playerOf(id)?.photoKey ?? null;
     return {
       /**
        * Match day as it happens, for everyone in the game (not just the captains): each game's
@@ -1195,9 +1197,16 @@ export class RatingsService {
           scoreB: g.scoreB,
           goals: goals
             .filter((x) => x.gameId === g.id)
-            .map((x) => ({ team: x.team, scorer: nameOf(x.scorerId), assist: nameOf(x.assistId), mine: playerIds.includes(x.scorerId) })),
+            .map((x) => ({
+              team: x.team,
+              scorer: nameOf(x.scorerId),
+              scorerPhoto: photoOf(x.scorerId),
+              assist: nameOf(x.assistId),
+              assistPhoto: photoOf(x.assistId),
+              mine: playerIds.includes(x.scorerId),
+            })),
         })),
-        events: events.map((e) => ({ kind: e.kind, name: nameOf(e.playerId), mine: playerIds.includes(e.playerId) })),
+        events: events.map((e) => ({ kind: e.kind, name: nameOf(e.playerId), photoKey: photoOf(e.playerId), mine: playerIds.includes(e.playerId) })),
         table: this.standings(session.teamCount, games),
       },
       teamCount: session.teamCount,
@@ -1221,6 +1230,9 @@ export class RatingsService {
         .filter((p) => p.player && p.attendance !== 'no_show')
         .map((p) => ({
           name: sheetName(p.player),
+          /** What teammates call them: nickname, else first name. */
+          short: pitchName(p.player),
+          photoKey: p.player.photoKey ?? null,
           me: p.playerId === mine.playerId,
           team: this.teamOf(session, p.team),
           captain: this.isCaptain(session, p),

@@ -1,5 +1,6 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useId, useState } from 'react';
 import Link from 'next/link';
 import { MONEY_IN } from '@/lib/money-categories';
@@ -72,14 +73,22 @@ export function TransfersSheet({
                   aria-expanded={isOpen}
                   className="press w-full flex items-center gap-3 px-2 py-2.5 rounded-2xl text-left hover:bg-chalk transition-colors"
                 >
-                  <span
-                    className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-extrabold ${
-                      t.status === 'unmatched' ? 'bg-sun-400 text-ink' : 'bg-pitch-50 text-pitch-700'
-                    }`}
-                    aria-hidden
-                  >
-                    {t.status === 'unmatched' ? '?' : transferName(t).charAt(0)}
-                  </span>
+                  {(t.player ?? t.payment?.player) && t.status !== 'unmatched' ? (
+                    <Avatar
+                      name={`${(t.player ?? t.payment?.player)!.firstName} ${(t.player ?? t.payment?.player)!.lastName ?? ''}`}
+                      photoKey={(t.player ?? t.payment?.player)!.photoKey}
+                      className="w-9 h-9 text-xs"
+                    />
+                  ) : (
+                    <span
+                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-sm font-extrabold ${
+                        t.status === 'unmatched' ? 'bg-sun-400 text-ink' : 'bg-pitch-50 text-pitch-700'
+                      }`}
+                      aria-hidden
+                    >
+                      {t.status === 'unmatched' ? '?' : transferName(t).charAt(0)}
+                    </span>
+                  )}
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-bold text-ink truncate">{transferName(t)}</span>
                     <span className="block text-xs text-gray-600 tabular-nums">{when(t.receivedAt)}</span>

@@ -1,5 +1,6 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -20,6 +21,7 @@ import { NewSessionSheet } from '@/components/new-session-sheet';
 import {
   AccountStrip,
   GameCard,
+  faceOf,
   NeedsYou,
   daysFromToday,
   featuredGame,
@@ -255,9 +257,10 @@ export default function Dashboard() {
   const extraMembers = (group?.memberships ?? []).filter((m) => Number(m.extra ?? 0) > 0);
   if (group && extraMembers.length > 0) {
     const total = extraMembers.reduce((n, m) => n + Number(m.extra), 0);
-    const names = extraMembers.map((m) => m.player.firstName);
+    const names = extraMembers.map((m) => m.player.nickname || m.player.firstName);
     needs.push({
       key: 'extra',
+      faces: extraMembers.map((m) => faceOf(m.player)),
       href: moneyHref(group.id, { extra: true }),
       title: `${formatCurrency(total)} extra money to sort`,
       detail: `${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''} sent more than they owed`,
@@ -268,10 +271,11 @@ export default function Dashboard() {
   if (liveGame) {
     const { owing, coveredByDues } = gameMoney(liveGame);
     if (owing.length > 0) {
-      const names = owing.map((p) => p.player?.firstName).filter(Boolean) as string[];
+      const names = owing.map((p) => p.player?.nickname || p.player?.firstName).filter(Boolean) as string[];
       const when = gameDay(liveGame.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       needs.push({
         key: 'owing',
+        faces: owing.filter((p) => p.player).map((p) => faceOf(p.player!)),
         href: `/sessions/${liveGame.id}?tab=payments`,
         title: `${owing.length} still to pay for ${when}`,
         detail:
@@ -308,9 +312,10 @@ export default function Dashboard() {
   );
   const squadHref = group ? `/squad?group=${group.id}` : '/squad';
   if (group && newMembers.length > 0) {
-    const names = newMembers.map((m) => m.player.firstName);
+    const names = newMembers.map((m) => m.player.nickname || m.player.firstName);
     needs.push({
       key: 'new',
+      faces: newMembers.map((m) => faceOf(m.player)),
       href: squadHref,
       title: `${newMembers.length} joined this week`,
       detail: names.slice(0, 3).join(', ') + (names.length > 3 ? ` +${names.length - 3}` : ''),
@@ -349,10 +354,10 @@ export default function Dashboard() {
     ...newMembers.map((m) => ({
       key: `m-${m.id}`,
       href: squadHref,
-      title: `${m.player.firstName} ${m.player.lastName} joined`,
+      title: `${m.player.nickname || `${m.player.firstName} ${m.player.lastName}`} joined`,
       detail: group?.name,
-      icon: <span className="text-sm font-extrabold">{m.player.firstName.charAt(0)}</span>,
-      iconCls: 'bg-sky-300 text-ink',
+      icon: <Avatar name={`${m.player.firstName} ${m.player.lastName}`} photoKey={m.player.photoKey} className="w-9 h-9 text-xs" />,
+      iconCls: 'bg-sky-300 text-ink overflow-hidden',
       at: new Date(m.joinedAt).getTime(),
     })),
   ].sort((a, b) => (b.at ?? 0) - (a.at ?? 0));

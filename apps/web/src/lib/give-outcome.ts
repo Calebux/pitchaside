@@ -6,6 +6,7 @@ export interface MatchMember {
   playerId: string;
   name: string;
   nickname?: string | null;
+  photoKey?: string | null;
   credit: number;
 }
 

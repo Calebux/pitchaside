@@ -74,8 +74,11 @@ export function EventsSection({
             const m = byId(e.playerId);
             const k = KINDS.find((x) => x.kind === e.kind)!;
             return (
-              <li key={e.id} className="flex items-center gap-3 min-h-12 pl-4 pr-1">
-                <span className="w-5 flex justify-center">{k.mark}</span>
+              <li key={e.id} className="flex items-center gap-3 min-h-14 pl-3 pr-1 py-1.5">
+                <span className="relative shrink-0">
+                  <Avatar name={m ? `${m.firstName} ${m.lastName}` : '?'} photoKey={m?.photoKey} className="w-9 h-9 text-[11px]" />
+                  <span className="absolute -bottom-1 -right-1.5 flex">{k.mark}</span>
+                </span>
                 <span className="flex-1 min-w-0">
                   <span className="block text-[14px] font-bold text-ink truncate">
                     {m ? shortName(m) : 'Someone'} · {k.label}
