@@ -220,6 +220,7 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
 /** The day's table, Football Manager style: position, side in its bib colour, P, GD, Pts. */
 function DayTable({ card }: { card: MatchCard }) {
   const rows = card.standings.slice(0, 4);
+  const rowH = rows.length > 3 ? 44 : 50;
   const col = (w: number, align: 'flex-start' | 'center' | 'flex-end' = 'center') => ({ display: 'flex', width: w, justifyContent: align });
   return (
     <div style={{ display: 'flex', flexDirection: 'column', borderRadius: 28, background: 'rgba(0,0,0,0.32)', border: `2px solid ${C.line}`, padding: '18px 22px' }}>
@@ -240,7 +241,7 @@ function DayTable({ card }: { card: MatchCard }) {
             style={{
               display: 'flex',
               alignItems: 'center',
-              height: 52,
+              height: rowH,
               borderTop: `2px solid ${C.line}`,
               fontSize: 28,
               fontWeight: 700,
@@ -258,6 +259,59 @@ function DayTable({ card }: { card: MatchCard }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * The side that won the day, under the table when the Best VII has the pitch: its bib colour and
+ * name, its record, and its players' faces.
+ */
+function WinningTeam({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
+  const tod = card.teamOfTheDay;
+  if (!tod) return null;
+  const s = side(tod.team, card);
+  const squad = players.filter((p) => p.team === tod.team);
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        marginTop: 12,
+        padding: '14px 20px',
+        borderRadius: 24,
+        background: 'rgba(0,0,0,0.32)',
+        border: `2px solid ${C.line}`,
+        borderLeft: `10px solid ${s.bg}`,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Label size={16}>TEAM OF THE DAY</Label>
+        <div style={{ display: 'flex', fontSize: 20, fontWeight: 700, color: C.muted }}>
+          W{tod.w} D{tod.d} L{tod.l} · {tod.pts} pts
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(s.name, 34, 14) }}>{s.name}</div>
+        <div style={{ display: 'flex' }}>
+          {squad.slice(0, 6).map((p, i) => (
+            <div key={p.id} style={{ display: 'flex', marginLeft: i ? -14 : 0 }}>
+              <Face p={p} size={50} ring={s.bg} />
+            </div>
+          ))}
+          {squad.length > 6 && (
+            <div style={{ display: 'flex', marginLeft: -14, width: 50, height: 50, borderRadius: 50, background: C.pitch800, border: `3px solid ${s.bg}`, alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700 }}>
+              +{squad.length - 6}
+            </div>
+          )}
+        </div>
+      </div>
+      {squad.length > 0 && (
+        <div style={{ display: 'flex', fontSize: 20, color: C.muted, marginTop: 8 }}>
+          {squad.slice(0, 6).map((p) => p.short).join(' · ')}
+          {squad.length > 6 ? ` +${squad.length - 6}` : ''}
+        </div>
+      )}
     </div>
   );
 }
@@ -301,15 +355,25 @@ const AWARD_ORDER = ['engine', 'passing', 'shooting', 'playmaker', 'dribbling', 
  * face, the award, their name and votes. Only awards with enough voters have a winner; at most
  * six fit, the rest are counted.
  */
-function Awards({ card, players, saves }: { card: MatchCard; players: CardPlayer[]; saves?: ReturnType<typeof leader> }) {
+type Counted = { key: 'goals' | 'assists' | 'saves'; title: string; unit: string };
+const COUNTED: Counted[] = [
+  { key: 'goals', title: 'Top Scorer', unit: 'goal' },
+  { key: 'assists', title: 'Most Assists', unit: 'assist' },
+  { key: 'saves', title: 'Most Saves', unit: 'save' },
+];
+
+function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer[]; stats: Counted['key'][] }) {
   const voted = card.awards
     .filter((a) => a.key !== 'potm')
     .sort((a, b) => AWARD_ORDER.indexOf(a.key) - AWARD_ORDER.indexOf(b.key));
-  // Saves are counted, not voted: the keeper's tile comes after the three headline awards.
-  const savesTile = saves
-    ? [{ key: 'saves', title: 'Most Saves', team: null, name: saves.who.map((p) => p.name).join(' & '), votes: saves.value, shared: saves.who.length > 1, ids: saves.who.map((p) => p.id), counted: true }]
-    : [];
-  const awards = [...voted.slice(0, 3), ...savesTile, ...voted.slice(3)];
+  // Counted from the scores, not voted: these come after the three headline awards.
+  const counted = COUNTED.filter((c) => stats.includes(c.key)).flatMap((c) => {
+    const l = leader(players, c.key);
+    return l
+      ? [{ key: c.key, title: c.title, team: null, name: l.who.map((p) => p.name).join(' & '), votes: l.value, shared: l.who.length > 1, ids: l.who.map((p) => p.id), unit: c.unit }]
+      : [];
+  });
+  const awards = [...voted.slice(0, 3), ...counted, ...voted.slice(3)];
   if (!awards.length) return null;
   const shown = awards.slice(0, 6);
   const more = awards.length - shown.length;
@@ -317,7 +381,7 @@ function Awards({ card, players, saves }: { card: MatchCard; players: CardPlayer
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Label size={18}>{saves ? 'AWARDS · VOTED BY THE PLAYERS, AND SAVES' : 'AWARDS · VOTED BY THE PLAYERS'}</Label>
+        <Label size={18}>{counted.length && voted.length ? 'AWARDS AND STATS' : counted.length ? 'THE DAY IN STATS' : 'AWARDS · VOTED BY THE PLAYERS'}</Label>
         {more > 0 && <Label size={18} color={C.muted}>{`+${more} MORE`}</Label>}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
@@ -334,7 +398,7 @@ function Awards({ card, players, saves }: { card: MatchCard; players: CardPlayer
                 <Label size={15}>{title.toUpperCase()}</Label>
                 <div style={{ display: 'flex', fontSize: fit(a.name, 24, 14), fontWeight: 700, marginTop: 2 }}>{a.name}</div>
                 <div style={{ display: 'flex', fontSize: 16, color: C.muted }}>
-                  {'counted' in a ? `${a.votes} save${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`}
+                  {'unit' in a ? `${a.votes} ${a.unit}${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`}
                   {a.shared ? ' each' : ''}
                 </div>
               </div>
@@ -436,7 +500,7 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
           <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 3, background: 'rgba(255,255,255,0.35)', display: 'flex' }} />
           <div style={{ position: 'absolute', top: 140, left: 424, width: 120, height: 120, borderRadius: 120, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
           <div style={{ position: 'absolute', top: 110, left: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-          <div style={{ position: 'absolute', top: 110, right: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 110, left: 962 - 87, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
         </div>
       )}
 
@@ -525,9 +589,14 @@ function Card({ card }: { card: MatchCard }) {
   const hasTable = card.standings.some((r) => r.p > 0);
   const hasStats = players.some((p) => p.goals || p.assists || p.saves);
   // Nothing recorded yet: say so beside the Player of the Match; the pitch shows who played.
-  // With the table showing there's room for two stat rows; saves then get a tile with the awards.
-  const savesTile = hasTable ? leader(players, 'saves') : null;
-  const hasAwards = (!card.open && card.awards.some((a) => a.key !== 'potm')) || !!savesTile;
+  // Once the Best VII has the pitch, the day's winners get their own block under the table, and
+  // the counted stats join the awards. Otherwise, two stat rows fit beside the table and saves
+  // join the awards.
+  const viiOnPitch = (card.vii ?? []).filter((id) => players.some((p) => p.id === id)).length >= 6;
+  const winnersBlock = viiOnPitch && hasTable && !!card.teamOfTheDay;
+  const stats: Counted['key'][] = winnersBlock ? ['goals', 'assists', 'saves'] : hasTable ? ['saves'] : [];
+  const hasStatTiles = stats.some((k) => !!leader(players, k));
+  const hasAwards = (!card.open && card.awards.some((a) => a.key !== 'potm')) || hasStatTiles;
   const squadOnly = !hasTable && !hasStats;
 
   return (
@@ -587,13 +656,13 @@ function Card({ card }: { card: MatchCard }) {
         <PotmCard card={card} players={players} />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           {hasTable && <DayTable card={card} />}
-          {squadOnly ? <NoScores /> : <Performers players={players} max={hasTable ? 2 : 3} />}
+          {squadOnly ? <NoScores /> : winnersBlock ? <WinningTeam card={card} players={players} /> : <Performers players={players} max={hasTable ? 2 : 3} />}
         </div>
       </div>
 
       {hasAwards && (
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
-          <Awards card={card} players={players} saves={savesTile} />
+          <Awards card={card} players={players} stats={stats} />
         </div>
       )}
 
