@@ -55,6 +55,10 @@ export interface IGroup {
   accountNumber?: string;
   accountName?: string;
   bankName?: string;
+  /** 'local' (Nigeria, bank transfers) or 'international' (crypto). */
+  scope?: GroupScope;
+  /** 'NGN' for local, 'USD' for international. */
+  currency?: string;
   createdAt: string;
 }
 
@@ -395,6 +399,60 @@ export const DEFAULT_BIBS: Record<BibSides, TeamBib> = {
 
 /** Longest team name an organiser can give a side. */
 export const TEAM_NAME_MAX = 20;
+
+// ── Crypto / International Groups ──
+
+export type GroupScope = 'local' | 'international';
+
+export interface ICryptoTransfer {
+  id: string;
+  txHash: string;
+  chain: string;
+  token: 'USDT' | 'USDC';
+  fromAddress?: string;
+  toAddress: string;
+  amount: number;
+  status: 'matched' | 'assigned' | 'unmatched' | 'ignored' | 'other';
+  category?: string;
+  note?: string;
+  player?: IPlayer;
+  payment?: IPayment;
+  receivedAt: string;
+  blockNumber?: number;
+  confirmations?: number;
+}
+
+export interface IGroupWallet {
+  chainFamily: string;
+  address: string;
+  /** Which specific chains this address works on (e.g. an EVM address works on polygon, base, ethereum…). */
+  chains: string[];
+}
+
+export interface IChainInfo {
+  id: string;
+  name: string;
+  family: 'evm' | 'tron' | 'solana';
+  tokens: ('USDT' | 'USDC')[];
+}
+
+export interface ICryptoOutgoingTransfer {
+  id: string;
+  groupId: string;
+  chain: string;
+  token: string;
+  amount: number;
+  fee: number;
+  toAddress: string;
+  txHash?: string;
+  status: PayoutStatus;
+  errorMessage?: string;
+  initiatedBy?: { firstName: string; lastName: string };
+  refundPlayerId?: string | null;
+  category?: string;
+  createdAt: string;
+  completedAt?: string;
+}
 
 /**
  * How long a game's vote stays open after the organiser ends it (or until everyone who played
