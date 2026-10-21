@@ -1,4 +1,33 @@
-import { PaymentType } from '@pitchaside/shared';
+import { PaymentType, type GroupScope } from '@pitchaside/shared';
+
+/** Currency symbol for a group's scope. */
+export function currencySymbol(scope?: GroupScope | string): string {
+  return scope === 'international' ? '$' : '₦';
+}
+
+/** Format an amount in the group's currency. */
+export function formatGroupAmount(amount: number, scope?: GroupScope | string): string {
+  if (scope === 'international') {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+  }
+  return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount);
+}
+
+/** Display name for a chain id. */
+export function chainName(chain: string): string {
+  const names: Record<string, string> = {
+    polygon: 'Polygon',
+    base: 'Base',
+    tron: 'Tron',
+    ethereum: 'Ethereum',
+    arbitrum: 'Arbitrum',
+    bsc: 'BNB Chain',
+    avalanche: 'Avalanche',
+    optimism: 'Optimism',
+    solana: 'Solana',
+  };
+  return names[chain] ?? chain;
+}
 
 export const frequencyOptions: { value: PaymentType; label: string; short: string; hint: string }[] = [
   { value: PaymentType.PER_SESSION, label: 'Per game', short: 'per game', hint: 'Pay each time you play' },

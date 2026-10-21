@@ -19,7 +19,8 @@
     "qs": "^6.16.0",
     "body-parser": "^1.20.8",
     "multer": "^2.4.0",
-    "file-type": "^21.3.4"
+    "file-type": "^21.3.4",
+    "axios": "^1.20.0"
   },
   "packageManager": "npm@10.8.2"
 }

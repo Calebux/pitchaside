@@ -1,6 +1,8 @@
 import { IsInt, Max, IsString, IsNumber, IsEnum, IsOptional, Min, IsNotEmpty, MinLength, IsBoolean, Matches, IsIn, IsObject } from 'class-validator';
-import type { Bibs } from '@pitchaside/shared';
+import type { Bibs, GroupScope } from '@pitchaside/shared';
 import { PaymentType, CONTRIBUTIONS_VISIBILITY, type ContributionsVisibility } from '../entities/group.entity';
+
+const SCOPES: GroupScope[] = ['local', 'international'];
 
 export class CreateGroupDto {
   @IsString()
@@ -60,6 +62,11 @@ export class CreateGroupDto {
   @IsOptional()
   @IsObject()
   bibs?: Bibs | null;
+
+  /** 'local' (Nigeria, bank transfers) or 'international' (crypto). Defaults to 'local'. */
+  @IsOptional()
+  @IsIn(SCOPES)
+  scope?: GroupScope;
 }
 
 /**

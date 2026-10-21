@@ -230,7 +230,7 @@ export interface PlayerHome {
     teamCount?: number;
     /** Who's playing: how many, and the first few as faces (them first). */
     playingCount?: number;
-    faces?: { id: string; name: string; photoKey: string | null; me: boolean }[];
+    faces?: { id: string; name: string; short?: string; photoKey: string | null; me: boolean }[];
   }[];
   /** `amount` is what's left to pay; `paidSoFar` is credit from partial transfers already counted against it. */
   /** `now`: a transfer pays it today (played games and their next one). False: a game further ahead. */
@@ -283,7 +283,7 @@ export function getPlayerGames() {
   return request<{ upcoming: UpcomingGame[]; recent: RecentMatchDay[] }>('GET', '/me/games');
 }
 
-export type GamePlayer = { name: string; me: boolean };
+export type GamePlayer = { name: string; photoKey?: string | null; me: boolean };
 
 /** One game's own page: the game card plus where it is and who's playing. */
 export type PlayerGame = UpcomingGame & {
@@ -317,7 +317,7 @@ export interface GroupKitty {
   paidCount: number;
   total: number;
   allTime: number;
-  players: { name: string; paid: boolean; me: boolean }[] | null;
+  players: { name: string; photoKey?: string | null; paid: boolean; me: boolean }[] | null;
 }
 
 export function getPlayerPayments() {
@@ -362,8 +362,15 @@ export type GamePaid = 'paid' | 'unpaid' | 'waived';
 export interface GameLineup {
   /** Match day as it happens: each game's score and scorers, cards and saves, and the day's table. */
   live?: {
-    games: { id: string; teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals: { team: TeamKey; scorer: string | null; assist: string | null; mine: boolean }[] }[];
-    events: { kind: MatchEventKind; name: string | null; mine: boolean }[];
+    games: {
+      id: string;
+      teamA: TeamKey;
+      teamB: TeamKey;
+      scoreA: number;
+      scoreB: number;
+      goals: { team: TeamKey; scorer: string | null; scorerPhoto?: string | null; assist: string | null; assistPhoto?: string | null; mine: boolean }[];
+    }[];
+    events: { kind: MatchEventKind; name: string | null; photoKey?: string | null; mine: boolean }[];
     table: { rows: { team: TeamKey; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }[]; teamOfTheDay: TeamKey | null };
   };
   teamCount: number;
@@ -378,19 +385,26 @@ export interface GameLineup {
   /** Whether the group shares who's paid with players. */
   showPaid: boolean;
   /** `paid` is null for others when the group keeps that private. */
-  squad: { name: string; me: boolean; team: TeamKey | null; captain: boolean; paid: GamePaid | null }[];
-  /** They captain a side today, so they can keep the score from their phone. */
+  squad: {
+    name: string;
+    /** Nickname, else first name. */
+    short?: string;
+    photoKey?: string | null;
+    me: boolean;
+    team: TeamKey | null;
+    captain: boolean;
+    vice?: boolean;
+    paid: GamePaid | null;
+  }[];
+  /** They captain (or vice-captain) a side today, so they can keep the score from their phone. */
   canKeepScore?: boolean;
+  /** What they lead in this game, if anything. */
+  myRole?: 'captain' | 'vice' | null;
 }
 
 /** The match-day clock, for anyone in the game. */
 export function getGameTimer(sessionId: string) {
   return request<GameTimer>('GET', `/me/games/${sessionId}/timer`);
-}
-
-/** Today's captains start and stop the clock. */
-export function setGameTimer(sessionId: string, change: { start?: boolean; minutes?: number }) {
-  return request<GameTimer>('PUT', `/me/games/${sessionId}/timer`, change);
 }
 
 export function getGameLineup(sessionId: string) {

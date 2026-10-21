@@ -29,6 +29,11 @@ export interface GroupEditData {
 
   /** What each side wears and is called; null for the default colours. */
   bibs: Bibs | null;
+
+  /** 'local' or 'international'; read-only after creation. */
+  scope?: string;
+  /** 'NGN' or 'USD'. */
+  currency?: string;
 }
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -249,6 +254,17 @@ export function GroupEditSheet({
         {/* Match day */}
         <MatchDayFields value={d} onChange={set} />
 
+        {/* Scope (read-only) */}
+        {d.scope && (
+          <div>
+            <span className={label}>Payment region</span>
+            <div className="flex h-12 items-center px-3.5 rounded-xl border border-gray-200 bg-chalk text-[15px] text-gray-500">
+              {d.scope === 'international' ? 'International (USDT/USDC)' : 'Nigeria (bank transfer)'}
+            </div>
+            <p className="mt-1.5 text-xs text-gray-500">Set when the group was created.</p>
+          </div>
+        )}
+
         {/* Players and money */}
         <div>
           <span className={label} id="g-players-label">
@@ -270,18 +286,37 @@ export function GroupEditSheet({
           <span id="g-fee-label" className={label}>
             Fee per player
           </span>
-          <Stepper
-            id="g-fee"
-            labelledBy="g-fee-label"
-            value={d.feePerPlayer}
-            onChange={(v) => set({ feePerPlayer: v })}
-            step={500}
-            min={0}
-            prefix="₦"
-            less="₦500 less"
-            more="₦500 more"
-          />
-          <p className="mt-1.5 text-xs text-gray-500">Steps of ₦500, or type any amount.</p>
+          {d.scope === 'international' ? (
+            <>
+              <Stepper
+                id="g-fee"
+                labelledBy="g-fee-label"
+                value={d.feePerPlayer}
+                onChange={(v) => set({ feePerPlayer: v })}
+                step={5}
+                min={0}
+                prefix="$"
+                less="$5 less"
+                more="$5 more"
+              />
+              <p className="mt-1.5 text-xs text-gray-500">Steps of $5, or type any amount.</p>
+            </>
+          ) : (
+            <>
+              <Stepper
+                id="g-fee"
+                labelledBy="g-fee-label"
+                value={d.feePerPlayer}
+                onChange={(v) => set({ feePerPlayer: v })}
+                step={500}
+                min={0}
+                prefix="₦"
+                less="₦500 less"
+                more="₦500 more"
+              />
+              <p className="mt-1.5 text-xs text-gray-500">Steps of ₦500, or type any amount.</p>
+            </>
+          )}
         </div>
         <fieldset>
           <legend className={label}>How players pay</legend>

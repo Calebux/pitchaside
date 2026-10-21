@@ -109,6 +109,69 @@ describe('SessionsService', () => {
     service = module.get<SessionsService>(SessionsService);
   });
 
+  describe('update (move a game)', () => {
+    const ahead = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    const game = (over: Record<string, unknown> = {}) => ({
+      ...mockSession,
+      date: ahead,
+      kickoffTime: null,
+      group: { ...mockGroup, kickoffTime: '20:00' },
+      payments: [{ id: 'pay-1', playerId: 'player-1' }, { id: 'pay-2', playerId: 'player-2', attendance: 'no_show' }],
+      ...over,
+    });
+    let scores: number;
+    beforeEach(() => {
+      scores = 0;
+      sessionsRepo.update = jest.fn();
+      (sessionsRepo as any).manager.count = jest.fn(async () => scores);
+      (logRepo as any).delete = jest.fn();
+      notificationsService.later.mockClear();
+    });
+    // The notification mocks are shared with the tests below: leave them clean.
+    afterEach(() => {
+      notificationsService.later.mockClear();
+      notificationsService.notifyPlayers.mockClear();
+    });
+
+    it('moves the day and time, lets the reminders go again and tells the players in it', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue(game() as any);
+      const later = new Date(Date.now() + 9 * 86_400_000).toISOString().slice(0, 10);
+      await service.update('session-1', { date: later, kickoffTime: '19:30' }, 'org-1');
+      expect(sessionsRepo.update).toHaveBeenCalledWith('session-1', { date: later, kickoffTime: '19:30' });
+      expect((logRepo as any).delete).toHaveBeenCalled();
+      expect(notificationsService.later).toHaveBeenCalledTimes(1);
+      await notificationsService.later.mock.calls[0][0]();
+      // Only the player who's in, not the no-show.
+      expect(notificationsService.notifyPlayers).toHaveBeenLastCalledWith(['player-1'], expect.objectContaining({ title: 'Game moved: Monday Football ⚽' }));
+    });
+
+    it('an empty time goes back to the group kick-off', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue(game({ kickoffTime: '18:00' }) as any);
+      await service.update('session-1', { kickoffTime: '' }, 'org-1');
+      expect(sessionsRepo.update).toHaveBeenCalledWith('session-1', { date: ahead, kickoffTime: null });
+    });
+
+    it('does nothing when nothing changes', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue(game() as any);
+      await service.update('session-1', { date: ahead }, 'org-1');
+      expect(sessionsRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses an ended, called-off or scored game, and a day in the past', async () => {
+      const spy = jest.spyOn(service, 'findOne');
+      spy.mockResolvedValue(game({ status: SessionStatus.COMPLETED }) as any);
+      await expect(service.update('session-1', { kickoffTime: '19:00' }, 'org-1')).rejects.toThrow('ended');
+      spy.mockResolvedValue(game({ status: SessionStatus.CANCELLED }) as any);
+      await expect(service.update('session-1', { kickoffTime: '19:00' }, 'org-1')).rejects.toThrow('called off');
+      spy.mockResolvedValue(game() as any);
+      scores = 1;
+      await expect(service.update('session-1', { kickoffTime: '19:00' }, 'org-1')).rejects.toThrow('Scores');
+      scores = 0;
+      await expect(service.update('session-1', { date: '2020-01-01' }, 'org-1')).rejects.toThrow('today or a day ahead');
+      expect(sessionsRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('create', () => {
     it('should create a session with payments for each group member', async () => {
       groupsRepo.findOne.mockResolvedValue(mockGroup);

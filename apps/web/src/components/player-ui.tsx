@@ -443,7 +443,7 @@ export function GameCard({
 
         {/* Match day: pick your bib, then follow the scores as they come in */}
         {(game.bibsOpen || (days === 0 && game.status !== 'cancelled' && game.myStatus === 'in')) && <MatchDayBibs sessionId={game.id} live={days === 0} />}
-        {days === 0 && game.status !== 'cancelled' && <KeepScoreLink sessionId={game.id} />}
+        {!played && game.status !== 'cancelled' && game.myStatus === 'in' && <KeepScoreLink sessionId={game.id} today={days === 0} />}
 
         {!played && (
           <div className="mt-4 grid grid-cols-2 gap-2">

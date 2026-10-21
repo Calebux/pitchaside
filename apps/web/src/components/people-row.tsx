@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { Avatar } from '@/components/ratings';
 
-export type Face = { id: string; name: string; photoKey?: string | null; me?: boolean };
+/** `short` is what they go by in a line of names (nickname, else first name). */
+export type Face = { id: string; name: string; short?: string; photoKey?: string | null; me?: boolean };
 
 /** "Ada", "Ada and Tobi", "Ada, Tobi and 3 more": the first names of who a row is about. */
-export function namesLine(people: { name: string; me?: boolean }[], shown = 2, total = people.length) {
-  const first = (p: { name: string; me?: boolean }) => (p.me ? 'You' : p.name.split(' ')[0]);
+export function namesLine(people: { name: string; short?: string; me?: boolean }[], shown = 2, total = people.length) {
+  const first = (p: { name: string; short?: string; me?: boolean }) => (p.me ? 'You' : p.short || p.name.split(' ')[0]);
   const names = people.slice(0, shown).map(first);
   const more = total - names.length;
   if (more > 0) return `${names.join(', ')} and ${more} more`;

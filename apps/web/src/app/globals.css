@@ -367,6 +367,61 @@
   75% { transform: translateX(3px); }
 }
 
+/*
+ * Onboarding and tip scenes: small loops inside the illustrations (components/onboarding/scenes.tsx).
+ * Each moves around its own box; delays come from inline styles. Reduced motion stops them all
+ * (the rule further up), which leaves every scene in its finished, readable pose.
+ */
+.scene-bob, .scene-fly, .scene-tick, .scene-sway, .scene-spin, .scene-flash, .scene-drop, .scene-flip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.scene-bob { animation: scene-bob 3.2s ease-in-out infinite; }
+.scene-fly { animation: scene-fly 2.8s ease-in-out infinite; }
+.scene-tick { animation: scene-tick 4.2s cubic-bezier(0.2, 0.9, 0.3, 1.35) infinite; }
+.scene-sway { animation: scene-sway 3.6s ease-in-out infinite; transform-origin: 50% 0; }
+.scene-spin { animation: spin 6s linear infinite; }
+.scene-flash { animation: scene-flash 3s ease-out infinite; }
+.scene-drop { animation: scene-drop 2.6s cubic-bezier(0.5, 0, 0.75, 0) infinite; }
+.scene-flip { animation: scene-flip 4s ease-in-out infinite; }
+@keyframes scene-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+/* Travels by (--fx, --fy) and fades: a link to a phone, a coin to the jar. */
+@keyframes scene-fly {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  15% { opacity: 1; transform: translate(0, 0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--fx, 0px), var(--fy, 0px)) scale(0.85); }
+}
+/* A tick or badge popping on, staying a while, then clearing for the next round. */
+@keyframes scene-tick {
+  0%, 8% { opacity: 0; transform: scale(0.3); }
+  18% { opacity: 1; transform: scale(1.15); }
+  24%, 88% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+@keyframes scene-sway {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes scene-flash {
+  0%, 70%, 100% { opacity: 0; }
+  76% { opacity: 1; }
+}
+@keyframes scene-drop {
+  0% { opacity: 0; transform: translateY(-26px); }
+  20% { opacity: 1; }
+  80% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(6px); }
+}
+@keyframes scene-flip {
+  0%, 40%, 100% { transform: scaleY(1); }
+  45% { transform: scaleY(0.1); }
+  50% { transform: scaleY(1); }
+}
+
 /* Presses in under a thumb. */
 .press {
   transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.2);

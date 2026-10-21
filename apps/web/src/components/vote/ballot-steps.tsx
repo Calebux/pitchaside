@@ -97,7 +97,20 @@ export function BallotSteps({
 
   const nextLabel = (to: Step) => (to === 'mate' ? 'Next: best on your team' : to === 'vii' ? 'Next: your Best VII' : 'Next: awards');
 
-  /** One player to tap, as their bib in their side's colour. `mark` shows when picked: a tick, or their Best VII spot. */
+  /** A player as the ballot shows them: their face with a small bib in their side's colour, else the bib with their initials. */
+  const face = (p: Player, size: 'lg' | 'sm' = 'lg') =>
+    p.photoKey ? (
+      <span className="relative inline-flex">
+        <Avatar name={full(p)} photoKey={p.photoKey} className={size === 'lg' ? 'w-12 h-12 text-[13px]' : 'w-9 h-9 text-[11px]'} />
+        <span className="absolute -bottom-1 -right-2 rounded-full bg-white p-0.5 shadow-card" aria-hidden>
+          <BibShirt team={p.team} bibs={ballot.bibs} className={size === 'lg' ? 'w-5 h-5 block' : 'w-4 h-4 block'} />
+        </span>
+      </span>
+    ) : (
+      <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className={size === 'lg' ? 'w-12 h-12' : 'w-9 h-9'} />
+    );
+
+  /** One player to tap: their face (or bib) and name. `mark` shows when picked: a tick, or their Best VII spot. */
   const chip = (p: Player, selected: boolean, onTap: () => void, mark: string | null = null, disabled = false) => (
     <li key={p.id} className="min-w-0">
       <button
@@ -110,17 +123,7 @@ export function BallotSteps({
           selected ? 'border-ink bg-volt-300 shadow-sticker' : 'border-gray-100 bg-white hover:border-gray-300'
         }`}
       >
-        {p.photoKey ? (
-          // Their face, with a small bib in their side's colour on the corner
-          <span className="relative">
-            <Avatar name={full(p)} photoKey={p.photoKey} className="w-12 h-12 text-[13px]" />
-            <span className="absolute -bottom-1 -right-2 rounded-full bg-white p-0.5 shadow-card" aria-hidden>
-              <BibShirt team={p.team} bibs={ballot.bibs} className="w-5 h-5 block" />
-            </span>
-          </span>
-        ) : (
-          <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className="w-12 h-12" />
-        )}
+        {face(p)}
         <span className="w-full truncate text-[13px] font-bold text-ink leading-tight">{short(p)}</span>
         {selected && (
           <span className="absolute top-1.5 right-1.5 min-w-6 h-6 px-1.5 rounded-full bg-ink text-volt-300 text-[11px] font-extrabold leading-6 text-center animate-pop-in" aria-hidden>
@@ -255,9 +258,7 @@ export function BallotSteps({
                       className="press w-full min-h-[76px] flex flex-col items-center gap-1 text-white"
                     >
                       {p ? (
-                        <span className="animate-pop-in">
-                          <BibShirt team={p.team} bibs={ballot.bibs} label={initials(p)} className="w-12 h-12" />
-                        </span>
+                        <span className="animate-pop-in">{face(p)}</span>
                       ) : (
                         <BibShirt empty label={String(i + 1)} className="w-12 h-12 text-white/60" />
                       )}
@@ -277,7 +278,7 @@ export function BallotSteps({
               >
                 {sub ? (
                   <>
-                    <BibShirt team={byId(sub)!.team} bibs={ballot.bibs} label={initials(byId(sub)!)} className="w-9 h-9" />
+                    {face(byId(sub)!, 'sm')}
                     <span className="truncate text-[13px] font-bold">{short(byId(sub)!)}</span>
                   </>
                 ) : (

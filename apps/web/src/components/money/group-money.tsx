@@ -137,6 +137,7 @@ export function GroupMoney({
                 playerId: m.player.id,
                 name: `${m.player.firstName} ${m.player.lastName}`,
                 nickname: m.player.nickname,
+                photoKey: m.player.photoKey ?? null,
                 credit: Number(m.credit ?? 0),
               }))}
             />

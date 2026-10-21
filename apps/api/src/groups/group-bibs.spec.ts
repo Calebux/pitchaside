@@ -10,7 +10,7 @@ describe('GroupsService.update bibs', () => {
       manager: { transaction: (fn: (e: typeof em) => unknown) => fn(em) },
     };
     const billing = { ensureCurrentPeriod: jest.fn(), repriceOpenDues: jest.fn() };
-    return { svc: new GroupsService(groupsRepo as any, {} as any, billing as any, {} as any), em };
+    return { svc: new GroupsService(groupsRepo as any, {} as any, billing as any, {} as any, {} as any), em };
   }
 
   it('pins the old bibs on played games that had none of their own', async () => {

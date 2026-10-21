@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, MoreThan, Repository } from 'typeorm';
+import { In, Like, MoreThan, Repository } from 'typeorm';
 import { ReminderLog } from '../reminders/entities/reminder-log.entity';
 import { markPartPaid } from '../payments/part-paid';
 import { Session, SessionKind, SessionStatus, kickoffFor } from './entities/session.entity';
@@ -8,12 +8,14 @@ import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, shortDate } from '../common/format.util';
-import { prettyTime } from '../common/time.util';
+import { localDate, prettyTime } from '../common/time.util';
 import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { MailService } from '../mail/mail.service';
 import { CreateSessionDto, RecurrenceType } from './dto/create-session.dto';
+import { UpdateSessionDto } from './dto/update-session.dto';
+import { SessionGame } from '../ratings/entities/session-game.entity';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -228,6 +230,46 @@ export class SessionsService {
     if (!session) throw new NotFoundException('Game not found');
     await this.markGamePaid([session]);
     return session;
+  }
+
+  /**
+   * Move a game before it starts: a new day and/or kick-off time. Not once it has ended, been
+   * called off or has a score in (the day's results belong to that date), and not into the past.
+   * The reminders go again for the new time, money is re-checked against the new date (what's
+   * payable now depends on it), and everyone in the game is told where it moved to.
+   */
+  async update(id: string, dto: UpdateSessionDto, organizationId: string) {
+    const session = await this.findOne(id, organizationId);
+    if (session.kind === SessionKind.DUES) throw new BadRequestException('A dues period can’t be moved.');
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game is called off. Bring it back first, then move it.');
+    if (session.status !== SessionStatus.UPCOMING) throw new BadRequestException('This game has ended, so it can’t be moved.');
+    if (await this.sessionsRepo.manager.count(SessionGame, { where: { sessionId: id } })) {
+      throw new BadRequestException('Scores are already in for this game, so it can’t be moved.');
+    }
+
+    const date = dto.date ? dto.date.slice(0, 10) : String(session.date).slice(0, 10);
+    if (dto.date && date < localDate(0)) throw new BadRequestException('Pick today or a day ahead.');
+    const kickoffTime = dto.kickoffTime === undefined ? session.kickoffTime : dto.kickoffTime || null;
+    if (date === String(session.date).slice(0, 10) && kickoffTime === session.kickoffTime) return session;
+
+    await this.sessionsRepo.update(id, { date, kickoffTime });
+    // The evening-before and 2-hours-before reminders are once per game: let them go again.
+    await this.logRepo.delete({ key: In([`eve:${id}`, `ko:${id}`]) });
+    const playerIds = (session.payments ?? []).filter((p) => p.attendance !== 'no_show').map((p) => p.playerId);
+    if (playerIds.length) await this.billing.applyCredits(session.groupId, playerIds);
+
+    const ko = kickoffFor({ kickoffTime, group: session.group });
+    if (playerIds.length) {
+      this.notifications.later(() =>
+        this.notifications.notifyPlayers(playerIds, {
+          kind: 'game_scheduled',
+          title: `Game moved: ${session.group.name} ⚽`,
+          body: `It's now ${shortDate(date)}${ko ? `, kick-off ${prettyTime(ko)}` : ''}.`,
+          url: '/me',
+        }),
+      );
+    }
+    return this.findOne(id, organizationId);
   }
 
   async updateStatus(id: string, status: string, organizationId: string) {

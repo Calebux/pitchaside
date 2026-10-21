@@ -1,10 +1,10 @@
 'use client';
 
+import { Avatar } from '@/components/ratings';
 import { useId, useState, type CSSProperties } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { btnPrimary } from '@/components/buttons';
-import { kitFor } from '@/components/illustrations';
 import { buzz, stagger } from '@/components/motion';
 import { endGame, formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { gameTally, playerState, leftToPay } from '@/lib/game-player';
@@ -37,7 +37,8 @@ export function EndGameSheet({
   const came = squad.filter((p) => !away.has(p.id));
   const stillToPay = came.filter((p) => playerState(p, coveredByDues).owes);
   const owed = stillToPay.reduce((n, p) => n + leftToPay(p), 0);
-  const name = (p: (typeof squad)[number]) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
+  const fullName = (p: (typeof squad)[number]) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
+  const name = (p: (typeof squad)[number]) => p.player?.nickname || fullName(p);
 
   function toggle(id: string) {
     buzz(8);
@@ -147,7 +148,6 @@ export function EndGameSheet({
         <ul className="mt-4 -mx-1 space-y-1.5" aria-label="Players who said they were in">
           {squad.map((p, i) => {
             const on = !away.has(p.id);
-            const kit = kitFor(name(p));
             const state = playerState(p, coveredByDues);
             return (
               <li key={p.id} className="animate-rise" style={stagger(i, 25, 60)}>
@@ -159,11 +159,8 @@ export function EndGameSheet({
                     on ? 'bg-white border border-gray-100' : 'bg-chalk border border-transparent'
                   }`}
                 >
-                  <span
-                    className={`w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display transition-[filter,opacity] duration-200 ${on ? '' : 'grayscale opacity-50'}`}
-                    aria-hidden
-                  >
-                    {name(p).charAt(0)}
+                  <span className={`shrink-0 transition-[filter,opacity] duration-200 ${on ? '' : 'grayscale opacity-50'}`} aria-hidden>
+                    <Avatar name={fullName(p)} photoKey={p.player?.photoKey} className="w-10 h-10 text-sm" />
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className={`block text-[15px] font-bold transition-colors ${on ? 'text-ink' : 'text-gray-500 line-through decoration-gray-400'}`}>{name(p)}</span>

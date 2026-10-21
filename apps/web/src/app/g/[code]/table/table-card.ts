@@ -26,6 +26,8 @@ export interface TableCard {
     d: number;
     l: number;
     potmWins: number;
+    /** Times on the Team of the Day (newer servers only). */
+    teamOfDay?: number;
     form: ('W' | 'D' | 'L')[];
     move: number | null;
     ovr: number | null;

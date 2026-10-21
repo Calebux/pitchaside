@@ -5,16 +5,18 @@ import type { IPayment } from '@pitchaside/shared';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { kitFor } from '@/components/illustrations';
 import { stagger } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
+import { Avatar } from '@/components/ratings';
 import { leftToPay, playerState, type PlayerStateKey } from '@/lib/game-player';
 
 
 type Filter = 'to_pay' | 'paid' | 'no_show' | 'all';
 type Action = 'paid' | 'no_show' | 'came' | 'free' | 'unpaid' | 'out' | 'details' | 'move';
 
-const name = (p: IPayment) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
+const fullName = (p: IPayment) => (p.player ? `${p.player.firstName} ${p.player.lastName}` : 'Player');
+/** What they go by: their nickname, else their full name. */
+const name = (p: IPayment) => p.player?.nickname || fullName(p);
 const tone: Record<PlayerStateKey, string> = {
   to_pay: 'text-amber-700 font-semibold',
   paid: 'text-pitch-600 font-semibold',
@@ -224,7 +226,6 @@ export function PlayerList({
       ) : (
         <ul className="mt-3 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
           {visible.map(({ p, s }, i) => {
-            const kit = kitFor(name(p));
             const busy = busyId === p.id;
             const canPick = selecting && s.key === 'to_pay';
             return (
@@ -250,14 +251,15 @@ export function PlayerList({
                       )}
                     </span>
                   )}
-                  <span
-                    className={`relative pointer-events-none w-10 h-10 shrink-0 rounded-full ${kit.bg} ${kit.fg} flex items-center justify-center text-sm font-extrabold font-display ${s.key === 'no_show' ? 'grayscale opacity-50' : ''}`}
-                    aria-hidden
-                  >
-                    {name(p).charAt(0)}
+                  <span className={`relative pointer-events-none shrink-0 ${s.key === 'no_show' ? 'grayscale opacity-50' : ''}`} aria-hidden>
+                    <Avatar name={fullName(p)} photoKey={p.player?.photoKey} className="w-10 h-10 text-sm" />
                   </span>
                   <span className="relative pointer-events-none flex-1 min-w-0">
-                    <span className={`block text-[15px] font-bold leading-snug truncate ${s.key === 'no_show' ? 'text-gray-500' : 'text-ink'}`}>{name(p)}</span>
+                    <span className={`block text-[15px] font-bold leading-snug truncate ${s.key === 'no_show' ? 'text-gray-500' : 'text-ink'}`}>
+                      {name(p)}
+                      {/* Money goes by real names: keep it next to the nickname. */}
+                      {p.player?.nickname && <span className="font-semibold text-gray-500"> · {fullName(p)}</span>}
+                    </span>
                     <span className={`block text-[13px] truncate ${tone[s.key]}`}>{s.label}</span>
                   </span>
                   {s.key === 'to_pay' && !selecting && (

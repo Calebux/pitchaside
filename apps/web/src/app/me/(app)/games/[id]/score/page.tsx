@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ScoresStep, type ScoresApi } from '@/components/game/scores-step';
 import { useToast } from '@/components/toast';
-import { addCaptainEvent, addCaptainGame, addCaptainGoal, deleteCaptainEvent, deleteCaptainGame, deleteCaptainGoal, getGameTimer, getMatchDay, setGameTimer } from '@/lib/player';
+import { addCaptainEvent, addCaptainGame, addCaptainGoal, deleteCaptainEvent, deleteCaptainGame, deleteCaptainGoal, getGameTimer, getMatchDay } from '@/lib/player';
 import type { TimerApi } from '@/components/game-timer';
 import type { Lineup } from '@/lib/api';
 import { retryKeys } from '@/lib/retry-keys';
@@ -22,7 +22,8 @@ const CAPTAIN: ScoresApi = retryKeys(
   ['addGame', 'addGoal', 'addEvent'],
 );
 
-const CAPTAIN_TIMER: TimerApi = { load: getGameTimer, save: setGameTimer };
+// Captains see the clock once the organiser starts it; only the organiser runs it.
+const CAPTAIN_TIMER: TimerApi = { load: getGameTimer };
 
 /**
  * Keeping the score from a captain's phone, on match day: the organiser's scoreboard, games and
@@ -53,7 +54,7 @@ export default function CaptainScorePage() {
         Game
       </Link>
       <h1 className="font-display text-2xl font-extrabold text-ink">Keep the score</h1>
-      <p className="mt-1 mb-4 text-[14px] text-gray-600">You’re a captain today. The organiser sees every score and can change it.</p>
+      <p className="mt-1 mb-4 text-[14px] text-gray-600">Captains and vice-captains keep the score today. The organiser sees every score and can change it.</p>
 
       {error ? (
         <div className="py-10 text-center" role="alert">
@@ -74,7 +75,8 @@ export default function CaptainScorePage() {
           onPickTeams={() => router.push(`/me/games/${id}`)}
           api={CAPTAIN}
           timer={CAPTAIN_TIMER}
-          canRemove={(by) => !!by?.endsWith('(captain)')}
+          timerWatch
+          canRemove={(by) => !!by && /\((vice-)?captain\)$/.test(by)}
         />
       )}
     </>

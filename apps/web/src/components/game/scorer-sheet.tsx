@@ -108,10 +108,11 @@ export function ScorerSheet({
                   role="radio"
                   aria-checked={on}
                   onClick={() => setAssist(m)}
-                  className={`press min-h-11 px-3.5 rounded-full border text-[13px] font-bold transition-colors ${
+                  className={`press inline-flex items-center gap-2 min-h-11 ${m ? 'pl-1' : 'pl-3.5'} pr-3.5 rounded-full border text-[13px] font-bold transition-colors ${
                     on ? 'border-ink bg-ink text-volt-300' : 'border-gray-200 bg-white text-ink hover:border-ink'
                   }`}
                 >
+                  {m && <Avatar name={`${m.firstName} ${m.lastName}`} photoKey={m.photoKey} className="w-8 h-8 text-[10px]" />}
                   {m ? shortName(m) : 'No assist'}
                 </button>
               );

@@ -117,7 +117,8 @@ describe('GroupsService money guards', () => {
       leavingPreview: async () => ({ games: 2, byTransfer, cash: [] }),
       takeOffGamesAhead: jest.fn(async () => order.push('off games')),
     };
-    const service = new GroupsService(groupsRepo as any, membershipsRepo as any, billing as any, rsvp as any);
+    const crypto = {};
+    const service = new GroupsService(groupsRepo as any, membershipsRepo as any, billing as any, crypto as any, rsvp as any);
     return { service, groupsRepo, membershipsRepo, rsvp, order };
   }
 

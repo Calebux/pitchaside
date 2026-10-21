@@ -1,4 +1,5 @@
 import { BallIcon } from '@/components/illustrations';
+import { LoadingTip } from '@/components/onboarding/loading-tip';
 
 export function TableSkeleton({ rows = 5 }: { rows?: number }) {
   return (
@@ -37,6 +38,8 @@ export function BallLoader({ label = 'Warming up…' }: { label?: string }) {
       <BallSpinner className="w-12 h-12" />
       <div className="w-9 h-1.5 rounded-full bg-ink/15" />
       <p className="text-xs font-semibold text-gray-500 mt-2">{label}</p>
+      {/* A longer wait: "Did you know…" tips, one after another */}
+      <LoadingTip />
     </div>
   );
 }

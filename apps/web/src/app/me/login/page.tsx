@@ -1,27 +1,46 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Logo } from '@/components/brand';
 import { NightStadium } from '@/components/illustrations';
 import { PasswordSignIn } from '@/components/password-sign-in';
+import { SignInSwitch } from '@/components/signin-switch';
+import { http, storeRefreshToken } from '@/lib/http';
+import { btnSecondary } from '@/components/buttons';
 
 export default function PlayerLoginPage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  // Sent from the organiser sign-in when the email is a player's: keep what they typed.
+  const [email, setEmail] = useState<string | null>(null);
+  useEffect(() => setEmail(new URLSearchParams(window.location.search).get('email') ?? ''), []);
 
   function onSignedIn() {
     router.replace('/me');
   }
 
+  /** The same details as an organiser's: open the organiser side instead of failing. */
+  async function asOrganiser(email: string, password: string) {
+    try {
+      const res = await http.post<{ requires2FA?: boolean; refreshToken?: string }>('/auth/login', { email, password });
+      if (res.requires2FA) {
+        // Their code goes on the organiser sign-in.
+        router.replace(`/signin?email=${encodeURIComponent(email)}`);
+        return true;
+      }
+      storeRefreshToken(res.refreshToken);
+      window.location.assign('/dashboard');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <div className="min-h-screen px-4 py-10">
       <div className="w-full max-w-sm mx-auto">
-        <div className="text-center mb-6">
-          <Logo />
-        </div>
-        <div className="relative h-36 rounded-3xl overflow-hidden bg-pitch-950 border-2 border-ink shadow-sticker mb-6">
+        <div className="relative h-36 rounded-3xl overflow-hidden bg-pitch-950 border-2 border-ink shadow-sticker">
           <NightStadium className="absolute inset-0 w-full h-full" />
           <div className="absolute inset-0 bg-gradient-to-t from-pitch-950 via-pitch-950/40 to-transparent" />
           <p className="absolute left-4 bottom-3 font-display text-2xl font-extrabold text-white leading-tight">
@@ -29,23 +48,77 @@ export default function PlayerLoginPage() {
             <br />& player card
           </p>
         </div>
+        <div className="text-center mt-6 mb-6">
+          <Logo />
+        </div>
+        <div className="mb-6">
+          <SignInSwitch current="player" />
+        </div>
         {error && <div className="mb-3 bg-kit-400/10 border border-kit-400/40 text-kit-600 text-sm rounded-xl px-4 py-3">{error}</div>}
-        <PasswordSignIn
+        {email !== null && <PasswordSignIn
+          key={email}
+          initialEmail={email}
+          otherAccount={asOrganiser}
           title="Player sign in"
           onSignedIn={onSignedIn}
-          footer={
-            <p className="text-center text-xs text-gray-500">
-              New here? Open the group link your organiser shared to create your account.
-            </p>
-          }
-        />
-        <p className="mt-6 text-center text-xs text-gray-500">
-          Running the group?{' '}
-          <Link href="/signin" className="font-bold text-pitch-600">
-            Organiser sign in
-          </Link>
-        </p>
+        />}
+        <JoinWithLink />
       </div>
     </div>
+  );
+}
+
+/**
+ * A player's account is made inside their group, from the group's link (so it lands in the right
+ * club). New players without the link to hand can paste it here instead of hunting for it.
+ */
+function JoinWithLink() {
+  const router = useRouter();
+  const [link, setLink] = useState('');
+  const [problem, setProblem] = useState<string | null>(null);
+
+  function join(e: React.FormEvent) {
+    e.preventDefault();
+    const text = link.trim();
+    // A full link (pitchaside.com/g/AbC12 or /join/AbC12), or just the code at the end of it.
+    const path = text.match(/\/(g|join)\/([A-Za-z0-9_-]{4,})/);
+    const code = path ? null : text.match(/^[A-Za-z0-9_-]{4,}$/)?.[0];
+    if (path) router.push(`/${path[1]}/${path[2]}`);
+    else if (code) router.push(`/g/${code}`);
+    else setProblem('That doesn’t look like a group link. It looks like pitchaside.com/g/… — ask your organiser to send it again.');
+  }
+
+  return (
+    <section aria-labelledby="new-here" className="mt-4 rounded-3xl bg-chalk p-4">
+      <h2 id="new-here" className="text-sm font-extrabold text-ink">
+        New here?
+      </h2>
+      <p className="mt-0.5 text-[13px] leading-snug text-gray-600">Players join through their group’s link. Paste the one your organiser sent.</p>
+      <form onSubmit={join} className="mt-3 flex gap-2">
+        <label htmlFor="group-link" className="sr-only">
+          Group link
+        </label>
+        <input
+          id="group-link"
+          value={link}
+          onChange={(e) => {
+            setLink(e.target.value);
+            setProblem(null);
+          }}
+          placeholder="pitchaside.com/g/…"
+          autoComplete="off"
+          autoCapitalize="none"
+          className="min-w-0 flex-1 min-h-12 px-3.5 rounded-2xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+        />
+        <button type="submit" disabled={!link.trim()} className={`${btnSecondary} shrink-0 px-5 disabled:opacity-50`}>
+          Join
+        </button>
+      </form>
+      {problem && (
+        <p role="alert" className="mt-2 text-xs text-kit-600">
+          {problem}
+        </p>
+      )}
+    </section>
   );
 }

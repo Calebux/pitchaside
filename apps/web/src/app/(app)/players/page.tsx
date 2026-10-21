@@ -7,8 +7,7 @@ import { ConfirmDialog } from '@/components/confirm-dialog';
 import { Pagination } from '@/components/pagination';
 import { useToast } from '@/components/toast';
 import { PageHeader } from '@/components/brand';
-import { kitFor } from '@/components/illustrations';
-import { VotePrompt } from '@/components/ratings';
+import { Avatar, VotePrompt } from '@/components/ratings';
 import { getPlayersPaginated, deletePlayer, exportPlayersCsv, getInviteCode, regenerateInviteCode, type PaginatedResponse } from '@/lib/api';
 import type { IPlayer } from '@pitchaside/shared';
 
@@ -288,13 +287,16 @@ export default function PlayersPage() {
                   href={`/players/${player.id}`}
                   className="flex items-center gap-3 flex-1 min-w-0"
                 >
-                  <div className={`w-11 h-11 rounded-full ${kitFor(`${player.firstName} ${player.lastName}`).bg} ${kitFor(`${player.firstName} ${player.lastName}`).fg} flex items-center justify-center text-sm font-extrabold font-display shrink-0`}>
-                    {player.firstName.charAt(0)}{player.lastName.charAt(0)}
-                  </div>
+                  <Avatar name={`${player.firstName} ${player.lastName}`} photoKey={player.photoKey} className="w-11 h-11 text-sm" />
                   <div className="min-w-0">
                     <p className="text-sm font-bold text-ink truncate">
-                      {player.firstName} {player.lastName}
-                      {player.nickname && <span className="font-semibold text-gray-500"> · “{player.nickname}”</span>}
+                      {player.nickname || `${player.firstName} ${player.lastName}`}
+                      {player.nickname && (
+                        <span className="font-semibold text-gray-500">
+                          {' '}
+                          · {player.firstName} {player.lastName}
+                        </span>
+                      )}
                     </p>
                     <p className="text-xs text-gray-500 truncate">
                       {player.email || player.phone || 'No contact details'}

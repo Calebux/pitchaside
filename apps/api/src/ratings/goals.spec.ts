@@ -101,7 +101,7 @@ describe('goals and assists', () => {
 
 describe("captains keeping the score", () => {
   function captainSetup(
-    over: { date?: string; captain?: boolean; recordedBy?: string; status?: SessionStatus; attendance?: string | null; teamCount?: number; gameTeams?: [string, string]; goalsBy?: string[] } = {},
+    over: { date?: string; captain?: boolean; vice?: boolean; recordedBy?: string; status?: SessionStatus; attendance?: string | null; teamCount?: number; gameTeams?: [string, string]; goalsBy?: string[] } = {},
   ) {
     const session: any = {
       id: 's1',
@@ -111,7 +111,7 @@ describe("captains keeping the score", () => {
       teamCount: over.teamCount ?? 2,
       group: { organizationId: 'org' },
       payments: [
-        { playerId: 'ada', team: 'A', captain: over.captain ?? true, attendance: over.attendance ?? null, player: { firstName: 'Ada', lastName: 'Obi', nickname: null } },
+        { playerId: 'ada', team: 'A', captain: over.captain ?? true, viceCaptain: over.vice ?? false, attendance: over.attendance ?? null, player: { firstName: 'Ada', lastName: 'Obi', nickname: null } },
         { playerId: 'chidi', team: 'A', captain: false, attendance: null, player: { firstName: 'Chidi', lastName: 'Nwosu', nickname: null } },
         { playerId: 'bisi', team: 'B', captain: false, attendance: null, player: { firstName: 'Bisi', lastName: 'Lawal', nickname: null } },
       ],
@@ -193,8 +193,79 @@ describe("captains keeping the score", () => {
     await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('Full time');
   });
 
+  it('lets a vice-captain keep the score too, signed as vice-captain', async () => {
+    const { service, addGame } = captainSetup({ captain: false, vice: true });
+    await service.captainAddGame('s1', ['ada'], input);
+    expect(addGame).toHaveBeenCalledWith('s1', 'org', input, 'Ada (vice-captain)');
+  });
+
+  it("a vice-captain's own score is theirs to delete; the captain's isn't", async () => {
+    const own = captainSetup({ captain: false, vice: true, recordedBy: 'Ada (vice-captain)' });
+    await own.service.captainDeleteGame('s1', 'g1', ['ada']);
+    expect(own.deleteGame).toHaveBeenCalledWith('s1', 'g1', 'org');
+    const captains = captainSetup({ captain: false, vice: true, recordedBy: 'Chidi (captain)' });
+    await expect(captains.service.captainDeleteGame('s1', 'g1', ['ada'])).rejects.toThrow('Chidi (captain) saved this score: ask them or the organiser');
+  });
+
   it("can't keep the score when marked as not here", async () => {
     const { service } = captainSetup({ attendance: 'no_show' });
     await expect(service.captainAddGame('s1', ['ada'], input)).rejects.toThrow('not here today');
+  });
+});
+
+describe('naming captains and vice-captains', () => {
+  function lineupSetup(status = SessionStatus.UPCOMING) {
+    const payments: any[] = [
+      { playerId: 'ada', team: 'A', captain: true, viceCaptain: false, player: { firstName: 'Ada', lastName: 'Obi' } },
+      { playerId: 'chidi', team: 'A', captain: false, viceCaptain: false, player: { firstName: 'Chidi', lastName: 'Nwosu' } },
+      { playerId: 'bisi', team: null, captain: false, viceCaptain: false, player: { firstName: 'Bisi', lastName: 'Lawal' } },
+    ];
+    const session: any = { id: 's1', kind: 'game', date: today, status, teamCount: 2, group: { name: 'Saturday Ballers', bibs: null }, payments };
+    const save = jest.fn(async (x: unknown) => x);
+    const sessionsRepo = { manager: { save }, update: jest.fn() };
+    const gamesRepo = { count: async () => 0 };
+    const notifyPlayers = jest.fn(async () => ({ delivered: 1, missed: 0 }));
+    const notifications = { later: (fn: () => Promise<unknown>) => void fn(), notifyPlayers };
+    const service = new RatingsService({} as never, gamesRepo as never, {} as never, sessionsRepo as never, {} as never, {} as never, notifications as never);
+    jest.spyOn(service as any, 'loadSession').mockResolvedValue(session);
+    jest.spyOn(service as any, 'scoresIn').mockResolvedValue(false);
+    jest.spyOn(service, 'getLineup').mockResolvedValue({} as never);
+    return { service, payments, notifyPlayers };
+  }
+
+  it('names a vice-captain, puts them on the side and tells them', async () => {
+    const { service, payments, notifyPlayers } = lineupSetup();
+    await service.setLineup('s1', 'org', { vices: { B: 'bisi' } });
+    expect(payments[2]).toMatchObject({ team: 'B', viceCaptain: true, captain: false });
+    expect(notifyPlayers).toHaveBeenCalledWith(['bisi'], expect.objectContaining({ title: "You're vice-captain of Yellow ⚽", url: '/me/games/s1' }));
+  });
+
+  it('one vice per side, and nobody is both captain and vice', async () => {
+    const { service, payments } = lineupSetup();
+    await service.setLineup('s1', 'org', { vices: { A: 'chidi' } });
+    await service.setLineup('s1', 'org', { vices: { A: 'ada' } });
+    expect(payments[1].viceCaptain).toBe(false);
+    expect(payments[0]).toMatchObject({ viceCaptain: true, captain: false });
+  });
+
+  it('tells a new captain, not one who already had the armband', async () => {
+    const { service, notifyPlayers } = lineupSetup();
+    await service.setLineup('s1', 'org', { captains: { A: 'ada' } });
+    expect(notifyPlayers).not.toHaveBeenCalled();
+    await service.setLineup('s1', 'org', { captains: { A: 'chidi' } });
+    expect(notifyPlayers).toHaveBeenCalledWith(['chidi'], expect.objectContaining({ title: "You're captain of Orange ⚽" }));
+  });
+
+  it('no message for a game that has already ended', async () => {
+    const { service, notifyPlayers } = lineupSetup(SessionStatus.COMPLETED);
+    await service.setLineup('s1', 'org', { captains: { B: 'bisi' } });
+    expect(notifyPlayers).not.toHaveBeenCalled();
+  });
+
+  it('moving a vice-captain to another side takes the armband off', async () => {
+    const { service, payments } = lineupSetup();
+    await service.setLineup('s1', 'org', { vices: { A: 'chidi' } });
+    await service.setLineup('s1', 'org', { teams: { chidi: 'B' } });
+    expect(payments[1]).toMatchObject({ team: 'B', viceCaptain: false });
   });
 });
