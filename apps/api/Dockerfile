@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 COPY apps/api/package.json apps/api/
@@ -8,7 +8,7 @@ COPY packages/shared packages/shared
 COPY apps/api apps/api
 RUN cd apps/api && npx nest build
 
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /app
 # Production mode: no schema synchronize (migrations run at start-up instead), no stack traces
 # in error responses, Secure cookies. See src/main.ts.
