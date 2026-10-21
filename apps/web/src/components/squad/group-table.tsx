@@ -6,7 +6,7 @@ import type { LeagueTable } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
 import { ORGANISER_CLUB, type ClubApi, type StatSort } from './group-stats';
-import { ShareCardButton } from '@/components/share-card';
+import { ShareCardButton, ShareIcon, shareIconLight } from '@/components/share-card';
 
 const RECENT_DAYS = 5;
 
@@ -48,8 +48,8 @@ export function GroupTable({
 
   return (
     <section aria-labelledby="table-title">
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      <div className="mb-2">
+        <div className="flex items-center justify-between gap-3 min-h-11">
         <h2 id="table-title" className="flex items-center gap-2 text-base font-bold text-ink">
           Table
           {table && (
@@ -64,20 +64,21 @@ export function GroupTable({
             </InfoTip>
           )}
         </h2>
-        <p className="text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
-        </div>
-        {/* The table as an image for WhatsApp: the season, or the last few match days, as shown */}
         {table?.shareCode && table.rows.length > 0 && (
           <ShareCardButton
             page={`/g/${table.shareCode}/table${recent ? `?last=${RECENT_DAYS}` : ''}`}
             heading="Share the table"
             fileName="pitchaside-table.png"
             caption={`📊 ${groupName ?? 'Our'} table${recent ? ` · last ${RECENT_DAYS} match days` : ''}. Where do you stand?`}
-            className="press shrink-0 inline-flex items-center gap-1.5 min-h-11 px-4 rounded-full border border-gray-200 bg-white text-[13px] font-bold text-ink hover:border-ink"
+            label="Share the table"
+            className={shareIconLight}
           >
-            Share ↗
+            <ShareIcon />
           </ShareCardButton>
         )}
+        </div>
+        <p className="-mt-1 text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
+        {/* The table as an image for WhatsApp: the season, or the last few match days, as shown */}
       </div>
       {seasonDays > RECENT_DAYS && (
         <div role="radiogroup" aria-label="Which match days" className="mb-3 flex gap-2">

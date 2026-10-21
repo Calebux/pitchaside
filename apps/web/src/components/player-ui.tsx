@@ -13,7 +13,7 @@ import { MatchDayBibs } from '@/components/match-day-bibs';
 import { KeepScoreLink } from '@/components/keep-score-link';
 import { useToast } from '@/components/toast';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { ShareCardButton } from '@/components/share-card';
+import { ShareCardButton, ShareIcon, shareIconLight } from '@/components/share-card';
 import { CountUp, LiveDot, stagger } from '@/components/motion';
 import { Stat } from '@/components/stat';
 import { toneCls } from '@/lib/game-status';
@@ -125,6 +125,7 @@ export function PlayerCardHero({
   photoKey,
   photoButton,
   onRatingTap,
+  action,
 }: {
   firstName: string;
   lastName: string;
@@ -136,6 +137,8 @@ export function PlayerCardHero({
   photoButton?: React.ReactNode;
   /** Tapping the big number explains how it's made. */
   onRatingTap?: () => void;
+  /** A round button beside the name, e.g. share the card. */
+  action?: React.ReactNode;
 }) {
   const fullName = `${firstName} ${lastName}`;
   const photo = photoUrl(photoKey);
@@ -197,7 +200,10 @@ export function PlayerCardHero({
         {photoButton && <span className="absolute z-10 -bottom-2 -right-2">{photoButton}</span>}
         </div>
         <div className="min-w-0">
-          <h2 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h2>
+          <div className="flex items-start gap-2">
+            <h2 className="flex-1 min-w-0 font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h2>
+            {action && <div className="-mt-1 -mr-1">{action}</div>}
+          </div>
           <div className="mt-3">
             <AttributeRow ratings={ratings} dark />
           </div>
@@ -566,9 +572,10 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
             <ShareCardButton
               token={day.shareToken}
               caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}
-              className="press ml-auto inline-flex items-center min-h-11 px-4 rounded-full border border-gray-200 bg-white text-[13px] font-bold text-ink hover:border-ink"
+              label="Share the match card"
+              className={`${shareIconLight} ml-auto`}
             >
-              Share ↗
+              <ShareIcon />
             </ShareCardButton>
           )}
         </div>
