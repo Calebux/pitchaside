@@ -113,8 +113,8 @@ function leader(players: CardPlayer[], key: 'goals' | 'assists' | 'saves') {
 function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
   const potm = card.awards.find((a) => a.key === 'potm');
   const winners = (potm?.ids ?? []).map((id) => players.find((p) => p.id === id)).filter((p): p is CardPlayer => !!p);
-  const W = 380;
-  const H = 500;
+  const W = 340;
+  const H = 420;
 
   if (!potm || card.open) {
     return (
@@ -132,7 +132,7 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
         }}
       >
         <Label>PLAYER OF THE MATCH</Label>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 200, color: C.volt300, lineHeight: 1, marginTop: 18 }}>?</div>
+        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 160, color: C.volt300, lineHeight: 1, marginTop: 10 }}>?</div>
         <div style={{ display: 'flex', fontSize: 26, fontWeight: 700, marginTop: 18, textAlign: 'center', padding: '0 24px' }}>
           {card.open ? 'Revealed when the vote closes' : card.notYet ? 'The vote opens at full time' : 'No vote this time'}
         </div>
@@ -169,7 +169,7 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
     >
       {/* Rating and label, top left, as on a FIFA card */}
       <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', top: 26, left: 30 }}>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 92, lineHeight: 1 }}>{star?.ovr ?? '★'}</div>
+        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 80, lineHeight: 1 }}>{star?.ovr ?? '★'}</div>
         <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 3, marginTop: 2 }}>{star?.ovr ? 'OVR' : ''}</div>
         <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 3, marginTop: 10 }}>POTM</div>
       </div>
@@ -178,19 +178,19 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
           <div style={{ display: 'flex' }}>
             {winners.slice(0, 2).map((w, i) => (
               <div key={w.id} style={{ display: 'flex', marginLeft: i ? -60 : 0 }}>
-                <Face p={w} size={170} ring={C.ink} />
+                <Face p={w} size={140} ring={C.ink} />
               </div>
             ))}
           </div>
         ) : (
-          <Face p={star ?? { name: potm.name, photoKey: null }} size={200} ring={C.ink} />
+          <Face p={star ?? { name: potm.name, photoKey: null }} size={170} ring={C.ink} />
         )}
       </div>
 
       {/* Name bar */}
-      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 0, right: 0, top: 286, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 0, right: 0, top: 216, alignItems: 'center' }}>
         <div style={{ display: 'flex', fontSize: 20, fontWeight: 700, letterSpacing: 4 }}>PLAYER OF THE MATCH</div>
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(potm.name, 50, 13), marginTop: 4, textAlign: 'center' }}>{potm.name}</div>
+        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(potm.name, 44, 13), marginTop: 2, textAlign: 'center' }}>{potm.name}</div>
       </div>
 
       {/* The day in numbers */}
@@ -240,7 +240,7 @@ function DayTable({ card }: { card: MatchCard }) {
             style={{
               display: 'flex',
               alignItems: 'center',
-              height: 58,
+              height: 52,
               borderTop: `2px solid ${C.line}`,
               fontSize: 28,
               fontWeight: 700,
@@ -263,18 +263,20 @@ function DayTable({ card }: { card: MatchCard }) {
 }
 
 /** FPL-style top performers: goals, assists, saves, each with the leader's face. */
-function Performers({ players }: { players: CardPlayer[] }) {
+function Performers({ players, max = 3 }: { players: CardPlayer[]; max?: number }) {
   const rows = (
     [
       ['GOALS', leader(players, 'goals')],
       ['ASSISTS', leader(players, 'assists')],
       ['SAVES', leader(players, 'saves')],
     ] as const
-  ).filter(([, l]) => !!l) as unknown as [string, { who: CardPlayer[]; value: number }][];
+  )
+    // Two rows (beside the table): saves go with the awards instead.
+    .filter(([label, l]) => !!l && (max > 2 || label !== 'SAVES')) as unknown as [string, { who: CardPlayer[]; value: number }][];
   if (!rows.length) return null;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, gap: 10 }}>
-      {rows.slice(0, 3).map(([label, l]) => {
+      {rows.slice(0, max).map(([label, l]) => {
         const who = l.who.length > 1 ? `${l.who[0].short} & ${l.who.length - 1} more` : l.who[0].name;
         return (
           <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 16, height: 62, padding: '0 18px 0 8px', borderRadius: 999, background: 'rgba(255,255,255,0.07)' }}>
@@ -291,14 +293,67 @@ function Performers({ players }: { players: CardPlayer[] }) {
   );
 }
 
+/** What each voted award is called on the card; Best on your team is per side. */
+const AWARD_ORDER = ['engine', 'passing', 'shooting', 'playmaker', 'dribbling', 'defending', 'smartest', 'movement', 'keeper', 'teammate', 'pace'];
+
+/**
+ * The day's voted awards beyond Player of the Match, FIFA "team of the week" style: each winner's
+ * face, the award, their name and votes. Only awards with enough voters have a winner; at most
+ * six fit, the rest are counted.
+ */
+function Awards({ card, players, saves }: { card: MatchCard; players: CardPlayer[]; saves?: ReturnType<typeof leader> }) {
+  const voted = card.awards
+    .filter((a) => a.key !== 'potm')
+    .sort((a, b) => AWARD_ORDER.indexOf(a.key) - AWARD_ORDER.indexOf(b.key));
+  // Saves are counted, not voted: the keeper's tile comes after the three headline awards.
+  const savesTile = saves
+    ? [{ key: 'saves', title: 'Most Saves', team: null, name: saves.who.map((p) => p.name).join(' & '), votes: saves.value, shared: saves.who.length > 1, ids: saves.who.map((p) => p.id), counted: true }]
+    : [];
+  const awards = [...voted.slice(0, 3), ...savesTile, ...voted.slice(3)];
+  if (!awards.length) return null;
+  const shown = awards.slice(0, 6);
+  const more = awards.length - shown.length;
+  const byId = new Map(players.map((p) => [p.id, p]));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <Label size={18}>{saves ? 'AWARDS · VOTED BY THE PLAYERS, AND SAVES' : 'AWARDS · VOTED BY THE PLAYERS'}</Label>
+        {more > 0 && <Label size={18} color={C.muted}>{`+${more} MORE`}</Label>}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
+        {shown.map((a) => {
+          const who = (a.ids ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
+          const title = a.key === 'teammate' && a.team ? `Best on ${side(a.team, card).name}` : a.title;
+          return (
+            <div
+              key={`${a.key}-${a.team ?? ''}`}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, width: 314, height: 86, padding: '0 14px 0 10px', borderRadius: 22, background: 'rgba(255,255,255,0.07)', border: `2px solid ${C.line}` }}
+            >
+              <Face p={who[0] ?? { name: a.name, photoKey: null }} size={60} ring={C.pitch900} />
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <Label size={15}>{title.toUpperCase()}</Label>
+                <div style={{ display: 'flex', fontSize: fit(a.name, 24, 14), fontWeight: 700, marginTop: 2 }}>{a.name}</div>
+                <div style={{ display: 'flex', fontSize: 16, color: C.muted }}>
+                  {'counted' in a ? `${a.votes} save${a.votes === 1 ? '' : 's'}` : `${a.votes} vote${a.votes === 1 ? '' : 's'}`}
+                  {a.shared ? ' each' : ''}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** A player on the pitch, FPL style: face, name tag, and a goal/assist badge when they had one. */
-function PitchPlayer({ p, card, sub = false }: { p: CardPlayer; card: MatchCard; sub?: boolean }) {
+function PitchPlayer({ p, card, sub = false, size = 92 }: { p: CardPlayer; card: MatchCard; sub?: boolean; size?: number }) {
   const bib = p.team ? side(p.team, card) : null;
   const tally = [p.goals ? `${p.goals}G` : null, p.assists ? `${p.assists}A` : null, p.saves ? `${p.saves}S` : null].filter(Boolean).join(' ');
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 140, opacity: sub ? 0.92 : 1 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: size + 40, opacity: sub ? 0.92 : 1 }}>
       <div style={{ display: 'flex', position: 'relative' }}>
-        <Face p={p} size={92} ring={bib?.bg ?? '#ffffff'} />
+        <Face p={p} size={size} ring={bib?.bg ?? '#ffffff'} />
         {tally && (
           <div
             style={{
@@ -342,7 +397,7 @@ function PitchPlayer({ p, card, sub = false }: { p: CardPlayer; card: MatchCard;
  * The pitch, FPL style: the Best VII of the Day once the vote has closed (six on the pitch, the
  * sub on the bench); before that, the Team of the Day's side; with no results, who played.
  */
-function Pitch({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
+function Pitch({ card, players, compact = false }: { card: MatchCard; players: CardPlayer[]; compact?: boolean }) {
   const byId = new Map(players.map((p) => [p.id, p]));
   const vii = (card.vii ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
   const tod = card.teamOfTheDay;
@@ -362,21 +417,28 @@ function Pitch({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
     onPitch = players.slice(0, 7);
   }
   if (!onPitch.length) return null;
-  const front = onPitch.slice(0, Math.ceil(onPitch.length / 2));
+  // Short on room (the awards are showing): everyone in one line across the pitch.
+  const front = compact ? onPitch : onPitch.slice(0, Math.ceil(onPitch.length / 2));
   const back = onPitch.slice(front.length);
+  const size = compact ? 70 : 92;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', height: 400, borderRadius: 36, overflow: 'hidden', border: `3px solid ${C.line}` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', height: compact ? 270 : 400, borderRadius: 36, overflow: 'hidden', border: `3px solid ${C.line}` }}>
       {/* Mowed stripes and the lines of a 5-a-side pitch */}
       <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
         {Array.from({ length: 10 }).map((_, i) => (
           <div key={i} style={{ flex: 1, background: i % 2 ? '#14532d' : '#166534' }} />
         ))}
       </div>
-      <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 3, background: 'rgba(255,255,255,0.35)', display: 'flex' }} />
-      <div style={{ position: 'absolute', top: 140, left: 424, width: 120, height: 120, borderRadius: 120, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-      <div style={{ position: 'absolute', top: 110, left: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-      <div style={{ position: 'absolute', top: 110, right: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+      {/* The lines, when there's room: one row of players across would sit on top of them */}
+      {!compact && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 3, background: 'rgba(255,255,255,0.35)', display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 140, left: 424, width: 120, height: 120, borderRadius: 120, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 110, left: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+          <div style={{ position: 'absolute', top: 110, right: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+        </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
         <div style={{ display: 'flex', padding: '6px 18px', borderRadius: 999, background: 'rgba(7,31,16,0.85)' }}>
@@ -387,22 +449,22 @@ function Pitch({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-around' }}>
             {front.map((p) => (
-              <PitchPlayer key={p.id} p={p} card={card} />
+              <PitchPlayer key={p.id} p={p} card={card} size={size} />
             ))}
           </div>
           {back.length > 0 && (
             <div style={{ display: 'flex', justifyContent: 'space-around' }}>
               {back.map((p) => (
-                <PitchPlayer key={p.id} p={p} card={card} />
+                <PitchPlayer key={p.id} p={p} card={card} size={size} />
               ))}
             </div>
           )}
         </div>
         {bench && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 170, height: '100%', justifyContent: 'center', background: 'rgba(7,31,16,0.55)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: compact ? 130 : 170, height: '100%', justifyContent: 'center', background: 'rgba(7,31,16,0.55)' }}>
             <Label size={16} color={C.muted}>SUB</Label>
             <div style={{ display: 'flex', marginTop: 8 }}>
-              <PitchPlayer p={bench} card={card} sub />
+              <PitchPlayer p={bench} card={card} sub size={size} />
             </div>
           </div>
         )}
@@ -423,7 +485,7 @@ function Results({ card }: { card: MatchCard }) {
         const a = side(g.teamA, card);
         const b = side(g.teamB, card);
         return (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', height: 54, borderRadius: 14, overflow: 'hidden', border: `2px solid ${C.line}`, fontWeight: 700 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', height: 48, borderRadius: 14, overflow: 'hidden', border: `2px solid ${C.line}`, fontWeight: 700 }}>
             <div style={{ display: 'flex', alignItems: 'center', height: '100%', padding: '0 12px', background: a.bg, color: a.fg, fontSize: 20 }}>{initials(a.name)}</div>
             <div style={{ display: 'flex', padding: '0 12px', fontFamily: DISPLAY, fontWeight: 800, fontSize: 28, background: C.ink, height: '100%', alignItems: 'center' }}>
               {g.scoreA}–{g.scoreB}
@@ -445,7 +507,7 @@ function NoScores() {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        height: 500,
+        height: 420,
         borderRadius: 28,
         border: '3px dashed rgba(255,255,255,0.18)',
         padding: '0 40px',
@@ -463,6 +525,9 @@ function Card({ card }: { card: MatchCard }) {
   const hasTable = card.standings.some((r) => r.p > 0);
   const hasStats = players.some((p) => p.goals || p.assists || p.saves);
   // Nothing recorded yet: say so beside the Player of the Match; the pitch shows who played.
+  // With the table showing there's room for two stat rows; saves then get a tile with the awards.
+  const savesTile = hasTable ? leader(players, 'saves') : null;
+  const hasAwards = (!card.open && card.awards.some((a) => a.key !== 'potm')) || !!savesTile;
   const squadOnly = !hasTable && !hasStats;
 
   return (
@@ -512,22 +577,28 @@ function Card({ card }: { card: MatchCard }) {
       <div style={{ display: 'flex', marginTop: 26 }}>
         <Label size={22}>{[card.clubName, prettyDate(card.date)].filter(Boolean).join(' · ').toUpperCase()}</Label>
       </div>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 70, 22), lineHeight: 1.05, marginTop: 4 }}>
+      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 62, 24), lineHeight: 1.05, marginTop: 4 }}>
         {card.groupName}
       </div>
       <Results card={card} />
 
       {/* The hero: Player of the Match card, and the day's table with who stood out */}
-      <div style={{ display: 'flex', gap: 28, marginTop: 26 }}>
+      <div style={{ display: 'flex', gap: 24, marginTop: 22 }}>
         <PotmCard card={card} players={players} />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           {hasTable && <DayTable card={card} />}
-          {squadOnly ? <NoScores /> : <Performers players={players} />}
+          {squadOnly ? <NoScores /> : <Performers players={players} max={hasTable ? 2 : 3} />}
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 26 }}>
-        <Pitch card={card} players={players} />
+      {hasAwards && (
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
+          <Awards card={card} players={players} saves={savesTile} />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
+        <Pitch card={card} players={players} compact={hasAwards} />
       </div>
 
       {/* Footer */}
