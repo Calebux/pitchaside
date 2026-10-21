@@ -19,3 +19,19 @@ export class HealthController {
     return { ok, ...drift };
   }
 }
+
+/** When this server started, so "which version is live?" has an answer. */
+const STARTED_AT = new Date().toISOString();
+
+/**
+ * Which version of the API is live: the commit it was built from (Railway sets
+ * RAILWAY_GIT_COMMIT_SHA on GitHub deploys) and when it started. Public, nothing private.
+ */
+@Controller('version')
+export class VersionController {
+  @Get()
+  version() {
+    const commit = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.GIT_COMMIT || null;
+    return { commit: commit ? commit.slice(0, 7) : null, branch: process.env.RAILWAY_GIT_BRANCH || null, startedAt: STARTED_AT };
+  }
+}

@@ -1774,6 +1774,7 @@ export class RatingsService {
         d: r.record.d,
         l: r.record.l,
         potmWins: r.potmWins,
+        teamOfDay: r.teamOfDay,
         form: r.form,
         move: r.move,
         ovr: r.ovr ?? null,
