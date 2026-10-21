@@ -555,14 +555,15 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
         </Link>
       )}
 
-      {(day.teamOpen || (day.shareToken && (played > 0 || day.potm))) && (
+      {/* Any ended game can be shared, scores or not: the card shows what the day recorded */}
+      {(day.teamOpen || day.shareToken) && (
         <div className="mt-2 flex items-center gap-2">
           {day.teamOpen && (
             <Link href={`/me/games/${day.sessionId}`} className="press inline-flex items-center min-h-11 px-1 text-[13px] font-bold text-pitch-700">
               {day.myTeam ? 'Change your team ›' : 'Which team were you in? ›'}
             </Link>
           )}
-          {day.shareToken && (played > 0 || day.potm) && (
+          {day.shareToken && (
             <ShareCardButton
               token={day.shareToken}
               caption={`⚽ ${day.groupName ?? 'Match day'} — ${niceDate(day.date, { weekday: 'short', day: 'numeric', month: 'short' })}`}

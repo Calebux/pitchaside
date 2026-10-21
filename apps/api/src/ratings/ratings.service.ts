@@ -696,6 +696,8 @@ export class RatingsService {
           name: tied.join(' & '),
           votes: top.count,
           shared: tied.length > 1,
+          /** Who won it (more than one when shared), to find them in `players`. */
+          ids: c.standings.filter((s) => s.count === top.count && s.player).map((s) => s.playerId),
         };
       })
       .filter((a): a is NonNullable<typeof a> => !!a);
@@ -705,12 +707,41 @@ export class RatingsService {
     const todRow = tod ? table.rows.find((r) => r.team === tod) : null;
     const w = this.window(session);
 
+    // Everyone who played, with their day in numbers and their card rating: the card's player
+    // faces, stat leaders and Best VII all come from this one list.
+    const [goals, events, ratings] = await Promise.all([
+      this.goalsRepo.find({ where: { sessionId: session.id } }),
+      this.eventsRepo.find({ where: { sessionId: session.id } }),
+      group ? this.ovrMap(group.organizationId).catch(() => null) : Promise.resolve(null),
+    ]);
+    const count = <T>(list: T[], pick: (x: T) => string | null | undefined, id: string) => list.filter((x) => pick(x) === id).length;
+    const players = (session.payments ?? [])
+      .filter((p) => p.player && p.attendance !== 'no_show')
+      .map((p) => ({
+        id: p.player.id,
+        name: name(p.player),
+        short: pitchName(p.player),
+        photoKey: p.player.photoKey ?? null,
+        team: p.team ?? null,
+        ovr: ratings ? (ratings.ovr.get(p.player.id) ?? cardRating(ratings.skills.get(p.player.id)?.rating ?? DEFAULT_START)) : null,
+        goals: count(goals, (g) => g.scorerId, p.player.id),
+        assists: count(goals, (g) => g.assistId, p.player.id),
+        saves: count(events, (e) => (e.kind === 'save' ? e.playerId : null), p.player.id),
+        yellow: count(events, (e) => (e.kind === 'yellow' ? e.playerId : null), p.player.id),
+        red: count(events, (e) => (e.kind === 'red' ? e.playerId : null), p.player.id),
+      }));
+    // Best VII of the Day, once the vote has closed: the six most picked, then the sub.
+    const viiCat = w.open ? null : results.categories.find((c) => c.key === VoteCategory.VII);
+    const vii = viiCat && !viiCat.inconclusive && viiCat.standings.length >= VII_STARTERS ? viiCat.standings.slice(0, VII_STARTERS + 1).map((s) => s.playerId) : null;
+
     return {
       groupName: group?.name ?? '',
       clubName: group?.organization?.name ?? null,
       bibs: bibsFor(session),
       date: session.date,
       open: w.open,
+      /** Not ended yet: the vote opens at full time. */
+      notYet: w.notYet,
       ballots: results.ballots,
       squadSize: results.squadSize,
       awards,
@@ -728,6 +759,9 @@ export class RatingsService {
           : null,
       standings: games.length ? table.rows : [],
       games: games.map((g) => ({ teamA: g.teamA, teamB: g.teamB, scoreA: g.scoreA, scoreB: g.scoreB })),
+      captains: this.captainsOf(session),
+      players,
+      vii,
     };
   }
 
