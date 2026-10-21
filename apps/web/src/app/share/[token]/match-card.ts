@@ -42,7 +42,8 @@ export const API_URL = process.env.API_URL || 'http://localhost:3001';
 
 export async function getMatchCard(token: string): Promise<MatchCard | null> {
   try {
-    const res = await fetch(`${API_URL}/api/public/votes/${encodeURIComponent(token)}/card`, { cache: 'no-store' });
+    // A minute's cache: the page, its link preview and the image all ask for the same card.
+    const res = await fetch(`${API_URL}/api/public/votes/${encodeURIComponent(token)}/card`, { next: { revalidate: 60 } });
     return res.ok ? ((await res.json()) as MatchCard) : null;
   } catch {
     return null;

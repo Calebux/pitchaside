@@ -566,7 +566,7 @@ function Results({ card }: { card: MatchCard }) {
 }
 
 /** A day with no scores in yet: say where the results will be, plainly. */
-function NoScores() {
+function NoScores({ final }: { final: boolean }) {
   return (
     <div
       style={{
@@ -580,8 +580,10 @@ function NoScores() {
       }}
     >
       <Label size={18} color={C.muted}>THE DAY</Label>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, marginTop: 10 }}>No scores in yet</div>
-      <div style={{ display: 'flex', fontSize: 24, color: C.muted, marginTop: 8 }}>The table, top scorer and assists show here once the scores are in.</div>
+      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, marginTop: 10 }}>{final ? 'No scores recorded' : 'No scores in yet'}</div>
+      <div style={{ display: 'flex', fontSize: 24, color: C.muted, marginTop: 8 }}>
+        {final ? 'Nobody entered the scores for this game.' : 'The table, top scorer and assists show here once the scores are in.'}
+      </div>
     </div>
   );
 }
@@ -658,7 +660,7 @@ function Card({ card }: { card: MatchCard }) {
         <PotmCard card={card} players={players} />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           {hasTable && <DayTable card={card} />}
-          {squadOnly ? <NoScores /> : winnersBlock ? <WinningTeam card={card} players={players} /> : <Performers players={players} max={hasTable ? 2 : 3} />}
+          {squadOnly ? <NoScores final={!card.open && !card.notYet} /> : winnersBlock ? <WinningTeam card={card} players={players} /> : <Performers players={players} max={hasTable ? 2 : 3} />}
         </div>
       </div>
 
@@ -686,7 +688,7 @@ function Card({ card }: { card: MatchCard }) {
           color: C.muted,
         }}
       >
-        <div style={{ display: 'flex' }}>{card.notYet ? `${players.length} playing` : `${card.ballots} of ${card.squadSize} voted`}</div>
+        <div style={{ display: 'flex' }}>{card.notYet ? `${players.length} playing` : card.squadSize ? `${card.ballots} of ${card.squadSize} voted` : ''}</div>
         <div style={{ display: 'flex', fontWeight: 700, color: card.open ? C.volt300 : '#ffffff' }}>
           {card.open ? 'Played? Have your say on PitchAside' : card.notYet ? 'PitchAside' : 'Final result · PitchAside'}
         </div>

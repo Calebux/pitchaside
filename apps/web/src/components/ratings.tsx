@@ -384,14 +384,17 @@ export function SessionVotingCard({
         {voting.ballots > 0 && !voting.hidden && (
           <div className="mt-4">
             <VoteResultsList results={voting} compact />
-            <ShareCardButton
-              token={voting.token}
-              caption={`⚽ ${groupName} — match day. Who was Player of the Match?`}
-              className="mt-3 w-full py-3 text-sm font-bold text-ink bg-white rounded-xl border-2 border-ink hover:bg-volt-300 transition-colors"
-            >
-              Share the match card
-            </ShareCardButton>
           </div>
+        )}
+        {/* Every ended game has a match card, votes or not: while the vote is open it's the invite */}
+        {!voting.notYet && (
+          <ShareCardButton
+            token={voting.token}
+            caption={`⚽ ${groupName} — match day. Who was Player of the Match?`}
+            className="mt-3 w-full py-3 text-sm font-bold text-ink bg-white rounded-xl border-2 border-ink hover:bg-volt-300 transition-colors"
+          >
+            Share the match card
+          </ShareCardButton>
         )}
       </div>
     </section>
