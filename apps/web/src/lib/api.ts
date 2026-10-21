@@ -230,6 +230,11 @@ export function updateSessionStatus(
   return http.patch<ISessionWithDetails>(`/sessions/${id}/status`, { status });
 }
 
+/** Move a game that hasn't started: a new day and/or kick-off time ("" = the group's usual time). */
+export function updateSession(id: string, data: { date?: string; kickoffTime?: string }): Promise<ISessionWithDetails> {
+  return http.patch<ISessionWithDetails>(`/sessions/${id}`, data);
+}
+
 export function deleteSession(id: string): Promise<void> {
   return http.delete<void>(`/sessions/${id}`);
 }

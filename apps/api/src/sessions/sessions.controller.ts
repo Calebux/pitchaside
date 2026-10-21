@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { Response } from 'express';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
+import { UpdateSessionDto } from './dto/update-session.dto';
 import { EndGameDto } from './dto/end-game.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { toCsv } from '../common/csv.util';
@@ -66,6 +67,12 @@ export class SessionsController {
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: User) {
     return this.sessionsService.findOne(id, user.organizationId);
+  }
+
+  /** Move a game that hasn't started: its day and kick-off time. Players in it are told. */
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateSessionDto, @CurrentUser() user: User) {
+    return this.sessionsService.update(id, dto, user.organizationId);
   }
 
   @Patch(':id/status')

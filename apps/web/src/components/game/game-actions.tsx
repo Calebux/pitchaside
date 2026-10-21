@@ -16,6 +16,7 @@ type MenuItem = { key: string; title: string; detail: string; danger?: boolean; 
  */
 export function GameMenu({
   phase,
+  onEdit,
   onEnd,
   onReopen,
   onDownload,
@@ -23,6 +24,8 @@ export function GameMenu({
   onDelete,
 }: {
   phase: GamePhase;
+  /** Move the game (day and kick-off); left out once it can't move (scores in, ended). */
+  onEdit?: () => void;
   onEnd: () => void;
   onReopen: () => void;
   onDownload: () => void;
@@ -35,6 +38,7 @@ export function GameMenu({
   const live = phase === 'before' || phase === 'today';
 
   const items: MenuItem[] = [
+    ...(onEdit && live ? [{ key: 'edit', title: 'Change day or time', detail: 'Players in the game are notified, and reminders go for the new time.', onPick: onEdit }] : []),
     ...(live ? [{ key: 'end', title: 'End game now', detail: 'Say who came and send the vote link before the usual time.', onPick: onEnd }] : []),
     ...(phase === 'ended' || phase === 'cancelled'
       ? [
