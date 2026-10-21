@@ -543,7 +543,8 @@ export function MatchDayCard({ day, index = 0 }: { day: RecentMatchDay; index?: 
       </div>
 
       {(() => {
-        const canShare = !!day.shareToken && (played > 0 || !!day.potm);
+        // Any ended game can be shared, scores or not: the card shows what the day recorded
+        const canShare = !!day.shareToken;
         // Once the vote has closed, the same link shows how it ended
         const voteLink = day.vote ? (
           <Link

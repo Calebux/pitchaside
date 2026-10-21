@@ -238,7 +238,13 @@ export class PublicRatingsController {
     return this.ratings.getPublicResults(token);
   }
 
-  /** Match-day summary for the shareable card image. */
+  /**
+   * Match-day summary for the shareable card image. The web server fetches it (the page, its
+   * preview and the image), so every viewer arrives from the same few addresses: the usual
+   * 10 a minute would be 10 for the whole app. Read-only, behind an unguessable token, and
+   * cached for a minute on the web side.
+   */
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
   @Get(':token/card')
   card(@Param('token') token: string) {
     return this.ratings.getMatchCard(token);
