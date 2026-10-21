@@ -1,7 +1,7 @@
 'use client';
 
 import { retryKeys } from '@/lib/retry-keys';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -82,6 +82,39 @@ export function ScoresStep({
   const sideTitle = useId();
   const teams = KEYS.slice(0, lineup.teamCount);
   const [draft, setDraft] = useState({ teamA: 'A' as TeamKey, teamB: 'B' as TeamKey, scoreA: 0, scoreB: 0, goals: [] as GoalInput[] });
+  // The game being played is kept on this phone until it's saved: a refresh, a lost signal or
+  // leaving the page doesn't wipe a score that was never sent.
+  const draftKey = `pa_score_draft_${sessionId}`;
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const kept = JSON.parse(localStorage.getItem(draftKey) ?? 'null');
+      if (kept && typeof kept.scoreA === 'number' && typeof kept.scoreB === 'number' && Array.isArray(kept.goals)) setDraft(kept);
+    } catch {
+      // Nothing kept: start from 0–0.
+    }
+    setRestored(true);
+  }, [draftKey]);
+  const unsaved = draft.scoreA + draft.scoreB > 0 || draft.goals.length > 0;
+  useEffect(() => {
+    if (!restored) return;
+    try {
+      if (unsaved) localStorage.setItem(draftKey, JSON.stringify(draft));
+      else localStorage.removeItem(draftKey);
+    } catch {
+      // Not kept: the warning below still stands.
+    }
+  }, [draft, draftKey, unsaved, restored]);
+  // Closing the page with a score that isn't saved: the browser asks first.
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
   // Asking who scored: for the game being played (`side`) or for one already saved (`gameId`).
   const [scoring, setScoring] = useState<{ team: TeamKey; side?: 'teamA' | 'teamB'; gameId?: string } | null>(null);
   // A saved game whose scorers are open.
@@ -280,13 +313,21 @@ export function ScoresStep({
           </span>
           <Side side="teamB" />
         </div>
+        {unsaved && (
+          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-kit-500/15 border border-kit-500/40 px-3 py-2.5 text-[13px] leading-snug text-white" role="status">
+            <span className="mt-1 w-2 h-2 shrink-0 rounded-full bg-kit-500 animate-pulse" aria-hidden />
+            <span>
+              <b>Not saved yet.</b> Goals stay on this phone until you tap Save. Save when this game ends, before the next one starts.
+            </span>
+          </p>
+        )}
         <button
           onClick={save}
           disabled={!!busy || !valid}
-          className="press mt-4 w-full min-h-12 rounded-2xl bg-volt-400 text-ink text-[15px] font-bold hover:bg-volt-300 disabled:opacity-50 inline-flex items-center justify-center gap-2"
+          className={`press ${unsaved ? 'mt-2' : 'mt-4'} w-full min-h-12 rounded-2xl bg-volt-400 text-ink text-[15px] font-bold hover:bg-volt-300 disabled:opacity-50 inline-flex items-center justify-center gap-2`}
         >
           {busy === 'save' && <BallSpinner className="w-4 h-4" />}
-          Save {name(draft.teamA)} {draft.scoreA}–{draft.scoreB} {name(draft.teamB)}
+          Save game: {name(draft.teamA)} {draft.scoreA}–{draft.scoreB} {name(draft.teamB)}
         </button>
         {!lineup.locked && <p className="mt-2 text-center text-[12px] text-white/60">Saving the first score locks the teams.</p>}
       </div>
