@@ -241,6 +241,7 @@ export interface PlayerHome {
   openVotes: {
     token: string;
     sessionId: string;
+    groupId?: string;
     groupName?: string;
     date: string;
     voted: boolean;

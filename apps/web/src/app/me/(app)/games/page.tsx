@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/brand';
 import { useCallback, useEffect, useState } from 'react';
 import { GameCard, GameRow, GroupChips, LoadError, MatchDayCard } from '@/components/player-ui';
 import { usePlayerProfile } from '@/components/player-shell';
+import { usePlayerGroup } from '@/lib/player-group';
 import { getPlayerGames, type RecentMatchDay, type UpcomingGame } from '@/lib/player';
 
 export default function PlayerGamesPage() {
@@ -16,17 +17,9 @@ export default function PlayerGamesPage() {
   // Players in more than one group can look at one at a time; all together by default.
   const { profile } = usePlayerProfile();
   const groups = (profile?.clubs ?? []).flatMap((c) => c.groups);
-  const [groupId, setGroupId] = useState<string | null>(() =>
-    typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('group') : null,
-  );
+  // The same pick as Home's group switch.
+  const [groupId, pickGroup] = usePlayerGroup(groups);
   const picked = groups.find((g) => g.id === groupId) ?? null;
-  const pickGroup = (id: string | null) => {
-    setGroupId(id);
-    const url = new URL(window.location.href);
-    if (id) url.searchParams.set('group', id);
-    else url.searchParams.delete('group');
-    window.history.replaceState(window.history.state, '', url);
-  };
   const pickTab = (next: 'ahead' | 'past') => {
     setTab(next);
     const url = new URL(window.location.href);

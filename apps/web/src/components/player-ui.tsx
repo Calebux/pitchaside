@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Ticket } from '@/components/ticket';
 import { photoUrl } from '@/lib/http';
@@ -80,10 +80,16 @@ export function GroupChips({
   /** Words for the "every group" chip; left out, one group is always picked. */
   all?: string;
 }) {
+  // The picked group in view, even when it's off the edge of a long row.
+  const row = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const on = row.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (on && row.current) row.current.scrollTo({ left: on.offsetLeft - 16, behavior: 'smooth' });
+  }, [value]);
   if (groups.length < 2) return null;
   const chips: { id: string | null; name: string }[] = [...(all ? [{ id: null, name: all }] : []), ...groups];
   return (
-    <div className="-mx-4 px-4 mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Which group">
+    <div ref={row} className="-mx-4 px-4 mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Which group">
       {chips.map((g) => {
         const on = g.id === value;
         return (
