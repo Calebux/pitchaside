@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { cleanBibs } from '../ratings/bibs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -8,16 +8,20 @@ import { CreateGroupDto, UpdateGroupDto } from './dto/create-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { BillingService } from '../billing/billing.service';
+import { CryptoService } from '../crypto/crypto.service';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { User } from '../users/entities/user.entity';
 import { naira } from '../common/format.util';
 
 @Injectable()
 export class GroupsService {
+  private readonly logger = new Logger(GroupsService.name);
+
   constructor(
     @InjectRepository(Group) private groupsRepo: Repository<Group>,
     @InjectRepository(GroupMembership) private membershipsRepo: Repository<GroupMembership>,
     private billing: BillingService,
+    private crypto: CryptoService,
     private rsvp: RsvpService,
   ) {}
 
@@ -29,9 +33,30 @@ export class GroupsService {
         throw new BadRequestException(e instanceof Error ? e.message : 'Those bibs can’t be saved');
       }
     }
-    const group = await this.groupsRepo.save(this.groupsRepo.create({ ...dto, organizationId }));
-    // Invite link, PulseMFB collection account and first dues period.
-    return this.billing.setupGroup(group);
+
+    // International groups use USD and crypto wallets instead of NGN and bank transfers.
+    const isInternational = dto.scope === 'international';
+    const entity = this.groupsRepo.create({ ...dto, organizationId });
+    if (isInternational) {
+      entity.scope = 'international';
+      entity.currency = 'USD';
+    }
+    const group = await this.groupsRepo.save(entity);
+
+    // Invite link and first dues period (same for both scopes).
+    await this.billing.setupGroup(group);
+
+    // Provision crypto wallets for international groups.
+    if (isInternational) {
+      try {
+        await this.crypto.provisionWallets(group);
+      } catch (err) {
+        this.logger.warn(`Failed to provision crypto wallets for group ${group.id}: ${err}`);
+        // Non-fatal — the organiser can retry later, similar to bank account provisioning.
+      }
+    }
+
+    return group;
   }
 
   findAll(organizationId: string) {

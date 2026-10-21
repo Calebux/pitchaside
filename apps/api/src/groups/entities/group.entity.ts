@@ -1,4 +1,4 @@
-import type { Bibs } from '@pitchaside/shared';
+import type { Bibs, GroupScope } from '@pitchaside/shared';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -124,6 +124,14 @@ export class Group {
   /** The usual amount (e.g. the pitch fee), prefilled when paying the payee. */
   @Column({ name: 'payee_amount', type: 'decimal', precision: 12, scale: 2, nullable: true })
   payeeAmount: string | null;
+
+  /** 'local' (Nigeria, bank transfers) or 'international' (crypto payments). */
+  @Column({ type: 'varchar', length: 15, default: 'local' })
+  scope: GroupScope;
+
+  /** 'NGN' for local groups, 'USD' for international. */
+  @Column({ type: 'varchar', length: 5, default: 'NGN' })
+  currency: string;
 
   @ManyToOne(() => Organization, (org) => org.groups, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organization_id' })
