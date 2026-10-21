@@ -17,6 +17,7 @@ type MenuItem = { key: string; title: string; detail: string; danger?: boolean; 
 export function GameMenu({
   phase,
   onEdit,
+  onQr,
   onEnd,
   onReopen,
   onDownload,
@@ -26,6 +27,8 @@ export function GameMenu({
   phase: GamePhase;
   /** Move the game (day and kick-off); left out once it can't move (scores in, ended). */
   onEdit?: () => void;
+  /** This game's QR code: players go straight to it, new ones sign up first. */
+  onQr?: () => void;
   onEnd: () => void;
   onReopen: () => void;
   onDownload: () => void;
@@ -39,6 +42,8 @@ export function GameMenu({
 
   const items: MenuItem[] = [
     ...(onEdit && live ? [{ key: 'edit', title: 'Change day or time', detail: 'Players in the game are notified, and reminders go for the new time.', onPick: onEdit }] : []),
+    // Until it's ended: someone can still turn up after kick-off.
+    ...(onQr && (live || phase === 'after') ? [{ key: 'qr', title: 'Game QR code', detail: 'Scan to open this game. New players sign up and join the group first.', onPick: onQr }] : []),
     ...(live ? [{ key: 'end', title: 'End game now', detail: 'Say who came and send the vote link before the usual time.', onPick: onEnd }] : []),
     ...(phase === 'ended' || phase === 'cancelled'
       ? [

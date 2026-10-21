@@ -561,8 +561,8 @@ export class PlayerPortalService {
     return this.ratings.submitVotes(token, this.ids(person), picks);
   }
 
-  joinGroup(person: Person, code: string) {
-    return this.billing.joinGroupAsPerson(code, person);
+  joinGroup(person: Person, code: string, gameId?: string) {
+    return this.billing.joinGroupAsPerson(code, person, gameId);
   }
 
   /**

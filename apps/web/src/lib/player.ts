@@ -119,8 +119,11 @@ export function resetPassword(email: string, code: string, password: string) {
 
 export type SignupInput = { email: string; firstName: string; lastName: string; phone?: string; password: string };
 
-export function signupFromLink(code: string, data: SignupInput) {
-  return request<JoinResult>('POST', `/public/groups/${code}/signup`, data, false);
+/** `game`: they came from that game's QR code, so they're put on it where the group doesn't take replies. */
+const fromGame = (game?: string | null) => (game ? `?game=${encodeURIComponent(game)}` : '');
+
+export function signupFromLink(code: string, data: SignupInput, game?: string | null) {
+  return request<JoinResult>('POST', `/public/groups/${code}/signup${fromGame(game)}`, data, false);
 }
 
 export interface ClubGroup {
@@ -176,8 +179,8 @@ export type JoinResult = PublicGroup & {
   alreadyMember: boolean;
 };
 
-export function joinAsPlayer(code: string) {
-  return request<JoinResult>('POST', `/me/groups/${code}/join`);
+export function joinAsPlayer(code: string, game?: string | null) {
+  return request<JoinResult>('POST', `/me/groups/${code}/join${fromGame(game)}`);
 }
 
 // ── Home ──
