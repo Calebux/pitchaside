@@ -721,6 +721,9 @@ export class RatingsService {
         id: p.player.id,
         name: name(p.player),
         short: pitchName(p.player),
+        // Both, so the card can show the nickname with the real name under it.
+        fullName: `${p.player.firstName} ${p.player.lastName}`.trim(),
+        nickname: p.player.nickname || null,
         photoKey: p.player.photoKey ?? null,
         team: p.team ?? null,
         ovr: ratings ? (ratings.ovr.get(p.player.id) ?? cardRating(ratings.skills.get(p.player.id)?.rating ?? DEFAULT_START)) : null,
@@ -1721,7 +1724,8 @@ export class RatingsService {
     const rank = (k: keyof StatCompare) => (r.compare[k] ? { rank: r.compare[k].rank, of: r.compare[k].of } : null);
     return {
       name: sheetName(player),
-      nickname: player.nickname ?? null,
+      fullName: `${player.firstName} ${player.lastName}`.trim(),
+      nickname: player.nickname || null,
       photoKey: player.photoKey ?? null,
       clubName: player.organization?.name ?? null,
       groups: (player.memberships ?? []).map((m) => m.group?.name).filter((n): n is string => !!n),
@@ -1761,6 +1765,8 @@ export class RatingsService {
         id: r.player.id,
         name: sheetName(r.player),
         short: pitchName(r.player),
+        fullName: `${r.player.firstName} ${r.player.lastName}`.trim(),
+        nickname: r.player.nickname || null,
         photoKey: r.player.photoKey ?? null,
         points: r.points,
         games: r.games,

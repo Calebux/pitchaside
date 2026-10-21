@@ -14,7 +14,12 @@ export interface TableCard {
     id: string;
     name: string;
     short: string;
+    /** Their real name and nickname, kept apart (newer servers only). */
+    fullName?: string;
+    nickname?: string | null;
     photoKey: string | null;
+    /** The photo itself, loaded before drawing (see loadPhotos). */
+    photo?: string | null;
     points: number;
     games: number;
     w: number;

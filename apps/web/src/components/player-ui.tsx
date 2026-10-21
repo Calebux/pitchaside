@@ -126,9 +126,12 @@ export function PlayerCardHero({
   photoButton,
   onRatingTap,
   action,
+  nickname,
 }: {
   firstName: string;
   lastName: string;
+  /** Shown in quotes under the name, as on the organiser's player page. */
+  nickname?: string | null;
   ratings: PlayerRatings;
   caption?: string;
   /** Their photo takes the drawn player's place on the card. */
@@ -206,7 +209,8 @@ export function PlayerCardHero({
         {photoButton && <span className="absolute z-10 -bottom-2 -right-2">{photoButton}</span>}
         </div>
         <div className="min-w-0">
-          <h2 className="font-display text-2xl font-extrabold leading-tight mt-0.5 truncate">{fullName}</h2>
+          <h2 className="font-display text-2xl font-extrabold leading-tight mt-0.5 break-words">{fullName}</h2>
+          {nickname && <p className="mt-0.5 text-sm font-bold text-volt-300 truncate">“{nickname}”</p>}
           <div className="mt-3">
             <AttributeRow ratings={ratings} dark />
           </div>

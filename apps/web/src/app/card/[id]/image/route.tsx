@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
-import { fit, loadFonts } from '@/lib/og';
-import { Brand, C, DISPLAY, Face, Label, Star } from '@/lib/og-card';
+import { loadFonts } from '@/lib/og';
+import { Brand, C, DISPLAY, Face, Star, loadPhotos, oneLine } from '@/lib/og-card';
 import { getPlayerCard, type Ability, type PlayerCardData } from '../player-card';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +17,7 @@ const RIGHT: Ability[] = ['IQ', 'PHY', 'MOV', 'GK'];
 
 function Attr({ k, v }: { k: string; v: number | null }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, height: 62 }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, height: 56 }}>
       <div style={{ display: 'flex', width: 84, justifyContent: 'flex-end', fontFamily: DISPLAY, fontWeight: 800, fontSize: 50, lineHeight: 1 }}>{v ?? '–'}</div>
       <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, letterSpacing: 2 }}>{k}</div>
     </div>
@@ -29,6 +29,9 @@ function Attr({ k, v }: { k: string; v: number | null }) {
  * eight numbers below. Volt like the app's player card; "Settling" while the number is new.
  */
 function PlayerCard({ c }: { c: PlayerCardData }) {
+  // As on their profile in the app: the real name big, the nickname in quotes above it.
+  const full = c.fullName ?? c.name;
+  const nick = c.nickname && c.nickname !== full ? c.nickname : null;
   return (
     <div
       style={{
@@ -66,19 +69,35 @@ function PlayerCard({ c }: { c: PlayerCardData }) {
       </div>
 
       {/* Name across the middle */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'absolute', left: 0, right: 0, top: 350 }}>
-        {c.nickname && <div style={{ display: 'flex', fontSize: 26, fontWeight: 700 }}>“{c.nickname}”</div>}
-        <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(c.name, 60, 14), lineHeight: 1.05, textAlign: 'center' }}>{c.name}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', position: 'absolute', left: 36, right: 36, top: 336, height: 104 }}>
+        {nick && <div style={{ ...oneLine, maxWidth: 520, fontSize: 26, fontWeight: 700 }}>{`“${nick}”`}</div>}
+        {/* A long name takes two lines (one under a nickname) rather than being cut short */}
+        <div
+          style={{
+            display: 'block',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineClamp: nick ? 1 : 2,
+            maxWidth: 520,
+            textAlign: 'center',
+            fontFamily: DISPLAY,
+            fontWeight: 800,
+            fontSize: full.length > 18 ? 40 : 58,
+            lineHeight: 1.1,
+          }}
+        >
+          {full}
+        </div>
       </div>
 
       {/* Eight numbers, two columns, with a line between */}
-      <div style={{ display: 'flex', position: 'absolute', left: 40, right: 40, top: 448, borderTop: `4px solid ${C.ink}`, paddingTop: 16, justifyContent: 'space-around' }}>
+      <div style={{ display: 'flex', position: 'absolute', left: 40, right: 40, top: 452, borderTop: `4px solid ${C.ink}`, paddingTop: 14, justifyContent: 'space-around' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {LEFT.map((k) => (
             <Attr key={k} k={k} v={c.attributes[k]} />
           ))}
         </div>
-        <div style={{ display: 'flex', width: 4, background: C.ink }} />
+        <div style={{ display: 'flex', width: 4, height: 224, background: C.ink }} />
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           {RIGHT.map((k) => (
             <Attr key={k} k={k} v={c.attributes[k]} />
@@ -106,10 +125,10 @@ function Tile({ value, label, rank }: { value: string | number; label: string; r
       }}
     >
       <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 44, lineHeight: 1, color: top ? C.volt300 : '#ffffff' }}>{value}</div>
-      <div style={{ display: 'flex', fontSize: 15, fontWeight: 700, letterSpacing: 2, color: C.muted, marginTop: 6, lineHeight: 1.2 }}>{label}</div>
+      <div style={{ ...oneLine, fontSize: 14, fontWeight: 700, letterSpacing: 1.5, color: C.muted, marginTop: 8 }}>{label}</div>
       {rank && Number(value) > 0 ? (
-        <div style={{ display: 'flex', fontSize: 17, fontWeight: 700, color: top ? C.volt300 : 'rgba(255,255,255,0.8)', marginTop: 'auto' }}>
-          {ordinal(rank.rank)} of {rank.of} in the club
+        <div style={{ ...oneLine, fontSize: 17, fontWeight: 700, color: top ? C.volt300 : 'rgba(255,255,255,0.8)', marginTop: 'auto' }}>
+          {`${ordinal(rank.rank)} of ${rank.of} in the club`}
         </div>
       ) : null}
     </div>
@@ -131,7 +150,7 @@ function Card({ c }: { c: PlayerCardData }) {
         background: `linear-gradient(180deg, ${C.pitch900} 0%, ${C.pitch950} 60%)`,
         fontFamily: 'DM Sans',
         color: '#ffffff',
-        padding: '52px 56px',
+        padding: '48px 56px 36px',
       }}
     >
       <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -140,9 +159,7 @@ function Card({ c }: { c: PlayerCardData }) {
           PLAYER CARD
         </div>
       </div>
-      <div style={{ display: 'flex', width: '100%', marginTop: 22 }}>
-        <Label size={22}>{where}</Label>
-      </div>
+      <div style={{ ...oneLine, width: '100%', marginTop: 22, fontSize: 22, fontWeight: 700, letterSpacing: 3, color: C.volt300 }}>{where}</div>
 
       <div style={{ display: 'flex', marginTop: 24 }}>
         <PlayerCard c={c} />
@@ -160,7 +177,7 @@ function Card({ c }: { c: PlayerCardData }) {
         <Tile value={c.saves ? c.saves : c.teamOfDay} label={c.saves ? 'SAVES' : 'TEAM OF THE DAY'} />
       </div>
 
-      <div style={{ position: 'absolute', left: 56, right: 56, bottom: 36, display: 'flex', justifyContent: 'space-between', fontSize: 20, color: C.muted }}>
+      <div style={{ marginTop: 'auto', width: '100%', display: 'flex', justifyContent: 'space-between', fontSize: 20, color: C.muted }}>
         <div style={{ display: 'flex' }}>Rated from results, stats and teammates’ votes</div>
         <div style={{ display: 'flex', fontWeight: 700, color: '#ffffff' }}>PitchAside</div>
       </div>
@@ -170,9 +187,10 @@ function Card({ c }: { c: PlayerCardData }) {
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const c = await getPlayerCard(id);
-  if (!c) return new Response('Not found', { status: 404 });
-  const fonts = await loadFonts();
+  const found = await getPlayerCard(id);
+  if (!found) return new Response('Not found', { status: 404 });
+  const [fonts, photos] = await Promise.all([loadFonts(), loadPhotos([found.photoKey])]);
+  const c = { ...found, photo: found.photoKey ? (photos.get(found.photoKey) ?? null) : null };
   return new ImageResponse(<Card c={c} />, {
     width: 1080,
     height: 1350,

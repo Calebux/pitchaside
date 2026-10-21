@@ -29,7 +29,7 @@ export function prettyDate(iso: string) {
 
 export function initials(name: string) {
   return name
-    .split(/\s+/)
+    .split(/\s+|&/)
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase())
@@ -46,14 +46,51 @@ const DISC = [
 ];
 const discOf = (name: string) => DISC[[...name].reduce((n, ch) => n + ch.charCodeAt(0), 0) % DISC.length];
 
+/**
+ * Players' photos, fetched before the image is drawn and passed in as data: a photo that is
+ * missing, slow or in a format the renderer can't read falls back to initials, instead of
+ * breaking the whole image.
+ */
+export async function loadPhotos(keys: (string | null | undefined)[]) {
+  const photos = new Map<string, string>();
+  await Promise.all(
+    [...new Set(keys.filter((k): k is string => !!k))].map(async (key) => {
+      try {
+        const res = await fetch(`${API_URL}/api/photos/${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(4000), next: { revalidate: 3600 } });
+        const type = res.headers.get('content-type')?.split(';')[0] ?? '';
+        if (!res.ok || !/^image\/(jpeg|png)$/.test(type)) return;
+        photos.set(key, `data:${type};base64,${Buffer.from(await res.arrayBuffer()).toString('base64')}`);
+      } catch {
+        // No photo: their initials show instead.
+      }
+    }),
+  );
+  return photos;
+}
+
+/** Someone on a card: the name the group knows them by, and their photo once loaded. */
+export type Who = { name: string; photo?: string | null };
+
+/**
+ * Names, the same way the app shows them: lists use their nickname, else their full name;
+ * where there's room, the full name goes under a nickname so everyone knows who it is.
+ */
+export function names(p: { name: string; fullName?: string; nickname?: string | null }) {
+  const full = p.fullName || p.name;
+  return { main: p.nickname || full, sub: p.nickname && p.nickname !== full ? full : null };
+}
+
+/** One line of text that ends in "…" rather than running over what's next to it. */
+export const oneLine = { display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } as const;
+
 /** A player's face: their photo, else their initials on a disc. */
-export function Face({ p, size, ring }: { p: { name: string; photoKey: string | null }; size: number; ring: string }) {
+export function Face({ p, size, ring }: { p: Who; size: number; ring: string }) {
   const border = Math.max(3, Math.round(size / 22));
-  if (p.photoKey) {
+  if (p.photo) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={`${API_URL}/api/photos/${p.photoKey}`}
+        src={p.photo}
         width={size}
         height={size}
         style={{ width: size, height: size, borderRadius: size, border: `${border}px solid ${ring}`, objectFit: 'cover' }}

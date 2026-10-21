@@ -4,8 +4,12 @@ type Rank = { rank: number; of: number } | null;
 
 export interface PlayerCardData {
   name: string;
+  /** Their real name (newer servers only; older ones put the nickname in `name`). */
+  fullName?: string;
   nickname: string | null;
   photoKey: string | null;
+  /** The photo itself, loaded before drawing (see loadPhotos). */
+  photo?: string | null;
   clubName: string | null;
   groups: string[];
   ovr: number | null;

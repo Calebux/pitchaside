@@ -28,10 +28,10 @@ export default function PlayerProfilePage() {
       <PlayerCardHero
         firstName={profile.player.firstName}
         lastName={profile.player.lastName}
+        nickname={profile.player.nickname}
         ratings={r}
         caption={
           [
-            profile.player.nickname ? `“${profile.player.nickname}”` : null,
             r.record.w + r.record.d + r.record.l ? `Won ${r.record.w} · drew ${r.record.d} · lost ${r.record.l}` : 'Play, win and get votes to build your card',
             r.potmWins ? `★ ${r.potmWins} Player of the Match` : null,
           ]
