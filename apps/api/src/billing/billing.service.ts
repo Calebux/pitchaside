@@ -615,19 +615,10 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         .where('RIGHT(c.account_number, 10) = :acct', { acct: credit.accountNumber })
         .getOne();
       if (comp) {
-        const refMatch = credit.narration?.toUpperCase().match(/CP([A-F0-9]{8})/);
-        if (refMatch) {
-          const paymentRef = `CP${refMatch[1]}`;
-          const team = await this.competitionTeamsRepo.findOne({ where: { competitionId: comp.id, paymentRef } });
-          if (team && team.registrationStatus !== TeamRegistrationStatus.CONFIRMED) {
-            team.registrationStatus = TeamRegistrationStatus.CONFIRMED;
-            team.paidAt = new Date();
-            await this.competitionTeamsRepo.save(team);
-            log(`competition payment: ${paymentRef} confirmed for ${comp.name}`);
-          }
-        }
+        // Recorded first, so a retried webhook is a duplicate and can't count twice towards the fee.
         const result = await this.recordTransfer(credit);
         note('recorded');
+        if (!('duplicate' in result)) await this.confirmTeamIfPaid(comp, credit, log);
         log(`competition credit of ${credit.amount} to ${credit.accountNumber} → ${result.status}`);
         return result;
       }
@@ -651,6 +642,34 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
 
     log('ignored');
     return { received: true, ignored: true };
+  }
+
+  /**
+   * A team's registration is confirmed once everything sent with its CP code covers the entry fee:
+   * a part payment waits for the rest, and money set aside doesn't count.
+   */
+  private async confirmTeamIfPaid(comp: Competition, credit: IncomingTransfer, log: (outcome: string) => void) {
+    const refMatch = credit.narration?.toUpperCase().match(/CP([A-F0-9]{8})/);
+    if (!refMatch) return;
+    const paymentRef = `CP${refMatch[1]}`;
+    const team = await this.competitionTeamsRepo.findOne({ where: { competitionId: comp.id, paymentRef } });
+    if (!team || team.registrationStatus === TeamRegistrationStatus.CONFIRMED) return;
+    const { total } = await this.transfersRepo
+      .createQueryBuilder('t')
+      .select('COALESCE(SUM(t.amount), 0)', 'total')
+      .where('t.accountNumber = :acct', { acct: credit.accountNumber })
+      .andWhere('UPPER(t.narration) LIKE :ref', { ref: `%${paymentRef}%` })
+      .andWhere('t.status != :ignored', { ignored: TransferStatus.IGNORED })
+      .getRawOne();
+    const fee = Number(comp.entryFee);
+    if (Number(total) + 0.001 < fee) {
+      log(`competition payment: ${paymentRef} has ${total} of ${fee} for ${comp.name}, not confirmed yet`);
+      return;
+    }
+    team.registrationStatus = TeamRegistrationStatus.CONFIRMED;
+    team.paidAt = new Date();
+    await this.competitionTeamsRepo.save(team);
+    log(`competition payment: ${paymentRef} confirmed for ${comp.name}`);
   }
 
   async recordTransfer(incoming: IncomingTransfer) {

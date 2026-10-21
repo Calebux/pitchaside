@@ -35,6 +35,17 @@ describe('whoSent', () => {
     expect(whoSent(squad, '', 'Transfer from ADA OBI to PitchAside')).toBe('ada');
   });
 
+  it('finds the code after a word shaped like one, such as "payment"', () => {
+    expect(whoSent(squad, 'SOMEONE ELSE', 'Payment for football PA7K3FQ')).toBe('ada');
+    expect(whoSent(squad, '', 'PAYMENT PAYMENT pa-jd7cy')).toBe('bisi');
+  });
+
+  it('never matches a member whose name has no usable words', () => {
+    const withInitials = [...squad, { playerId: 'jo', paymentRef: null, firstName: 'J.', lastName: 'O' }];
+    expect(whoSent(withInitials, 'CHIOMA EZE', null)).toBeNull();
+    expect(whoSent(withInitials, 'ADA OBI', null)).toBe('ada');
+  });
+
   it('leaves it to a person when the name fits no one or more than one', () => {
     expect(whoSent(squad, '', 'Transfer from MUM')).toBeNull();
     expect(whoSent(squad, 'Bisi Lawal Ade', null)).toBeNull();
@@ -60,6 +71,16 @@ describe('accounts', () => {
 
   it('still lets the payment code win over the account', () => {
     expect(whoSent(squad, '', 'PA7K3FQ', 'bisi')).toBe('ada');
+  });
+
+  it('trusts the account when the name agrees or fits no member', () => {
+    expect(whoSent(squad, 'BISI LAWAL', 'fives', 'bisi')).toBe('bisi');
+    expect(whoSent(squad, 'MRS LAWAL', 'fives', 'bisi')).toBe('bisi');
+  });
+
+  it("leaves it to a person when the sender's own name points at someone else than the account", () => {
+    // Ada once paid for Bisi from this account; now she pays for herself, with no code.
+    expect(whoSent(squad, 'ADA OBI', 'fives', 'bisi')).toBeNull();
   });
 
   it("ignores an account owner who has since left the group", () => {

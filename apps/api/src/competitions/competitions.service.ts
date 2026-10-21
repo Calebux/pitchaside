@@ -584,19 +584,6 @@ export class CompetitionsService {
       .getOne();
   }
 
-  async confirmPaymentByRef(competitionId: string, narration: string): Promise<CompetitionTeam | null> {
-    const refMatch = narration?.toUpperCase().match(/CP([A-F0-9]{8})/);
-    if (!refMatch) return null;
-
-    const paymentRef = `CP${refMatch[1]}`;
-    const team = await this.teamsRepo.findOne({ where: { competitionId, paymentRef } });
-    if (!team || team.registrationStatus === TeamRegistrationStatus.CONFIRMED) return null;
-
-    team.registrationStatus = TeamRegistrationStatus.CONFIRMED;
-    team.paidAt = new Date();
-    return this.teamsRepo.save(team);
-  }
-
   // ── Helpers ──
 
   getNigerianStates() {
