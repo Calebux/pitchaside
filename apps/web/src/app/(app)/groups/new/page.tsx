@@ -8,8 +8,8 @@ import { KitLine } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
 import { createGroup } from '@/lib/api';
 import { useCurrentGroup } from '@/lib/current-group';
-import { PaymentType, type ContributionsVisibility } from '@pitchaside/shared';
-import { frequencyOptions } from '@/lib/billing';
+import { PaymentType, type ContributionsVisibility, type GroupScope } from '@pitchaside/shared';
+import { frequencyOptions, currencySymbol } from '@/lib/billing';
 import { ContributionsVisibilityPicker } from '@/components/contributions-visibility';
 import { RsvpToggle } from '@/components/rsvp-toggle';
 import { MatchDayFields, type MatchDay } from '@/components/group/match-day-fields';
@@ -42,6 +42,7 @@ export default function NewGroupPage() {
   const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
+  const [scope, setScope] = useState<GroupScope>('local');
   // How match day runs: set here so a new group starts the way it plays. All of it can change later in settings.
   const [matchDay, setMatchDay] = useState<MatchDay>({ timerOn: true, gameMinutes: DEFAULT_GAME_MINUTES, bibs: null });
 
@@ -71,6 +72,7 @@ export default function NewGroupPage() {
         timerOn: matchDay.timerOn,
         gameMinutes: matchDay.gameMinutes,
         ...(matchDay.bibs ? { bibs: matchDay.bibs } : {}),
+        scope,
       });
       // Home shows what's next for a new group: its bank account, then its first game.
       setGroupId(group.id);
@@ -98,6 +100,31 @@ export default function NewGroupPage() {
       />
 
       <form onSubmit={handleSubmit} className={formCardClass}>
+        <fieldset>
+          <legend className="block text-xs font-bold text-gray-700 mb-1.5">Where are your players?</legend>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              { value: 'local' as const, label: 'Nigeria', hint: 'Pay via bank transfer (NGN)' },
+              { value: 'international' as const, label: 'International', hint: 'Pay via USDT/USDC (USD)' },
+            ]).map((o) => (
+              <label key={o.value} className="cursor-pointer">
+                <input
+                  type="radio"
+                  name="scope"
+                  value={o.value}
+                  checked={scope === o.value}
+                  onChange={() => setScope(o.value)}
+                  className="peer sr-only"
+                />
+                <span className="flex flex-col h-full px-3 py-2.5 rounded-xl border-2 border-gray-200 bg-white transition-colors peer-checked:border-ink peer-checked:bg-volt-300 peer-focus-visible:ring-4 peer-focus-visible:ring-volt-300/70 hover:border-gray-300">
+                  <span className="text-sm font-bold text-ink">{o.label}</span>
+                  <span className="text-[11px] text-gray-500 leading-tight mt-0.5">{o.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <div>
           <label htmlFor="name" className="block text-xs font-bold text-gray-700 mb-1.5">
             Group Name *
@@ -177,7 +204,7 @@ export default function NewGroupPage() {
           </div>
           <div>
             <label htmlFor="feePerPlayer" className="block text-xs font-bold text-gray-700 mb-1.5">
-              Amount per player (₦) *
+              Amount per player ({currencySymbol(scope)}) *
             </label>
             <input
               id="feePerPlayer"
@@ -223,11 +250,18 @@ export default function NewGroupPage() {
         <ContributionsVisibilityPicker name="contributionsVisibility" />
 
         <div className="flex items-start gap-3 rounded-2xl bg-chalk border border-gray-200 p-3.5">
-          <div className="w-8 h-8 rounded-lg bg-ink text-volt-300 flex items-center justify-center shrink-0 font-display font-extrabold text-sm">₦</div>
-          <p className="text-xs text-gray-600 leading-relaxed">
-            We&apos;ll open a dedicated <span className="font-bold text-ink">Payrep MFB account</span> for this group. Players pay into it and
-            transfers are matched to them automatically. You&apos;ll also get a link to share for players to join.
-          </p>
+          <div className="w-8 h-8 rounded-lg bg-ink text-volt-300 flex items-center justify-center shrink-0 font-display font-extrabold text-sm">{currencySymbol(scope)}</div>
+          {scope === 'international' ? (
+            <p className="text-xs text-gray-600 leading-relaxed">
+              We&apos;ll create <span className="font-bold text-ink">USDT/USDC wallet addresses</span> for this group on multiple chains (Polygon, Base, Tron).
+              Players send stablecoins and transfers are matched to them automatically. You&apos;ll also get a link to share for players to join.
+            </p>
+          ) : (
+            <p className="text-xs text-gray-600 leading-relaxed">
+              We&apos;ll open a dedicated <span className="font-bold text-ink">Payrep MFB account</span> for this group. Players pay into it and
+              transfers are matched to them automatically. You&apos;ll also get a link to share for players to join.
+            </p>
+          )}
         </div>
 
         <button

@@ -1,4 +1,4 @@
-import type { Bibs } from '@pitchaside/shared';
+import type { Bibs, GroupScope } from '@pitchaside/shared';
 import type {
   ContributionsVisibility,
   IGroup,
@@ -18,12 +18,24 @@ import type {
   CompetitionVisibility,
   CompetitionStatus,
   GameTimer,
+  ICryptoTransfer,
+  IGroupWallet,
+  IChainInfo,
+  ICryptoOutgoingTransfer,
 } from '@pitchaside/shared';
 import { http } from './http';
 
 // ── Currency formatter ──
 
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number, currency?: string): string {
+  if (currency === 'USD') {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  }
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
@@ -93,6 +105,7 @@ export function createGroup(data: {
   gameMinutes?: number;
   timerOn?: boolean;
   bibs?: Bibs | null;
+  scope?: GroupScope;
 }): Promise<IGroup> {
   return http.post<IGroup>('/groups', data);
 }
@@ -1334,4 +1347,49 @@ export interface NigerianStateData {
 
 export function getNigerianStates(): Promise<NigerianStateData[]> {
   return http.get<NigerianStateData[]>('/public/nigerian-states');
+}
+
+// ── Crypto / International Groups ──
+
+export function getSupportedChains(): Promise<IChainInfo[]> {
+  return http.get<IChainInfo[]>('/crypto/chains');
+}
+
+export function getGroupWallets(groupId: string): Promise<IGroupWallet[]> {
+  return http.get<IGroupWallet[]>(`/crypto/groups/${groupId}/wallets`);
+}
+
+export function getGroupCryptoTransfers(groupId: string): Promise<ICryptoTransfer[]> {
+  return http.get<ICryptoTransfer[]>(`/crypto/groups/${groupId}/transfers`);
+}
+
+export function getGroupCryptoBalance(groupId: string): Promise<GroupBalance> {
+  return http.get<GroupBalance>(`/crypto/groups/${groupId}/balance`);
+}
+
+export function initiateGroupCryptoWithdrawal(
+  groupId: string,
+  data: { chain: string; token: string; amount: number; toAddress: string; category?: string; refundPlayerId?: string; pin: string },
+): Promise<ICryptoOutgoingTransfer> {
+  return http.post<ICryptoOutgoingTransfer>(`/crypto/groups/${groupId}/withdraw`, data);
+}
+
+export function getGroupCryptoPayouts(groupId: string): Promise<ICryptoOutgoingTransfer[]> {
+  return http.get<ICryptoOutgoingTransfer[]>(`/crypto/groups/${groupId}/payouts`);
+}
+
+export function assignCryptoTransfer(transferId: string, paymentId: string): Promise<ICryptoTransfer> {
+  return http.post<ICryptoTransfer>(`/crypto/transfers/${transferId}/assign`, { paymentId });
+}
+
+export function giveCryptoTransfer(transferId: string, playerId: string): Promise<ICryptoTransfer> {
+  return http.post<ICryptoTransfer>(`/crypto/transfers/${transferId}/give`, { playerId });
+}
+
+export function ignoreCryptoTransfer(transferId: string): Promise<ICryptoTransfer> {
+  return http.post<ICryptoTransfer>(`/crypto/transfers/${transferId}/ignore`);
+}
+
+export function restoreCryptoTransfer(transferId: string): Promise<ICryptoTransfer> {
+  return http.post<ICryptoTransfer>(`/crypto/transfers/${transferId}/restore`);
 }
