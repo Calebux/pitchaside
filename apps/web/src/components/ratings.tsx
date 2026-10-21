@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
 import { kitFor } from '@/components/illustrations';
 import { useToast } from '@/components/toast';
-import { ShareCardButton } from '@/components/share-card';
+import { ShareCardButton, ShareIcon, shareIconInk } from '@/components/share-card';
 import { isVotingOpen } from '@/lib/game-status';
 import {
   getSessions,
@@ -335,9 +335,17 @@ export function SessionVotingCard({
               </Link>
             )}
           </div>
-          <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-ink text-sun-400 tabular-nums whitespace-nowrap">
-            {voting.ballots}/{voting.squadSize} voted
-          </span>
+          {/* Every ended game has a match card, votes or not: while the vote is open it's the invite */}
+          {!voting.notYet && (
+            <ShareCardButton
+              token={voting.token}
+              caption={`⚽ ${groupName} — match day. Who was Player of the Match?`}
+              label="Share the match card"
+              className={`${shareIconInk} -mt-1 -mr-1`}
+            >
+              <ShareIcon />
+            </ShareCardButton>
+          )}
         </div>
 
         {voting.notYet ? (
@@ -349,9 +357,12 @@ export function SessionVotingCard({
             <div className="w-full bg-ink/15 rounded-full h-2 mt-4">
               <div className="bg-ink h-2 rounded-full transition-all" style={{ width: `${turnout}%` }} />
             </div>
-            <p className="text-xs text-ink/70 mt-2">
-              {voting.open ? `Open until ${closes} · winners show when it closes` : 'Voting closed'}
-            </p>
+            <div className="mt-2 flex items-start justify-between gap-3">
+              <p className="text-xs text-ink/70">{voting.open ? `Open until ${closes} · winners show when it closes` : 'Voting closed'}</p>
+              <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-ink text-sun-400 tabular-nums whitespace-nowrap">
+                {voting.ballots}/{voting.squadSize} voted
+              </span>
+            </div>
           </>
         )}
 
@@ -385,16 +396,6 @@ export function SessionVotingCard({
           <div className="mt-4">
             <VoteResultsList results={voting} compact />
           </div>
-        )}
-        {/* Every ended game has a match card, votes or not: while the vote is open it's the invite */}
-        {!voting.notYet && (
-          <ShareCardButton
-            token={voting.token}
-            caption={`⚽ ${groupName} — match day. Who was Player of the Match?`}
-            className="mt-3 w-full py-3 text-sm font-bold text-ink bg-white rounded-xl border-2 border-ink hover:bg-volt-300 transition-colors"
-          >
-            Share the match card
-          </ShareCardButton>
         )}
       </div>
     </section>
