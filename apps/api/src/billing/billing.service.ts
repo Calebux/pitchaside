@@ -442,11 +442,11 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** New player who has just created their account from this group's link. */
-  async joinGroup(code: string, input: ClubPerson) {
+  async joinGroup(code: string, input: ClubPerson, gameId?: string) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This group link is not valid. Ask your organiser for the latest link.');
     const player = await clubPlayerFor(this.playersRepo, group.organizationId, input);
-    return { playerId: player.id, ...(await this.addToGroup(group, player)) };
+    return { playerId: player.id, ...(await this.addToGroup(group, player, gameId)) };
   }
 
   /**
@@ -472,14 +472,32 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** Signed-in person tapping a group link — even one from a club they've never played for. */
-  async joinGroupAsPerson(code: string, person: ClubPerson) {
+  async joinGroupAsPerson(code: string, person: ClubPerson, gameId?: string) {
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code } });
     if (!group) throw new NotFoundException('This group link is not valid. Ask your organiser for the latest link.');
     const player = await clubPlayerFor(this.playersRepo, group.organizationId, person);
-    return this.addToGroup(group, player);
+    return this.addToGroup(group, player, gameId);
   }
 
-  private async addToGroup(group: Group, player: Player) {
+  /**
+   * Joined from a game's QR code: in a group without replies (where everyone is on every game,
+   * but only games made after they joined), they're put on that game too. In groups that take
+   * replies they say "I'm in" on the game like everyone else. Only this group's games that
+   * haven't finished. Returns whether they're on it.
+   */
+  private async putOnGame(group: Group, playerId: string, gameId: string) {
+    const game = await this.sessionsRepo.findOne({ where: { id: gameId, groupId: group.id, kind: SessionKind.GAME, status: SessionStatus.UPCOMING } });
+    if (!game || String(game.date).slice(0, 10) < localDate(0)) return false;
+    const on = await this.paymentsRepo.findOne({ where: { sessionId: game.id, playerId } });
+    if (on) return true;
+    if (group.requireRsvp) return false;
+    await this.paymentsRepo.save(this.paymentsRepo.create(squadEntry(group, game.id, playerId)));
+    await this.applyCredits(group.id, [playerId]);
+    await this.paymentsService.recalculateSessionTotal(game.id);
+    return true;
+  }
+
+  private async addToGroup(group: Group, player: Player, gameId?: string) {
     let membership = await this.membershipsRepo.findOne({
       where: { groupId: group.id, playerId: player.id },
     });
@@ -498,9 +516,11 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       );
     }
     await this.onMemberAdded(membership);
+    const onGame = gameId ? await this.putOnGame(group, player.id, gameId) : undefined;
 
     return {
       alreadyMember,
+      ...(gameId ? { gameId, onGame } : {}),
       groupId: group.id,
       firstName: player.firstName,
       paymentRef: membership.paymentRef,

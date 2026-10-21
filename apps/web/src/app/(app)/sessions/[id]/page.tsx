@@ -46,6 +46,7 @@ import { HowPaidSheet } from '@/components/group/how-paid-sheet';
 import { daysFromToday, gameDay } from '@/components/money-card';
 import { GameHero } from '@/components/game/game-hero';
 import { GameMenu } from '@/components/game/game-actions';
+import { MatchQrSheet } from '@/components/game/match-qr-sheet';
 import { EditGameSheet } from '@/components/game/edit-game-sheet';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
@@ -80,6 +81,7 @@ export default function GamePage() {
   const [step, setStep] = useState<Step | null>(null);
   const [lineup, setLineup] = useState<Lineup | null | undefined>(undefined);
   const [moving, setMoving] = useState(false);
+  const [showQr, setShowQr] = useState(false);
   const [lineupError, setLineupError] = useState<string | null>(null);
   const [board, setBoard] = useState<RsvpBoard | null>(null);
   // Money in the group account no one could put a name to: one may be a player's payment.
@@ -354,6 +356,7 @@ export default function GamePage() {
           phase={phase}
           // A game moves until its first score is in; dues periods don't move.
           onEdit={session.kind !== 'dues' && !lineup?.games.length ? () => setMoving(true) : undefined}
+          onQr={isGame && session.status === 'upcoming' ? () => setShowQr(true) : undefined}
           onEnd={() => setEnding(true)}
           onReopen={() => setStatus('upcoming', cancelled ? 'Game is back on' : 'Game reopened')}
           onDownload={() => exportSessionPaymentsCsv(id).catch(() => toast.error('The download didn’t start. Try again.'))}
@@ -369,6 +372,20 @@ export default function GamePage() {
           }}
         />
       </div>
+
+      {showQr && (
+        <MatchQrSheet
+          sessionId={id}
+          groupId={session.groupId}
+          groupName={session.group?.name ?? 'the group'}
+          takesReplies={!!session.group?.requireRsvp}
+          onClose={() => {
+            setShowQr(false);
+            // Anyone who joined while it was up shows on the list.
+            fetchSession();
+          }}
+        />
+      )}
 
       {moving && (
         <EditGameSheet
@@ -509,6 +526,7 @@ export default function GamePage() {
               canMove={(p) => p.status === PaymentStatus.PAID && p.source === 'transfer' && otherDues(p).length > 0}
               busyId={busyId}
               onAdd={before && notOnGame.length > 0 ? () => setAdding(true) : undefined}
+              onQr={isGame && session.status === 'upcoming' ? () => setShowQr(true) : undefined}
               onAction={onPlayerAction}
               onBulkPaid={async (ids) => {
                 try {

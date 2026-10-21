@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNumber, IsObject, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
@@ -193,11 +193,16 @@ export class PlayerAuthController {
   @SkipCsrf()
   @Throttle({ default: { ttl: 60000, limit: 30 } })
   @Post('public/groups/:code/signup')
-  async signup(@Param('code') code: string, @Body() dto: SignupDto, @Res({ passthrough: true }) res: Response) {
+  async signup(
+    @Param('code') code: string,
+    @Body() dto: SignupDto,
+    @Res({ passthrough: true }) res: Response,
+    @Query('game', new ParseUUIDPipe({ optional: true })) game?: string,
+  ) {
     // Check the link before creating anything, so a bad link doesn't leave an account behind.
     await this.billing.getPublicGroup(code);
     await this.auth.createAccount(dto);
-    const joined = await this.billing.joinGroup(code, dto);
+    const joined = await this.billing.joinGroup(code, dto, game);
     const token = await this.startSession(res, dto.email);
     return { ...joined, token };
   }
@@ -404,9 +409,10 @@ export class PlayerPortalController {
     return { clubName: club.name, firstName: person.firstName };
   }
 
+  /** `game`: they came from that game's QR code (see BillingService.putOnGame). */
   @Post('groups/:code/join')
-  join(@Param('code') code: string, @CurrentPerson() person: Person) {
-    return this.portal.joinGroup(person, code);
+  join(@Param('code') code: string, @CurrentPerson() person: Person, @Query('game', new ParseUUIDPipe({ optional: true })) game?: string) {
+    return this.portal.joinGroup(person, code, game);
   }
 
   @Get('votes/:token')

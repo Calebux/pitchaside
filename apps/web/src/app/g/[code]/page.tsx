@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { KeepHyphens, Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
@@ -11,7 +11,7 @@ import { PasswordSignIn } from '@/components/password-sign-in';
 import { PlayerSignupForm, type SignupData } from '@/components/player-signup-form';
 import { formatCurrency, getPublicGroup, invitedBy, type PublicGroup } from '@/lib/api';
 import { frequencyShort } from '@/lib/billing';
-import { getPlayerHome, joinAsPlayer, signupFromLink, type JoinResult } from '@/lib/player';
+import { getPlayerGame, getPlayerHome, joinAsPlayer, signupFromLink, type JoinResult } from '@/lib/player';
 import { PaymentType } from '@pitchaside/shared';
 
 type Stage = 'signup' | 'signin' | 'joined';
@@ -26,11 +26,28 @@ export default function GroupLinkPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joined, setJoined] = useState<JoinResult | null>(null);
+  const router = useRouter();
+  // From a game's QR code (/g/<code>?game=<id>): the game they're here for.
+  const [game, setGame] = useState<string | null>(null);
+  const [goingToGame, setGoingToGame] = useState(false);
 
   useEffect(() => {
+    const wanted = new URLSearchParams(window.location.search).get('game');
+    setGame(wanted);
     // Check if user has a valid player session via cookie
     getPlayerHome()
-      .then(() => setSignedIn(true))
+      .then(async () => {
+        setSignedIn(true);
+        if (!wanted) return;
+        // Already in the group: straight to the game. Not in it yet: they join below first.
+        setGoingToGame(true);
+        try {
+          await getPlayerGame(wanted);
+          router.replace(`/me/games/${wanted}`);
+        } catch {
+          setGoingToGame(false);
+        }
+      })
       .catch(() => setSignedIn(false));
     getPublicGroup(code)
       .then(setGroup)
@@ -38,6 +55,12 @@ export default function GroupLinkPage() {
   }, [code]);
 
   function done(res: JoinResult) {
+    // From a game's QR code: on to that game, where they say they're in and see what to pay.
+    if (game) {
+      setGoingToGame(true);
+      router.replace(`/me/games/${game}?welcome=1`);
+      return;
+    }
     setJoined(res);
     setStage('joined');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -47,7 +70,7 @@ export default function GroupLinkPage() {
     setBusy(true);
     setError(null);
     try {
-      done(await joinAsPlayer(code));
+      done(await joinAsPlayer(code, game));
     } catch (err: any) {
       setError(err.message);
       setSignedIn(false);
@@ -65,7 +88,7 @@ export default function GroupLinkPage() {
   async function signup(data: SignupData) {
     setError(null);
     try {
-      done(await signupFromLink(code, data));
+      done(await signupFromLink(code, data, game));
     } catch (err: any) {
       setError(err.message);
       // Email already has an account: send them to sign in instead.
@@ -89,10 +112,10 @@ export default function GroupLinkPage() {
     );
   }
 
-  if (!group) {
+  if (!group || goingToGame) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <BallLoader label="Opening the dressing room…" />
+        <BallLoader label={goingToGame ? 'Taking you to the game…' : 'Opening the dressing room…'} />
       </div>
     );
   }
@@ -177,7 +200,7 @@ export default function GroupLinkPage() {
           <div className="absolute inset-0 bg-gradient-to-t from-pitch-950 via-pitch-950/40 to-transparent" />
           <div className="absolute left-4 right-4 bottom-3">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">
-              {invitedBy(group) ? `${invitedBy(group)} invites you` : 'You’ve been called up'}
+              {game ? 'Join to play this game' : invitedBy(group) ? `${invitedBy(group)} invites you` : 'You’ve been called up'}
             </p>
             <h1 className="font-display text-[26px] font-extrabold text-white leading-tight"><KeepHyphens text={group.groupName} /></h1>
           </div>
@@ -211,7 +234,7 @@ export default function GroupLinkPage() {
                 className="w-full py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {busy && <BallSpinner />}
-                Join {group.groupName}
+                {game ? 'Join and see the game' : `Join ${group.groupName}`}
               </button>
               <button onClick={() => setSignedIn(false)} className="w-full text-xs font-semibold text-gray-500 hover:text-ink">
                 Not you? Use another account
@@ -220,8 +243,8 @@ export default function GroupLinkPage() {
           ) : stage === 'signin' ? (
             <PasswordSignIn
               title="Welcome back"
-              subtitle={`Sign in and we'll add you to ${group.groupName}.`}
-              cta={`Sign in & join`}
+              subtitle={game ? `Sign in and we'll take you to the game.` : `Sign in and we'll add you to ${group.groupName}.`}
+              cta={game ? 'Sign in and see the game' : `Sign in & join`}
               initialEmail={lastEmail}
               onSignedIn={onSignedIn}
               footer={
@@ -232,8 +255,12 @@ export default function GroupLinkPage() {
             />
           ) : (
             <PlayerSignupForm
-              subtitle="Create your PitchAside account — you'll get your payment code straight after."
-              cta="Join the group"
+              subtitle={
+                game
+                  ? `Sign up once and you're in ${group.groupName}, then straight to the game. Next time, this code takes you right there.`
+                  : "Create your PitchAside account — you'll get your payment code straight after."
+              }
+              cta={game ? 'Join and see the game' : 'Join the group'}
               onSubmit={signup}
               onEmailChange={setLastEmail}
               onSwitchToSignIn={() => {
@@ -247,9 +274,22 @@ export default function GroupLinkPage() {
         {/* Paying without their code wouldn't match them, so members pay from their own page. */}
         <p className="mt-6 text-center text-sm text-gray-600">
           Already a member?{' '}
-          <Link href="/me" className="font-bold text-pitch-700 hover:text-ink">
-            Sign in to see what you owe
-          </Link>
+          {game ? (
+            <button
+              onClick={() => {
+                setError(null);
+                setStage('signin');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="min-h-11 font-bold text-pitch-700 hover:text-ink"
+            >
+              Sign in to see the game
+            </button>
+          ) : (
+            <Link href="/me" className="font-bold text-pitch-700 hover:text-ink">
+              Sign in to see what you owe
+            </Link>
+          )}
         </p>
       </div>
     </div>
