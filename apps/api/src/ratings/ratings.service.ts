@@ -1423,6 +1423,41 @@ export class RatingsService {
     }
   }
 
+  /**
+   * The organiser corrects a saved game's score. Its named scorers stay; a side can't go below
+   * the scorers named for it, so they take one off first and the goals and scorers always agree.
+   */
+  async updateGame(sessionId: string, gameId: string, organizationId: string, input: { scoreA: number; scoreB: number }) {
+    const session = await this.loadSession(sessionId, organizationId);
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    const clean = (n: number) => Math.max(0, Math.min(99, Math.round(Number(n) || 0)));
+    await this.gamesRepo.manager.transaction(async (tx) => {
+      const game = await tx.findOne(SessionGame, { where: { id: gameId, sessionId }, lock: { mode: 'pessimistic_write' } });
+      if (!game) throw new NotFoundException('Game not found');
+      const goals = await tx.find(MatchGoal, { where: { gameId } });
+      const next = { scoreA: clean(input.scoreA), scoreB: clean(input.scoreB) };
+      for (const [team, score] of [[game.teamA, next.scoreA], [game.teamB, next.scoreB]] as const) {
+        const named = goals.filter((g) => g.team === team).length;
+        if (named > score) {
+          throw new BadRequestException(
+            `${this.sideName(session, team)} has ${named} scorer${named === 1 ? '' : 's'} named. Take ${named - score === 1 ? 'one' : named - score} off first, then lower the score.`,
+          );
+        }
+      }
+      await tx.update(SessionGame, { id: game.id }, next);
+    });
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  /** What a side is called: "Team Ada" with a captain, else its bib name or colour ("Orange"). */
+  private sideName(session: Session, team: string) {
+    const captain = this.captainsOf(session)[team as TeamKey];
+    if (captain) return `Team ${captain}`;
+    const bib = bibsFor(session)[team as TeamKey];
+    const colour = bib?.colour ?? DEFAULT_SIDE_COLOURS[team] ?? team;
+    return bib?.name || `${colour.charAt(0).toUpperCase()}${colour.slice(1)}`;
+  }
+
   async deleteGame(sessionId: string, gameId: string, organizationId: string) {
     await this.loadSession(sessionId, organizationId);
     await this.gamesRepo.delete({ id: gameId, sessionId });

@@ -93,6 +93,18 @@ export class GameBibsDto {
   bibs?: Record<string, { colour: string; name?: string | null }> | null;
 }
 
+export class ScoreDto {
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  scoreA: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(99)
+  scoreB: number;
+}
+
 export class GameDto {
   @IsIn(['A', 'B', 'C', 'D', 'E', 'F'])
   teamA: string;
@@ -195,6 +207,12 @@ export class RatingsController {
   @Delete('sessions/:id/events/:eventId')
   deleteEvent(@Param('id') id: string, @Param('eventId') eventId: string, @CurrentUser() user: User) {
     return this.ratings.deleteEvent(id, eventId, user.organizationId);
+  }
+
+  /** Correct a saved game's score (organiser only). */
+  @Patch('sessions/:id/games/:gameId')
+  updateGame(@Param('id') id: string, @Param('gameId') gameId: string, @Body() dto: ScoreDto, @CurrentUser() user: User) {
+    return this.ratings.updateGame(id, gameId, user.organizationId, dto);
   }
 
   @Delete('sessions/:id/games/:gameId')

@@ -944,6 +944,11 @@ export function deleteMatchEvent(sessionId: string, eventId: string): Promise<Li
   return http.delete(`/sessions/${sessionId}/events/${eventId}`);
 }
 
+/** Correct a saved game's score (the organiser only). Named scorers stay. */
+export function updateMatchGame(sessionId: string, gameId: string, score: { scoreA: number; scoreB: number }): Promise<Lineup> {
+  return http.patch(`/sessions/${sessionId}/games/${gameId}`, score);
+}
+
 export function deleteMatchGame(sessionId: string, gameId: string): Promise<Lineup> {
   return http.delete(`/sessions/${sessionId}/games/${gameId}`);
 }
