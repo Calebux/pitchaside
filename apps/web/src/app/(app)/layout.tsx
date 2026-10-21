@@ -8,6 +8,7 @@ import { EmailVerifiedModal, VerifyEmailModal } from '@/components/verify-email-
 import { BallLoader } from '@/components/skeleton';
 import { InstallNudge } from '@/components/pwa';
 import { CurrentGroupProvider } from '@/lib/current-group';
+import { TourHost } from '@/components/onboarding/tour';
 
 export default function AppLayout({
   children,
@@ -56,6 +57,7 @@ export default function AppLayout({
         <InstallNudge />
       </div>
       <Nav />
+      <TourHost side="organiser" />
     </CurrentGroupProvider>
   );
 }

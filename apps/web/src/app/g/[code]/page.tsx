@@ -154,7 +154,7 @@ export default function GroupLinkPage() {
           )}
 
           <Link
-            href="/me"
+            href="/me?welcome=1"
             className="mt-8 w-full flex items-center justify-center gap-2 py-3.5 bg-ink text-volt-300 text-sm font-bold rounded-2xl hover:bg-pitch-900 transition-colors"
           >
             {perGame ? 'See the next game →' : 'Open my PitchAside →'}

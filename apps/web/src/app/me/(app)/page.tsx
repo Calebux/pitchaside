@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { FaceStack } from '@/components/people-row';
 import { Avatar } from '@/components/ratings';
 import { PushToggle } from '@/components/pwa';
+import { DidYouKnow } from '@/components/onboarding/did-you-know';
 import { GameCard, GameRow, LoadError, Section, niceDate } from '@/components/player-ui';
 import { CountUpNaira } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
@@ -164,6 +165,9 @@ export default function PlayerHomePage() {
           ))}
         </div>
       )}
+
+      {/* Now and then: a "Did you know?" that fits what's going on */}
+      <DidYouKnow side="player" className="mt-4" context={{ owes: totalOwed > 0, voteOpen: pendingVotes.length > 0, noPhoto: !home.player.photoKey }} />
 
       {/* You in the club, two taps away: your card lives on Me, the full table on Club */}
       <div className="mt-3 grid grid-cols-2 gap-3">

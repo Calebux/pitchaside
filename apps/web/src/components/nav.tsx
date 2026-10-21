@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { openTour } from '@/lib/onboarding';
 import { useAuth } from '@/lib/auth';
 import { UserRole } from '@pitchaside/shared';
 import { Logo } from '@/components/brand';
@@ -253,6 +254,18 @@ export function Nav() {
                       {t.label}
                     </Link>
                   ))}
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      openTour();
+                    }}
+                    className="flex items-center gap-2.5 w-full text-left px-3 py-2.5 text-sm font-medium text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                    </svg>
+                    How PitchAside works
+                  </button>
                   <Link
                     href="/settings"
                     onClick={() => setMobileMenuOpen(false)}
@@ -341,6 +354,12 @@ export function Nav() {
                 <p className="text-xs text-white/45 truncate">{user.organization?.name}</p>
               </div>
             </div>
+            <button
+              onClick={openTour}
+              className="w-full mt-1.5 flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg text-white/60 bg-white/[0.06] hover:text-white hover:bg-white/10 transition-colors"
+            >
+              How PitchAside works
+            </button>
             <div className="grid grid-cols-2 gap-1.5 mt-1.5">
               <Link
                 href="/settings"

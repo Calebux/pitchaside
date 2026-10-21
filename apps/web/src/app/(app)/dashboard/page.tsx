@@ -32,6 +32,7 @@ import { UpdatesBell, type Update } from '@/components/home/updates-bell';
 import { transferName } from '@/components/home/transfers-sheet';
 import { closeTime } from '@/components/ratings';
 import { GroupSwitch } from '@/components/group-switch';
+import { DidYouKnow } from '@/components/onboarding/did-you-know';
 import { MatchDayNews } from '@/components/home/match-day-news';
 import { GroupSettingsSheet } from '@/components/group/group-settings';
 import { useCurrentGroup } from '@/lib/current-group';
@@ -420,6 +421,20 @@ export default function Dashboard() {
 
       {/* Only what the two cards above don't already show; the bell keeps the full list */}
       <NeedsYou items={needs.filter((n) => !['unmatched', 'owing'].includes(n.key)).slice(0, 2)} />
+
+      {/* Now and then: a "Did you know?" that fits what's going on today */}
+      {group && canManage && (
+        <DidYouKnow
+          side="organiser"
+          className="mt-4"
+          context={{
+            owing: needs.some((n) => n.key === 'owing') ? 1 : 0,
+            unnamed: money.billing?.unmatchedTransfers ?? 0,
+            noAccount: money.billing ? !money.billing.account : !group.accountNumber,
+            voteOpen: needs.some((n) => n.key === 'vote'),
+          }}
+        />
+      )}
 
     </div>
   );
