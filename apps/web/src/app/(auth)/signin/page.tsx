@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/toast';
+import { loginWithPassword } from '@/lib/player';
 
 export default function SignInPage() {
   const router = useRouter();
@@ -37,7 +38,20 @@ export default function SignInPage() {
         router.push('/dashboard');
       }
     } catch (err: any) {
-      toast.error(err.message || 'Sign in failed');
+      // Players sign in with the same email and password on the player side: if that's who this
+      // is, take them there instead of failing (the site's "Sign in" button opens this page).
+      if (/invalid credentials/i.test(err?.message ?? '')) {
+        try {
+          const res = await loginWithPassword(form.email.trim(), form.password);
+          router.replace('needsPassword' in res ? `/me/login?email=${encodeURIComponent(form.email.trim())}` : '/me');
+          return;
+        } catch {
+          // Not a player either.
+        }
+        toast.error('Wrong email or password.');
+      } else {
+        toast.error(err.message || 'Sign in failed');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -168,6 +182,12 @@ export default function SignInPage() {
         Don&apos;t have an account?{' '}
         <Link href="/signup" className="text-pitch-600 font-semibold hover:text-pitch-700">
           Sign up
+        </Link>
+      </p>
+      <p className="mt-2 text-center text-sm text-gray-500">
+        Playing in a group?{' '}
+        <Link href="/me/login" className="text-pitch-600 font-semibold hover:text-pitch-700">
+          Player sign in
         </Link>
       </p>
     </div>
