@@ -1,8 +1,9 @@
 'use client';
 
+import { usePlayerGroup } from '@/lib/player-group';
 import { useState } from 'react';
 import { PageHeader } from '@/components/brand';
-import { GroupChips } from '@/components/player-ui';
+import { PlayerGroupSwitch } from '@/components/player-group-switch';
 import { usePlayerProfile } from '@/components/player-shell';
 import { GroupTable } from '@/components/squad/group-table';
 import { GroupStats, type ClubApi, type StatSort } from '@/components/squad/group-stats';
@@ -27,7 +28,8 @@ export default function PlayerClubPage() {
   const { profile } = usePlayerProfile();
   const groups = (profile?.clubs ?? []).flatMap((c) => c.groups.map((g) => ({ ...g, clubName: c.clubName })));
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-  const [groupId, setGroupId] = useState<string | null>(params?.get('group') ?? null);
+  // The same pick as Home's group switch; the table is always one group, so "all" shows the first.
+  const [groupId, pickGroup] = usePlayerGroup(groups);
   const [view, setView] = useState<View>(params?.get('view') === 'stats' ? 'stats' : 'table');
   const [sort, setSort] = useState<StatSort>((params?.get('sort') as StatSort) || 'rating');
   const group = groups.find((g) => g.id === groupId) ?? groups[0];
@@ -60,12 +62,14 @@ export default function PlayerClubPage() {
         </div>
       ) : (
         <>
-          <GroupChips
+          <PlayerGroupSwitch
+            className="mb-3"
             groups={groups}
             value={group.id}
-            onChange={(id) => {
+            allowAll={false}
+            onPick={(id) => {
               if (!id) return;
-              setGroupId(id);
+              pickGroup(id);
               remember({ group: id });
             }}
           />

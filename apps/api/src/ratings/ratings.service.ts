@@ -507,6 +507,7 @@ export class RatingsService {
       result.push({
         token,
         sessionId: s.id,
+        groupId: s.groupId,
         groupName: s.group?.name,
         date: s.date,
         voted: voters.has(playerId),

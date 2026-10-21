@@ -11,6 +11,8 @@ import { CountUpNaira } from '@/components/motion';
 import { formatCurrency } from '@/lib/api';
 import { getPlayerHome, subscribePlayerPush, type PlayerHome } from '@/lib/player';
 import { ModeSwitch, usePlayerProfile } from '@/components/player-shell';
+import { PlayerGroupSwitch } from '@/components/player-group-switch';
+import { usePlayerGroup } from '@/lib/player-group';
 
 /** 1st, 2nd, 3rd, 4th… for a place in the table. */
 const ordinal = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`;
@@ -19,6 +21,8 @@ export default function PlayerHomePage() {
   const [home, setHome] = useState<PlayerHome | null>(null);
   const { profile } = usePlayerProfile();
   const [failed, setFailed] = useState<unknown>(null);
+  // All their groups, or one, like the organiser's group switch (Games and Club follow it too).
+  const [groupId, pickGroup] = usePlayerGroup(home?.groups);
   // A failed refresh after it has loaded keeps what's on screen; only a first load shows the error.
   const load = useCallback(
     () =>
@@ -59,12 +63,18 @@ export default function PlayerHomePage() {
   }
 
   const r = home.ratings;
-  const firstTable = home.tables.find((t) => t.me);
+  const group = home.groups.find((g) => g.id === groupId) ?? null;
+  const inGroup = (id?: string | null, name?: string | null) => !group || (id ? id === group.id : name === group.name);
+  const upcoming = home.upcoming.filter((g) => inGroup(g.groupId));
+  const firstTable = home.tables.find((t) => t.me && inGroup(t.groupId));
   // What to send now, from the server (played games and each group's next one, after part payments).
-  const totalOwed = home.groups.reduce((sum, g) => sum + g.toPay, 0);
-  const owedNow = home.owed.filter((o) => o.now).length;
+  // With one group picked it shows that group's, and still says what's owed in the others.
+  const allOwed = home.groups.reduce((sum, g) => sum + g.toPay, 0);
+  const totalOwed = group ? group.toPay : allOwed;
+  const owedElsewhere = allOwed - totalOwed;
+  const owedNow = home.owed.filter((o) => o.now && inGroup(o.groupId)).length;
   const extra = home.groups.reduce((sum, g) => sum + g.extra, 0);
-  const pendingVotes = home.openVotes.filter((v) => !v.voted);
+  const pendingVotes = home.openVotes.filter((v) => !v.voted && inGroup(v.groupId, v.groupName));
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -85,12 +95,17 @@ export default function PlayerHomePage() {
         <ModeSwitch organiser={profile?.organiser ?? null} />
       </div>
     </div>
+    {home.groups.length > 0 && (
+      <div className="-mt-1 mb-3.5">
+        <PlayerGroupSwitch groups={home.groups} value={group?.id ?? null} onPick={pickGroup} />
+      </div>
+    )}
     <div className="md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] md:gap-8 md:items-start">
       <div>
       {/* Money first, as on the organiser's home: what to send now, in one dark strip */}
       <Link
         href="/me/pay"
-        aria-label={totalOwed > 0 ? `To pay now: ${formatCurrency(totalOwed)}. Open Pay` : 'Nothing to pay. Open Pay'}
+        aria-label={`${totalOwed > 0 ? `To pay now${group ? ` in ${group.name}` : ''}: ${formatCurrency(totalOwed)}` : 'Nothing to pay'}${owedElsewhere > 0 ? `, and ${formatCurrency(owedElsewhere)} in your other groups` : ''}. Open Pay`}
         className="press relative block overflow-hidden rounded-[28px] bg-ink text-white shadow-card"
       >
         <span className="absolute inset-0 turf-stripes-soft" aria-hidden />
@@ -103,8 +118,18 @@ export default function PlayerHomePage() {
               <span className="block mt-0.5 font-display text-[30px] leading-none font-extrabold">All square ✓</span>
             )}
             <span className="block mt-2 text-[13px] text-white/70">
-              {totalOwed > 0 ? `For ${owedNow} game${owedNow === 1 ? '' : 's'} · put your payment code on the transfer` : 'Nothing owed right now'}
+              {totalOwed > 0
+                ? `For ${owedNow} game${owedNow === 1 ? '' : 's'}${group ? ` in ${group.name}` : ''} · put your payment code on the transfer`
+                : group
+                  ? `Nothing owed in ${group.name}`
+                  : 'Nothing owed right now'}
             </span>
+            {owedElsewhere > 0 && (
+              <span className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-sun-400">
+                <span className="w-2 h-2 rounded-full bg-sun-400" aria-hidden />
+                {formatCurrency(owedElsewhere)} to pay in your other groups
+              </span>
+            )}
             {extra > 0 && (
               <span className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-sun-400">
                 <span className="w-2 h-2 rounded-full bg-sun-400" aria-hidden />
@@ -122,15 +147,20 @@ export default function PlayerHomePage() {
 
       {/* This week's game, in the organiser's match-day card */}
       <div className="mt-3">
-        {home.upcoming.length === 0 ? (
+        {upcoming.length === 0 ? (
           <div className="rounded-3xl bg-chalk px-5 py-6 text-center">
-            <p className="text-[15px] font-bold text-ink">No game coming up</p>
+            <p className="text-[15px] font-bold text-ink">{group ? `No game coming up in ${group.name}` : 'No game coming up'}</p>
             <p className="mt-1 text-[13px] text-gray-600">
               {home.groups.length ? 'You’ll get a ping when your organiser sets the next one.' : 'Join a group with the link your organiser shares.'}
             </p>
+            {group && home.upcoming.length > 0 && (
+              <button onClick={() => pickGroup(null)} className="press mt-3 inline-flex items-center min-h-11 px-4 rounded-full bg-white border border-gray-200 text-[13px] font-bold text-ink hover:border-ink">
+                See all my groups ({home.upcoming.length} coming up)
+              </button>
+            )}
           </div>
         ) : (
-          <GameCard game={home.upcoming[0]} onChange={load} />
+          <GameCard game={upcoming[0]} onChange={load} />
         )}
       </div>
 
@@ -192,7 +222,7 @@ export default function PlayerHomePage() {
           </span>
         </Link>
         <Link
-          href={firstTable ? `/me/club?group=${firstTable.groupId}` : '/me/club'}
+          href={firstTable ? `/me/club?group=${firstTable.groupId}` : group ? `/me/club?group=${group.id}` : '/me/club'}
           aria-label={firstTable?.me ? `${ordinal(firstTable.me.rank)} in ${firstTable.groupName} with ${firstTable.me.points} points. Open the table` : 'Open the table'}
           className="press flex flex-col justify-between min-h-[120px] rounded-3xl bg-white border border-gray-100 p-4 shadow-card"
         >
@@ -213,13 +243,13 @@ export default function PlayerHomePage() {
           ) : (
             <span>
               <span className="block font-display text-[20px] leading-tight font-extrabold text-ink">Not on it yet</span>
-              <span className="mt-1 block text-[12px] text-gray-600">Play a game with scores</span>
+              <span className="mt-1 block text-[12px] text-gray-600 truncate">{group ? `in ${group.name}` : 'Play a game with scores'}</span>
             </span>
           )}
         </Link>
       </div>
 
-      {home.upcoming.length > 1 && (
+      {upcoming.length > 1 && (
         <Section
           title="Coming up"
           action={
@@ -229,7 +259,7 @@ export default function PlayerHomePage() {
           }
         >
           <div className="space-y-2">
-            {home.upcoming.slice(1).map((g) => (
+            {upcoming.slice(1).map((g) => (
               <GameRow key={g.id} game={g} />
             ))}
           </div>

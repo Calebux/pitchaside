@@ -410,6 +410,7 @@ export class PlayerPortalService {
       paid: paid.map((p) => ({
         id: p.id,
         amount: Number(p.amount),
+        groupId: p.session.groupId,
         groupName: p.session.group.name,
         label: p.session.label ? `${p.session.label} dues` : null,
         date: p.session.date,
@@ -433,6 +434,7 @@ export class PlayerPortalService {
     });
     return rows.map((k) => ({
       id: k.id,
+      groupId: k.groupId,
       groupName: k.group?.name ?? '',
       amount: Number(k.amount),
       reason: k.reason,
