@@ -11,10 +11,11 @@ import { RatingsModule } from '../ratings/ratings.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BillingModule } from '../billing/billing.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { ReminderLog } from '../reminders/entities/reminder-log.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Session, Group, GroupMembership, Payment]),
+    TypeOrmModule.forFeature([Session, Group, GroupMembership, Payment, ReminderLog]),
     RsvpModule,
     RatingsModule,
     NotificationsModule,

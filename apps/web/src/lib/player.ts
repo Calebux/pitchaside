@@ -228,11 +228,24 @@ export interface PlayerHome {
     bibsOpen?: boolean;
     myTeam?: TeamKey | null;
     teamCount?: number;
+    /** Who's playing: how many, and the first few as faces (them first). */
+    playingCount?: number;
+    faces?: { id: string; name: string; photoKey: string | null; me: boolean }[];
   }[];
   /** `amount` is what's left to pay; `paidSoFar` is credit from partial transfers already counted against it. */
   /** `now`: a transfer pays it today (played games and their next one). False: a game further ahead. */
   owed: { id: string; amount: number; paidSoFar: number; now: boolean; groupId: string; groupName: string; label: string | null; date: string }[];
-  openVotes: { token: string; sessionId: string; groupName?: string; date: string; voted: boolean }[];
+  openVotes: {
+    token: string;
+    sessionId: string;
+    groupName?: string;
+    date: string;
+    voted: boolean;
+    /** Turnout: who's voted so far (faces of the first few, never what they picked). */
+    ballots?: number;
+    squadSize?: number;
+    voters?: { id: string; name: string; photoKey: string | null }[];
+  }[];
   ratings: PlayerRatings;
   tables: {
     groupId: string;
@@ -260,7 +273,7 @@ export interface RecentMatchDay {
   teamOfTheDay: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | null;
   record: { w: number; d: number; l: number };
   games: number;
-  potm: { name: string; votes: number; isMe: boolean } | null;
+  potm: { name: string; votes: number; isMe: boolean; photoKey?: string | null } | null;
   vote: { token: string; voted: boolean } | null;
   /** For the match-day share card; null before kick-off. */
   shareToken: string | null;

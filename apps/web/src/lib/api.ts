@@ -368,6 +368,11 @@ export function getOrgByInviteCode(
 
 // ── Reminders ──
 
+/** Nudge the players who came and haven't voted; the server allows it once every two hours. */
+export function remindToVote(sessionId: string): Promise<{ sent: number; missed: number; waiting: number }> {
+  return http.post(`/sessions/${sessionId}/remind-vote`);
+}
+
 export function sendReminders(sessionId: string): Promise<{ sent: number; missed: number }> {
   return http.post<{ sent: number; missed: number }>(`/sessions/${sessionId}/send-reminders`);
 }
@@ -1018,6 +1023,8 @@ export interface SessionVoting extends VoteResults {
   /** The game hasn't been ended yet: the vote opens at full time. */
   notYet: boolean;
   closesAt: string | null;
+  /** Ids of the players who've voted (never what they picked). */
+  voted?: string[];
 }
 
 export interface Ballot {

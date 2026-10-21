@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { FaceStack } from '@/components/people-row';
 import { Avatar } from '@/components/ratings';
 import { PushToggle } from '@/components/pwa';
 import { GameCard, GameRow, LoadError, Section, niceDate } from '@/components/player-ui';
@@ -148,6 +149,15 @@ export default function PlayerHomePage() {
                 <span className="block text-xs text-ink/70 truncate">
                   {v.groupName} · {niceDate(v.date, { weekday: 'short', day: 'numeric', month: 'short' })}
                 </span>
+                {/* Turnout, with the faces of who's voted: nobody is named for not voting */}
+                {v.squadSize ? (
+                  <span className="mt-1.5 flex items-center gap-2">
+                    {v.voters && v.voters.length > 0 && <FaceStack people={v.voters} total={v.ballots} max={2} />}
+                    <span className="text-xs font-bold text-ink tabular-nums whitespace-nowrap" aria-label={`${v.ballots} of ${v.squadSize} have voted`}>
+                      {v.ballots}/{v.squadSize} voted
+                    </span>
+                  </span>
+                ) : null}
               </span>
               <span className="text-[13px] font-extrabold text-ink">Vote ›</span>
             </Link>

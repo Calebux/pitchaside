@@ -8,6 +8,7 @@ export function Stat({
   note,
   share,
   tone = 'ink',
+  face,
 }: {
   label: string;
   value: string;
@@ -15,16 +16,19 @@ export function Stat({
   note: string;
   share?: number | null;
   tone?: 'ink' | 'warn' | 'muted';
+  /** A face beside the figure, when the figure is a person (Player of the Match). */
+  face?: React.ReactNode;
 }) {
   return (
     <span className="min-w-0 block">
       <span className="block text-[11px] font-bold uppercase tracking-[0.1em] text-gray-500">{label}</span>
       <span
-        className={`mt-0.5 block font-display text-[20px] leading-tight font-extrabold tabular-nums truncate ${
+        className={`mt-0.5 font-display ${face ? 'text-[17px]' : 'text-[20px]'} leading-tight font-extrabold tabular-nums truncate ${face ? 'flex items-center gap-2' : 'block'} ${
           tone === 'warn' ? 'text-amber-700' : tone === 'muted' ? 'text-gray-400' : 'text-ink'
         }`}
       >
-        {value}
+        {face}
+        {face ? <span className="min-w-0 truncate">{value}</span> : value}
         {of && <span className="text-[14px] font-bold text-gray-400">{of}</span>}
       </span>
       {share != null && (

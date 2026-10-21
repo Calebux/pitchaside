@@ -82,15 +82,15 @@ export class PlayerPortalService {
     });
     const ids = this.ids(person);
     const statuses = await this.rsvp.statusesForMany(ids, games.map((g) => g.id));
-    const myPayments = games.length
-      ? await this.paymentsRepo.find({ where: { playerId: In(ids), sessionId: In(games.map((g) => g.id)) } })
-      : [];
+    // Every game's squad at once: the card shows the faces of who's playing.
+    const squads = games.length ? await this.paymentsRepo.find({ where: { sessionId: In(games.map((g) => g.id)) }, relations: ['player'] }) : [];
 
     const result = [];
     for (const g of games) {
       const board = await this.rsvp.board(g);
-      const payment = myPayments.find((p) => p.sessionId === g.id);
-      result.push(this.gameCard(g, ids, statuses.get(g.id) ?? null, board, payment));
+      const squad = squads.filter((p) => p.sessionId === g.id);
+      const payment = squad.find((p) => ids.includes(p.playerId));
+      result.push(this.gameCard(g, ids, statuses.get(g.id) ?? null, board, payment, squad));
     }
     return result;
   }
@@ -102,7 +102,9 @@ export class PlayerPortalService {
     myStatus: string | null,
     board: Awaited<ReturnType<RsvpService['board']>>,
     payment: Payment | undefined,
+    squad: Payment[],
   ) {
+    const playing = this.playingOf(g, board, squad);
     return {
       id: g.id,
       date: g.date,
@@ -121,7 +123,18 @@ export class PlayerPortalService {
       bibsOpen: !!payment && g.date.slice(0, 10) <= localDate(0),
       myTeam: payment?.team ?? null,
       teamCount: g.teamCount,
+      /** Who's playing, as faces on the card: them first, then up to 7 more. */
+      playingCount: playing.length,
+      faces: [...playing.filter((p) => ids.includes(p.id)), ...playing.filter((p) => !ids.includes(p.id))]
+        .slice(0, 8)
+        .map((p) => ({ id: p.id, name: sheetName(p), photoKey: p.photoKey ?? null, me: ids.includes(p.id) })),
     };
+  }
+
+  /** Who's playing: with RSVPs, who said they're in; otherwise the squad, less anyone who said they can't make it. */
+  private playingOf(g: Session, board: Awaited<ReturnType<RsvpService['board']>>, squad: Payment[]) {
+    const out = new Set(board.out.map((p) => p.id));
+    return g.group.requireRsvp ? board.in : squad.filter((p) => p.player && !out.has(p.playerId)).map((p) => p.player);
   }
 
   /**
@@ -148,14 +161,11 @@ export class PlayerPortalService {
       me: ids.includes(p.id),
     });
     // Without RSVPs everyone in the squad plays, except anyone who's said they can't make it.
-    const out = new Set(board.out.map((p) => p.id));
-    const playing = g.group.requireRsvp
-      ? board.in
-      : squad.filter((p) => p.player && !out.has(p.playerId)).map((p) => p.player);
+    const playing = this.playingOf(g, board, squad);
     const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
 
     return {
-      ...this.gameCard(g, ids, statuses.get(g.id) ?? null, board, payment),
+      ...this.gameCard(g, ids, statuses.get(g.id) ?? null, board, payment, squad),
       status: g.status,
       location: g.group.location ?? null,
       playing: playing.map(named).sort(byName),
