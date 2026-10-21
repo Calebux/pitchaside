@@ -114,7 +114,7 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
   const potm = card.awards.find((a) => a.key === 'potm');
   const winners = (potm?.ids ?? []).map((id) => players.find((p) => p.id === id)).filter((p): p is CardPlayer => !!p);
   const W = 340;
-  const H = 420;
+  const H = 396;
 
   if (!potm || card.open) {
     return (
@@ -171,7 +171,6 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
       <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', top: 26, left: 30 }}>
         <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 80, lineHeight: 1 }}>{star?.ovr ?? '★'}</div>
         <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 3, marginTop: 2 }}>{star?.ovr ? 'OVR' : ''}</div>
-        <div style={{ display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 3, marginTop: 10 }}>POTM</div>
       </div>
       <div style={{ display: 'flex', position: 'absolute', top: 30, right: 28 }}>
         {winners.length > 1 ? (
@@ -183,12 +182,12 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
             ))}
           </div>
         ) : (
-          <Face p={star ?? { name: potm.name, photoKey: null }} size={170} ring={C.ink} />
+          <Face p={star ?? { name: potm.name, photoKey: null }} size={148} ring={C.ink} />
         )}
       </div>
 
       {/* Name bar */}
-      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 0, right: 0, top: 216, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', position: 'absolute', left: 0, right: 0, top: 188, alignItems: 'center' }}>
         <div style={{ display: 'flex', fontSize: 20, fontWeight: 700, letterSpacing: 4 }}>PLAYER OF THE MATCH</div>
         <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(potm.name, 44, 13), marginTop: 2, textAlign: 'center' }}>{potm.name}</div>
       </div>
@@ -200,15 +199,15 @@ function PotmCard({ card, players }: { card: MatchCard; players: CardPlayer[] })
           position: 'absolute',
           left: 28,
           right: 28,
-          bottom: 26,
+          bottom: 20,
           borderTop: `3px solid ${C.ink}`,
-          paddingTop: 14,
+          paddingTop: 10,
           justifyContent: 'space-around',
         }}
       >
         {stats.map((s) => (
           <div key={s.k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 46, lineHeight: 1 }}>{s.v}</div>
+            <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, lineHeight: 1 }}>{s.v}</div>
             <div style={{ display: 'flex', fontSize: 16, fontWeight: 700, letterSpacing: 2, marginTop: 4 }}>{s.k}</div>
           </div>
         ))}
@@ -384,16 +383,16 @@ function Awards({ card, players, stats }: { card: MatchCard; players: CardPlayer
         <Label size={18}>{counted.length && voted.length ? 'AWARDS AND STATS' : counted.length ? 'THE DAY IN STATS' : 'AWARDS · VOTED BY THE PLAYERS'}</Label>
         {more > 0 && <Label size={18} color={C.muted}>{`+${more} MORE`}</Label>}
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
         {shown.map((a) => {
           const who = (a.ids ?? []).map((id) => byId.get(id)).filter((p): p is CardPlayer => !!p);
           const title = a.key === 'teammate' && a.team ? `Best on ${side(a.team, card).name}` : a.title;
           return (
             <div
               key={`${a.key}-${a.team ?? ''}`}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: 314, height: 86, padding: '0 14px 0 10px', borderRadius: 22, background: 'rgba(255,255,255,0.07)', border: `2px solid ${C.line}` }}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, width: 314, height: 78, padding: '0 14px 0 10px', borderRadius: 20, background: 'rgba(255,255,255,0.07)', border: `2px solid ${C.line}` }}
             >
-              <Face p={who[0] ?? { name: a.name, photoKey: null }} size={60} ring={C.pitch900} />
+              <Face p={who[0] ?? { name: a.name, photoKey: null }} size={52} ring={C.pitch900} />
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <Label size={15}>{title.toUpperCase()}</Label>
                 <div style={{ display: 'flex', fontSize: fit(a.name, 24, 14), fontWeight: 700, marginTop: 2 }}>{a.name}</div>
@@ -481,28 +480,31 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
     onPitch = players.slice(0, 7);
   }
   if (!onPitch.length) return null;
-  // Short on room (the awards are showing): everyone in one line across the pitch.
-  const front = compact ? onPitch : onPitch.slice(0, Math.ceil(onPitch.length / 2));
+  // Two lines of players, like a team sheet; a little shorter, with smaller faces, when the
+  // awards are showing above.
+  const front = onPitch.slice(0, Math.ceil(onPitch.length / 2));
   const back = onPitch.slice(front.length);
-  const size = compact ? 70 : 92;
+  const size = compact ? 72 : 92;
+  const h = compact ? 350 : 400;
+  // The lines are drawn over the playing area; the sub's bench sits to the side of it.
+  const benchW = bench ? (compact ? 150 : 170) : 0;
+  const field = 962 - benchW;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', height: compact ? 270 : 400, borderRadius: 36, overflow: 'hidden', border: `3px solid ${C.line}` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', height: h, borderRadius: 36, overflow: 'hidden', border: `3px solid ${C.line}` }}>
       {/* Mowed stripes and the lines of a 5-a-side pitch */}
       <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
         {Array.from({ length: 10 }).map((_, i) => (
           <div key={i} style={{ flex: 1, background: i % 2 ? '#14532d' : '#166534' }} />
         ))}
       </div>
-      {/* The lines, when there's room: one row of players across would sit on top of them */}
-      {!compact && (
-        <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
-          <div style={{ position: 'absolute', top: 0, bottom: 0, left: '50%', width: 3, background: 'rgba(255,255,255,0.35)', display: 'flex' }} />
-          <div style={{ position: 'absolute', top: 140, left: 424, width: 120, height: 120, borderRadius: 120, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-          <div style={{ position: 'absolute', top: 110, left: -3, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-          <div style={{ position: 'absolute', top: 110, left: 962 - 87, width: 90, height: 180, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
-        </div>
-      )}
+      {/* The lines of a 5-a-side pitch: halfway line, centre circle, a box at each end */}
+      <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+        <div style={{ position: 'absolute', top: 0, height: h, left: field / 2 - 1, width: 3, background: 'rgba(255,255,255,0.35)', display: 'flex' }} />
+        <div style={{ position: 'absolute', top: h / 2 - 60, left: field / 2 - 60, width: 120, height: 120, borderRadius: 120, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+        <div style={{ position: 'absolute', top: h / 2 - 85, left: -3, width: 90, height: 170, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+        <div style={{ position: 'absolute', top: h / 2 - 85, left: field - 87, width: 90, height: 170, border: '3px solid rgba(255,255,255,0.35)', display: 'flex' }} />
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16 }}>
         <div style={{ display: 'flex', padding: '6px 18px', borderRadius: 999, background: 'rgba(7,31,16,0.85)' }}>
@@ -510,7 +512,7 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
         </div>
       </div>
       <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: compact ? 12 : 14 }}>
           <div style={{ display: 'flex', justifyContent: 'space-around' }}>
             {front.map((p) => (
               <PitchPlayer key={p.id} p={p} card={card} size={size} />
@@ -525,7 +527,7 @@ function Pitch({ card, players, compact = false }: { card: MatchCard; players: C
           )}
         </div>
         {bench && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: compact ? 130 : 170, height: '100%', justifyContent: 'center', background: 'rgba(7,31,16,0.55)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: benchW, height: '100%', justifyContent: 'center', background: 'rgba(7,31,16,0.55)' }}>
             <Label size={16} color={C.muted}>SUB</Label>
             <div style={{ display: 'flex', marginTop: 8 }}>
               <PitchPlayer p={bench} card={card} sub size={size} />
@@ -543,7 +545,7 @@ function Results({ card }: { card: MatchCard }) {
   const shown = card.games.slice(-4);
   const more = card.games.length - shown.length;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 22 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16 }}>
       <Label size={18} color={C.muted}>FT</Label>
       {shown.map((g, i) => {
         const a = side(g.teamA, card);
@@ -571,7 +573,7 @@ function NoScores() {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        height: 420,
+        height: 396,
         borderRadius: 28,
         border: '3px dashed rgba(255,255,255,0.18)',
         padding: '0 40px',
@@ -646,13 +648,13 @@ function Card({ card }: { card: MatchCard }) {
       <div style={{ display: 'flex', marginTop: 26 }}>
         <Label size={22}>{[card.clubName, prettyDate(card.date)].filter(Boolean).join(' · ').toUpperCase()}</Label>
       </div>
-      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 62, 24), lineHeight: 1.05, marginTop: 4 }}>
+      <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: fit(card.groupName, 56, 24), lineHeight: 1.05, marginTop: 2 }}>
         {card.groupName}
       </div>
       <Results card={card} />
 
       {/* The hero: Player of the Match card, and the day's table with who stood out */}
-      <div style={{ display: 'flex', gap: 24, marginTop: 22 }}>
+      <div style={{ display: 'flex', gap: 24, marginTop: 18 }}>
         <PotmCard card={card} players={players} />
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           {hasTable && <DayTable card={card} />}
@@ -661,12 +663,12 @@ function Card({ card }: { card: MatchCard }) {
       </div>
 
       {hasAwards && (
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18 }}>
           <Awards card={card} players={players} stats={stats} />
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 22 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18 }}>
         <Pitch card={card} players={players} compact={hasAwards} />
       </div>
 
