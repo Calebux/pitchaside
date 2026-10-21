@@ -14,6 +14,15 @@ export function payerNameFrom(senderName?: string | null, narration?: string | n
 /** A player's payment code in a narration: "PA7K3FQ", "PA-7K3FQ", "pa 7k3fq". */
 export const REF_PATTERN = /\bPA[- ]?([A-HJ-NP-Z2-9]{5})\b/i;
 
+/**
+ * Every payment code a narration could hold, in order. Words like "PAYMENT" have the same shape
+ * as a code, so the real one can come later: "Payment for football PA7K3FQ".
+ */
+export function refsIn(narration?: string | null): string[] {
+  const all = new RegExp(REF_PATTERN.source, 'gi');
+  return [...(narration ?? '').toUpperCase().matchAll(all)].map((m) => `PA${m[1]}`);
+}
+
 export function normaliseName(name: string): string[] {
   return name
     .toLowerCase()
@@ -37,10 +46,11 @@ export function normaliseAccount(account?: string | null): string | null {
 }
 
 /**
- * Which member sent a transfer, when it's certain, in this order: their payment code is in the
- * narration; the account it came from has only ever paid for them (`accountOwner`, worked out by
- * the caller from earlier transfers); or every word of exactly one member's first and last name is
- * in the sender's name. Otherwise null, and a person decides.
+ * Which member sent a transfer, when it's certain. Their payment code in the narration wins.
+ * Otherwise the account it came from (`accountOwner`: it has only ever paid for them, worked out
+ * by the caller from earlier transfers) and the sender's name (every word of exactly one member's
+ * first and last name is in it) decide, and when they point at different members (someone paying
+ * for themselves from an account that once paid for a mate) it's null, and a person decides.
  */
 export function whoSent(
   members: MemberLike[],
@@ -48,15 +58,23 @@ export function whoSent(
   narration?: string | null,
   accountOwner?: string | null,
 ): string | null {
-  const refMatch = narration?.toUpperCase().match(REF_PATTERN);
-  if (refMatch) {
-    const m = members.find((x) => x.paymentRef === `PA${refMatch[1].toUpperCase()}`);
+  for (const ref of refsIn(narration)) {
+    const m = members.find((x) => x.paymentRef === ref);
     if (m) return m.playerId;
   }
-  if (accountOwner && members.some((m) => m.playerId === accountOwner)) return accountOwner;
-  const name = payerNameFrom(senderName, narration);
+  const byAccount = accountOwner && members.some((m) => m.playerId === accountOwner) ? accountOwner : null;
+  const byName = nameMatch(members, payerNameFrom(senderName, narration));
+  if (byAccount && byName && byAccount !== byName) return null;
+  return byAccount ?? byName;
+}
+
+/** The one member whose whole name is in the sender's name. A name with no usable words ("J. O.") fits no one. */
+function nameMatch(members: MemberLike[], name: string | null): string | null {
   if (!name) return null;
   const words = new Set(normaliseName(name));
-  const candidates = members.filter((m) => [...normaliseName(m.firstName), ...normaliseName(m.lastName)].every((w) => words.has(w)));
+  const candidates = members.filter((m) => {
+    const theirs = [...normaliseName(m.firstName), ...normaliseName(m.lastName)];
+    return theirs.length > 0 && theirs.every((w) => words.has(w));
+  });
   return candidates.length === 1 ? candidates[0].playerId : null;
 }
