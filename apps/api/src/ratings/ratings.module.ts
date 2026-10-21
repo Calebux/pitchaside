@@ -7,11 +7,11 @@ import { SessionGame } from './entities/session-game.entity';
 import { MatchGoal } from './entities/match-goal.entity';
 import { MatchEvent } from './entities/match-event.entity';
 import { RatingsService } from './ratings.service';
-import { PublicRatingsController, RatingsController } from './ratings.controller';
+import { PublicRatingsController, PublicTableController, RatingsController } from './ratings.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Vote, SessionGame, MatchGoal, Session, Group, MatchEvent])],
-  controllers: [RatingsController, PublicRatingsController],
+  controllers: [RatingsController, PublicRatingsController, PublicTableController],
   providers: [RatingsService],
   exports: [RatingsService],
 })

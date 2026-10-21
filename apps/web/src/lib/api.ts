@@ -1102,6 +1102,10 @@ export type StatCompare = Record<ComparedStat, { avg: number; avgPerGame: number
 
 export interface LeagueTable {
   games: number;
+  /** The latest match day counted. */
+  lastDate?: string | null;
+  /** The group's join-link code: the table's share link is built on it. Null: can't be shared. */
+  shareCode?: string | null;
   points: { win: number; draw: number; teamOfDay: number; potm: number };
   rows: (PlayerRatings & {
     player: SquadMember;

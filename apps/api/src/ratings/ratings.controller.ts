@@ -250,3 +250,18 @@ export class PublicRatingsController {
     return this.ratings.getMatchCard(token);
   }
 }
+
+/** A group's table behind its share link (the join link's code): no account needed. */
+@UseGuards(ThrottlerGuard)
+@Controller('public/groups')
+export class PublicTableController {
+  constructor(private readonly ratings: RatingsService) {}
+
+  /** Fetched by the web server for every viewer of the shared table, like the match card. */
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
+  @Get(':code/table')
+  table(@Param('code') code: string, @Query('last') last?: string) {
+    const n = Number(last);
+    return this.ratings.getPublicTable(code, Number.isInteger(n) && n > 0 && n <= 52 ? n : undefined);
+  }
+}

@@ -1690,6 +1690,10 @@ export class RatingsService {
     const { card } = await this.clubCard(organizationId);
     return {
       games: sessions.length,
+      /** The latest match day the table counts. */
+      lastDate: sessions.length ? String(sessions[sessions.length - 1].date).slice(0, 10) : null,
+      /** The group's join link code: the table's share link is built on it. */
+      shareCode: group.inviteCode ?? null,
       points: POINTS,
       rows: rows.map((r, i) => {
         const was = placeBefore.get(r.player.id);
@@ -1700,6 +1704,40 @@ export class RatingsService {
           .slice(-3);
         return { ...r, ovr: card.get(r.player.id) ?? r.ovr, form, move: was === undefined || !before.length ? null : was - i };
       }),
+    };
+  }
+
+  /**
+   * A group's table for its share link, found by the group's join-link code (already public, and
+   * the organiser can reset it): names, faces and points only, nothing about money. The top ten.
+   */
+  async getPublicTable(code: string, lastDays?: number) {
+    const group = await this.groupsRepo.findOne({ where: { inviteCode: code }, relations: ['organization'] });
+    if (!group) throw new NotFoundException('This table link is not valid any more.');
+    const t = await this.getGroupTable(group.id, group.organizationId, lastDays);
+    return {
+      groupName: group.name,
+      clubName: group.organization?.name ?? null,
+      games: t.games,
+      last: lastDays ?? null,
+      lastDate: t.lastDate,
+      points: t.points,
+      total: t.rows.length,
+      rows: t.rows.slice(0, 10).map((r) => ({
+        id: r.player.id,
+        name: sheetName(r.player),
+        short: pitchName(r.player),
+        photoKey: r.player.photoKey ?? null,
+        points: r.points,
+        games: r.games,
+        w: r.record.w,
+        d: r.record.d,
+        l: r.record.l,
+        potmWins: r.potmWins,
+        form: r.form,
+        move: r.move,
+        ovr: r.ovr ?? null,
+      })),
     };
   }
 
