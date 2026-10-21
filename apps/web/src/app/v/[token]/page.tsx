@@ -10,7 +10,7 @@ import { VoteResultsList, closeTime } from '@/components/ratings';
 import { BallotSteps, type Picks } from '@/components/vote/ballot-steps';
 import { getBallot, getVoteResults, type Ballot, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
-import { ShareCardButton } from '@/components/share-card';
+import { ShareCardButton, ShareIcon, shareIconLight } from '@/components/share-card';
 import { getMyBallot, submitMyVotes, PlayerAuthError } from '@/lib/player';
 
 /**
@@ -172,13 +172,20 @@ export default function VotePage() {
         ) : stage === 'results' ? (
           results ? (
             <div className="mt-6">
-              <div className="flex items-baseline justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="font-display text-[22px] font-extrabold text-ink">How the vote ended</h2>
-                <p className="text-[13px] text-gray-600 tabular-nums">
-                  {results.ballots} of {results.squadSize} voted
-                </p>
+                <ShareCardButton
+                  token={token}
+                  caption={`⚽ ${ballot.groupName} — match day. Who was Player of the Match?`}
+                  label="Share the match card"
+                  className={shareIconLight}
+                >
+                  <ShareIcon />
+                </ShareCardButton>
               </div>
-              {ballot.closesAt && <p className="text-[13px] text-gray-600">Closed {closeTime(ballot.closesAt)}.</p>}
+              <p className="text-[13px] text-gray-600 tabular-nums">
+                {results.ballots} of {results.squadSize} voted{ballot.closesAt ? ` · closed ${closeTime(ballot.closesAt)}` : ''}
+              </p>
               <div className="mt-4">
                 {results.categories.some((c) => c.standings.length) ? (
                   <VoteResultsList results={results} />
@@ -186,14 +193,7 @@ export default function VotePage() {
                   <p className="rounded-3xl bg-chalk px-5 py-6 text-center text-sm text-gray-600">Nobody voted in this game.</p>
                 )}
               </div>
-              <ShareCardButton
-                token={token}
-                caption={`⚽ ${ballot.groupName} — match day. Who was Player of the Match?`}
-                className="press mt-5 w-full min-h-12 inline-flex items-center justify-center rounded-2xl bg-volt-400 text-ink text-[15px] font-extrabold hover:bg-volt-300"
-              >
-                Share the match card
-              </ShareCardButton>
-              <Link href="/me/games?tab=played" className="press mt-2 w-full min-h-12 flex items-center justify-center rounded-2xl border border-gray-200 bg-white text-[15px] font-bold text-ink hover:border-ink">
+              <Link href="/me/games?tab=played" className="press mt-5 w-full min-h-12 flex items-center justify-center rounded-2xl border border-gray-200 bg-white text-[15px] font-bold text-ink hover:border-ink">
                 Back to my games
               </Link>
             </div>
@@ -269,21 +269,25 @@ export default function VotePage() {
               </div>
               {!results.hidden && (
                 <>
-              <div className="mt-5">
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <h3 className="font-display text-lg font-extrabold text-ink">How it ended</h3>
+                <ShareCardButton
+                  token={token}
+                  caption={`⚽ ${ballot.groupName} — match day. Who was Player of the Match?`}
+                  label="Share the match card"
+                  className={shareIconLight}
+                >
+                  <ShareIcon />
+                </ShareCardButton>
+              </div>
+              <div className="mt-2">
                 <VoteResultsList results={results} />
               </div>
-              <ShareCardButton
-                token={token}
-                caption={`⚽ ${ballot.groupName} — match day. Who was Player of the Match?`}
-                className="mt-5 w-full py-3.5 text-sm font-bold text-white bg-[#25D366] rounded-2xl hover:brightness-95 transition"
-              >
-                Share the match card
-              </ShareCardButton>
                 </>
               )}
               <Link
                 href="/me"
-                className="mt-2 w-full flex items-center justify-center py-3.5 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors"
+                className="mt-5 w-full flex items-center justify-center py-3.5 text-sm font-bold text-volt-300 bg-ink rounded-2xl hover:bg-pitch-900 transition-colors"
               >
                 Back to my PitchAside
               </Link>

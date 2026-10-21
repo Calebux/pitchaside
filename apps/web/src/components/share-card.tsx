@@ -28,6 +28,8 @@ export function ShareIcon({ className = 'w-5 h-5' }: { className?: string }) {
 /** A round share button, 44px like the buttons beside it: on a light surface, or on a dark card. */
 export const shareIconLight =
   'press shrink-0 w-11 h-11 rounded-full border border-gray-200 bg-white text-ink flex items-center justify-center hover:border-ink transition-colors';
+/** On a bright (sun) card: ink, like the card's other dark pieces. */
+export const shareIconInk = 'press shrink-0 w-11 h-11 rounded-full bg-ink text-sun-400 flex items-center justify-center hover:bg-pitch-900 transition-colors';
 /** On a dark card's toolbar, beside Edit and Delete: quiet until pressed. */
 export const shareIconDark = 'press shrink-0 w-11 h-11 rounded-full text-white/70 flex items-center justify-center hover:text-white hover:bg-white/10 transition-colors';
 /** At the end of a card's action row: a chalk tile the same height as the row beside it. */
