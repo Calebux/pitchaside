@@ -46,15 +46,8 @@ export class GroupsService {
     // Invite link and first dues period (same for both scopes).
     await this.billing.setupGroup(group);
 
-    // Provision crypto wallets for international groups.
-    if (isInternational) {
-      try {
-        await this.crypto.provisionWallets(group);
-      } catch (err) {
-        this.logger.warn(`Failed to provision crypto wallets for group ${group.id}: ${err}`);
-        // Non-fatal — the organiser can retry later, similar to bank account provisioning.
-      }
-    }
+    // Wallet addresses for international groups come from the admin's user wallets
+    // (provisioned on signup). No per-group wallet provisioning needed.
 
     return group;
   }
