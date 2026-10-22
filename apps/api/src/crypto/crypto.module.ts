@@ -4,9 +4,11 @@ import { Group } from '../groups/entities/group.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
+import { User } from '../users/entities/user.entity';
 import { PaymentsModule } from '../payments/payments.module';
 import { UsersModule } from '../users/users.module';
 import { GroupWallet } from './entities/group-wallet.entity';
+import { UserWallet } from './entities/user-wallet.entity';
 import { CryptoTransfer } from './entities/crypto-transfer.entity';
 import { CryptoOutgoingTransfer } from './entities/crypto-outgoing-transfer.entity';
 import { WalletDerivationCounter } from './entities/wallet-derivation-counter.entity';
@@ -22,7 +24,9 @@ import { MonitorService } from './monitoring/monitor.service';
       GroupMembership,
       Payment,
       Player,
+      User,
       GroupWallet,
+      UserWallet,
       CryptoTransfer,
       CryptoOutgoingTransfer,
       WalletDerivationCounter,

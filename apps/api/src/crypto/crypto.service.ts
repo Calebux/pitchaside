@@ -13,7 +13,9 @@ import { Payment } from '../payments/entities/payment.entity';
 import { Player } from '../players/entities/player.entity';
 import { PaymentsService } from '../payments/payments.service';
 import { UsersService } from '../users/users.service';
+import { User, UserRole } from '../users/entities/user.entity';
 import { GroupWallet } from './entities/group-wallet.entity';
+import { UserWallet } from './entities/user-wallet.entity';
 import { CryptoTransfer, CryptoTransferStatus } from './entities/crypto-transfer.entity';
 import { CryptoOutgoingTransfer, CryptoPayoutStatus } from './entities/crypto-outgoing-transfer.entity';
 import { WalletDerivationCounter } from './entities/wallet-derivation-counter.entity';
@@ -32,6 +34,8 @@ export class CryptoService {
   constructor(
     @InjectRepository(Group) private groupRepo: Repository<Group>,
     @InjectRepository(GroupWallet) private walletRepo: Repository<GroupWallet>,
+    @InjectRepository(UserWallet) private userWalletRepo: Repository<UserWallet>,
+    @InjectRepository(User) private userRepo: Repository<User>,
     @InjectRepository(CryptoTransfer) private transferRepo: Repository<CryptoTransfer>,
     @InjectRepository(CryptoOutgoingTransfer) private outgoingRepo: Repository<CryptoOutgoingTransfer>,
     @InjectRepository(WalletDerivationCounter) private counterRepo: Repository<WalletDerivationCounter>,
@@ -163,11 +167,100 @@ export class CryptoService {
     return wallets;
   }
 
+  // ── Per-user wallet provisioning ──
+
+  /**
+   * Provision wallets for a user (one per chain family).
+   * Called on signup so every admin has addresses ready.
+   */
+  async provisionUserWallets(user: { id: string }): Promise<UserWallet[]> {
+    if (!this.enabled) {
+      this.logger.warn('Crypto not enabled; skipping user wallet provisioning');
+      return [];
+    }
+
+    const families = phase1Families();
+    const wallets: UserWallet[] = [];
+
+    for (const family of families) {
+      const client = this.clients.get(family);
+      if (!client) continue;
+
+      // Skip if the user already has a wallet for this family
+      const existing = await this.userWalletRepo.findOne({
+        where: { userId: user.id, chainFamily: family },
+      });
+      if (existing) {
+        wallets.push(existing);
+        continue;
+      }
+
+      // Atomically claim the next derivation index
+      const index = await this.manager.transaction(async (em) => {
+        const counter = await em.findOne(WalletDerivationCounter, {
+          where: { chainFamily: family },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!counter) throw new Error(`No derivation counter for ${family}`);
+        const idx = counter.nextIndex;
+        counter.nextIndex = idx + 1;
+        await em.save(counter);
+        return idx;
+      });
+
+      const { address } = client.deriveAddress(index);
+
+      const wallet = this.userWalletRepo.create({
+        userId: user.id,
+        chainFamily: family,
+        address,
+        derivationIndex: index,
+      });
+      wallets.push(await this.userWalletRepo.save(wallet));
+    }
+
+    this.logger.log(`Provisioned ${wallets.length} user wallet(s) for user ${user.id}`);
+    return wallets;
+  }
+
   // ── Wallet queries ──
 
+  /**
+   * Return the authenticated user's wallet addresses.
+   */
+  async getUserWallets(userId: string) {
+    const wallets = await this.userWalletRepo.find({ where: { userId } });
+    return wallets.map((w) => ({
+      chainFamily: w.chainFamily,
+      address: w.address,
+      chains: chainsForFamily(w.chainFamily),
+    }));
+  }
+
+  /**
+   * Get wallet addresses for a group.
+   * Instead of group_wallets, returns the org admin's user wallets.
+   */
   async getGroupWallets(groupId: string, organizationId: string) {
     await this.ensureGroup(groupId, organizationId);
 
+    // Find the ORG_ADMIN for this organization
+    const admin = await this.userRepo.findOne({
+      where: { organizationId, role: UserRole.ORG_ADMIN },
+    });
+
+    if (admin) {
+      const userWallets = await this.userWalletRepo.find({ where: { userId: admin.id } });
+      if (userWallets.length > 0) {
+        return userWallets.map((w) => ({
+          chainFamily: w.chainFamily,
+          address: w.address,
+          chains: chainsForFamily(w.chainFamily),
+        }));
+      }
+    }
+
+    // Fallback: legacy group_wallets for groups provisioned before the migration
     const wallets = await this.walletRepo.find({ where: { groupId } });
     return wallets.map((w) => ({
       chainFamily: w.chainFamily,
