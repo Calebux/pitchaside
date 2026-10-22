@@ -8,6 +8,7 @@ import {
   Unique,
 } from 'typeorm';
 import { Group } from '../../groups/entities/group.entity';
+import { User } from '../../users/entities/user.entity';
 import { Player } from '../../players/entities/player.entity';
 import { Payment } from '../../payments/entities/payment.entity';
 
@@ -56,7 +57,14 @@ export class CryptoTransfer {
   group: Group;
 
   @Column({ name: 'group_id', nullable: true })
-  groupId: string;
+  groupId: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'user_id' })
+  user: User | null;
+
+  @Column({ name: 'user_id', type: 'uuid', nullable: true })
+  userId: string | null;
 
   @ManyToOne(() => Player, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'player_id' })
