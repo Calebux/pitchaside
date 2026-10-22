@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { OrganizationsModule } from '../organizations/organizations.module';
+import { CryptoModule } from '../crypto/crypto.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { OrganizationsModule } from '../organizations/organizations.module';
     }),
     UsersModule,
     OrganizationsModule,
+    CryptoModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],

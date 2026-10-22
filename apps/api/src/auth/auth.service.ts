@@ -22,6 +22,7 @@ const otpBase32 = new ScureBase32Plugin();
 import { UsersService } from '../users/users.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MailService } from '../mail/mail.service';
+import { CryptoService } from '../crypto/crypto.service';
 import { UserRole } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -35,6 +36,7 @@ export class AuthService {
     private orgsService: OrganizationsService,
     private jwtService: JwtService,
     private mailService: MailService,
+    private cryptoService: CryptoService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -53,6 +55,13 @@ export class AuthService {
       organizationId: organization.id,
       phone: dto.phone?.trim() || null,
     });
+
+    // Provision crypto wallets for the new user (non-fatal)
+    try {
+      await this.cryptoService.provisionUserWallets(user);
+    } catch (err) {
+      this.logger.warn(`Failed to provision crypto wallets for user ${user.id}: ${err}`);
+    }
 
     // Send verification email (non-blocking)
     const verifyToken = await this.usersService.createEmailVerificationToken(user.id);

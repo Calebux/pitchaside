@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { MailService } from '../mail/mail.service';
+import { CryptoService } from '../crypto/crypto.service';
 import { UserRole } from '../users/entities/user.entity';
 
 jest.mock('bcrypt');
@@ -66,6 +67,7 @@ describe('AuthService', () => {
         { provide: OrganizationsService, useValue: orgsService },
         { provide: JwtService, useValue: { sign: mockJwtSign } },
         { provide: MailService, useValue: mailService },
+        { provide: CryptoService, useValue: { provisionUserWallets: jest.fn().mockResolvedValue([]) } },
       ],
     }).compile();
 
