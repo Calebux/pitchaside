@@ -20,6 +20,7 @@ import type {
   GameTimer,
   ICryptoTransfer,
   IGroupWallet,
+  IUserWallet,
   IChainInfo,
   ICryptoOutgoingTransfer,
 } from '@pitchaside/shared';
@@ -1358,6 +1359,10 @@ export function getNigerianStates(): Promise<NigerianStateData[]> {
 
 export function getSupportedChains(): Promise<IChainInfo[]> {
   return http.get<IChainInfo[]>('/crypto/chains');
+}
+
+export function getUserWallets(): Promise<IUserWallet[]> {
+  return http.get<IUserWallet[]>('/crypto/wallets');
 }
 
 export function getGroupWallets(groupId: string): Promise<IGroupWallet[]> {

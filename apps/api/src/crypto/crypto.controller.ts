@@ -27,7 +27,13 @@ export class CryptoController {
     return this.crypto.getSupportedChains();
   }
 
-  /** Get a group's wallet addresses per chain family. */
+  /** Get the authenticated user's wallet addresses (one per chain family). */
+  @Get('wallets')
+  getUserWallets(@CurrentUser() user: User) {
+    return this.crypto.getUserWallets(user.id);
+  }
+
+  /** Get a group's wallet addresses per chain family (returns org admin's wallets). */
   @Get('groups/:id/wallets')
   getWallets(@Param('id') id: string, @CurrentUser() user: User) {
     return this.crypto.getGroupWallets(id, user.organizationId);

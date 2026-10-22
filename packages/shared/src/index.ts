@@ -429,6 +429,13 @@ export interface IGroupWallet {
   chains: string[];
 }
 
+export interface IUserWallet {
+  chainFamily: string;
+  address: string;
+  /** Which specific chains this address works on (e.g. an EVM address works on polygon, base, ethereum…). */
+  chains: string[];
+}
+
 export interface IChainInfo {
   id: string;
   name: string;
