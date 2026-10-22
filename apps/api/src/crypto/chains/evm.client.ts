@@ -11,6 +11,17 @@ const ERC20_ABI = [
   'function decimals() view returns (uint8)',
 ];
 
+/** PaymentReceived event signature for log detection. */
+const PAYMENT_RECEIVED_TOPIC = ethers.id(
+  'PaymentReceived(address,address,address,uint256,uint256)',
+);
+
+/** ABI fragment for decoding PaymentReceived event data. */
+const PAYMENT_RECEIVED_ABI = [
+  'event PaymentReceived(address indexed admin, address indexed payer, address indexed token, uint256 amount, uint256 timestamp)',
+];
+const PAYMENT_RECEIVED_IFACE = new ethers.Interface(PAYMENT_RECEIVED_ABI);
+
 export class EvmClient implements CryptoClient {
   readonly chainFamily = 'evm' as const;
   private readonly logger = new Logger(EvmClient.name);
@@ -71,10 +82,96 @@ export class EvmClient implements CryptoClient {
   }
 
   /**
+   * Parse an Alchemy webhook payload.
+   *
+   * Handles two payload shapes:
+   * 1. Custom webhook with `PaymentReceived` event logs from the PaymentReceiver contract.
+   * 2. Address-activity webhook for direct USDT/USDC transfers.
+   */
+  parseWebhook(chain: string, payload: unknown): IncomingCryptoTransfer | null {
+    // Try contract event parsing first
+    const contractTransfer = this.parseContractEvent(chain, payload);
+    if (contractTransfer) return contractTransfer;
+
+    // Fall through to address-activity parsing
+    return this.parseAddressActivity(chain, payload);
+  }
+
+  /**
+   * Parse a PaymentReceived event from an Alchemy custom webhook payload.
+   * The payload contains event logs; we look for logs matching the PaymentReceived topic.
+   */
+  private parseContractEvent(chain: string, payload: unknown): IncomingCryptoTransfer | null {
+    const data = payload as {
+      event?: {
+        data?: {
+          block?: {
+            logs?: {
+              topics?: string[];
+              data?: string;
+              transaction?: { hash?: string; block?: { number?: number } };
+            }[];
+          };
+        };
+      };
+    };
+
+    const logs = data?.event?.data?.block?.logs;
+    if (!Array.isArray(logs) || logs.length === 0) return null;
+
+    const chainConfig = CHAINS[chain];
+    if (!chainConfig) return null;
+
+    for (const log of logs) {
+      if (!log.topics || log.topics[0] !== PAYMENT_RECEIVED_TOPIC) continue;
+
+      try {
+        const parsed = PAYMENT_RECEIVED_IFACE.parseLog({
+          topics: log.topics,
+          data: log.data ?? '0x',
+        });
+        if (!parsed) continue;
+
+        const adminAddr: string = parsed.args[0];
+        const payerAddr: string = parsed.args[1];
+        const tokenAddr: string = parsed.args[2];
+        const amount: bigint = parsed.args[3];
+
+        // Identify which token
+        let token: 'USDT' | 'USDC' | null = null;
+        if (chainConfig.tokens.USDT?.toLowerCase() === tokenAddr.toLowerCase()) token = 'USDT';
+        else if (chainConfig.tokens.USDC?.toLowerCase() === tokenAddr.toLowerCase()) token = 'USDC';
+        if (!token) continue;
+
+        // Stablecoins are 6 decimals
+        const amountNum = Number(ethers.formatUnits(amount, 6));
+
+        return {
+          txHash: log.transaction?.hash ?? '',
+          chain,
+          token,
+          fromAddress: payerAddr,
+          toAddress: adminAddr, // The admin is the logical recipient
+          amount: amountNum,
+          blockNumber: log.transaction?.block?.number ?? null,
+          receivedAt: new Date(),
+          raw: payload,
+          adminAddress: adminAddr,
+        };
+      } catch {
+        // Malformed log, skip
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Parse an Alchemy Notify address-activity webhook payload.
    * Returns null if it isn't a relevant USDT/USDC transfer.
    */
-  parseWebhook(chain: string, payload: unknown): IncomingCryptoTransfer | null {
+  private parseAddressActivity(chain: string, payload: unknown): IncomingCryptoTransfer | null {
     const data = payload as {
       event?: {
         activity?: {

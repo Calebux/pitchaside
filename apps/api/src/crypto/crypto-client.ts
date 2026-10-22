@@ -22,6 +22,8 @@ export interface IncomingCryptoTransfer {
   blockNumber: number | null;
   receivedAt: Date;
   raw: unknown;
+  /** Set when the payment came through the PaymentReceiver contract. */
+  adminAddress?: string | null;
 }
 
 export interface CryptoClient {

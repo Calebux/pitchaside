@@ -18,6 +18,8 @@ export interface ChainConfig {
   };
   /** Whether this chain is enabled in Phase 1. */
   phase1: boolean;
+  /** Env var key for the PaymentReceiver contract address on this chain. */
+  paymentReceiverEnvKey?: string;
 }
 
 export const CHAINS: Record<string, ChainConfig> = {
@@ -33,6 +35,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
     },
     phase1: true,
+    paymentReceiverEnvKey: 'POLYGON_PAYMENT_RECEIVER',
   },
   base: {
     family: 'evm',
@@ -45,6 +48,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     },
     phase1: true,
+    paymentReceiverEnvKey: 'BASE_PAYMENT_RECEIVER',
   },
 
   // ── Phase 1 Tron ──
@@ -57,6 +61,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
     },
     phase1: true,
+    paymentReceiverEnvKey: 'TRON_PAYMENT_RECEIVER',
   },
 
   // ── Phase 2 EVM (address already works, just need monitoring) ──
@@ -70,6 +75,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
     },
     phase1: false,
+    paymentReceiverEnvKey: 'ETHEREUM_PAYMENT_RECEIVER',
   },
   arbitrum: {
     family: 'evm',
@@ -81,6 +87,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     },
     phase1: false,
+    paymentReceiverEnvKey: 'ARBITRUM_PAYMENT_RECEIVER',
   },
   bsc: {
     family: 'evm',
@@ -92,6 +99,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d',
     },
     phase1: false,
+    paymentReceiverEnvKey: 'BSC_PAYMENT_RECEIVER',
   },
   avalanche: {
     family: 'evm',
@@ -103,6 +111,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E',
     },
     phase1: false,
+    paymentReceiverEnvKey: 'AVALANCHE_PAYMENT_RECEIVER',
   },
   optimism: {
     family: 'evm',
@@ -114,6 +123,7 @@ export const CHAINS: Record<string, ChainConfig> = {
       USDC: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
     },
     phase1: false,
+    paymentReceiverEnvKey: 'OPTIMISM_PAYMENT_RECEIVER',
   },
 
   // ── Phase 2 Solana ──

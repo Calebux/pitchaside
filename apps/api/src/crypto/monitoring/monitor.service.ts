@@ -33,12 +33,15 @@ export class MonitorService {
    * Returns the stored transfer, or null if it was a duplicate or irrelevant.
    */
   async processIncoming(transfer: IncomingCryptoTransfer): Promise<CryptoTransfer | null> {
-    // 1. Look up user_wallets first (new model), then fall back to group_wallets (legacy)
-    const userWallet = await this.findUserWallet(transfer.toAddress);
-    const groupWallet = userWallet ? null : await this.findGroupWallet(transfer.toAddress);
+    // 1. For contract-mediated payments, look up the admin by adminAddress
+    //    For direct transfers, look up by toAddress as before.
+    const lookupAddress = transfer.adminAddress ?? transfer.toAddress;
+
+    const userWallet = await this.findUserWallet(lookupAddress);
+    const groupWallet = userWallet ? null : await this.findGroupWallet(lookupAddress);
 
     if (!userWallet && !groupWallet) {
-      this.logger.debug(`Ignoring transfer to unknown address ${transfer.toAddress}`);
+      this.logger.debug(`Ignoring transfer to unknown address ${lookupAddress}`);
       return null;
     }
 
