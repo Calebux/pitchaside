@@ -85,11 +85,14 @@ export function GameTimer({
   api,
   onError,
   watch = false,
+  onTimer,
 }: {
   sessionId: string;
   api: TimerApi;
   onError?: (message: string) => void;
   watch?: boolean;
+  /** Told about the clock whenever it changes (the plan follows it), with the server's time minus this phone's. */
+  onTimer?: (timer: Timer, offset: number) => void;
 }) {
   const [timer, setTimer] = useState<Timer | null>(null);
   const [failed, setFailed] = useState(false);
@@ -127,6 +130,10 @@ export function GameTimer({
       document.removeEventListener('visibilitychange', onShow);
     };
   }, [load]);
+
+  useEffect(() => {
+    if (timer) onTimer?.(timer, offset);
+  }, [timer, offset, onTimer]);
 
   const endsAt = timer?.startedAt ? Date.parse(timer.startedAt) + timer.minutes * 60_000 : null;
   const left = endsAt == null ? null : endsAt - (now + offset);

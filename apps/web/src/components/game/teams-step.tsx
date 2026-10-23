@@ -1,5 +1,6 @@
 'use client';
 
+import { DayPlan } from '@/components/plan/day-plan';
 import { useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
@@ -262,6 +263,11 @@ export function TeamsStep({
           Teams done · add scores
         </button>
       )}
+
+      {/* The day plan: games to fill the booking and the swaps, from these teams */}
+      <div className="mt-4">
+        <DayPlan sessionId={sessionId} lineup={lineup} onLineup={onLineup} />
+      </div>
 
       {moving && (
         <Sheet titleId={titleId} onClose={() => setMoving(null)} align="left">

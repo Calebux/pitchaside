@@ -3,8 +3,8 @@
  * their own session in HttpOnly cookies (separate from the organiser's).
  */
 import type { GameTimer, PaymentType } from '@pitchaside/shared';
-import type { Bibs } from '@pitchaside/shared';
-import type { GoalInput, Lineup, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
+import type { Bibs, KeeperPref } from '@pitchaside/shared';
+import type { GoalInput, Lineup, PlanInfo, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 import { serverMessage } from './http';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -208,7 +208,7 @@ export type PlayerGroup = {
 export type Organiser = { clubName: string; email: string } | null;
 
 export interface PlayerHome {
-  player: { id: string; firstName: string; lastName: string; nickname: string | null; photoKey?: string | null; email: string; phone: string | null };
+  player: { id: string; firstName: string; lastName: string; nickname: string | null; photoKey?: string | null; keeper?: KeeperPref; email: string; phone: string | null };
   organiser: Organiser;
   groups: PlayerGroup[];
   upcoming: {
@@ -363,7 +363,7 @@ export function setRsvp(sessionId: string, status: 'in' | 'out') {
 /** Paid for this game: their own due, or the month's (week's…) dues when those cover games. */
 export type GamePaid = 'paid' | 'unpaid' | 'waived';
 
-export interface GameLineup {
+export interface GameLineup extends PlanInfo {
   /** Match day as it happens: each game's score and scorers, cards and saves, and the day's table. */
   live?: {
     games: {
@@ -390,6 +390,9 @@ export interface GameLineup {
   showPaid: boolean;
   /** `paid` is null for others when the group keeps that private. */
   squad: {
+    /** Missing from servers before the match day plan. */
+    id?: string;
+    keeper?: KeeperPref;
     name: string;
     /** Nickname, else first name. */
     short?: string;
@@ -443,6 +446,16 @@ export function addCaptainEvent(sessionId: string, event: { playerId: string; ki
 
 export function deleteCaptainEvent(sessionId: string, eventId: string) {
   return request<Lineup>('DELETE', `/me/games/${sessionId}/match-day/events/${eventId}`);
+}
+
+/** A captain marks one of their players as gone early (`at`: minutes after kick-off), or back. */
+export function setCaptainAway(sessionId: string, playerId: string, at: number | null) {
+  return request<Lineup>('PUT', `/me/games/${sessionId}/match-day/away`, { playerId, at });
+}
+
+/** Happy in goal, rather not, or don't mind (null): the same in every club. */
+export function setMyKeeper(keeper: KeeperPref) {
+  return request<{ keeper: KeeperPref }>('PATCH', '/me/keeper', { keeper });
 }
 
 export function pickBib(sessionId: string, team: TeamKey | null) {

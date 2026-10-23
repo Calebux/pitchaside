@@ -15,6 +15,7 @@ import { getPlayerRatingBreakdown, logoutPlayer, removeMyPhoto, setMyPhoto, subs
 import { CardPhotoButton } from '@/components/photo-picker';
 import { btnSecondary } from '@/components/buttons';
 import { openTour } from '@/lib/onboarding';
+import { KeeperSetting } from '@/components/plan/keeper-setting';
 
 export default function PlayerProfilePage() {
   const router = useRouter();
@@ -141,6 +142,10 @@ export default function PlayerProfilePage() {
 
       </div>
       <div>
+      <Section title="On the pitch">
+        <KeeperSetting value={profile.player.keeper} onSaved={refresh} />
+      </Section>
+
       <Section title="Account">
         <PlayerAccountSettings
           firstName={profile.player.firstName}

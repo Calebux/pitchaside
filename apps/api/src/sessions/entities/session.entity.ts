@@ -1,4 +1,4 @@
-import type { Bibs } from '@pitchaside/shared';
+import type { Bibs, MatchPlan } from '@pitchaside/shared';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -75,6 +75,10 @@ export class Session {
   /** This game's bibs, when the organiser changed them for the day. Null: the group's bibs. */
   @Column({ type: 'jsonb', nullable: true })
   bibs: Bibs | null;
+
+  /** The day's plan (booked time, game length, swaps), when the organiser made one. See ratings/plan. */
+  @Column({ type: 'jsonb', nullable: true })
+  plan: MatchPlan | null;
 
   /** Set once the day-before reminder has gone out. */
   @Column({ name: 'reminder_sent_at', type: 'timestamptz', nullable: true })

@@ -93,6 +93,25 @@ export class GameBibsDto {
   bibs?: Record<string, { colour: string; name?: string | null }> | null;
 }
 
+/** The day's plan; checked by cleanPlan (whole minutes in range). Null takes it away. */
+export class PlanDto {
+  @IsOptional()
+  @IsObject()
+  plan?: Record<string, unknown> | null;
+}
+
+/** Someone left early (`at`: minutes after kick-off), or is back (null). */
+export class AwayDto {
+  @IsUUID()
+  playerId: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(300)
+  at?: number | null;
+}
+
 export class ScoreDto {
   @IsInt()
   @Min(0)
@@ -165,6 +184,16 @@ export class RatingsController {
   @Put('sessions/:id/timer')
   setTimer(@Param('id') id: string, @Body() dto: TimerDto, @CurrentUser() user: User) {
     return this.ratings.setTimer(id, user.organizationId, dto);
+  }
+
+  @Put('sessions/:id/plan')
+  setPlan(@Param('id') id: string, @Body() dto: PlanDto, @CurrentUser() user: User) {
+    return this.ratings.setPlan(id, user.organizationId, dto.plan ?? null);
+  }
+
+  @Put('sessions/:id/plan/away')
+  setAway(@Param('id') id: string, @Body() dto: AwayDto, @CurrentUser() user: User) {
+    return this.ratings.setAway(id, user.organizationId, dto.playerId, dto.at ?? null);
   }
 
   @Put('sessions/:id/lineup')

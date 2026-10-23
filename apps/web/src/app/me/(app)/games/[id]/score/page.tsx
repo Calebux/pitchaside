@@ -5,9 +5,9 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { ScoresStep, type ScoresApi } from '@/components/game/scores-step';
 import { useToast } from '@/components/toast';
-import { addCaptainEvent, addCaptainGame, addCaptainGoal, deleteCaptainEvent, deleteCaptainGame, deleteCaptainGoal, getGameTimer, getMatchDay } from '@/lib/player';
+import { addCaptainEvent, addCaptainGame, addCaptainGoal, deleteCaptainEvent, deleteCaptainGame, deleteCaptainGoal, getGameLineup, getGameTimer, getMatchDay, setCaptainAway } from '@/lib/player';
 import type { TimerApi } from '@/components/game-timer';
-import type { Lineup } from '@/lib/api';
+import type { Lineup, TeamKey } from '@/lib/api';
 import { retryKeys } from '@/lib/retry-keys';
 
 const CAPTAIN: ScoresApi = retryKeys(
@@ -35,6 +35,11 @@ export default function CaptainScorePage() {
   const toast = useToast();
   const [lineup, setLineup] = useState<Lineup | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Their own side, so the plan shows its swaps first.
+  const [myTeam, setMyTeam] = useState<TeamKey | null>(null);
+  useEffect(() => {
+    getGameLineup(id).then((l) => setMyTeam(l.myTeam), () => undefined);
+  }, [id]);
 
   const load = useCallback(() => {
     setError(null);
@@ -76,6 +81,9 @@ export default function CaptainScorePage() {
           api={CAPTAIN}
           timer={CAPTAIN_TIMER}
           timerWatch
+          planRole="captain"
+          planAway={setCaptainAway}
+          myTeam={myTeam}
           canRemove={(by) => !!by && /\((vice-)?captain\)$/.test(by)}
         />
       )}

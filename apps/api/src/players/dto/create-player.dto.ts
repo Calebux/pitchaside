@@ -1,5 +1,7 @@
 import { IsString, IsOptional, IsEmail, IsIn, IsNotEmpty, MinLength, MaxLength, Matches } from 'class-validator';
 import { PLAYER_LEVELS, type PlayerLevel } from '../../ratings/skill';
+import { KEEPER_PREFS } from '../../ratings/plan';
+import type { KeeperPref } from '@pitchaside/shared';
 
 export class CreatePlayerDto {
   @IsString()
@@ -67,4 +69,9 @@ export class UpdatePlayerDto {
   @IsOptional()
   @IsIn(PLAYER_LEVELS)
   level?: PlayerLevel;
+
+  /** Happy in goal, or would rather not, for the match day plan's swaps; null: doesn't mind. */
+  @IsOptional()
+  @IsIn(KEEPER_PREFS)
+  keeper?: KeeperPref;
 }

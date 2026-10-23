@@ -13,6 +13,7 @@ import { GroupMembership } from '../../groups/entities/group-membership.entity';
 import { Payment } from '../../payments/entities/payment.entity';
 import { Organization } from '../../organizations/entities/organization.entity';
 import type { PlayerLevel } from '../../ratings/skill';
+import type { KeeperPref } from '@pitchaside/shared';
 
 /**
  * A player within one club (organisation). The same person can play for
@@ -45,6 +46,10 @@ export class Player {
   /** Level the organiser gave them before they'd played; seeds their skill rating (null = average). */
   @Column({ type: 'varchar', length: 16, nullable: true })
   level: PlayerLevel | null;
+
+  /** Whether they're happy to go in goal when the match day plan swaps players round; null: don't mind. */
+  @Column({ type: 'varchar', length: 12, nullable: true })
+  keeper: KeeperPref;
 
   /** Their photo's key in player_photos (served at /api/photos/:key); null for none. */
   @Column({ name: 'photo_key', type: 'varchar', length: 32, nullable: true })

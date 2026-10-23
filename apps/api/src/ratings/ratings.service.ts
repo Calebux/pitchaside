@@ -10,7 +10,9 @@ import { bibsFor, cleanBibs } from './bibs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
-import { Session, SessionKind, SessionStatus } from '../sessions/entities/session.entity';
+import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/entities/session.entity';
+import { cleanPlan, withAway } from './plan';
+import type { MatchPlan } from '@pitchaside/shared';
 import { Group } from '../groups/entities/group.entity';
 import { Player } from '../players/entities/player.entity';
 import { Vote, VoteCategory } from './entities/vote.entity';
@@ -818,6 +820,7 @@ export class RatingsService {
     const table = this.standings(session.teamCount, games);
     return {
       teamCount: session.teamCount,
+      ...(await this.planOf(session)),
       /** Scores are in, so the teams can't change until they're deleted. */
       locked: games.length > 0,
       /** Scores can be added from match day, unless the game was called off. */
@@ -836,6 +839,7 @@ export class RatingsService {
           team: this.teamOf(session, p.team),
           captain: this.isCaptain(session, p),
           vice: this.isVice(session, p),
+          keeper: p.player.keeper ?? null,
           ovr: ovr.get(p.player.id) ?? cardRating(skills.get(p.player.id)?.rating ?? DEFAULT_START),
           skill: Math.round(skills.get(p.player.id)?.rating ?? DEFAULT_START),
           // Organisers always see who's paid for this game (or the period it falls in).
@@ -857,6 +861,79 @@ export class RatingsService {
       standings: table.rows,
       teamOfTheDay: table.teamOfTheDay,
     };
+  }
+
+  /**
+   * The day's plan and what it's worked out from: kick-off and the date (the swaps start from a
+   * different player each week). With no plan yet, the last one this group used, to start from.
+   */
+  private async planOf(session: Session, withLast = true) {
+    let lastPlan: MatchPlan | null = null;
+    if (!session.plan && withLast) {
+      const before = await this.sessionsRepo
+        .createQueryBuilder('s')
+        .where('s.groupId = :groupId', { groupId: session.groupId })
+        .andWhere('s.plan IS NOT NULL')
+        .andWhere('s.id <> :id', { id: session.id })
+        .orderBy('s.date', 'DESC')
+        .getOne();
+      if (before?.plan) {
+        const { away: _away, ...settings } = before.plan;
+        lastPlan = settings;
+      }
+    }
+    return {
+      plan: session.plan ?? null,
+      lastPlan,
+      kickoff: kickoffFor(session),
+      date: String(session.date).slice(0, 10),
+    };
+  }
+
+  /**
+   * The organiser sets up the day's plan, or takes it away (null). Its game length becomes the
+   * timer's for the day, so the clock and the plan agree; not while a game's clock is running.
+   */
+  async setPlan(sessionId: string, organizationId: string, input: unknown) {
+    const session = await this.loadSession(sessionId, organizationId);
+    if (session.kind !== SessionKind.GAME) throw new BadRequestException('Only games have a plan');
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
+    if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('This game has ended');
+    let plan: MatchPlan | null = null;
+    if (input != null) {
+      try {
+        plan = cleanPlan(input);
+      } catch (err) {
+        throw new BadRequestException((err as Error).message);
+      }
+      // Keep who already left early: setting the plan again shouldn't bring them back.
+      if (session.plan?.away && !(input as { away?: unknown }).away) plan.away = session.plan.away;
+    }
+    const patch: Partial<Session> = { plan };
+    const running = session.timerStartedAt && new Date(session.timerStartedAt).getTime() + timerOf(session).minutes * 60_000 > Date.now();
+    if (plan && !running) patch.timerMinutes = plan.gameMinutes;
+    await this.sessionsRepo.update(session.id, patch);
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  /** Someone left early (minutes after kick-off), or came back (null): the swaps share their time out. */
+  async setAway(sessionId: string, organizationId: string, playerId: string, at: number | null) {
+    const session = await this.loadSession(sessionId, organizationId);
+    await this.saveAway(session, playerId, at);
+    return this.getLineup(sessionId, organizationId);
+  }
+
+  private async saveAway(session: Session, playerId: string, at: number | null) {
+    if (!session.plan) throw new BadRequestException('There’s no plan for this game yet');
+    if (session.status !== SessionStatus.UPCOMING) throw new BadRequestException('This game has ended');
+    if (!session.payments?.some((p) => p.playerId === playerId)) throw new BadRequestException("That player isn't in this game");
+    let plan: MatchPlan;
+    try {
+      plan = withAway(session.plan, playerId, at);
+    } catch (err) {
+      throw new BadRequestException((err as Error).message);
+    }
+    await this.sessionsRepo.update(session.id, { plan });
   }
 
   /** The match-day timer, as the organiser sees it. */
@@ -1079,6 +1156,17 @@ export class RatingsService {
     return { ...lineup, squad: lineup.squad.map((m) => ({ ...m, ovr: null, skill: 0, paid: undefined })) };
   }
 
+  /** A captain marks one of their own players as gone (or back): the organiser does the rest. */
+  async captainSetAway(sessionId: string, playerIds: string[], playerId: string, at: number | null) {
+    const { session, organizationId, team } = await this.captainToday(sessionId, playerIds);
+    const theirs = session.payments?.find((p) => p.playerId === playerId);
+    if (!theirs || this.teamOf(session, theirs.team) !== team) {
+      throw new BadRequestException('You can do this for your own team only. The organiser does the rest');
+    }
+    await this.saveAway(session, playerId, at);
+    return this.forCaptain(await this.getLineup(sessionId, organizationId));
+  }
+
   /** A captain records games their own side played, never a game between two other sides. */
   async captainAddGame(
     sessionId: string,
@@ -1211,6 +1299,7 @@ export class RatingsService {
         table: this.standings(session.teamCount, games),
       },
       teamCount: session.teamCount,
+      ...(await this.planOf(session, false)),
       bibsOpen: this.bibsOpen(session, locked),
       bibsClosed: locked || this.bibsClosed(session),
       myTeam: this.teamOf(session, mine.team),
@@ -1230,6 +1319,9 @@ export class RatingsService {
       squad: (session.payments ?? [])
         .filter((p) => p.player && p.attendance !== 'no_show')
         .map((p) => ({
+          /** For the match day plan: the swaps go by player, the same on every phone. */
+          id: p.playerId,
+          keeper: p.player.keeper ?? null,
           name: sheetName(p.player),
           /** What teammates call them: nickname, else first name. */
           short: pitchName(p.player),

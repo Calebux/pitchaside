@@ -1,3 +1,4 @@
+import type { KeeperPref } from '@pitchaside/shared';
 import {
   BadRequestException,
   CanActivate,
@@ -291,6 +292,13 @@ export class PlayerAuthService {
     }
     if (person.players.length) await this.playersRepo.save(person.players);
     return { firstName: firstName.trim(), lastName: lastName.trim(), nickname: person.players[0]?.nickname ?? null };
+  }
+
+  /** In goal or not, the same in every club they play for. */
+  async setKeeper(person: Person, keeper: KeeperPref) {
+    for (const p of person.players) p.keeper = keeper;
+    if (person.players.length) await this.playersRepo.save(person.players);
+    return { keeper };
   }
 
   /** An organiser switching to Playing gets a player record in their own club (so they can join their own games). */
