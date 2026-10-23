@@ -46,6 +46,16 @@ export default function CaptainScorePage() {
     getMatchDay(id).then(setLineup, (err) => setError(err instanceof Error ? err.message : 'The scores didn’t load.'));
   }, [id]);
   useEffect(load, [load]);
+  // The organiser and the other captain save scores too: look again while this is open.
+  useEffect(() => {
+    const look = () => document.visibilityState === 'visible' && getMatchDay(id).then(setLineup).catch(() => undefined);
+    const timer = window.setInterval(look, 20_000);
+    document.addEventListener('visibilitychange', look);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', look);
+    };
+  }, [id]);
 
   return (
     <>

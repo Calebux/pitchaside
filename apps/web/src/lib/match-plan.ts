@@ -28,30 +28,49 @@ const MIN_GAME = 4;
 /** A swap spell shorter than this goes on the one before it (7-minute games: one 7, not 5 + 2). */
 const MIN_SPELL = 3;
 
-/** Every pairing once: A–B, A–C, …, in the order a round robin is usually played. */
-function pairings(sides: Side[]): [Side, Side][] {
-  const out: [Side, Side][] = [];
-  for (let i = 0; i < sides.length; i++) for (let j = i + 1; j < sides.length; j++) out.push([sides[i], sides[j]]);
-  return out;
+/**
+ * Every pairing once, in matchdays where each side plays once (one side rests when there's an odd
+ * number): the usual way a league is drawn, so the number of games stays even all day.
+ */
+function matchdays(sides: Side[]): [Side, Side][][] {
+  const list: (Side | null)[] = sides.length % 2 ? [...sides, null] : [...sides];
+  const m = list.length;
+  let ring = list.slice(1);
+  const days: [Side, Side][][] = [];
+  for (let r = 0; r < m - 1; r++) {
+    const cur = [list[0], ...ring];
+    const day: [Side, Side][] = [];
+    for (let i = 0; i < m / 2; i++) {
+      const x = cur[i];
+      const y = cur[m - 1 - i];
+      if (x && y) day.push(x < y ? [x, y] : [y, x]);
+    }
+    days.push(day);
+    ring = [ring[ring.length - 1], ...ring.slice(0, -1)];
+  }
+  return days;
 }
 
 /**
- * The order the games are played in, as long as needed: each round has every pairing once. The
- * next game is the one whose sides have rested longest, so as few sides as possible play two in a
- * row, and nobody waits much longer than anyone else. With 2 sides it's the same game each time.
+ * The order the games are played in, as long as needed: each round has every pairing once, a
+ * matchday at a time. Within a matchday the next game is the one that keeps the games most even,
+ * then has the fewest sides straight back on, then whoever has waited longest. With 2 sides it's
+ * the same game each time.
  */
 export function gameOrder(sides: Side[], count: number): { teamA: Side; teamB: Side; round: number }[] {
   if (sides.length < 2 || count <= 0) return [];
-  const all = pairings(sides);
+  const days = matchdays(sides);
   const lastPlayed = new Map<Side, number>(sides.map((s) => [s, -Infinity]));
   const games = new Map<Side, number>(sides.map((s) => [s, 0]));
   const out: { teamA: Side; teamB: Side; round: number }[] = [];
   let pool: [Side, Side][] = [];
+  let day = -1;
   let round = 0;
   for (let n = 0; n < count; n++) {
     if (!pool.length) {
-      pool = [...all];
-      round++;
+      day = (day + 1) % days.length;
+      if (day === 0) round++;
+      pool = [...days[day]];
     }
     let best = 0;
     let bestKey: number[] | null = null;
@@ -59,11 +78,8 @@ export function gameOrder(sides: Side[], count: number): { teamA: Side; teamB: S
       const restA = n - lastPlayed.get(a)!;
       const restB = n - lastPlayed.get(b)!;
       const key = [
-        // Fewest sides straight back on.
+        Math.max(games.get(a)!, games.get(b)!),
         Number(restA === 1) + Number(restB === 1),
-        // Sides with fewer games so far first, so the games stay even through the day.
-        games.get(a)! + games.get(b)!,
-        // Then whoever's waited longest.
         -Math.min(restA, restB),
         -(restA + restB),
         i,
@@ -246,7 +262,8 @@ export function sideRota(
         share(a) - share(b) || Number(a === lastKeeper) - Number(b === lastKeeper) || rank.get(a)! - rank.get(b)!;
       // Nobody on the pitch wants to keep but someone sitting out does: they swap.
       if (!on.some(willing)) {
-        const sub = off.filter(willing).sort(byKeeping)[0];
+        // Whoever has played least comes on to keep.
+        const sub = off.filter(willing).sort((a, b) => minutes[a].played - minutes[b].played || byKeeping(a, b))[0];
         if (sub) {
           const outfield = [...on].sort(byPlayed)[0];
           off = [...off.filter((id) => id !== sub), outfield];
@@ -269,6 +286,11 @@ export function sideRota(
     return { fixture, spells: list };
   });
   return { games: out, minutes };
+}
+
+/** A game's spells cut to the minutes it really gets (a last game shortened for running late). */
+export function clipSpells(list: Spell[], minutes: number): Spell[] {
+  return list.filter((s) => s.start < minutes).map((s) => (s.start + s.minutes > minutes ? { ...s, minutes: minutes - s.start } : s));
 }
 
 /** The spell a running game is in, from how long it's been going, and when the next swap is. */
@@ -312,7 +334,9 @@ export function buildDay({ plan, teamCount, date, squad }: DayInput): Day {
   const week = date ? weekOf(date) : 0;
   const rotas: Day['rotas'] = {};
   for (const side of sides) {
-    const players = squad.filter((m) => m.team === side && m.id).map((m) => ({ id: m.id!, keeper: m.keeper ?? null }));
+    // Once the day has started, the goal choices kept then (a change of mind can't reshuffle it).
+    const keeperOf = (m: DayInput['squad'][number]) => (plan.keepers ? (plan.keepers[m.id!] ?? null) : (m.keeper ?? null));
+    const players = squad.filter((m) => m.team === side && m.id).map((m) => ({ id: m.id!, keeper: keeperOf(m) }));
     if (!players.length) continue;
     rotas[side] = sideRota(players, all.filter((f) => f.teamA === side || f.teamB === side), plan, week);
   }

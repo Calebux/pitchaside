@@ -56,3 +56,10 @@ export function withAway(plan: MatchPlan, playerId: string, at: number | null): 
   else delete next.away;
   return next;
 }
+
+/** The plan with everyone's goal choice as it is now, kept for the rest of the day (see MatchPlan.keepers). */
+export function withKeepers(plan: MatchPlan, players: { id: string; keeper?: KeeperPref }[]): MatchPlan {
+  const keepers: Record<string, Exclude<KeeperPref, null>> = {};
+  for (const p of players) if (p.keeper === 'happy' || p.keeper === 'rather_not') keepers[p.id] = p.keeper;
+  return { ...plan, keepers };
+}

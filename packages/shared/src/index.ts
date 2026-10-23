@@ -375,6 +375,11 @@ export interface MatchPlan {
   swapMinutes: number;
   /** Players who left early: playerId → minutes after kick-off when they went. */
   away?: Record<string, number>;
+  /**
+   * Who was happy in goal or would rather not when the first score went in (playerId → choice;
+   * left out: didn't mind). Kept so a change of mind mid-day can't reshuffle the swaps under way.
+   */
+  keepers?: Record<string, Exclude<KeeperPref, null>>;
 }
 
 // ── Bibs: the colours a group's sides wear, and their names ──

@@ -8,6 +8,7 @@ import { BallSpinner } from '@/components/skeleton';
 import { btnPrimary } from '@/components/buttons';
 import { savePlan, type Lineup, type TeamKey } from '@/lib/api';
 import { teamName } from '@/lib/teams';
+import { useToast } from '@/components/toast';
 import { buildDay, clockAt } from '@/lib/match-plan';
 
 type Settings = Omit<MatchPlan, 'away'>;
@@ -93,6 +94,7 @@ export function PlanSetupSheet({
   onClose: () => void;
 }) {
   const titleId = useId();
+  const toast = useToast();
   const start: Settings = lineup.plan ?? lineup.lastPlan ?? { pitchMinutes: 60, gameMinutes, onPitch: 5, swapMinutes: 0 };
   const [s, setS] = useState<Settings>({
     pitchMinutes: start.pitchMinutes,
@@ -131,7 +133,9 @@ export function PlanSetupSheet({
       onSaved(await savePlan(sessionId, plan));
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The plan didn’t save. Try again.');
+      const message = err instanceof Error ? err.message : 'The plan didn’t save. Try again.';
+      setError(message);
+      toast.error(message);
       setSaving(null);
     }
   }
@@ -143,6 +147,15 @@ export function PlanSetupSheet({
       align="left"
       footer={
         <div className="space-y-2">
+          {/* Next to the button, so a failed save is never off-screen */}
+          {error && (
+            <p role="alert" className="flex items-start gap-1.5 px-1 text-[13px] leading-snug font-semibold text-kit-600">
+              <svg className="w-4 h-4 mt-px shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 3.5h.01M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+              </svg>
+              {error}
+            </p>
+          )}
           <button onClick={() => save(s)} disabled={!!saving || s.gameMinutes > s.pitchMinutes} className={`${btnPrimary} w-full`}>
             {saving === 'save' && <BallSpinner />}
             {lineup.plan ? 'Save the changes' : 'Save the plan'}
@@ -239,11 +252,6 @@ export function PlanSetupSheet({
         <p className="text-[12px] leading-snug text-gray-500">
           Players say in their app if they’re happy in goal. Running late? The last game gets shorter so you still finish on time.
         </p>
-        {error && (
-          <p role="alert" className="text-sm text-kit-600">
-            {error}
-          </p>
-        )}
       </div>
     </Sheet>
   );

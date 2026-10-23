@@ -8,9 +8,10 @@ import { Avatar } from '@/components/ratings';
 import { BallSpinner } from '@/components/skeleton';
 import { LiveDot, buzz, stagger } from '@/components/motion';
 import { Swatch } from '@/components/game/teams-step';
+import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { teamName } from '@/lib/teams';
 import type { TeamKey } from '@/lib/api';
-import { clockAt, spellAt, type Day, type Fixture, type LiveDay, type Side, type Spell } from '@/lib/match-plan';
+import { clipSpells, clockAt, spellAt, type Day, type Fixture, type LiveDay, type Side, type Spell } from '@/lib/match-plan';
 
 /** Someone in the plan, as every view shows them. */
 export interface PlanPerson {
@@ -298,6 +299,13 @@ export function WholePlanSheet({
 }) {
   const titleId = useId();
   const [tab, setTab] = useState<'games' | Side>(myTeam && day.rotas[myTeam] ? myTeam : 'games');
+  const [show, setShow] = useState<'all' | 'ahead' | 'played' | 'mine'>('all');
+  const [view, setView] = useState<'swaps' | 'players'>('swaps');
+  // "My turns" only means something on the player's own team.
+  const meId = [...people.values()].find((p) => p.me)?.id ?? null;
+  const mine = !!meId && tab !== 'games' && tab === myTeam;
+  const shows = (f: Fixture) => (show === 'played' ? f.n < gamesDone : show === 'ahead' ? f.n >= gamesDone : true);
+  const myTurn = (x: Spell) => !!meId && (x.keeper === meId || x.off.includes(meId));
   const [busy, setBusy] = useState<string | null>(null);
   // "Left early" buttons only once asked for, so the list isn't a row of red buttons.
   const [marking, setMarking] = useState(false);
@@ -333,25 +341,66 @@ export function WholePlanSheet({
         onClose={onClose}
       />
 
-      <div className="mt-4 -mx-1 px-1 flex gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Plan">
-        {(['games', ...day.sides.filter((s) => day.rotas[s])] as ('games' | Side)[]).map((t) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={`press shrink-0 min-h-11 px-3.5 rounded-full text-[14px] font-bold border inline-flex items-center gap-1.5 ${
-              tab === t ? 'bg-ink border-ink text-white' : 'bg-white border-gray-200 text-ink hover:border-ink'
-            }`}
-          >
-            {t === 'games' ? 'Games' : <SideName t={t} look={look} />}
-          </button>
-        ))}
-      </div>
+      {/* Which team (or every game), what to show, and for a team: its swaps or its players */}
+      <FilterBar className="mt-4">
+        <FilterMenu
+          label="Team"
+          title="Show the plan for"
+          value={tab}
+          onChange={(v) => {
+            setTab(v);
+            if (show === 'mine' && v !== myTeam) setShow('all');
+          }}
+          columns={2}
+          options={[{ value: 'games', label: 'All games' }, ...day.sides.filter((x) => day.rotas[x]).map((x) => ({ value: x, label: `${teamName(x, look.captains, look.bibs)}${x === myTeam ? ' (yours)' : ''}` }))]}
+        />
+        <FilterMenu
+          label="Show"
+          title="Show"
+          value={show}
+          onChange={setShow}
+          columns={2}
+          options={[
+            { value: 'all', label: 'All games' },
+            { value: 'ahead', label: 'Still to play' },
+            { value: 'played', label: 'Played' },
+            ...(mine ? [{ value: 'mine' as const, label: 'My turns in goal and out' }] : []),
+          ]}
+          icon={
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5.25h18M6.75 12h10.5M10.5 18.75h3" />
+            </svg>
+          }
+        />
+      </FilterBar>
+      {tab !== 'games' && (
+        <div className="mt-3 grid grid-cols-2 gap-1 p-1 bg-white border border-gray-200 rounded-2xl shadow-card" role="tablist" aria-label="Team plan">
+          {(
+            [
+              ['swaps', 'Swaps'],
+              ['players', 'Players'],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              role="tab"
+              aria-selected={view === k}
+              onClick={() => setView(k)}
+              className={`press h-11 rounded-xl text-[14px] font-bold transition-colors ${view === k ? 'bg-ink text-volt-300' : 'text-ink hover:bg-chalk'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
+      {/* A steady height, so switching team, tab or filter doesn't make the sheet jump */}
+      <div className="min-h-[55vh]">
       {tab === 'games' ? (
         <ol className="mt-3 space-y-1.5">
+          {day.fixtures.filter(shows).length === 0 && <Nothing show={show} />}
           {day.fixtures.map((f, i) => {
+            if (!shows(f)) return null;
             const done = i < gamesDone ? results[i] : null;
             const on = live?.playing?.n === f.n;
             const t = timeOf(f);
@@ -380,7 +429,7 @@ export function WholePlanSheet({
                       `${done.scoreA}–${done.scoreB}`
                     ) : on ? (
                       <span className="inline-flex items-center gap-1.5 text-[12px]">
-                        <LiveDot /> On now
+                        <LiveDot /> Live
                       </span>
                     ) : off ? (
                       <span className="text-[12px] text-gray-500">Off</span>
@@ -397,6 +446,8 @@ export function WholePlanSheet({
       ) : rota ? (
         <div className="mt-3">
           {/* Each player's time over the day */}
+          {view === 'players' && (
+          <>
           <ul className="rounded-3xl bg-white border border-gray-100 divide-y divide-gray-100 overflow-hidden">
             {Object.entries(rota.minutes)
               .sort(([a], [b]) => nameOf(a).localeCompare(nameOf(b)))
@@ -449,11 +500,19 @@ export function WholePlanSheet({
             </div>
           )}
 
+          </>
+          )}
+
           {/* Spell by spell */}
-          <ol className="mt-4 space-y-3">
-            {rota.games.map(({ fixture: f, spells }) => {
+          {view === 'swaps' && (
+          <ol className="space-y-3">
+            {rota.games.every(({ fixture: f, spells: sp }) => (show === 'mine' ? !sp.some(myTurn) : !shows(f))) && <Nothing show={show} />}
+            {rota.games.map(({ fixture: f, spells: planned }) => {
+              if (show === 'mine' ? !planned.some(myTurn) : !shows(f)) return null;
               const other = f.teamA === tab ? f.teamB : f.teamA;
               const t = timeOf(f);
+              const all = dropped.has(f.n) ? [] : clipSpells(planned, t.minutes);
+              const spells = show === 'mine' ? all.filter(myTurn) : all;
               const done = f.n < gamesDone;
               const on = live?.playing?.n === f.n;
               const nowSpell = on && live?.elapsed != null ? spellAt(spells, live.elapsed).index : -1;
@@ -465,6 +524,7 @@ export function WholePlanSheet({
                     <span className="shrink-0">v</span>
                     <SideName t={other} look={look} />
                     {done && <span className="ml-auto shrink-0 text-[11px] font-bold text-gray-500">Played</span>}
+                    {dropped.has(f.n) && <span className="ml-auto shrink-0 text-[11px] font-bold text-gray-500">No time: ran late</span>}
                     {on && (
                       <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-ink">
                         <LiveDot /> On now
@@ -487,9 +547,20 @@ export function WholePlanSheet({
               );
             })}
           </ol>
+          )}
         </div>
       ) : null}
+      </div>
     </Sheet>
+  );
+}
+
+/** What a filter left empty says. */
+function Nothing({ show }: { show: string }) {
+  return (
+    <p className="rounded-3xl bg-chalk px-4 py-6 text-center text-[14px] text-gray-600">
+      {show === 'played' ? 'No games played yet.' : show === 'ahead' ? 'Every game is played.' : show === 'mine' ? 'No turns in goal or sitting out for you.' : 'Nothing to show.'}
+    </p>
   );
 }
 

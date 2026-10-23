@@ -141,6 +141,20 @@ export default function GamePage() {
     if (session.group?.requireRsvp) getRsvpBoard(id).then(setBoard).catch(() => setBoard(null));
   }, [id, session, isGameKind]);
 
+  // On match day captains save scores from their phones too: look again while the game is open
+  // (every 20s, and on coming back to the app) so their games show here without a reload.
+  const liveDay = !!session && isGameKind && session.status === 'upcoming' && String(session.date).slice(0, 10) <= localToday();
+  useEffect(() => {
+    if (!liveDay) return;
+    const look = () => document.visibilityState === 'visible' && getLineup(id).then(setLineup).catch(() => undefined);
+    const timer = window.setInterval(look, 20_000);
+    document.addEventListener('visibilitychange', look);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', look);
+    };
+  }, [id, liveDay]);
+
   // Opening step: ?tab= if given, else the one the game is at. Before match day it's who's in;
   // on match day, teams until they're picked, then scores; once played, who still has to pay
   // (or the vote, when everyone has). Old links (?tab=stars, ?tab=payments) still land right.

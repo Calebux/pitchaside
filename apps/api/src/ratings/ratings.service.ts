@@ -11,7 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/entities/session.entity';
-import { cleanPlan, withAway } from './plan';
+import { cleanPlan, withAway, withKeepers } from './plan';
 import type { MatchPlan } from '@pitchaside/shared';
 import { Group } from '../groups/entities/group.entity';
 import { Player } from '../players/entities/player.entity';
@@ -897,8 +897,8 @@ export class RatingsService {
   async setPlan(sessionId: string, organizationId: string, input: unknown) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.kind !== SessionKind.GAME) throw new BadRequestException('Only games have a plan');
-    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
-    if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('This game has ended');
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off, so it has no plan');
+    if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('This game has ended, so its plan can’t change');
     let plan: MatchPlan | null = null;
     if (input != null) {
       try {
@@ -906,8 +906,10 @@ export class RatingsService {
       } catch (err) {
         throw new BadRequestException((err as Error).message);
       }
-      // Keep who already left early: setting the plan again shouldn't bring them back.
+      // Keep who already left early, and the goal choices kept at the first score: setting the
+      // plan again shouldn't bring anyone back or reshuffle the keepers.
       if (session.plan?.away && !(input as { away?: unknown }).away) plan.away = session.plan.away;
+      if (session.plan?.keepers) plan.keepers = session.plan.keepers;
     }
     const patch: Partial<Session> = { plan };
     const running = session.timerStartedAt && new Date(session.timerStartedAt).getTime() + timerOf(session).minutes * 60_000 > Date.now();
@@ -1447,6 +1449,12 @@ export class RatingsService {
         }
       }),
     );
+    // The day has started: who's happy in goal is kept as it is now, so a change of mind in the
+    // app can't reshuffle the swaps under way.
+    if (session.plan && !session.plan.keepers) {
+      const players = (session.payments ?? []).filter((p) => p.player).map((p) => ({ id: p.playerId, keeper: p.player.keeper }));
+      await this.sessionsRepo.update(session.id, { plan: withKeepers(session.plan, players) });
+    }
     return this.getLineup(sessionId, organizationId);
   }
 

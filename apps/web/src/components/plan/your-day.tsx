@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameTimer } from '@pitchaside/shared';
 import { getGameLineup, getGameTimer, type GameLineup } from '@/lib/player';
-import { buildDay, clockAt, liveDay, spellAt, type Spell } from '@/lib/match-plan';
+import { buildDay, clipSpells, clockAt, liveDay, spellAt, type Spell } from '@/lib/match-plan';
 import { LiveDot } from '@/components/motion';
 import { Swatch } from '@/components/game/teams-step';
 import { teamName } from '@/lib/teams';
@@ -90,7 +90,9 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
       <section aria-label="Your day" className="rounded-3xl bg-white border border-gray-100 shadow-card p-4">
         <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-gray-500">Your day</p>
         <p className="mt-1 text-[14px] text-ink">
-          {day.fixtures.length} games planned{look.kickoff ? `, ${at(0)} to ${at(plan.pitchMinutes)}` : ''}. Your games and swaps show here once you’re on a team.
+          {day.fixtures.length} games planned{look.kickoff ? `, ${at(0)} to ${at(plan.pitchMinutes)}` : ''}.{' '}
+          {/* Marked as not here, they're left out of the squad (and the swaps). */}
+          {!me ? 'You’re marked as not here today, so you’re not in the swaps. Tell the organiser if you’ve come.' : 'Your games and swaps show here once you’re on a team.'}
         </p>
         <button onClick={() => setOpen(true)} className="press mt-2 min-h-11 px-1 text-[14px] font-bold text-pitch-700">
           See all the games
@@ -140,13 +142,17 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
         )}
       </div>
       <ol className="border-t border-gray-100 divide-y divide-gray-100">
-        {rota.games.map(({ fixture: f, spells }) => {
+        {rota.games.map(({ fixture: f, spells: planned }) => {
           const other = f.teamA === team ? f.teamB : f.teamA;
-          const t = state?.ahead.games.find((g) => g.n === f.n) ?? f;
-          const keep = runs(spells, t.start, (s) => s.keeper === myId, at);
-          const sit = runs(spells, t.start, (s) => s.off.includes(myId), at);
+          const moved = state?.ahead.games.find((g) => g.n === f.n);
+          const t = moved ?? f;
           const played = f.n < done;
           const on = state?.playing?.n === f.n;
+          // Running late took this game off the end: no time for it.
+          const dropped = !!state && !played && !on && !moved;
+          const spells = clipSpells(planned, t.minutes);
+          const keep = runs(spells, t.start, (s) => s.keeper === myId, at);
+          const sit = runs(spells, t.start, (s) => s.off.includes(myId), at);
           return (
             <li key={f.n} className={`flex gap-3 px-4 py-3 ${on ? 'bg-volt-300/25' : ''} ${played ? 'opacity-60' : ''}`}>
               <span className="w-14 shrink-0 text-[13px] font-bold text-ink tabular-nums">{look.kickoff ? at(t.start) : `Game ${f.n + 1}`}</span>
@@ -163,14 +169,16 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
                   {played && <span className="ml-auto shrink-0 text-[11px] text-gray-500">Played</span>}
                 </span>
                 <span className="block text-[12px] leading-snug text-gray-600">
-                  {keep.length > 0 && (
+                  {!dropped && keep.length > 0 && (
                     <>
                       <span aria-hidden>🧤 </span>In goal {keep.join(', ')}
                     </>
                   )}
-                  {keep.length > 0 && sit.length > 0 && ' · '}
-                  {sit.length > 0 && `Sit out ${sit.join(', ')}`}
-                  {!keep.length && !sit.length && (spells.some((s) => s.on.includes(myId)) ? 'On the whole game' : 'Not playing')}
+                  {!dropped && keep.length > 0 && sit.length > 0 && ' · '}
+                  {!dropped && sit.length > 0 && `Sit out ${sit.join(', ')}`}
+                  {dropped
+                    ? 'No time for this game: the day ran late'
+                    : !keep.length && !sit.length && (spells.some((s) => s.on.includes(myId)) ? 'On the whole game' : 'Not playing')}
                 </span>
               </span>
             </li>
