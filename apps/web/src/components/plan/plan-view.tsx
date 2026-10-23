@@ -10,7 +10,7 @@ import { LiveDot, buzz, stagger } from '@/components/motion';
 import { Swatch } from '@/components/game/teams-step';
 import { teamName } from '@/lib/teams';
 import type { TeamKey } from '@/lib/api';
-import { clockAt, spellAt, type Day, type Fixture, type LiveDay, type Side, type Spell } from '@/lib/match-plan';
+import { clipSpells, clockAt, spellAt, type Day, type Fixture, type LiveDay, type Side, type Spell } from '@/lib/match-plan';
 
 /** Someone in the plan, as every view shows them. */
 export interface PlanPerson {
@@ -451,9 +451,10 @@ export function WholePlanSheet({
 
           {/* Spell by spell */}
           <ol className="mt-4 space-y-3">
-            {rota.games.map(({ fixture: f, spells }) => {
+            {rota.games.map(({ fixture: f, spells: planned }) => {
               const other = f.teamA === tab ? f.teamB : f.teamA;
               const t = timeOf(f);
+              const spells = dropped.has(f.n) ? [] : clipSpells(planned, t.minutes);
               const done = f.n < gamesDone;
               const on = live?.playing?.n === f.n;
               const nowSpell = on && live?.elapsed != null ? spellAt(spells, live.elapsed).index : -1;
@@ -465,6 +466,7 @@ export function WholePlanSheet({
                     <span className="shrink-0">v</span>
                     <SideName t={other} look={look} />
                     {done && <span className="ml-auto shrink-0 text-[11px] font-bold text-gray-500">Played</span>}
+                    {dropped.has(f.n) && <span className="ml-auto shrink-0 text-[11px] font-bold text-gray-500">No time: ran late</span>}
                     {on && (
                       <span className="ml-auto shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-ink">
                         <LiveDot /> On now

@@ -288,6 +288,11 @@ export function sideRota(
   return { games: out, minutes };
 }
 
+/** A game's spells cut to the minutes it really gets (a last game shortened for running late). */
+export function clipSpells(list: Spell[], minutes: number): Spell[] {
+  return list.filter((s) => s.start < minutes).map((s) => (s.start + s.minutes > minutes ? { ...s, minutes: minutes - s.start } : s));
+}
+
 /** The spell a running game is in, from how long it's been going, and when the next swap is. */
 export function spellAt(list: Spell[], elapsedMinutes: number) {
   let i = list.findIndex((s) => elapsedMinutes < s.start + s.minutes);

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameTimer } from '@pitchaside/shared';
 import { getGameLineup, getGameTimer, type GameLineup } from '@/lib/player';
-import { buildDay, clockAt, liveDay, spellAt, type Spell } from '@/lib/match-plan';
+import { buildDay, clipSpells, clockAt, liveDay, spellAt, type Spell } from '@/lib/match-plan';
 import { LiveDot } from '@/components/motion';
 import { Swatch } from '@/components/game/teams-step';
 import { teamName } from '@/lib/teams';
@@ -142,13 +142,17 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
         )}
       </div>
       <ol className="border-t border-gray-100 divide-y divide-gray-100">
-        {rota.games.map(({ fixture: f, spells }) => {
+        {rota.games.map(({ fixture: f, spells: planned }) => {
           const other = f.teamA === team ? f.teamB : f.teamA;
-          const t = state?.ahead.games.find((g) => g.n === f.n) ?? f;
-          const keep = runs(spells, t.start, (s) => s.keeper === myId, at);
-          const sit = runs(spells, t.start, (s) => s.off.includes(myId), at);
+          const moved = state?.ahead.games.find((g) => g.n === f.n);
+          const t = moved ?? f;
           const played = f.n < done;
           const on = state?.playing?.n === f.n;
+          // Running late took this game off the end: no time for it.
+          const dropped = !!state && !played && !on && !moved;
+          const spells = clipSpells(planned, t.minutes);
+          const keep = runs(spells, t.start, (s) => s.keeper === myId, at);
+          const sit = runs(spells, t.start, (s) => s.off.includes(myId), at);
           return (
             <li key={f.n} className={`flex gap-3 px-4 py-3 ${on ? 'bg-volt-300/25' : ''} ${played ? 'opacity-60' : ''}`}>
               <span className="w-14 shrink-0 text-[13px] font-bold text-ink tabular-nums">{look.kickoff ? at(t.start) : `Game ${f.n + 1}`}</span>
@@ -165,14 +169,16 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
                   {played && <span className="ml-auto shrink-0 text-[11px] text-gray-500">Played</span>}
                 </span>
                 <span className="block text-[12px] leading-snug text-gray-600">
-                  {keep.length > 0 && (
+                  {!dropped && keep.length > 0 && (
                     <>
                       <span aria-hidden>🧤 </span>In goal {keep.join(', ')}
                     </>
                   )}
-                  {keep.length > 0 && sit.length > 0 && ' · '}
-                  {sit.length > 0 && `Sit out ${sit.join(', ')}`}
-                  {!keep.length && !sit.length && (spells.some((s) => s.on.includes(myId)) ? 'On the whole game' : 'Not playing')}
+                  {!dropped && keep.length > 0 && sit.length > 0 && ' · '}
+                  {!dropped && sit.length > 0 && `Sit out ${sit.join(', ')}`}
+                  {dropped
+                    ? 'No time for this game: the day ran late'
+                    : !keep.length && !sit.length && (spells.some((s) => s.on.includes(myId)) ? 'On the whole game' : 'Not playing')}
                 </span>
               </span>
             </li>
