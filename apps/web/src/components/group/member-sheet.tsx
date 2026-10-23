@@ -260,6 +260,8 @@ export function PlayerSheet({
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Optional" className={input} autoComplete="off" />
               </label>
               <PlayerLevelPicker value={form.level} onChange={(level) => setForm({ ...form, level })} />
+              {/* Missing (not null) from a server before day plans: it wouldn't be saved. */}
+              {player.keeper !== undefined && (
               <fieldset>
                 <legend className="block text-xs font-bold text-gray-700 mb-1">
                   In goal <span className="font-semibold text-gray-500">(for the day plan’s swaps)</span>
@@ -286,6 +288,7 @@ export function PlayerSheet({
                   ))}
                 </div>
               </fieldset>
+              )}
               <button
                 onClick={save}
                 disabled={!changed || saving || !form.firstName.trim() || !form.lastName.trim()}

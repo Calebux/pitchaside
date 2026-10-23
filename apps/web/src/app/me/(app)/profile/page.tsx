@@ -142,9 +142,12 @@ export default function PlayerProfilePage() {
 
       </div>
       <div>
-      <Section title="On the pitch">
-        <KeeperSetting value={profile.player.keeper} onSaved={refresh} />
-      </Section>
+      {/* Missing (not null) from a server before day plans: nothing to save it to yet. */}
+      {profile.player.keeper !== undefined && (
+        <Section title="On the pitch">
+          <KeeperSetting value={profile.player.keeper} onSaved={refresh} />
+        </Section>
+      )}
 
       <Section title="Account">
         <PlayerAccountSettings

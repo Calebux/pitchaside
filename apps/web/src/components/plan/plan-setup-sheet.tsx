@@ -8,6 +8,7 @@ import { BallSpinner } from '@/components/skeleton';
 import { btnPrimary } from '@/components/buttons';
 import { savePlan, type Lineup, type TeamKey } from '@/lib/api';
 import { teamName } from '@/lib/teams';
+import { useToast } from '@/components/toast';
 import { buildDay, clockAt } from '@/lib/match-plan';
 
 type Settings = Omit<MatchPlan, 'away'>;
@@ -93,6 +94,7 @@ export function PlanSetupSheet({
   onClose: () => void;
 }) {
   const titleId = useId();
+  const toast = useToast();
   const start: Settings = lineup.plan ?? lineup.lastPlan ?? { pitchMinutes: 60, gameMinutes, onPitch: 5, swapMinutes: 0 };
   const [s, setS] = useState<Settings>({
     pitchMinutes: start.pitchMinutes,
@@ -131,7 +133,9 @@ export function PlanSetupSheet({
       onSaved(await savePlan(sessionId, plan));
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'The plan didn’t save. Try again.');
+      const message = err instanceof Error ? err.message : 'The plan didn’t save. Try again.';
+      setError(message);
+      toast.error(message);
       setSaving(null);
     }
   }
@@ -143,6 +147,12 @@ export function PlanSetupSheet({
       align="left"
       footer={
         <div className="space-y-2">
+          {/* Next to the button, so a failed save is never off-screen */}
+          {error && (
+            <p role="alert" className="rounded-2xl bg-kit-500/10 border border-kit-500/30 px-3 py-2 text-[13px] leading-snug text-ink">
+              {error}
+            </p>
+          )}
           <button onClick={() => save(s)} disabled={!!saving || s.gameMinutes > s.pitchMinutes} className={`${btnPrimary} w-full`}>
             {saving === 'save' && <BallSpinner />}
             {lineup.plan ? 'Save the changes' : 'Save the plan'}
@@ -239,11 +249,6 @@ export function PlanSetupSheet({
         <p className="text-[12px] leading-snug text-gray-500">
           Players say in their app if they’re happy in goal. Running late? The last game gets shorter so you still finish on time.
         </p>
-        {error && (
-          <p role="alert" className="text-sm text-kit-600">
-            {error}
-          </p>
-        )}
       </div>
     </Sheet>
   );

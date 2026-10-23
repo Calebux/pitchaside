@@ -1,4 +1,4 @@
-import { cleanPlan, withAway } from './plan';
+import { cleanPlan, withAway, withKeepers } from './plan';
 
 const ID = '7f0b1c9e-2a3d-4e5f-8a9b-0c1d2e3f4a5b';
 
@@ -47,5 +47,19 @@ describe('withAway', () => {
 
   it('refuses a time after the booking', () => {
     expect(() => withAway(plan, ID, 200)).toThrow('When they left');
+  });
+});
+
+describe('withKeepers', () => {
+  it('keeps only real choices', () => {
+    const plan = cleanPlan({ pitchMinutes: 120, gameMinutes: 15, onPitch: 6, swapMinutes: 5 });
+    expect(withKeepers(plan, [{ id: 'a', keeper: 'happy' }, { id: 'b', keeper: null }, { id: 'c', keeper: 'rather_not' }, { id: 'd' }]).keepers).toEqual({
+      a: 'happy',
+      c: 'rather_not',
+    });
+  });
+
+  it('never stores keepers sent by a phone', () => {
+    expect(cleanPlan({ pitchMinutes: 60, gameMinutes: 7, onPitch: 5, keepers: { a: 'happy' } })).not.toHaveProperty('keepers');
   });
 });

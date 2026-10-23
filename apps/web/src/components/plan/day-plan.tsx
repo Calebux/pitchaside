@@ -79,7 +79,8 @@ export function DayPlan({
   }
 
   if (!plan || !day) {
-    if (role !== 'organiser') return null;
+    // A server from before day plans sends no `plan` at all (not even null): nothing to offer yet.
+    if (role !== 'organiser' || lineup.plan === undefined) return null;
     return (
       <>
         <section aria-label="Day plan" className="rounded-3xl bg-white border border-dashed border-gray-300 p-4">

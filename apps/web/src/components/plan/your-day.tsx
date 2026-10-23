@@ -90,7 +90,9 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
       <section aria-label="Your day" className="rounded-3xl bg-white border border-gray-100 shadow-card p-4">
         <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-gray-500">Your day</p>
         <p className="mt-1 text-[14px] text-ink">
-          {day.fixtures.length} games planned{look.kickoff ? `, ${at(0)} to ${at(plan.pitchMinutes)}` : ''}. Your games and swaps show here once you’re on a team.
+          {day.fixtures.length} games planned{look.kickoff ? `, ${at(0)} to ${at(plan.pitchMinutes)}` : ''}.{' '}
+          {/* Marked as not here, they're left out of the squad (and the swaps). */}
+          {!me ? 'You’re marked as not here today, so you’re not in the swaps. Tell the organiser if you’ve come.' : 'Your games and swaps show here once you’re on a team.'}
         </p>
         <button onClick={() => setOpen(true)} className="press mt-2 min-h-11 px-1 text-[14px] font-bold text-pitch-700">
           See all the games
