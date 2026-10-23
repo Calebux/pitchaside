@@ -2,5 +2,6 @@
   "framework": "nextjs",
   "installCommand": "cd ../.. && npm install",
   "buildCommand": "cd ../.. && npx turbo run build --filter=@pitchaside/web",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "ignoreCommand": "npx turbo-ignore @pitchaside/web --fallback=HEAD~1"
 }

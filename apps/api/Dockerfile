@@ -2,6 +2,8 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
 COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY apps/contracts/package.json apps/contracts/
 COPY packages/shared/package.json packages/shared/
 RUN npm ci
 COPY packages/shared packages/shared
