@@ -149,7 +149,10 @@ export function PlanSetupSheet({
         <div className="space-y-2">
           {/* Next to the button, so a failed save is never off-screen */}
           {error && (
-            <p role="alert" className="rounded-2xl bg-kit-500/10 border border-kit-500/30 px-3 py-2 text-[13px] leading-snug text-ink">
+            <p role="alert" className="flex items-start gap-1.5 px-1 text-[13px] leading-snug font-semibold text-kit-600">
+              <svg className="w-4 h-4 mt-px shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.2} stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 3.5h.01M10.3 3.9 2.4 17.6A2 2 0 0 0 4.1 20.6h15.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+              </svg>
               {error}
             </p>
           )}

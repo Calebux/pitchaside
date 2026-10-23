@@ -897,8 +897,8 @@ export class RatingsService {
   async setPlan(sessionId: string, organizationId: string, input: unknown) {
     const session = await this.loadSession(sessionId, organizationId);
     if (session.kind !== SessionKind.GAME) throw new BadRequestException('Only games have a plan');
-    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off');
-    if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('This game has ended');
+    if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off, so it has no plan');
+    if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('This game has ended, so its plan can’t change');
     let plan: MatchPlan | null = null;
     if (input != null) {
       try {
