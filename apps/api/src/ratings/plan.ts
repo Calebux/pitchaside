@@ -30,6 +30,14 @@ export function cleanPlan(input: unknown): MatchPlan {
     onPitch: whole(raw.onPitch, 2, 11, 'Players on the pitch'),
     swapMinutes: raw.swapMinutes == null ? 0 : whole(raw.swapMinutes, 0, 30, 'Swaps'),
   };
+  if (raw.format === 'winner_stays') {
+    plan.format = 'winner_stays';
+    plan.firstMinutes = raw.firstMinutes == null ? 10 : whole(raw.firstMinutes, 1, 60, 'A first-round game');
+    plan.firstTo = raw.firstTo == null ? 2 : whole(raw.firstTo, 1, 5, 'Goals to go off');
+    plan.twoAndOff = raw.twoAndOff !== false;
+  } else if (raw.format != null && raw.format !== 'schedule') {
+    throw new Error('Pick how you play: everyone plays everyone, or winner stays');
+  }
   const away = cleanAway(raw.away, pitchMinutes);
   if (away) plan.away = away;
   return plan;

@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { GameTimer } from '@pitchaside/shared';
 import { getGameLineup, getGameTimer, type GameLineup } from '@/lib/player';
-import { buildDay, clipSpells, clockAt, liveDay, spellAt, type Spell } from '@/lib/match-plan';
+import { buildDay, clipSpells, clockAt, liveDay, spellAt, type LiveDay, type Side, type SideRota, type Spell } from '@/lib/match-plan';
+import { buildWsDay, wsLive, type WsDay, type WsState } from '@/lib/winner-stays';
+import type { MatchPlan } from '@pitchaside/shared';
+import { BibShirt } from '@/components/bib-shirt';
 import { LiveDot } from '@/components/motion';
 import { Swatch } from '@/components/game/teams-step';
 import { teamName } from '@/lib/teams';
-import { WholePlanSheet, usePeople, type PlanLook } from './plan-view';
+import { WholePlanSheet, WsRule, usePeople, type PlanLook } from './plan-view';
 
 /** "7:05–7:15" for a run of spells, by the plan's times. */
 function runs(spells: Spell[], start: number, pick: (s: Spell) => boolean, at: (m: number) => string) {
@@ -56,16 +59,22 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
 
   const people = usePeople(lineup?.squad ?? []);
   const plan = lineup?.plan ?? null;
-  const day = useMemo(
-    () => (lineup && plan ? buildDay({ plan, teamCount: lineup.teamCount, date: lineup.date, squad: lineup.squad }) : null),
-    [lineup, plan],
-  );
+  const day = useMemo(() => {
+    if (!lineup || !plan) return null;
+    const input = { plan, teamCount: lineup.teamCount, date: lineup.date, squad: lineup.squad };
+    return plan.format === 'winner_stays' ? buildWsDay(input, lineup.live?.games ?? []) : buildDay(input);
+  }, [lineup, plan]);
   if (!lineup || !plan || !day) return null;
+  const ws = 'ws' in day ? (day as WsDay).ws : undefined;
 
   const look: PlanLook = { captains: lineup.captains, bibs: lineup.bibs, kickoff: lineup.kickoff };
   const at = (m: number) => clockAt(lineup.kickoff, m) ?? `${Math.round(m)}′`;
   const done = lineup.live?.games.length ?? 0;
-  const state = live ? liveDay(day, plan, done, clock?.timer ?? null, now + (clock?.offset ?? 0), lineup.date, lineup.kickoff) : null;
+  const state = !live
+    ? null
+    : ws
+      ? wsLive(day as WsDay, clock?.timer ?? null, now + (clock?.offset ?? 0))
+      : liveDay(day, plan, done, clock?.timer ?? null, now + (clock?.offset ?? 0), lineup.date, lineup.kickoff);
   const me = lineup.squad.find((m) => m.me);
   const team = lineup.myTeam;
   const rota = team ? day.rotas[team] : undefined;
@@ -75,6 +84,7 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
     <WholePlanSheet
       day={day}
       plan={plan}
+      ws={ws}
       live={state}
       gamesDone={done}
       results={lineup.live?.games ?? []}
@@ -90,7 +100,8 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
       <section aria-label="Your day" className="rounded-3xl bg-white border border-gray-100 shadow-card p-4">
         <p className="text-[12px] font-extrabold uppercase tracking-[0.12em] text-gray-500">Your day</p>
         <p className="mt-1 text-[14px] text-ink">
-          {day.fixtures.length} games planned{look.kickoff ? `, ${at(0)} to ${at(plan.pitchMinutes)}` : ''}.{' '}
+          {ws ? 'Winner stays today' : `${day.fixtures.length} games planned`}
+          {look.kickoff ? `, ${at(0)} to ${at(plan.pitchMinutes)}` : ''}.{' '}
           {/* Marked as not here, they're left out of the squad (and the swaps). */}
           {!me ? 'You’re marked as not here today, so you’re not in the swaps. Tell the organiser if you’ve come.' : 'Your games and swaps show here once you’re on a team.'}
         </p>
@@ -104,6 +115,13 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
 
   const myId = me.id;
   const gone = plan.away?.[myId];
+  if (ws) {
+    return (
+      <WsYourDay ws={ws} plan={plan} look={look} team={team} myId={myId} rota={rota} state={state} gone={gone !== undefined} onOpen={() => setOpen(true)}>
+        {sheet}
+      </WsYourDay>
+    );
+  }
   // What they're doing right now, while a game of theirs is on.
   const nowGame = state?.playing ? rota.games.find((g) => g.fixture.n === state.playing!.n) : undefined;
   const nowSpell = nowGame && state?.elapsed != null ? spellAt(nowGame.spells, state.elapsed) : null;
@@ -193,6 +211,151 @@ export function YourDay({ sessionId, live = false }: { sessionId: string; live?:
         {look.kickoff && (state?.ahead.late ?? 0) === 0 && <p className="text-[12px] text-gray-500">Times are the plan’s; they move if the day runs late.</p>}
       </div>
       {sheet}
+    </section>
+  );
+}
+
+const ORDINAL = ['1st', '2nd', '3rd', '4th', '5th'];
+
+/**
+ * A player's day under winner stays: there are no times to give, so it says where their team is
+ * (on now, on next, or its place in line), the rule for the game on, what they're doing in it,
+ * the minutes so far (theirs, and their team's against the most anyone has played), and their
+ * team's games so far with the result and their turns in goal and out.
+ */
+function WsYourDay({
+  ws,
+  plan,
+  look,
+  team,
+  myId,
+  rota,
+  state,
+  gone,
+  onOpen,
+  children,
+}: {
+  ws: WsState;
+  plan: MatchPlan;
+  look: PlanLook;
+  team: Side;
+  myId: string;
+  rota: SideRota;
+  state: LiveDay | null;
+  gone: boolean;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
+  const name = (t: Side) => teamName(t, look.captains, look.bibs);
+  const on = !!ws.on?.includes(team) && !ws.over;
+  const playing = on && !!state?.playing;
+  const line = [...ws.line].sort((a, b) => ws.minutes[a] - ws.minutes[b]);
+  const place = line.indexOf(team);
+  const other = on ? ws.on!.find((t) => t !== team)! : null;
+  const headline = ws.over
+    ? 'Time’s up on the booking'
+    : playing
+      ? 'You’re on now'
+      : on
+        ? ws.played.length === 0
+          ? 'You’re on first'
+          : 'You’re on next'
+        : place === 0
+          ? 'First in line'
+          : `${ORDINAL[place] ?? `${place + 1}th`} in line`;
+  // What they're doing in the game on now.
+  const nowGame = playing ? rota.games.find((g) => g.fixture.n === state!.playing!.n) : undefined;
+  const spell = nowGame && state?.elapsed != null ? spellAt(nowGame.spells, state.elapsed).spell : null;
+  const nowLine = spell ? (spell.keeper === myId ? 'You’re in goal' : spell.off.includes(myId) ? 'You’re sitting out' : spell.on.includes(myId) ? 'You’re on the pitch' : null) : null;
+  const played = rota.games.filter((g) => g.fixture.n < ws.played.length);
+  // Only games already played count: the game on now (or next) isn't time on the pitch yet.
+  const sum = (pick: (x: Spell) => boolean) => played.reduce((n, g) => n + g.spells.filter(pick).reduce((m, x) => m + x.minutes, 0), 0);
+  const mine = { played: sum((x) => x.on.includes(myId)), inGoal: sum((x) => x.keeper === myId) };
+  const most = Math.max(...Object.values(ws.minutes));
+
+  return (
+    <section aria-label="Your day" className="rounded-3xl bg-white border border-gray-100 shadow-card overflow-hidden">
+      <div className="p-4">
+        <p className="flex items-center gap-1.5 text-[12px] font-extrabold uppercase tracking-[0.12em] text-gray-500">
+          Your day · <span className="normal-case tracking-normal text-ink truncate">{name(team)}</span>
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <BibShirt team={team} bibs={look.bibs} className="w-12 h-12 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-display text-[22px] leading-tight font-extrabold text-ink">{headline}</p>
+            <p className="text-[13px] text-gray-600 truncate">
+              {other ? `v ${name(other)}` : ws.over ? `${played.length} game${played.length === 1 ? '' : 's'} played` : 'Least played comes on next'}
+            </p>
+          </div>
+        </div>
+        {nowLine && (
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-volt-300 px-3 py-1.5 text-[13px] font-bold text-ink" role="status">
+            <LiveDot className="bg-ink" /> {nowLine}
+          </p>
+        )}
+        {gone && <p className="mt-3 rounded-2xl bg-chalk px-3 py-2 text-[13px] text-ink">You’re marked as gone early: you’re out of the swaps from then on.</p>}
+        {!ws.over && (
+          <div className="mt-3">
+            <WsRule ws={ws} plan={plan} />
+          </div>
+        )}
+      </div>
+
+      {/* Minutes so far: theirs, and their team's against the most anyone has played */}
+      <div className="border-t border-gray-100 bg-chalk/50 px-4 py-3 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-[12px] font-bold text-gray-500">You</p>
+          <p className="font-display text-[20px] font-extrabold text-ink tabular-nums">{Math.round(mine?.played ?? 0)} min</p>
+          <p className="text-[12px] text-gray-500 tabular-nums">{mine?.inGoal ? `${Math.round(mine.inGoal)} in goal` : 'No time in goal yet'}</p>
+        </div>
+        <div>
+          <p className="text-[12px] font-bold text-gray-500">{name(team)}</p>
+          <p className="font-display text-[20px] font-extrabold text-ink tabular-nums">{Math.round(ws.minutes[team])} min</p>
+          <span className="mt-1 block h-1.5 rounded-full bg-gray-200 overflow-hidden" aria-hidden>
+            <span className="block h-full rounded-full bg-pitch-600" style={{ width: `${most ? (ws.minutes[team] / most) * 100 : 0}%` }} />
+          </span>
+          <p className="mt-0.5 text-[12px] text-gray-500 tabular-nums">{most ? `Most played: ${Math.round(most)} min` : 'No games yet'}</p>
+        </div>
+      </div>
+
+      {played.length > 0 && (
+        <ol className="border-t border-gray-100 divide-y divide-gray-100">
+          {played.map(({ fixture: f, spells }) => {
+            const g = ws.played[f.n];
+            const vs = g.teamA === team ? g.teamB : g.teamA;
+            const us = g.teamA === team ? g.scoreA : g.scoreB;
+            const them = g.teamA === team ? g.scoreB : g.scoreA;
+            const result = us > them ? 'Won' : us < them ? 'Lost' : 'Drew';
+            const inGoal = spells.filter((x) => x.keeper === myId).reduce((n, x) => n + x.minutes, 0);
+            const out = spells.filter((x) => x.off.includes(myId)).reduce((n, x) => n + x.minutes, 0);
+            return (
+              <li key={f.n} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-12 shrink-0 text-[12px] font-extrabold text-gray-500">Game {f.n + 1}</span>
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-1.5 text-[14px] font-bold text-ink min-w-0">
+                    <span className="shrink-0 text-gray-500 font-semibold">v</span>
+                    <Swatch team={vs} bibs={look.bibs} className="w-3 h-3 rounded-sm" />
+                    <span className="truncate">{name(vs)}</span>
+                  </span>
+                  <span className="block text-[12px] text-gray-600 tabular-nums">
+                    {Math.round(f.minutes)} min{inGoal ? ` · ${Math.round(inGoal)} in goal` : ''}
+                    {out ? ` · sat out ${Math.round(out)}` : ''}
+                  </span>
+                </span>
+                <span className={`shrink-0 text-[13px] font-extrabold tabular-nums ${result === 'Won' ? 'text-pitch-700' : result === 'Lost' ? 'text-kit-600' : 'text-ink'}`}>
+                  {result} {us}–{them}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <div className="px-4 pb-3 pt-1">
+        <button onClick={onOpen} className="press min-h-11 px-1 text-[14px] font-bold text-pitch-700">
+          See the whole day
+        </button>
+      </div>
+      {children}
     </section>
   );
 }

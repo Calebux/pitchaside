@@ -363,11 +363,26 @@ export interface GameTimer {
 /** Whether a player wants to go in goal when the swaps come round. Null: they don't mind. */
 export type KeeperPref = 'happy' | 'rather_not' | null;
 
+/**
+ * How the day is played. `schedule`: everyone plays everyone, games and times fixed in advance.
+ * `winner_stays`: a first round of fixed-length games, then first to concede `firstTo` goes off
+ * (or the time limit); the app picks who comes on next from each saved result.
+ */
+export type MatchFormat = 'schedule' | 'winner_stays';
+
 /** How the organiser set up the day. The games and swaps are worked out from it on every phone. */
 export interface MatchPlan {
+  /** Missing: `schedule` (plans made before winner stays). */
+  format?: MatchFormat;
+  /** Winner stays: how long each first-round game lasts (winner stays, loser off, whatever the score). */
+  firstMinutes?: number;
+  /** Winner stays, after the first round: the side that concedes this many goes off. */
+  firstTo?: number;
+  /** Winner stays: a side that wins twice in a row goes off too. */
+  twoAndOff?: boolean;
   /** How long the pitch is booked for, from kick-off. */
   pitchMinutes: number;
-  /** How long each game lasts. */
+  /** How long each game lasts (winner stays: the time limit after the first round). */
   gameMinutes: number;
   /** Players on the pitch per side, keeper included. */
   onPitch: number;

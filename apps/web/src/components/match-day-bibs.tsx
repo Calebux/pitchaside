@@ -208,7 +208,7 @@ function Live({
             <th className="w-6 text-center font-extrabold pb-1">W</th>
             <th className="w-6 text-center font-extrabold pb-1">D</th>
             <th className="w-6 text-center font-extrabold pb-1">L</th>
-            <th className="w-8 text-right font-extrabold pb-1">Pts</th>
+            <th className="w-10 text-right font-extrabold pb-1">{live.table.perGame ? 'Pts/G' : 'Pts'}</th>
           </tr>
         </thead>
         <tbody>
@@ -226,7 +226,7 @@ function Live({
               <td className="text-center">{r.w}</td>
               <td className="text-center">{r.d}</td>
               <td className="text-center">{r.l}</td>
-              <td className="text-right font-display font-extrabold">{r.pts}</td>
+              <td className="text-right font-display font-extrabold tabular-nums">{live.table.perGame ? (r.ppg ?? 0).toFixed(1) : r.pts}</td>
             </tr>
           ))}
         </tbody>

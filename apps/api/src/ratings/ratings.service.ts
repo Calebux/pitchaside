@@ -12,6 +12,7 @@ import { In, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/entities/session.entity';
 import { cleanPlan, withAway, withKeepers } from './plan';
+import { dayTable } from './day-table';
 import type { MatchPlan } from '@pitchaside/shared';
 import { Group } from '../groups/entities/group.entity';
 import { Player } from '../players/entities/player.entity';
@@ -713,7 +714,7 @@ export class RatingsService {
       })
       .filter((a): a is NonNullable<typeof a> => !!a);
 
-    const table = this.standings(session.teamCount, games);
+    const table = this.standings(session.teamCount, games, session.plan);
     const tod = table.teamOfTheDay;
     const todRow = tod ? table.rows.find((r) => r.team === tod) : null;
     const w = this.window(session);
@@ -781,27 +782,9 @@ export class RatingsService {
 
   // ── Match day: teams on the day + short games ──
 
-  /** Per-side table for one match day: 3 for a win, 1 for a draw. */
-  private standings(teamCount: number, games: SessionGame[]) {
-    const rows = TEAM_KEYS.slice(0, teamCount).map((team) => ({ team: team as string, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 }));
-    const by = new Map<string, (typeof rows)[number]>(rows.map((r) => [r.team, r]));
-    for (const g of games) {
-      const a = by.get(g.teamA);
-      const b = by.get(g.teamB);
-      if (!a || !b) continue;
-      a.p++; b.p++;
-      a.gf += g.scoreA; a.ga += g.scoreB;
-      b.gf += g.scoreB; b.ga += g.scoreA;
-      if (g.scoreA > g.scoreB) { a.w++; b.l++; a.pts += 3; }
-      else if (g.scoreA < g.scoreB) { b.w++; a.l++; b.pts += 3; }
-      else { a.d++; b.d++; a.pts++; b.pts++; }
-    }
-    rows.sort((x, y) => y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || x.team.localeCompare(y.team));
-    const top = rows[0];
-    // Team of the Day only once games are played and there's a clear leader.
-    const teamOfTheDay =
-      top && top.p > 0 && (!rows[1] || rows[1].pts < top.pts || (rows[1].gf - rows[1].ga) < (top.gf - top.ga)) ? top.team : null;
-    return { rows, teamOfTheDay };
+  /** The day's table; winner stays ranks by points per game (see dayTable). */
+  private standings(teamCount: number, games: SessionGame[], plan?: MatchPlan | null) {
+    return dayTable(teamCount, games, plan?.format === 'winner_stays');
   }
 
   async getLineup(sessionId: string, organizationId: string) {
@@ -817,7 +800,7 @@ export class RatingsService {
       this.goalsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
       this.eventsRepo.find({ where: { sessionId }, order: { createdAt: 'ASC' } }),
     ]);
-    const table = this.standings(session.teamCount, games);
+    const table = this.standings(session.teamCount, games, session.plan);
     return {
       teamCount: session.teamCount,
       ...(await this.planOf(session)),
@@ -851,6 +834,7 @@ export class RatingsService {
         teamB: g.teamB,
         scoreA: g.scoreA,
         scoreB: g.scoreB,
+        seconds: g.seconds ?? null,
         recordedBy: g.recordedBy ?? null,
         goals: goals
           .filter((x) => x.gameId === g.id)
@@ -860,6 +844,7 @@ export class RatingsService {
       events: events.map((e) => ({ id: e.id, playerId: e.playerId, kind: e.kind, recordedBy: e.recordedBy })),
       standings: table.rows,
       teamOfTheDay: table.teamOfTheDay,
+      tablePerGame: table.perGame,
     };
   }
 
@@ -910,6 +895,9 @@ export class RatingsService {
       // plan again shouldn't bring anyone back or reshuffle the keepers.
       if (session.plan?.away && !(input as { away?: unknown }).away) plan.away = session.plan.away;
       if (session.plan?.keepers) plan.keepers = session.plan.keepers;
+      if ((session.plan?.format ?? 'schedule') !== (plan.format ?? 'schedule') && (await this.scoresIn(session.id))) {
+        throw new BadRequestException('The day has started: the format can’t change now');
+      }
     }
     const patch: Partial<Session> = { plan };
     const running = session.timerStartedAt && new Date(session.timerStartedAt).getTime() + timerOf(session).minutes * 60_000 > Date.now();
@@ -1173,7 +1161,7 @@ export class RatingsService {
   async captainAddGame(
     sessionId: string,
     playerIds: string[],
-    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string },
+    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string; seconds?: number },
   ) {
     const { organizationId, signedAs, team } = await this.captainToday(sessionId, playerIds);
     if (input.teamA !== team && input.teamB !== team) throw new BadRequestException('You can only add games your team played');
@@ -1286,6 +1274,7 @@ export class RatingsService {
           teamB: g.teamB,
           scoreA: g.scoreA,
           scoreB: g.scoreB,
+          seconds: g.seconds ?? null,
           goals: goals
             .filter((x) => x.gameId === g.id)
             .map((x) => ({
@@ -1298,7 +1287,7 @@ export class RatingsService {
             })),
         })),
         events: events.map((e) => ({ kind: e.kind, name: nameOf(e.playerId), photoKey: photoOf(e.playerId), mine: playerIds.includes(e.playerId) })),
-        table: this.standings(session.teamCount, games),
+        table: this.standings(session.teamCount, games, session.plan),
       },
       teamCount: session.teamCount,
       ...(await this.planOf(session, false)),
@@ -1419,7 +1408,7 @@ export class RatingsService {
   async addGame(
     sessionId: string,
     organizationId: string,
-    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string },
+    input: { teamA: string; teamB: string; scoreA: number; scoreB: number; goals?: GoalInput[]; clientKey?: string; seconds?: number },
     recordedBy?: string,
   ) {
     const session = await this.loadSession(sessionId, organizationId);
@@ -1438,6 +1427,7 @@ export class RatingsService {
       scoreB: clean(input.scoreB),
       recordedBy: recordedBy ?? null,
       clientKey: input.clientKey ?? null,
+      seconds: input.seconds != null ? Math.max(0, Math.min(7200, Math.round(input.seconds))) : null,
     });
     const goals = input.goals ?? [];
     this.checkGoals(session, game, [], goals);
@@ -1645,7 +1635,7 @@ export class RatingsService {
     const votesBySession = group(votes);
     const goalsBySession = group(goals);
     const eventsBySession = group(events);
-    const dayWinner = new Map(ordered.map((s) => [s.id, this.standings(s.teamCount, gamesBySession.get(s.id) ?? []).teamOfTheDay] as const));
+    const dayWinner = new Map(ordered.map((s) => [s.id, this.standings(s.teamCount, gamesBySession.get(s.id) ?? [], s.plan).teamOfTheDay] as const));
     const abilitiesOf = new Map(CATEGORIES.filter((c) => c.abilities).map((c) => [c.key, c.abilities!]));
     /** Fastest on the pitch is kept as The Engine. */
     const evidenceKey = (c: VoteCategory) => (c === VoteCategory.PACE ? VoteCategory.ENGINE : c);
@@ -1861,7 +1851,7 @@ export class RatingsService {
           /** Each side's bib colour and name for this game (its own, else the group's). */
           bibs: bibsFor(s),
           teamOpen: this.bibsOpen(s, dayGames.length > 0),
-          teamOfTheDay: this.standings(s.teamCount, dayGames).teamOfTheDay,
+          teamOfTheDay: this.standings(s.teamCount, dayGames, s.plan).teamOfTheDay,
           record,
           games: dayGames.length,
           potm: potmPlayer ? { name: sheetName(potmPlayer), votes: potmVotes, isMe: potmId === playerId, photoKey: potmPlayer.photoKey ?? null } : null,
