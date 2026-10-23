@@ -770,9 +770,11 @@ export class RatingsService {
               d: todRow.d,
               l: todRow.l,
               pts: todRow.pts,
+              ppg: todRow.ppg,
             }
           : null,
       standings: games.length ? table.rows : [],
+      perGame: table.perGame,
       games: games.map((g) => ({ teamA: g.teamA, teamB: g.teamB, scoreA: g.scoreA, scoreB: g.scoreB })),
       captains: this.captainsOf(session),
       players,
