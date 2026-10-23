@@ -1183,7 +1183,7 @@ export function TransfersPanel({
                       }}
                       className={`${btnPrimary} flex-1 min-h-10 text-sm`}
                     >
-                      {claimant(t) ? `Give to ${claimant(t)!.firstName}…` : 'Choose the player'}
+                      {claimant(t) ? `Give to ${claimant(t)!.firstName}` : 'Choose the player'}
                     </button>
                   )}
                   <button

@@ -2,13 +2,38 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { LeagueTableView } from '@/components/ratings';
-import type { LeagueTable } from '@/lib/api';
+import { tableQuery, type LeagueTable, type TableRange } from '@/lib/api';
+import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { Avatar } from '@/components/ratings';
 import { InfoTip } from '@/components/info-tip';
 import { ORGANISER_CLUB, type ClubApi, type StatSort } from './group-stats';
 import { ShareCardButton, ShareIcon, shareIconLight } from '@/components/share-card';
 
-const RECENT_DAYS = 5;
+type PeriodKey = 'all' | 'last3' | 'last5' | 'last10' | 'month' | 'prev' | 'year';
+
+const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const monthName = (d: Date) => d.toLocaleDateString('en-GB', { month: 'long' });
+
+/**
+ * The periods a table can cover: the whole season, the latest few match days (only those shorter
+ * than the season), or by the calendar. `range` is what the server is asked; `short` goes in the
+ * shared message ("last 5 match days", "October").
+ */
+function periods(seasonDays: number, now = new Date()) {
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const prevFirst = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevLast = new Date(now.getFullYear(), now.getMonth(), 0);
+  const out: { value: PeriodKey; label: string; short: string | null; range?: TableRange }[] = [{ value: 'all', label: 'Whole season', short: null }];
+  for (const n of [3, 5, 10]) {
+    if (seasonDays > n) out.push({ value: `last${n}` as PeriodKey, label: `Last ${n} match days`, short: `last ${n} match days`, range: { last: n } });
+  }
+  out.push(
+    { value: 'month', label: 'This month', short: monthName(now), range: { from: day(first), to: day(now) } },
+    { value: 'prev', label: 'Last month', short: monthName(prevFirst), range: { from: day(prevFirst), to: day(prevLast) } },
+    { value: 'year', label: 'This year', short: String(now.getFullYear()), range: { from: `${now.getFullYear()}-01-01`, to: day(now) } },
+  );
+  return out;
+}
 
 /** A group's season table, with its own loading and "didn't load" states. */
 export function GroupTable({
@@ -25,21 +50,23 @@ export function GroupTable({
 }) {
   const [table, setTable] = useState<LeagueTable | null>(null);
   const [failed, setFailed] = useState<string | false>(false);
-  // The whole season, or only the latest match days.
-  const [recent, setRecent] = useState(false);
-  // How many match days the season has, so the switch only shows when it changes something.
+  // Which match days the table covers (a dropdown: the season, the latest few, or by the calendar).
+  const [period, setPeriod] = useState<PeriodKey>('all');
+  // How many match days the season has, so only periods shorter than it are offered.
   const [seasonDays, setSeasonDays] = useState(0);
+  const options = periods(seasonDays);
+  const chosen = options.find((o) => o.value === period) ?? options[0];
 
   const load = useCallback(() => {
     setFailed(false);
-    api.table(groupId, recent ? RECENT_DAYS : undefined)
+    api.table(groupId, chosen.range)
       .then((t) => {
         setTable(t);
-        if (!recent) setSeasonDays(t.games);
+        if (period === 'all') setSeasonDays(t.games);
       })
       .catch((err) => setFailed(err instanceof Error ? err.message : ''));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupId, recent]);
+  }, [groupId, period]);
 
   useEffect(() => {
     setTable(null);
@@ -54,6 +81,12 @@ export function GroupTable({
           Table
           {table && (
             <InfoTip label="How the table works">
+              {table.rankedBy === 'rating' && (
+                <>
+                  <span className="block font-bold text-volt-300">How it’s ranked</span>
+                  <span className="block mt-1 mb-2">By rating: 40% goals and assists, 40% the votes after each game, 20% team results. Level on rating, more points go higher.</span>
+                </>
+              )}
               <span className="block font-bold text-volt-300">How points are won</span>
               <span className="block mt-1">
                 Win a game: {table.points.win} · Draw: {table.points.draw} · Team of the Day: {table.points.teamOfDay} · Player of the Match: {table.points.potm}
@@ -66,10 +99,10 @@ export function GroupTable({
         </h2>
         {table?.shareCode && table.rows.length > 0 && (
           <ShareCardButton
-            page={`/g/${table.shareCode}/table${recent ? `?last=${RECENT_DAYS}` : ''}`}
+            page={`/g/${table.shareCode}/table${tableQuery(chosen.range)}`}
             heading="Share the table"
             fileName="pitchaside-table.png"
-            caption={`📊 ${groupName ?? 'Our'} table${recent ? ` · last ${RECENT_DAYS} match days` : ''}. Where do you stand?`}
+            caption={`📊 ${groupName ?? 'Our'} table${chosen.short ? ` · ${chosen.short}` : ''}. Where do you stand?`}
             label="Share the table"
             className={shareIconLight}
           >
@@ -78,29 +111,25 @@ export function GroupTable({
         )}
         </div>
         <p className="-mt-1 text-xs text-gray-500">
-          {table?.rankedBy === 'rating' ? 'Ranked by rating: goals, votes and results. Points break a tie.' : 'Points from results, Team of the Day and Player of the Match'}
+          {table?.rankedBy === 'rating' ? 'Ranked by rating. Points break a tie.' : 'Points from results, Team of the Day and Player of the Match'}
         </p>
         {/* The table as an image for WhatsApp: the season, or the last few match days, as shown */}
       </div>
-      {seasonDays > RECENT_DAYS && (
-        <div role="radiogroup" aria-label="Which match days" className="mb-3 flex gap-2">
-          {[
-            { on: !recent, label: 'This season', pick: () => setRecent(false) },
-            { on: recent, label: `Last ${RECENT_DAYS} match days`, pick: () => setRecent(true) },
-          ].map((o) => (
-            <button
-              key={o.label}
-              role="radio"
-              aria-checked={o.on}
-              onClick={o.pick}
-              className={`press min-h-11 px-3.5 rounded-2xl text-sm font-bold transition-colors ${o.on ? 'bg-ink text-volt-300' : 'bg-white border border-gray-200 text-ink hover:border-ink'}`}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+      {seasonDays > 0 && (
+        <FilterBar className="mb-3">
+          <FilterMenu label="Which match days" title="Show the table for" value={period} onChange={setPeriod} columns={2} options={options} />
+        </FilterBar>
       )}
-      {table ? (
+      {table && period !== 'all' && table.games === 0 ? (
+        // A period with no match days in it: say so, and the way back to the whole season.
+        <div className="rounded-3xl bg-chalk px-5 py-8 text-center">
+          <p className="font-display text-[17px] font-extrabold text-ink">No match days in {chosen.short ?? 'this period'}</p>
+          <p className="mt-1 text-[13px] text-gray-600">Scores saved on a match day in this period will show here.</p>
+          <button onClick={() => setPeriod('all')} className="press mt-3 min-h-11 px-4 rounded-2xl bg-white border border-gray-300 text-[14px] font-bold text-ink hover:border-ink">
+            Show the whole season
+          </button>
+        </div>
+      ) : table ? (
         <>
           <LeagueTableView table={table} />
           <Leaders table={table} onSeeAll={onSeeAll} />
@@ -141,7 +170,8 @@ function Leaders({ table, onSeeAll }: { table: LeagueTable; onSeeAll?: (sort: St
       .filter((r) => (of(r) ?? 0) > 0)
       .sort((a, b) => of(b) - of(a))
       .slice(0, 3)
-      .map((r) => ({ id: r.player.id, name: r.player.nickname || `${r.player.firstName} ${r.player.lastName}`, photoKey: r.player.photoKey, value: of(r) })),
+      // Two narrow columns: first name and initial fits where the full name would be cut off.
+      .map((r) => ({ id: r.player.id, full: `${r.player.firstName} ${r.player.lastName}`, name: r.player.nickname || `${r.player.firstName} ${r.player.lastName.charAt(0)}.`, photoKey: r.player.photoKey, value: of(r) })),
   }));
   return (
     <section aria-labelledby="leaders-title" className="mt-6">
@@ -157,8 +187,10 @@ function Leaders({ table, onSeeAll }: { table: LeagueTable; onSeeAll?: (sort: St
                 {b.top.map((p, i) => (
                   <li key={p.id} className="flex items-center gap-2 min-w-0">
                     <span className="w-3 text-[11px] font-extrabold text-gray-400 tabular-nums">{i + 1}</span>
-                    <Avatar name={p.name} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
-                    <span className="flex-1 min-w-0 truncate text-[13px] font-bold text-ink">{p.name}</span>
+                    <Avatar name={p.full} photoKey={p.photoKey} className="w-6 h-6 text-[9px]" />
+                    <span className="flex-1 min-w-0 truncate text-[13px] font-bold text-ink" title={p.full}>
+                      {p.name}
+                    </span>
                     <span className="font-display text-[15px] font-extrabold text-ink tabular-nums">{p.value}</span>
                   </li>
                 ))}

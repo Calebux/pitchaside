@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ratings';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { stagger } from '@/components/motion';
 import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
-import { getGroupTable, getRatingBreakdown, getRatingTrial, type LeagueTable, type RatingBreakdown, type RatingTrial } from '@/lib/api';
+import { getGroupTable, getRatingBreakdown, getRatingTrial, type LeagueTable, type RatingBreakdown, type RatingTrial, type TableRange } from '@/lib/api';
 
 /**
  * Where the table and stats come from: the organiser's routes, or the player app's (which check the
@@ -14,7 +14,7 @@ import { getGroupTable, getRatingBreakdown, getRatingTrial, type LeagueTable, ty
  * a row shows how that player's rating is made instead.
  */
 export interface ClubApi {
-  table: (groupId: string, lastDays?: number) => Promise<LeagueTable>;
+  table: (groupId: string, range?: TableRange) => Promise<LeagueTable>;
   ratings: (groupId: string) => Promise<RatingTrial>;
   breakdown: (playerId: string) => Promise<RatingBreakdown | null>;
   playerHref: ((playerId: string) => string) | null;

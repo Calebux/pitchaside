@@ -131,7 +131,7 @@ export default function PlayerProfilePage() {
             </span>
             <span className="flex-1 min-w-0">
               <span className="block text-[15px] font-bold text-ink">Run your own games</span>
-              <span className="block text-[13px] text-gray-600">Start a group: collect payments, replies and votes. You keep your card.</span>
+              <span className="block text-[13px] leading-snug text-gray-600 [text-wrap:pretty]">Start a group: collect payments, replies and votes. You keep your card.</span>
             </span>
             <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />

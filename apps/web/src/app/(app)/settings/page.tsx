@@ -85,7 +85,7 @@ export default function SettingsPage() {
       const data = await setup2FA();
       setTwoFASetup(data);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to setup 2FA');
+      toast.error(err.message || 'Two-step sign-in didn’t start. Try again.');
     } finally {
       setSetting2FA(false);
     }
@@ -98,7 +98,7 @@ export default function SettingsPage() {
       setTwoFASetup(null);
       setTwoFACode('');
       await refreshUser();
-      toast.success('2FA enabled');
+      toast.success('Two-step sign-in is on');
     } catch (err: any) {
       toast.error(err.message || 'Invalid code');
     } finally {
@@ -112,7 +112,7 @@ export default function SettingsPage() {
       await disable2FA(disableCode);
       setDisableCode('');
       await refreshUser();
-      toast.success('2FA disabled');
+      toast.success('Two-step sign-in is off');
     } catch (err: any) {
       toast.error(err.message || 'Invalid code');
     } finally {
@@ -162,7 +162,7 @@ export default function SettingsPage() {
         <h2 className="text-lg font-bold text-ink mb-4">Profile</h2>
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">First Name</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">First name</label>
             <input
               type="text"
               required
@@ -173,7 +173,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Last Name</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Last name</label>
             <input
               type="text"
               required
@@ -201,7 +201,7 @@ export default function SettingsPage() {
           disabled={savingProfile}
           className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
-          {savingProfile ? 'Saving...' : 'Update Profile'}
+          {savingProfile ? 'Saving…' : 'Update profile'}
         </button>
       </form>
 
@@ -210,7 +210,7 @@ export default function SettingsPage() {
         <h2 className="text-lg font-bold text-ink mb-4">Password</h2>
         <div className="space-y-3 mb-4">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Current Password</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Current password</label>
             <input
               type="password"
               required
@@ -220,7 +220,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">New Password</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">New password</label>
             <input
               type="password"
               required
@@ -231,7 +231,7 @@ export default function SettingsPage() {
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1.5">Confirm New Password</label>
+            <label className="block text-xs font-bold text-gray-700 mb-1.5">Confirm new password</label>
             <input
               type="password"
               required
@@ -247,18 +247,18 @@ export default function SettingsPage() {
           disabled={savingPw}
           className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
         >
-          {savingPw ? 'Changing...' : 'Change Password'}
+          {savingPw ? 'Saving…' : 'Change password'}
         </button>
       </form>
 
       {/* Transfer PIN */}
       {hasPin !== null && (
         <form onSubmit={handlePinSave} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
-          <h2 className="text-lg font-bold text-ink mb-1">{hasPin ? 'Change Transfer PIN' : 'Set Transfer PIN'}</h2>
+          <h2 className="text-lg font-bold text-ink mb-1">{hasPin ? 'Change transfer PIN' : 'Set transfer PIN'}</h2>
           <p className="text-xs text-gray-500 mb-4">
             {hasPin
-              ? 'Enter your current PIN and choose a new 4-digit PIN.'
-              : 'Set a 4-digit PIN to authorise payouts from group accounts.'}
+              ? 'Enter your current PIN and choose a new 4‑digit PIN.'
+              : 'Set a 4‑digit PIN to authorise payouts from group accounts.'}
           </p>
           <div className="space-y-3 mb-4">
             {hasPin && (
@@ -288,7 +288,7 @@ export default function SettingsPage() {
                 maxLength={4}
                 value={pinData.newPin}
                 onChange={(e) => setPinData({ ...pinData, newPin: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                placeholder="Enter 4-digit PIN"
+                placeholder="Enter 4‑digit PIN"
                 className={`${inputClass} text-center tracking-[0.3em]`}
                 autoComplete="off"
               />
@@ -313,14 +313,14 @@ export default function SettingsPage() {
             disabled={savingPin || pinData.newPin.length < 4 || pinData.confirmPin.length < 4 || (hasPin && pinData.currentPin.length < 4)}
             className="w-full py-3 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
           >
-            {savingPin ? 'Saving...' : hasPin ? 'Change PIN' : 'Set PIN'}
+            {savingPin ? 'Saving…' : hasPin ? 'Change PIN' : 'Set PIN'}
           </button>
         </form>
       )}
 
       {/* 2FA Section */}
       <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5">
-        <h2 className="text-lg font-bold text-ink mb-4">Two-Factor Authentication</h2>
+        <h2 className="text-lg font-bold text-ink mb-4">Two-step sign-in</h2>
         {user.twoFactorEnabled ? (
           <div>
             <div className="flex items-center gap-2 mb-4">
@@ -340,7 +340,7 @@ export default function SettingsPage() {
                 disabled={!disableCode || setting2FA}
                 className="w-full py-2.5 text-sm font-semibold text-kit-600 border border-kit-400/40 rounded-xl hover:bg-kit-400/10 disabled:opacity-50 transition-colors"
               >
-                {setting2FA ? 'Disabling...' : 'Disable 2FA'}
+                {setting2FA ? 'Turning off…' : 'Turn off two-step sign-in'}
               </button>
             </div>
           </div>
@@ -372,21 +372,21 @@ export default function SettingsPage() {
                 disabled={!twoFACode || setting2FA}
                 className="flex-1 py-2.5 text-sm font-bold text-volt-300 bg-ink rounded-xl hover:bg-pitch-900 disabled:opacity-50 transition-colors"
               >
-                {setting2FA ? 'Verifying...' : 'Verify & Enable'}
+                {setting2FA ? 'Checking…' : 'Verify & Enable'}
               </button>
             </div>
           </div>
         ) : (
           <div>
             <p className="text-sm text-gray-500 mb-4">
-              Add an extra layer of security to your account with two-factor authentication.
+              Ask for a code from an authenticator app each time you sign in, as well as your password.
             </p>
             <button
               onClick={handleSetup2FA}
               disabled={setting2FA}
               className="w-full py-2.5 bg-ink text-volt-300 text-sm font-bold rounded-xl hover:bg-pitch-900 transition-colors disabled:opacity-50"
             >
-              {setting2FA ? 'Setting up...' : 'Set Up 2FA'}
+              {setting2FA ? 'Setting up…' : 'Set up two-step sign-in'}
             </button>
           </div>
         )}

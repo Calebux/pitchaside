@@ -9,7 +9,7 @@ import { Session, SessionKind, SessionStatus, kickoffFor } from '../sessions/ent
 import { PaymentType } from '../groups/entities/group.entity';
 import { Payment, PaymentStatus } from '../payments/entities/payment.entity';
 import { RsvpService } from '../rsvp/rsvp.service';
-import { RatingsService, PlayerRatings } from '../ratings/ratings.service';
+import { type TableRange, RatingsService, PlayerRatings } from '../ratings/ratings.service';
 import { DEFAULT_START } from '../ratings/skill';
 import { BillingService } from '../billing/billing.service';
 import { AuthService } from '../auth/auth.service';
@@ -354,6 +354,7 @@ export class PlayerPortalService {
         groupId: m.groupId,
         groupName: m.group.name,
         games: table.games,
+        of: table.rows.length,
         myPlayerId: m.playerId,
         top: table.rows.slice(0, 5).map((r, i) => ({
           rank: i + 1,
@@ -527,9 +528,9 @@ export class PlayerPortalService {
   }
 
   /** The Club tab's table: the same table the organiser sees, for a group they play in. */
-  async groupTable(person: Person, groupId: string, lastDays?: number) {
+  async groupTable(person: Person, groupId: string, range?: TableRange) {
     const group = await this.myGroup(person, groupId);
-    return this.ratings.getGroupTable(groupId, group.organizationId, lastDays);
+    return this.ratings.getGroupTable(groupId, group.organizationId, range);
   }
 
   /** The Club tab's rating parts per player (stats, votes, results), for a group they play in. */

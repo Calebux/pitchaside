@@ -291,12 +291,12 @@ describe('the new ballot', () => {
     const ballot = await setup(ten()).service.getBallot('tok');
     expect(ballot.vii).toEqual({ starters: 6, subs: 1, minOtherTeams: 2 });
     expect(ballot.awards.map((a) => a.title)).toContain('The Engine');
-    expect(ballot.maxAwards).toBe(5);
+    expect(ballot.maxAwards).toBe(9);
     const few = game({ payments: [pay('ada', { team: 'A' }), pay('bisi', { team: 'B' })] });
     expect((await setup(few).service.getBallot('tok')).vii).toBeNull();
   });
 
-  it('takes a full ballot: six starters, a sub and up to five awards', async () => {
+  it('takes a full ballot: six starters, a sub and awards', async () => {
     const { service, saved } = setup(ten());
     await service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5' });
     const rows = (saved.flat() as { category: string }[]).map((r) => r.category);
@@ -327,11 +327,11 @@ describe('the new ballot', () => {
     await expect(service.submitVotes('tok', ['ada'], { ...ballot, vii: ['a1', 'a2', 'a3', 'a4', 'a5', 'b2'] })).resolves.toBeDefined();
   });
 
-  it('refuses more than five awards, and categories it does not ask', async () => {
+  it('takes every award, and refuses categories it does not ask', async () => {
     const { service } = setup(ten());
     await expect(
-      service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5', smartest: 'b1', dribbling: 'a3', playmaker: 'a4' }),
-    ).rejects.toThrow('Up to 5 awards');
+      service.submitVotes('tok', ['ada'], { ...full, shooting: 'a2', passing: 'a2', dribbling: 'a3', defending: 'b2', smartest: 'b1', engine: 'b4', playmaker: 'a4', movement: 'b3', keeper: 'b5' }),
+    ).resolves.toBeDefined();
     await expect(service.submitVotes('tok', ['ada'], { ...full, pace: 'b1' })).rejects.toThrow('Unknown category');
   });
 

@@ -16,13 +16,13 @@ type Step = 'potm' | 'mate' | 'vii' | 'awards';
 
 const short = (p: Player) => `${p.nickname || p.firstName} ${p.lastName.charAt(0)}.`;
 const initials = (p: Player) => `${p.firstName.charAt(0)}${p.lastName.charAt(0)}`.toUpperCase();
-const STEP_NAME: Record<Step, string> = { potm: 'POTM', mate: 'Best on team', vii: 'Best VII', awards: 'Awards' };
+const STEP_NAME: Record<Step, string> = { potm: 'POTM', mate: 'Your team', vii: 'Best VII', awards: 'Awards' };
 const full = (p: Player) => `${p.firstName} ${p.lastName}`;
 
 /**
  * The post-match ballot in short steps, one pick and one button each: Player of the Match; the best
  * on your own team; your Best VII of the Day (six starters and a sub, some from other teams); then
- * up to five awards, each optional. Everyone is grouped by side, your team first, with their photo.
+ * any of the awards, each optional. Everyone is grouped by side, your team first, with their photo.
  */
 export function BallotSteps({
   ballot,
@@ -181,32 +181,60 @@ export function BallotSteps({
   return (
     // Room at the bottom so the last lines never sit under the pinned button.
     <div className="mt-6 pb-28">
-      <div className="flex items-center justify-between min-h-11">
-        {at > 0 ? (
-          <button onClick={() => setStep(steps[at - 1])} className="press -ml-1 h-11 px-1 inline-flex items-center gap-1 text-sm font-bold text-gray-600 hover:text-ink">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-            </svg>
-            Back
-          </button>
-        ) : (
-          <span />
-        )}
-        <span className="text-[12px] font-bold text-gray-500 tabular-nums">
-          Step {at + 1} of {steps.length}
-        </span>
-      </div>
-      {/* Where they are in the vote: one segment per step, filled up to this one */}
-      <ol className="mb-4 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }} aria-label="Steps">
-        {steps.map((s, i) => (
-          <li key={s} aria-current={i === at ? 'step' : undefined}>
-            <span className={`block h-1.5 rounded-full transition-colors ${i <= at ? 'bg-ink' : 'bg-gray-200'}`} aria-hidden />
-            <span className={`mt-1 block truncate text-[11px] font-bold ${i === at ? 'text-ink' : 'text-gray-500'}`}>
-              {STEP_NAME[s]}
-              {i < at && <span className="sr-only"> (done)</span>}
+      {/* The numbered dots say which step this is; Back only when there's a step to go back to */}
+      {at > 0 && (
+        <button onClick={() => setStep(steps[at - 1])} className="press -ml-1 mb-1 h-11 px-1 inline-flex items-center gap-1 text-sm font-bold text-gray-600 hover:text-ink">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+          </svg>
+          Back
+        </button>
+      )}
+      <p className="sr-only" aria-live="polite">
+        Step {at + 1} of {steps.length}: {STEP_NAME[step]}
+      </p>
+      {/* Where they are in the vote: a numbered dot per step on one line, done ones ticked (and a
+          tap back), the current one lit, labels centred under their dots on a single line */}
+      <ol className="mt-1 mb-6 grid" style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }} aria-label="Steps">
+        {steps.map((s, i) => {
+          const done = i < at;
+          const now = i === at;
+          const dot = (
+            <span
+              className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-extrabold tabular-nums transition-colors ${
+                done ? 'bg-ink text-volt-300' : now ? 'bg-volt-300 text-ink ring-2 ring-ink' : 'bg-white text-gray-400 border-2 border-gray-200'
+              }`}
+              aria-hidden
+            >
+              {done ? '✓' : i + 1}
             </span>
-          </li>
-        ))}
+          );
+          const label = (
+            <span className={`whitespace-nowrap text-[12px] font-bold ${now ? 'text-ink' : done ? 'text-gray-600' : 'text-gray-400'}`}>
+              {STEP_NAME[s]}
+              {done && <span className="sr-only"> (done)</span>}
+            </span>
+          );
+          return (
+            <li key={s} aria-current={now ? 'step' : undefined} className="relative flex flex-col items-center gap-1.5 min-w-0">
+              {/* The line to the next dot: ink once this step is done */}
+              {i < steps.length - 1 && (
+                <span className={`absolute top-4 left-1/2 w-full h-0.5 -translate-y-1/2 ${done ? 'bg-ink' : 'bg-gray-200'}`} aria-hidden />
+              )}
+              {done ? (
+                <button type="button" onClick={() => setStep(s)} className="press flex flex-col items-center gap-1.5 min-h-11" aria-label={`Back to ${STEP_NAME[s]}`}>
+                  {dot}
+                  {label}
+                </button>
+              ) : (
+                <>
+                  {dot}
+                  {label}
+                </>
+              )}
+            </li>
+          );
+        })}
       </ol>
 
       {step === 'potm' && (
@@ -310,30 +338,10 @@ export function BallotSteps({
       {step === 'awards' && (
         <>
           <h2 className="font-display text-2xl font-extrabold text-ink">Awards</h2>
-          <p className="text-sm text-gray-600 mt-0.5">
-            Optional. Pick up to {ballot.maxAwards} of the {ballot.awards.length} for what you saw clearly; skip the rest.
+          <p className="text-sm text-gray-600 mt-0.5">Optional. Pick any you saw clearly and skip the rest. An award counts once 3 people pick the same player.</p>
+          <p className="mt-3 text-[13px] font-semibold text-gray-600 tabular-nums" aria-live="polite">
+            {awardsPicked.length ? `${awardsPicked.length} picked` : 'None picked yet'}
           </p>
-          {/* Why there's a limit, said plainly: awards build players' cards */}
-          <div className="mt-3 rounded-2xl bg-chalk px-3.5 py-3 text-[13px] leading-snug text-gray-700">
-            <p className="font-bold text-ink">Why only {ballot.maxAwards}?</p>
-            <p className="mt-0.5">
-              Each award lifts that skill on the player’s card. A few honest picks say more than ticking every box, and one person can’t
-              hand a friend everything. An award only counts once 3 different people pick the same player.
-            </p>
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-3" aria-live="polite">
-            <span className="text-[13px] font-semibold text-gray-600 tabular-nums">
-              {awardsPicked.length} of {ballot.maxAwards} picked
-            </span>
-            <span className="flex gap-1" aria-hidden>
-              {Array.from({ length: ballot.maxAwards }, (_, i) => (
-                <span key={i} className={`w-5 h-1.5 rounded-full transition-colors ${i < awardsPicked.length ? 'bg-pitch-600' : 'bg-gray-200'}`} />
-              ))}
-            </span>
-          </div>
-          {awardsPicked.length >= ballot.maxAwards && (
-            <p className="mt-1 text-[12px] text-gray-500">That’s {ballot.maxAwards}. Tap one you picked to change or clear it.</p>
-          )}
           <ul className="mt-2 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
             {ballot.awards.map((a, i) => {
               const who = typeof picks[a.key] === 'string' ? byId(picks[a.key]) : undefined;

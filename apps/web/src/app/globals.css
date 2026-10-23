@@ -128,6 +128,37 @@
     letter-spacing: -0.02em;
   }
 
+  /*
+   * How text breaks, everywhere (Matt, 24 Oct): a line only breaks into a shape that sits well
+   * with what's around it. Headings, display type, buttons and tabs split into lines of even
+   * length, never one word left hanging ("Vote for Player of the / Match" becomes "Vote for
+   * Player / of the Match"). Body text never ends on a lone word. Pills and chips that should
+   * stay one line use whitespace-nowrap where they're built.
+   */
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display,
+  button,
+  [role='tab'],
+  [role='radio'],
+  label {
+    text-wrap: balance;
+  }
+  p,
+  li,
+  dd,
+  figcaption,
+  blockquote {
+    text-wrap: pretty;
+  }
+
+  /* Spaced-out PIN boxes keep their spacing for the digits, not the hint inside them. */
+  input::placeholder {
+    letter-spacing: normal;
+  }
+
   ::selection {
     background: var(--color-volt-300);
     color: var(--color-ink);
