@@ -373,10 +373,11 @@ export interface GameLineup extends PlanInfo {
       teamB: TeamKey;
       scoreA: number;
       scoreB: number;
+      seconds?: number | null;
       goals: { team: TeamKey; scorer: string | null; scorerPhoto?: string | null; assist: string | null; assistPhoto?: string | null; mine: boolean }[];
     }[];
     events: { kind: MatchEventKind; name: string | null; photoKey?: string | null; mine: boolean }[];
-    table: { rows: { team: TeamKey; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }[]; teamOfTheDay: TeamKey | null };
+    table: { rows: { team: TeamKey; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number; ppg?: number }[]; teamOfTheDay: TeamKey | null; perGame?: boolean };
   };
   teamCount: number;
   bibsOpen: boolean;
@@ -425,7 +426,7 @@ export function getMatchDay(sessionId: string) {
   return request<Lineup>('GET', `/me/games/${sessionId}/match-day`);
 }
 
-export function addCaptainGame(sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] }) {
+export function addCaptainGame(sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[]; seconds?: number }) {
   return request<Lineup>('POST', `/me/games/${sessionId}/match-day/games`, game);
 }
 

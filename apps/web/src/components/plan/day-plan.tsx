@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { GameTimer } from '@pitchaside/shared';
 import { setPlanAway, setTimer, type Lineup } from '@/lib/api';
 import { buildDay, clockAt, liveDay, type Side } from '@/lib/match-plan';
+import { buildWsDay, wsLive, type WsDay } from '@/lib/winner-stays';
 import { PlanSetupSheet } from './plan-setup-sheet';
 import { DayPlanLive, WholePlanSheet, usePeople, type PlanLook } from './plan-view';
 import { useToast } from '@/components/toast';
@@ -51,10 +52,13 @@ export function DayPlan({
   const [open, setOpen] = useState(false);
   const people = usePeople(lineup.squad);
   const plan = lineup.plan ?? null;
-  const day = useMemo(
-    () => (plan ? buildDay({ plan, teamCount: lineup.teamCount, date: lineup.date, squad: lineup.squad }) : null),
-    [plan, lineup.teamCount, lineup.date, lineup.squad],
-  );
+  const isWs = plan?.format === 'winner_stays';
+  const day = useMemo(() => {
+    if (!plan) return null;
+    const input = { plan, teamCount: lineup.teamCount, date: lineup.date, squad: lineup.squad };
+    return plan.format === 'winner_stays' ? buildWsDay(input, lineup.games) : buildDay(input);
+  }, [plan, lineup.teamCount, lineup.date, lineup.squad, lineup.games]);
+  const ws = day && 'ws' in day ? (day as WsDay).ws : undefined;
   const look: PlanLook = { captains: lineup.captains, bibs: lineup.bibs, kickoff: lineup.kickoff };
 
   // The clock ticks the plan on: every second while a game runs (for the swaps), else now and then.
@@ -66,7 +70,12 @@ export function DayPlan({
     return () => window.clearInterval(id);
   }, [running]);
 
-  const state = day && plan ? liveDay(day, plan, lineup.games.length, clock?.timer ?? null, now + (clock?.offset ?? 0), lineup.date, lineup.kickoff) : null;
+  const state =
+    day && plan
+      ? ws
+        ? wsLive(day as WsDay, clock?.timer ?? null, now + (clock?.offset ?? 0))
+        : liveDay(day, plan, lineup.games.length, clock?.timer ?? null, now + (clock?.offset ?? 0), lineup.date, lineup.kickoff)
+      : null;
 
   async function away(playerId: string, at: number | null) {
     try {
@@ -108,6 +117,7 @@ export function DayPlan({
         <DayPlanLive
           day={day}
           plan={plan}
+          ws={ws}
           live={state}
           gamesDone={lineup.games.length}
           look={look}
@@ -135,11 +145,15 @@ export function DayPlan({
             <div className="min-w-0">
               <p className="text-[12px] font-bold text-white/60">Day plan</p>
               <p className="mt-0.5 font-display text-[22px] leading-tight font-extrabold tabular-nums">
-                {day.fixtures.length} games{from && to && <span className="block text-[15px] text-white/70">{from} to {to}</span>}
+                {isWs ? 'Winner stays' : `${day.fixtures.length} games`}
+                {from && to && <span className="block text-[15px] text-white/70">{from} to {to}</span>}
               </p>
               <p className="mt-1 text-[13px] leading-snug text-white/75">
-                {day.sides.length > 2 && `Each team plays ${Math.min(...per) === Math.max(...per) ? per[0] : `${Math.min(...per)}–${Math.max(...per)}`} · `}
-                {plan.gameMinutes} min games · {plan.onPitch} on the pitch
+                {isWs
+                  ? `First round ${plan.firstMinutes ?? 10} min · then first to concede ${plan.firstTo ?? 2} or ${plan.gameMinutes} min${plan.twoAndOff !== false ? ' · two wins and off' : ''} · `
+                  : day.sides.length > 2 && `Each team plays ${Math.min(...per) === Math.max(...per) ? per[0] : `${Math.min(...per)}–${Math.max(...per)}`} · `}
+                {isWs ? '' : `${plan.gameMinutes} min games · `}
+                {plan.onPitch} on the pitch
                 {plan.swapMinutes ? ` · swaps every ${plan.swapMinutes} min` : ''}
               </p>
             </div>
@@ -150,7 +164,7 @@ export function DayPlan({
             )}
           </div>
           <button onClick={() => setOpen(true)} className="press mt-3 w-full min-h-12 rounded-2xl bg-white text-ink text-[15px] font-bold hover:bg-chalk">
-            See the games and swaps
+            {isWs ? 'See the games so far and swaps' : 'See the games and swaps'}
           </button>
         </section>
       )}
@@ -159,6 +173,7 @@ export function DayPlan({
         <WholePlanSheet
           day={day}
           plan={plan}
+          ws={ws}
           live={live ? state : null}
           gamesDone={lineup.games.length}
           results={lineup.games}

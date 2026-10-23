@@ -8,9 +8,11 @@ import { Avatar } from '@/components/ratings';
 import { BallSpinner } from '@/components/skeleton';
 import { LiveDot, buzz, stagger } from '@/components/motion';
 import { Swatch } from '@/components/game/teams-step';
+import { BibShirt } from '@/components/bib-shirt';
 import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { teamName } from '@/lib/teams';
 import type { TeamKey } from '@/lib/api';
+import type { WsState } from '@/lib/winner-stays';
 import { clipSpells, clockAt, spellAt, type Day, type Fixture, type LiveDay, type Side, type Spell } from '@/lib/match-plan';
 
 /** Someone in the plan, as every view shows them. */
@@ -66,6 +68,77 @@ export function swapWords(before: Spell | undefined, after: Spell, nameOf: (id: 
   return parts.join(' ') || 'No change.';
 }
 
+/** The rule for the game on now, as a tag and one short line. */
+export function WsRule({ ws, plan, center = false }: { ws: WsState; plan: MatchPlan; center?: boolean }) {
+  return (
+    <div className={center ? 'text-center' : ''}>
+      <span className="inline-flex items-center gap-1.5 min-h-7 px-2.5 rounded-full bg-ink text-volt-300 text-[12px] font-extrabold tabular-nums">
+        {ws.firstRound ? `First round · ${ws.limit} min` : `First to concede ${plan.firstTo ?? 2} · or ${ws.limit} min`}
+      </span>
+      <p className={`mt-1.5 text-[12px] leading-snug text-gray-500 ${center ? 'text-balance' : ''}`}>
+        {ws.firstRound ? 'Winner stays, loser off, whatever the score. Level: both off.' : 'At the whistle the team ahead stays. Level: both off.'}
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Who's waiting, least played first (the order the app brings them on), each with a bar of the
+ * minutes played so far against the most anyone has played: fairness at a glance.
+ */
+export function WsLine({ ws, look }: { ws: WsState; look: PlanLook }) {
+  if (!ws.line.length) return null;
+  const most = Math.max(1, ...Object.values(ws.minutes));
+  const line = [...ws.line].sort((a, b) => ws.minutes[a] - ws.minutes[b]);
+  return (
+    <div>
+      <p className="flex items-baseline justify-between gap-2 text-[12px] font-bold text-gray-500">
+        <span>In line</span>
+        <span className="font-semibold">Minutes played</span>
+      </p>
+      <ol className="mt-1.5 space-y-1.5">
+        {line.map((t, i) => (
+          <li key={t} className="grid grid-cols-[1.25rem_minmax(0,1fr)_5rem_2.25rem] items-center gap-2 min-h-8 animate-rise" style={stagger(i, 30, 0)}>
+            <span className="text-[12px] font-extrabold text-gray-400 tabular-nums">{i + 1}</span>
+            <SideName t={t} look={look} className="text-[14px] font-bold text-ink" />
+            <span className="h-1.5 rounded-full bg-gray-200 overflow-hidden" aria-hidden>
+              <span className="block h-full rounded-full bg-pitch-600 motion-safe:transition-[width] motion-safe:duration-500" style={{ width: `${(ws.minutes[t] / most) * 100}%` }} />
+            </span>
+            <span className="text-right text-[13px] font-bold text-ink tabular-nums">{Math.round(ws.minutes[t])}′</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-[12px] leading-snug text-gray-500">Picked when the score is saved: least played comes on first.</p>
+    </div>
+  );
+}
+
+/** The two sides on, side by side in their bibs, with a side one win from going off marked. */
+function WsMatchup({ ws, plan, look, a, b }: { ws: WsState; plan: MatchPlan; look: PlanLook; a: Side; b: Side }) {
+  const run = (t: Side) => plan.twoAndOff !== false && (ws.streak[t] ?? 0) >= 1;
+  const side = (t: Side) => (
+    <div className="min-w-0 flex flex-col items-center text-center gap-1.5">
+      <BibShirt team={t} bibs={look.bibs} className="w-12 h-12" />
+      <span className="max-w-full font-display text-[17px] leading-tight font-extrabold text-ink line-clamp-2 break-words">{teamName(t, look.captains, look.bibs)}</span>
+      {run(t) ? (
+        <span className="inline-flex items-center min-h-6 px-2 rounded-full bg-volt-300 text-[11px] font-extrabold text-ink whitespace-nowrap">1 more win: off</span>
+      ) : (
+        // Keeps both names level when only the other side has the tag.
+        (run(a) || run(b)) && <span className="min-h-6" aria-hidden />
+      )}
+    </div>
+  );
+  return (
+    <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2">
+      {side(a)}
+      <span className="pt-3.5 font-display text-[15px] font-extrabold text-gray-400" aria-hidden>
+        v
+      </span>
+      {side(b)}
+    </div>
+  );
+}
+
 /**
  * The plan while the day is on, for the organiser and the captains: the game on now and the
  * next, a plain line when running late, and when a game's clock runs, each side's keeper and
@@ -83,9 +156,12 @@ export function DayPlanLive({
   clockMinutes,
   onSetClock,
   onOpen,
+  ws,
 }: {
   day: Day;
   plan: MatchPlan;
+  /** Winner stays: who's on, who's waiting, the rules for the game on now. */
+  ws?: WsState;
   live: LiveDay;
   gamesDone: number;
   look: PlanLook;
@@ -140,7 +216,7 @@ export function DayPlanLive({
       <section aria-label="Day plan" className="rounded-3xl bg-white border border-gray-200 p-4">
         <p className="text-[12px] font-bold text-gray-500">Day plan</p>
         <p className="mt-0.5 text-[15px] font-bold text-ink">
-          {gamesDone >= day.fixtures.length ? 'Every game in the plan is played.' : 'Time’s up on the booking.'}
+          {!ws && gamesDone >= day.fixtures.length ? 'Every game in the plan is played.' : 'Time’s up on the booking.'}
         </p>
         <button onClick={onOpen} className="press mt-2 min-h-11 px-1 text-[14px] font-bold text-pitch-700">
           See the whole plan
@@ -150,69 +226,11 @@ export function DayPlanLive({
   }
 
   const lastChanged = live.ahead.lastMinutes;
-  const nextLen = next?.minutes ?? null;
+  const nextLen = ws ? ws.limit : (next?.minutes ?? null);
   const offerClock = !!onSetClock && !live.playing && nextLen != null && clockMinutes != null && nextLen !== clockMinutes;
 
-  return (
-    <section aria-label="Day plan" className="rounded-3xl bg-white border border-gray-200 overflow-hidden">
-      <div className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[12px] font-bold text-gray-500 tabular-nums">
-            {live.playing ? (
-              <span className="inline-flex items-center gap-1.5">
-                <LiveDot /> Game {live.playing.n + 1} of {total} · on now
-              </span>
-            ) : (
-              `Game ${upNow.n + 1} of ${total} · up next${look.kickoff ? ` · ${when(look, upNow.start)}` : ''}`
-            )}
-          </p>
-          <button onClick={onOpen} className="press shrink-0 -my-2 min-h-11 px-2 rounded-xl text-[13px] font-bold text-pitch-700 hover:bg-chalk">
-            Whole plan
-          </button>
-        </div>
-        <p className="mt-1 flex items-center gap-2 font-display text-[20px] leading-tight font-extrabold text-ink">
-          <SideName t={upNow.teamA} look={look} />
-          <span className="shrink-0 text-gray-400 text-[15px]">v</span>
-          <SideName t={upNow.teamB} look={look} />
-        </p>
-        {live.playing && next && (
-          <p className="mt-1 text-[13px] text-gray-600 flex items-center gap-1.5 min-w-0">
-            <span className="shrink-0">Next{look.kickoff ? ` at ${when(look, next.start)}` : ''}:</span>
-            <SideName t={next.teamA} look={look} className="font-bold text-ink" />
-            <span className="shrink-0">v</span>
-            <SideName t={next.teamB} look={look} className="font-bold text-ink" />
-          </p>
-        )}
-
-        {live.ahead.late > 0 && (
-          <p className="mt-3 rounded-2xl bg-kit-500/10 border border-kit-500/30 px-3 py-2.5 text-[13px] leading-snug text-ink" role="status">
-            <b>Running {live.ahead.late} min late.</b>{' '}
-            {live.ahead.dropped > 0
-              ? `The last ${live.ahead.dropped === 1 ? 'game is' : `${live.ahead.dropped} games are`} off so you finish on time${lastChanged ? `, and the game before is ${lastChanged} min` : ''}.`
-              : lastChanged
-                ? `The last game is now ${lastChanged} min so you finish on time.`
-                : 'You still finish on time.'}
-          </p>
-        )}
-        {offerClock && (
-          <button
-            onClick={async () => {
-              setSetting(true);
-              try {
-                await onSetClock!(nextLen!);
-              } finally {
-                setSetting(false);
-              }
-            }}
-            disabled={setting}
-            className="press mt-2 w-full min-h-11 rounded-2xl bg-white border border-gray-300 text-[14px] font-bold text-ink hover:border-ink inline-flex items-center justify-center gap-2"
-          >
-            {setting && <BallSpinner className="w-4 h-4" />}
-            Set the timer to {nextLen} min for this game
-          </button>
-        )}
-      </div>
-
+  const swapsPanel = (
+    <>
       {/* Each side's keeper and who sits out, while the clock runs */}
       {plan.swapMinutes > 0 && live.playing && now.some((x) => x.at) && (
         <div className="border-t border-gray-100 bg-chalk/60 px-4 py-3">
@@ -246,6 +264,109 @@ export function DayPlanLive({
           <NextSwap live={live} at={now[0]?.at ?? null} />
         </div>
       )}
+    </>
+  );
+
+  const clockButton = offerClock && (
+    <button
+      onClick={async () => {
+        setSetting(true);
+        try {
+          await onSetClock!(nextLen!);
+        } finally {
+          setSetting(false);
+        }
+      }}
+      disabled={setting}
+      className="press mt-3 w-full min-h-11 rounded-2xl bg-white border border-gray-300 text-[14px] font-bold text-ink hover:border-ink inline-flex items-center justify-center gap-2"
+    >
+      {setting && <BallSpinner className="w-4 h-4" />}
+      Set the timer to {nextLen} min for this game
+    </button>
+  );
+
+  if (ws) {
+    return (
+      <section aria-label="Day plan" className="rounded-3xl bg-white border border-gray-200 shadow-card overflow-hidden">
+        <div className="px-4 pt-4 pb-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[12px] font-extrabold uppercase tracking-[0.1em] text-gray-500 tabular-nums">
+              {live.playing ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <LiveDot /> Game {upNow.n + 1} · on now
+                </span>
+              ) : (
+                `Game ${upNow.n + 1} · up next`
+              )}
+            </p>
+            <button onClick={onOpen} className="press shrink-0 -my-2 -mr-2 min-h-11 px-2 rounded-xl text-[13px] font-bold text-pitch-700 hover:bg-chalk">
+              Whole plan
+            </button>
+          </div>
+          <WsMatchup ws={ws} plan={plan} look={look} a={upNow.teamA} b={upNow.teamB} />
+          <div className="mt-3">
+            <WsRule ws={ws} plan={plan} center />
+          </div>
+          {clockButton}
+        </div>
+        {ws.line.length > 0 && (
+          <div className="border-t border-gray-100 bg-chalk/50 px-4 py-3">
+            <WsLine ws={ws} look={look} />
+          </div>
+        )}
+        {swapsPanel}
+      </section>
+    );
+  }
+
+  return (
+    <section aria-label="Day plan" className="rounded-3xl bg-white border border-gray-200 overflow-hidden">
+      <div className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[12px] font-bold text-gray-500 tabular-nums">
+            {live.playing ? (
+              <span className="inline-flex items-center gap-1.5">
+                <LiveDot /> Game {live.playing.n + 1}
+                {ws ? '' : ` of ${total}`} · on now
+              </span>
+            ) : ws ? (
+              `Game ${upNow.n + 1} · up next`
+            ) : (
+              `Game ${upNow.n + 1} of ${total} · up next${look.kickoff ? ` · ${when(look, upNow.start)}` : ''}`
+            )}
+          </p>
+          <button onClick={onOpen} className="press shrink-0 -my-2 min-h-11 px-2 rounded-xl text-[13px] font-bold text-pitch-700 hover:bg-chalk">
+            Whole plan
+          </button>
+        </div>
+        <p className="mt-1 flex items-center gap-2 font-display text-[20px] leading-tight font-extrabold text-ink">
+          <SideName t={upNow.teamA} look={look} />
+          <span className="shrink-0 text-gray-400 text-[15px]">v</span>
+          <SideName t={upNow.teamB} look={look} />
+        </p>
+        {!ws && live.playing && next && (
+          <p className="mt-1 text-[13px] text-gray-600 flex items-center gap-1.5 min-w-0">
+            <span className="shrink-0">Next{look.kickoff ? ` at ${when(look, next.start)}` : ''}:</span>
+            <SideName t={next.teamA} look={look} className="font-bold text-ink" />
+            <span className="shrink-0">v</span>
+            <SideName t={next.teamB} look={look} className="font-bold text-ink" />
+          </p>
+        )}
+
+        {!ws && live.ahead.late > 0 && (
+          <p className="mt-3 rounded-2xl bg-kit-500/10 border border-kit-500/30 px-3 py-2.5 text-[13px] leading-snug text-ink" role="status">
+            <b>Running {live.ahead.late} min late.</b>{' '}
+            {live.ahead.dropped > 0
+              ? `The last ${live.ahead.dropped === 1 ? 'game is' : `${live.ahead.dropped} games are`} off so you finish on time${lastChanged ? `, and the game before is ${lastChanged} min` : ''}.`
+              : lastChanged
+                ? `The last game is now ${lastChanged} min so you finish on time.`
+                : 'You still finish on time.'}
+          </p>
+        )}
+        {clockButton}
+      </div>
+
+      {swapsPanel}
     </section>
   );
 }
@@ -282,9 +403,12 @@ export function WholePlanSheet({
   onAway,
   onEdit,
   onClose,
+  ws,
 }: {
   day: Day;
   plan: MatchPlan;
+  /** Winner stays: shows who's waiting, and the rounds by name. */
+  ws?: WsState;
   live: LiveDay | null;
   gamesDone: number;
   /** Saved scores, in order. */
@@ -335,7 +459,7 @@ export function WholePlanSheet({
       <SheetTitle
         id={titleId}
         title="Day plan"
-        sub={`${day.fixtures.length} games of ${plan.gameMinutes} min${plan.swapMinutes ? ` · swaps every ${plan.swapMinutes} min` : ''} · ${plan.onPitch} on the pitch${
+        sub={`${ws ? `Winner stays · ${ws.played.length} game${ws.played.length === 1 ? '' : 's'} so far` : `${day.fixtures.length} games of ${plan.gameMinutes} min`}${plan.swapMinutes ? ` · swaps every ${plan.swapMinutes} min` : ''} · ${plan.onPitch} on the pitch${
           look.kickoff ? ` · ${clockAt(look.kickoff, 0)} to ${clockAt(look.kickoff, plan.pitchMinutes)}` : ''
         }`}
         onClose={onClose}
@@ -408,7 +532,7 @@ export function WholePlanSheet({
             return (
               <li key={f.n} className="animate-rise" style={stagger(Math.min(i, 12), 20, 0)}>
                 {f.round > 1 && day.fixtures[i - 1]?.round !== f.round && (
-                  <p className="mt-3 mb-1.5 px-1 text-[12px] font-extrabold text-gray-500">{rounds > 2 ? `Round ${f.round}` : 'Second round'}</p>
+                  <p className="mt-3 mb-1.5 px-1 text-[12px] font-extrabold text-gray-500">{ws ? `After the first round: first to concede ${plan.firstTo ?? 2}` : rounds > 2 ? `Round ${f.round}` : 'Second round'}</p>
                 )}
                 <div
                   className={`flex items-center gap-3 min-h-14 px-3.5 py-2 rounded-2xl border ${
@@ -433,14 +557,29 @@ export function WholePlanSheet({
                       </span>
                     ) : off ? (
                       <span className="text-[12px] text-gray-500">Off</span>
+                    ) : ws && i === gamesDone ? (
+                      <span className="text-[12px] text-gray-500">Next</span>
                     ) : null}
                   </span>
                 </div>
               </li>
             );
           })}
-          {(live?.ahead.late ?? 0) > 0 && (
+          {!ws && (live?.ahead.late ?? 0) > 0 && (
             <p className="pt-1 px-1 text-[12px] leading-snug text-gray-600">Running {live!.ahead.late} min late: times are moved on, and the end stays the same.</p>
+          )}
+          {ws && show !== 'played' && (
+            <li className="pt-2">
+              {ws.over ? (
+                <p className="px-1 text-[13px] text-gray-600">Time’s up on the booking.</p>
+              ) : (
+                <div className="space-y-3">
+                  <WsRule ws={ws} plan={plan} />
+                  <WsLine ws={ws} look={look} />
+                </div>
+              )}
+              <p className="mt-2 px-1 text-[12px] leading-snug text-gray-500">Times are a guide: winner-stays games end at a goal or the time limit.</p>
+            </li>
           )}
         </ol>
       ) : rota ? (

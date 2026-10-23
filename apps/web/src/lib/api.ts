@@ -846,6 +846,8 @@ export interface MatchGame {
   goals: MatchGoal[];
   /** "Tunde (organiser)", "Ada (captain)": who saved the score. */
   recordedBy?: string | null;
+  /** How long it lasted, from the timer; null when not known. */
+  seconds?: number | null;
 }
 
 export interface TeamStanding {
@@ -857,6 +859,8 @@ export interface TeamStanding {
   gf: number;
   ga: number;
   pts: number;
+  /** Points per game played (winner stays ranks by it). */
+  ppg?: number;
 }
 
 /** The day's plan and what it's worked out from (see lib/match-plan). */
@@ -888,6 +892,8 @@ export interface Lineup extends PlanInfo {
   events: MatchEvent[];
   standings: TeamStanding[];
   teamOfTheDay: TeamKey | null;
+  /** Winner stays: the table is ranked by points per game. */
+  tablePerGame?: boolean;
 }
 
 export function getLineup(sessionId: string): Promise<Lineup> {
@@ -937,7 +943,7 @@ export function balanceLineup(sessionId: string, teamCount?: number): Promise<Li
 
 export function addMatchGame(
   sessionId: string,
-  game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] },
+  game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[]; seconds?: number },
 ): Promise<Lineup> {
   return http.post(`/sessions/${sessionId}/games`, game);
 }

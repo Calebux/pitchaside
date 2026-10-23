@@ -19,11 +19,12 @@ import { useToast } from '@/components/toast';
 import { getTimer, setTimer } from '@/lib/api';
 import { DayPlan, type PlanClock } from '@/components/plan/day-plan';
 import { fixtures } from '@/lib/match-plan';
+import { decidedEarly, winnerStays } from '@/lib/winner-stays';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
 export interface ScoresApi {
-  addGame: (sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[] }) => Promise<Lineup>;
+  addGame: (sessionId: string, game: { teamA: TeamKey; teamB: TeamKey; scoreA: number; scoreB: number; goals?: GoalInput[]; seconds?: number }) => Promise<Lineup>;
   deleteGame: (sessionId: string, gameId: string) => Promise<Lineup>;
   /** Correct a saved game's score: the organiser's only. */
   updateGame?: (sessionId: string, gameId: string, score: { scoreA: number; scoreB: number }) => Promise<Lineup>;
@@ -130,8 +131,21 @@ export function ScoresStep({
   const [clock, setClock] = useState<PlanClock | null>(null);
   const [clockKey, setClockKey] = useState(0);
   const onTimer = useCallback((t: PlanClock['timer'], offset: number) => setClock({ timer: t, offset }), []);
-  // With a plan, the score box starts on the plan's next game (until a goal is added to it).
-  const nextFixture = lineup.plan ? fixtures(lineup.teamCount, lineup.plan)[lineup.games.length] : undefined;
+  // With a plan, the score box starts on the plan's next game (until a goal is added to it):
+  // the fixed list, or for winner stays the two sides the app has on from the results so far.
+  const ws =
+    lineup.plan?.format === 'winner_stays'
+      ? winnerStays((Object.keys(TEAMS) as TeamKey[]).slice(0, lineup.teamCount), lineup.plan, lineup.games)
+      : null;
+  const nextFixture = ws
+    ? ws.on && !ws.over
+      ? { n: ws.played.length, teamA: ws.on[0], teamB: ws.on[1] }
+      : undefined
+    : lineup.plan
+      ? fixtures(lineup.teamCount, lineup.plan)[lineup.games.length]
+      : undefined;
+  // Winner stays, after the first round: a side that has conceded enough goes off now.
+  const offNow = ws && lineup.plan ? decidedEarly(ws, lineup.plan, draft.scoreA, draft.scoreB) : null;
   useEffect(() => {
     if (!restored || unsaved || !nextFixture) return;
     setDraft((d) => (d.teamA === nextFixture.teamA && d.teamB === nextFixture.teamB ? d : { ...d, teamA: nextFixture.teamA, teamB: nextFixture.teamB }));
@@ -199,10 +213,23 @@ export function ScoresStep({
   const scorersLine = (goals: GoalInput[]) => goals.map((g) => `${who(g.scorerId)}${g.assistId ? ` (${who(g.assistId)})` : ''}`).join(', ');
   const valid = teams.includes(draft.teamA) && teams.includes(draft.teamB) && draft.teamA !== draft.teamB;
 
+  /**
+   * How long the game lasted, from the clock: started for this game (not one long gone) and up to
+   * now or its whistle. Left out when the clock wasn't used, and its time limit counts instead.
+   */
+  function playedSeconds() {
+    const started = clock?.timer.startedAt ? Date.parse(clock.timer.startedAt) : NaN;
+    if (!clock || !Number.isFinite(started)) return undefined;
+    const now = Date.now() + clock.offset;
+    const ends = started + clock.timer.minutes * 60_000;
+    if (now - ends > 15 * 60_000) return undefined;
+    return Math.max(0, Math.round((Math.min(now, ends) - started) / 1000));
+  }
+
   async function save() {
     setBusy('save');
     try {
-      onLineup(await api.addGame(sessionId, draft));
+      onLineup(await api.addGame(sessionId, { ...draft, seconds: playedSeconds() }));
       buzz([12, 40, 18]);
       setDraft((d) => ({ ...d, scoreA: 0, scoreB: 0, goals: [] }));
     } catch (err) {
@@ -335,6 +362,11 @@ export function ScoresStep({
           </span>
           <Side side="teamB" />
         </div>
+        {offNow && (
+          <p className="mt-4 rounded-2xl bg-volt-300 px-3 py-2.5 text-[14px] leading-snug font-bold text-ink" role="status">
+            {name(draft[offNow])} have conceded {lineup.plan?.firstTo ?? 2}: they go off. Save the game.
+          </p>
+        )}
         {unsaved && (
           <p className="mt-4 flex items-start gap-2 rounded-2xl bg-kit-500/15 border border-kit-500/40 px-3 py-2.5 text-[13px] leading-snug text-white" role="status">
             <span className="mt-1 w-2 h-2 shrink-0 rounded-full bg-kit-500 animate-pulse" aria-hidden />
@@ -399,7 +431,7 @@ export function ScoresStep({
               <span className="text-center">D</span>
               <span className="text-center">L</span>
               <span className="text-center">GD</span>
-              <span className="text-right">Pts</span>
+              <span className="text-right">{lineup.tablePerGame ? 'Pts/G' : 'Pts'}</span>
             </div>
             {lineup.standings.map((r) => (
               <div
@@ -418,9 +450,12 @@ export function ScoresStep({
                   </span>
                 ))}
                 <span className="text-center text-gray-600 tabular-nums">{r.gf - r.ga > 0 ? `+${r.gf - r.ga}` : r.gf - r.ga}</span>
-                <span className="text-right font-display font-extrabold text-ink tabular-nums">{r.pts}</span>
+                <span className="text-right font-display font-extrabold text-ink tabular-nums">{lineup.tablePerGame ? (r.ppg ?? 0).toFixed(1) : r.pts}</span>
               </div>
             ))}
+            {lineup.tablePerGame && (
+              <p className="px-3.5 py-2 border-t border-gray-100 text-[12px] leading-snug text-gray-500">Winner stays: ranked by points per game, as teams play different numbers of games.</p>
+            )}
             {lineup.teamOfTheDay && (
               <p className="px-3.5 py-2.5 border-t border-gray-100 text-[13px] font-bold text-pitch-700">
                 🏆 Team of the Day so far: {name(lineup.teamOfTheDay)}
