@@ -181,7 +181,7 @@ export function PlanSetupSheet({
           label="Each game lasts"
           hint="Minutes. The timer is set to this too."
           value={s.gameMinutes}
-          quick={[5, 7, 10, 12, 15]}
+          quick={[5, 7, 10, 15]}
           min={1}
           max={Math.min(60, s.pitchMinutes)}
           unit="minutes"
