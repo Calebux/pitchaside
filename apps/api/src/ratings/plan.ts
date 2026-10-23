@@ -18,6 +18,9 @@ function whole(value: unknown, min: number, max: number, what: string) {
  * An organiser's plan, made safe to store: whole minutes in range, and who left early only by
  * player id. The games and swaps are worked out from it on each phone, so nothing else is kept.
  */
+/** The largest draw number (see MatchPlan.draw). */
+export const MAX_DRAW = 2_147_483_647;
+
 export function cleanPlan(input: unknown): MatchPlan {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('The plan is missing');
   const raw = input as Record<string, unknown>;
@@ -38,6 +41,7 @@ export function cleanPlan(input: unknown): MatchPlan {
   } else if (raw.format != null && raw.format !== 'schedule') {
     throw new Error('Pick how you play: everyone plays everyone, or winner stays');
   }
+  if (raw.draw != null) plan.draw = whole(raw.draw, 1, MAX_DRAW, 'The shuffle');
   const away = cleanAway(raw.away, pitchMinutes);
   if (away) plan.away = away;
   return plan;

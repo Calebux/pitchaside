@@ -119,8 +119,49 @@ export function gameLengths(pitchMinutes: number, gameMinutes: number): number[]
 }
 
 /** The day's games, back to back from kick-off until the booking ends. */
-export function fixtures(teamCount: number, plan: Pick<MatchPlan, 'pitchMinutes' | 'gameMinutes'>): Fixture[] {
-  const sides = (['A', 'B', 'C', 'D', 'E', 'F'] as Side[]).slice(0, Math.max(0, Math.min(6, teamCount)));
+/** The largest draw number: any whole number from 1 up to this is a draw. */
+export const MAX_DRAW = 2_147_483_647;
+
+/** A small seeded random (mulberry32): the same draw gives the same numbers on every phone. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+/** `items` shuffled by the draw (`salt` gives each side its own shuffle); unchanged without one. */
+export function drawOrder<T>(items: T[], draw?: number | null, salt = 0): T[] {
+  if (!draw) return [...items];
+  const rand = seeded(draw + salt * 7919);
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/**
+ * A fresh draw for "Shuffle": random, and never one that starts the day the same way as `current`
+ * (same opening game, and the same first players out), when another start is possible at all.
+ */
+export function newDraw(current: number | undefined, sameStart: (a: number | undefined, b: number) => boolean, random: () => number = Math.random): number {
+  let pick = 1;
+  for (let i = 0; i < 40; i++) {
+    pick = 1 + Math.floor(random() * MAX_DRAW);
+    if (pick !== current && !sameStart(current, pick)) return pick;
+  }
+  return pick === current ? (pick % MAX_DRAW) + 1 : pick;
+}
+
+export function fixtures(teamCount: number, plan: Pick<MatchPlan, 'pitchMinutes' | 'gameMinutes' | 'draw'>): Fixture[] {
+  // The draw mixes the sides before the order is made: a different start, the games still as even.
+  const sides = drawOrder((['A', 'B', 'C', 'D', 'E', 'F'] as Side[]).slice(0, Math.max(0, Math.min(6, teamCount))), plan.draw);
   const lengths = gameLengths(plan.pitchMinutes, plan.gameMinutes);
   const order = gameOrder(sides, lengths.length);
   let start = 0;
@@ -223,16 +264,18 @@ export function weekOf(date: string) {
  * - In goal: whoever has kept least. Players happy in goal take about twice the share; players
  *   who'd rather not only go in when nobody else can.
  * - Someone who left early is out of the spells after they went; the rest share their time.
- * - The order it starts from turns each week (`week`), so the same players don't always start on
- *   the bench.
+ * - The order it starts from turns each week (`week`), and the organiser's draw mixes it, so the
+ *   same players don't always start on the bench.
  */
 export function sideRota(
   players: PlanPlayer[],
   games: Fixture[],
-  plan: Pick<MatchPlan, 'onPitch' | 'swapMinutes' | 'away'>,
+  plan: Pick<MatchPlan, 'onPitch' | 'swapMinutes' | 'away' | 'draw'>,
   week = 0,
+  salt = 0,
 ): SideRota {
-  const sorted = [...players].sort((a, b) => a.id.localeCompare(b.id));
+  // A draw mixes who starts on the bench (each side its own way); the week turns it on from there.
+  const sorted = drawOrder([...players].sort((a, b) => a.id.localeCompare(b.id)), plan.draw, salt);
   const turn = sorted.length ? ((week % sorted.length) + sorted.length) % sorted.length : 0;
   const order = [...sorted.slice(turn), ...sorted.slice(0, turn)];
   const rank = new Map(order.map((p, i) => [p.id, i]));
@@ -338,7 +381,7 @@ export function buildDay({ plan, teamCount, date, squad }: DayInput): Day {
     const keeperOf = (m: DayInput['squad'][number]) => (plan.keepers ? (plan.keepers[m.id!] ?? null) : (m.keeper ?? null));
     const players = squad.filter((m) => m.team === side && m.id).map((m) => ({ id: m.id!, keeper: keeperOf(m) }));
     if (!players.length) continue;
-    rotas[side] = sideRota(players, all.filter((f) => f.teamA === side || f.teamB === side), plan, week);
+    rotas[side] = sideRota(players, all.filter((f) => f.teamA === side || f.teamB === side), plan, week, sides.indexOf(side) + 1);
   }
   return { sides, fixtures: all, rotas };
 }

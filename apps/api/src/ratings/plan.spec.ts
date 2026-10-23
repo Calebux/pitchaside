@@ -84,3 +84,15 @@ describe('cleanPlan: winner stays', () => {
     expect(cleanPlan({ ...base, format: 'schedule', firstTo: 2 })).not.toHaveProperty('firstTo');
   });
 });
+
+describe('cleanPlan: the shuffle draw', () => {
+  const day = { pitchMinutes: 60, gameMinutes: 10, onPitch: 5, swapMinutes: 5 };
+  it('keeps a whole-number draw, and none when not sent', () => {
+    expect(cleanPlan({ ...day, draw: 12345 }).draw).toBe(12345);
+    expect(cleanPlan(day).draw).toBeUndefined();
+    expect(cleanPlan({ ...day, draw: null }).draw).toBeUndefined();
+  });
+  it('refuses a draw that is not a whole number in range', () => {
+    for (const draw of [0, -1, 1.5, 'abc', 2_147_483_648]) expect(() => cleanPlan({ ...day, draw })).toThrow('The shuffle');
+  });
+});

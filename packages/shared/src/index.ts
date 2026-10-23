@@ -391,6 +391,13 @@ export interface MatchPlan {
   /** Players who left early: playerId → minutes after kick-off when they went. */
   away?: Record<string, number>;
   /**
+   * The draw: a number the organiser rolls with "Shuffle" before kick-off. It mixes which sides
+   * start and the order after (winner stays: who's on first and the queue), and who sits out
+   * first in each side's swaps. The same number gives the same plan on every phone. Missing:
+   * the plain order (Team A v Team B first). Fixed once the first game starts.
+   */
+  draw?: number;
+  /**
    * Who was happy in goal or would rather not when the first score went in (playerId → choice;
    * left out: didn't mind). Kept so a change of mind mid-day can't reshuffle the swaps under way.
    */

@@ -887,6 +887,7 @@ export class RatingsService {
     if (session.kind !== SessionKind.GAME) throw new BadRequestException('Only games have a plan');
     if (session.status === SessionStatus.CANCELLED) throw new BadRequestException('This game was called off, so it has no plan');
     if (session.status === SessionStatus.COMPLETED) throw new BadRequestException('This game has ended, so its plan can’t change');
+    const running = session.timerStartedAt && new Date(session.timerStartedAt).getTime() + timerOf(session).minutes * 60_000 > Date.now();
     let plan: MatchPlan | null = null;
     if (input != null) {
       try {
@@ -901,9 +902,14 @@ export class RatingsService {
       if ((session.plan?.format ?? 'schedule') !== (plan.format ?? 'schedule') && (await this.scoresIn(session.id))) {
         throw new BadRequestException('The day has started: the format can’t change now');
       }
+      // The draw stays unless a new one is sent, and can't change once the first game is on or
+      // played: the games and swaps under way would move under everyone.
+      if ((input as { draw?: unknown }).draw === undefined && session.plan?.draw) plan.draw = session.plan.draw;
+      if ((plan.draw ?? null) !== (session.plan?.draw ?? null) && (running || (await this.scoresIn(session.id)))) {
+        throw new BadRequestException('The first game has started, so the order can’t be shuffled now');
+      }
     }
     const patch: Partial<Session> = { plan };
-    const running = session.timerStartedAt && new Date(session.timerStartedAt).getTime() + timerOf(session).minutes * 60_000 > Date.now();
     if (plan && !running) patch.timerMinutes = plan.gameMinutes;
     await this.sessionsRepo.update(session.id, patch);
     return this.getLineup(sessionId, organizationId);
