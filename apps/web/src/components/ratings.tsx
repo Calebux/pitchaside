@@ -177,7 +177,7 @@ function Move({ move }: { move: number | null }) {
 
 const nameOf = (r: TableRow) => r.player.nickname || `${r.player.firstName} ${r.player.lastName}`.trim();
 
-/** The top three on a striped pitch: their shirt (or photo), name and points, tallest in the middle. */
+/** The top three on a striped pitch: their shirt (or photo), name and rating (points under it), tallest in the middle. */
 function Podium({ rows }: { rows: TableRow[] }) {
   // Second, first, third, left to right.
   const order = [rows[1], rows[0], rows[2]];
@@ -209,9 +209,11 @@ function Podium({ rows }: { rows: TableRow[] }) {
             )}
             <span className="max-w-full truncate text-[13px] font-bold text-white">{name}</span>
             <div className={`w-full ${block[i]} rounded-t-2xl flex flex-col items-center pt-2 text-ink animate-rise`}>
-              <span className="font-display text-2xl font-extrabold leading-none tabular-nums">{r.points}</span>
-              <span className="text-[11px] font-bold">
-                pts · {place[i]}
+              <span className="font-display text-2xl font-extrabold leading-none tabular-nums" aria-label={`Rating ${r.ovr ?? 'not yet'}`}>
+                {r.ovr ?? '–'}
+              </span>
+              <span className="text-[11px] font-bold tabular-nums">
+                {place[i]} · {r.points} pts
               </span>
             </div>
           </div>
@@ -226,20 +228,21 @@ function Podium({ rows }: { rows: TableRow[] }) {
  * record, form over their last three match days and places moved since the last one.
  */
 export function LeagueTableView({ table }: { table: LeagueTable }) {
-  if (table.rows.length === 0 || table.rows.every((r) => r.points === 0)) {
+  if (table.rows.length === 0 || table.rows.every((r) => r.games === 0)) {
     return (
       <EmptyState
         icon="box"
-        title="No points yet"
-        description="Points come from match day: each game’s score, and Player of the Match from the vote after it."
+        title="No games yet"
+        description="The table fills in from match day: each game’s score, goals, and the vote after it."
       />
     );
   }
-  // A podium needs three with points; otherwise it's all one list.
-  const podium = table.rows.length >= 3 && table.rows[2].points > 0;
+  const byRating = table.rankedBy === 'rating';
+  // A podium needs three who've played; otherwise it's all one list.
+  const podium = table.rows.length >= 3 && (byRating ? table.rows[2].games > 0 : table.rows[2].points > 0);
   const rest = podium ? table.rows.slice(3) : table.rows;
   const first = podium ? 4 : 1;
-  const cols = 'grid grid-cols-[30px_minmax(0,1fr)_24px_56px_34px] items-center gap-2';
+  const cols = 'grid grid-cols-[30px_minmax(0,1fr)_24px_56px_40px] items-center gap-2';
   return (
     <div className="space-y-3">
       {podium && <Podium rows={table.rows} />}
@@ -252,7 +255,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
               P<span className="sr-only">layed</span>
             </span>
             <span className="text-center">Form</span>
-            <span className="text-right text-volt-300">Pts</span>
+            <span className="text-right text-volt-300">{byRating ? 'Rating' : 'Pts'}</span>
           </div>
           {rest.map((row, i) => {
             const name = nameOf(row);
@@ -267,7 +270,8 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
                   <span className="min-w-0 flex-1">
                   <span className="block text-sm font-bold text-ink truncate">{name}</span>
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">
-                    {row.record.w}W {row.record.d}D {row.record.l}L
+                    {/* Ranked by rating, the points stand in for the record: one short line that fits */}
+                    {byRating ? `${row.points} pts` : `${row.record.w}W ${row.record.d}D ${row.record.l}L`}
                     {row.potmWins > 0 && <span aria-label={`Player of the Match ${row.potmWins}`}>· ★ {row.potmWins}</span>}
                     {row.teamOfDay > 0 && (
                       <span className="inline-flex items-center gap-0.5 text-amber-700" aria-label={`Team of the Day ${row.teamOfDay} time${row.teamOfDay === 1 ? '' : 's'}`}>
@@ -283,11 +287,17 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
                 <span className="flex justify-center">
                   <FormDots form={row.form} />
                 </span>
-                <span className="text-right font-display text-lg font-extrabold text-ink tabular-nums">{row.points}</span>
+                <span className="text-right font-display text-lg font-extrabold text-ink tabular-nums">{byRating ? (row.ovr ?? '–') : row.points}</span>
               </div>
             );
           })}
         </div>
+      )}
+      {byRating && (
+        <p className="px-1 text-[12px] leading-snug text-gray-600">
+          <b className="text-ink">Ranked by rating:</b> 40% goals and assists, 40% the votes after each game, 20% team results. So being on
+          the winning side isn’t enough to top it. Level on rating, points decide.
+        </p>
       )}
       <p className="px-1 text-[11px] leading-snug text-gray-500">
         {table.points.win} pts a win · {table.points.draw} a draw · +{table.points.teamOfDay} for Team of the Day (<TrophyMark />) · +{table.points.potm} for

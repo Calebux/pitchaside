@@ -223,7 +223,7 @@ export default function PlayerHomePage() {
         </Link>
         <Link
           href={firstTable ? `/me/club?group=${firstTable.groupId}` : group ? `/me/club?group=${group.id}` : '/me/club'}
-          aria-label={firstTable?.me ? `${ordinal(firstTable.me.rank)} in ${firstTable.groupName} with ${firstTable.me.points} points. Open the table` : 'Open the table'}
+          aria-label={firstTable?.me ? `${ordinal(firstTable.me.rank)} in ${firstTable.groupName}${firstTable.me.ovr != null ? `, rating ${firstTable.me.ovr}` : `, ${firstTable.me.points} points`}. Open the table` : 'Open the table'}
           className="press flex flex-col justify-between min-h-[120px] rounded-3xl bg-white border border-gray-100 p-4 shadow-card"
         >
           <span className="flex items-center justify-between gap-2">
@@ -236,7 +236,9 @@ export default function PlayerHomePage() {
             <span>
               <span className="flex items-baseline gap-1.5">
                 <span className="font-display text-[34px] leading-none font-extrabold text-ink tabular-nums">{ordinal(firstTable.me.rank)}</span>
-                <span className="text-[13px] font-bold text-gray-500 tabular-nums">{firstTable.me.points} pts</span>
+                <span className="text-[13px] font-bold text-gray-500 tabular-nums">
+                  {firstTable.me.ovr != null ? `Rating ${firstTable.me.ovr}` : `${firstTable.me.points} pts`}
+                </span>
               </span>
               <span className="mt-1 block text-[12px] text-gray-600 truncate">in {firstTable.groupName}</span>
             </span>

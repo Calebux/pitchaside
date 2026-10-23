@@ -360,8 +360,9 @@ export class PlayerPortalService {
           id: r.player.id,
           name: `${r.player.firstName} ${r.player.lastName}`,
           points: r.points,
+          ovr: r.ovr ?? null,
         })),
-        me: rank >= 0 ? { rank: rank + 1, points: table.rows[rank].points } : null,
+        me: rank >= 0 ? { rank: rank + 1, points: table.rows[rank].points, ovr: table.rows[rank].ovr ?? null } : null,
       });
     }
 

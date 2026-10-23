@@ -18,7 +18,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   const leader = t.rows[0];
   const title = leader ? `${leader.name} tops the ${t.groupName} table` : `${t.groupName} — the table`;
   const description = leader
-    ? `${leader.points} points after ${t.games} match day${t.games === 1 ? '' : 's'}. See where you stand on PitchAside.`
+    ? t.rankedBy === 'rating' && leader.ovr != null
+      ? `Rated ${leader.ovr} after ${t.games} match day${t.games === 1 ? '' : 's'}. See where you stand on PitchAside.`
+      : `${leader.points} points after ${t.games} match day${t.games === 1 ? '' : 's'}. See where you stand on PitchAside.`
     : 'The table fills up after the first match day.';
   const image = { url: imagePath(code, last), width: 1080, height: 1350, alt: title };
   return {

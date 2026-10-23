@@ -69,7 +69,7 @@ function Photo({ r, size, ring }: { r: Row; size: number; ring: string }) {
 }
 
 /** The top three on the pitch: second, first, third, the winner's block tallest. */
-function Podium({ rows }: { rows: Row[] }) {
+function Podium({ rows, byRating = false }: { rows: Row[]; byRating?: boolean }) {
   const spots = [
     { r: rows[1], place: '2nd', h: 150, bg: T.gray200, photo: 132 },
     { r: rows[0], place: '1st', h: 180, bg: T.volt300, photo: 142 },
@@ -104,8 +104,8 @@ function Podium({ rows }: { rows: Row[] }) {
               </div>
               <div style={{ ...oneLine, maxWidth: '100%', marginTop: 10, fontSize: 32, fontWeight: 700, color: '#ffffff' }}>{names(r).main}</div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', height: h, marginTop: 10, borderRadius: '30px 30px 0 0', background: bg, color: T.ink, paddingTop: 16 }}>
-                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 72, lineHeight: 1 }}>{r.points}</div>
-                <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, marginTop: 4 }}>{`pts · ${place}`}</div>
+                <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 72, lineHeight: 1 }}>{byRating ? (r.ovr ?? '–') : r.points}</div>
+                <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, marginTop: 4 }}>{byRating ? `${place} · ${r.points} pts` : `pts · ${place}`}</div>
                 {first && (
                   <div style={{ display: 'flex', marginTop: 10 }}>
                     <Crown size={40} color="#e0a100" />
@@ -137,7 +137,7 @@ function Move({ move }: { move: number | null }) {
 const FORM: Record<'W' | 'D' | 'L', string> = { W: T.volt400, D: T.gray200, L: T.kit400 };
 
 /** Places after the podium, as the app shows them: place and move, name and record, P, form, points. */
-function Rows({ rows, from }: { rows: Row[]; from: number }) {
+function Rows({ rows, from, byRating = false }: { rows: Row[]; from: number; byRating?: boolean }) {
   const cols = { place: 90, p: 70, form: 150, pts: 90 };
   const head = { display: 'flex', fontSize: 22, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,255,255,0.65)' } as const;
   return (
@@ -147,7 +147,7 @@ function Rows({ rows, from }: { rows: Row[]; from: number }) {
         <div style={{ ...head, flex: 1 }}>PLAYER</div>
         <div style={{ ...head, width: cols.p, justifyContent: 'center' }}>P</div>
         <div style={{ ...head, width: cols.form, justifyContent: 'center' }}>FORM</div>
-        <div style={{ ...head, width: cols.pts, justifyContent: 'flex-end', color: T.volt300 }}>PTS</div>
+        <div style={{ ...head, width: cols.pts, justifyContent: 'flex-end', color: T.volt300 }}>{byRating ? 'RATING' : 'PTS'}</div>
       </div>
       {rows.map((r, i) => (
         <div key={r.id} style={{ display: 'flex', alignItems: 'center', height: 90, padding: '0 34px', borderTop: i ? `2px solid ${T.line}` : 'none', color: T.ink }}>
@@ -189,7 +189,7 @@ function Rows({ rows, from }: { rows: Row[]; from: number }) {
               <div style={{ display: 'flex', fontSize: 24, color: T.gray500 }}>–</div>
             )}
           </div>
-          <div style={{ display: 'flex', width: cols.pts, justifyContent: 'flex-end', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40 }}>{r.points}</div>
+          <div style={{ display: 'flex', width: cols.pts, justifyContent: 'flex-end', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40 }}>{byRating ? (r.ovr ?? '–') : r.points}</div>
         </div>
       ))}
     </div>
@@ -198,9 +198,9 @@ function Rows({ rows, from }: { rows: Row[]; from: number }) {
 
 function Card({ t }: { t: TableCard }) {
   // A podium needs three with points; otherwise it's all one list (as in the app).
-  const podium = t.rows.length >= 3 && t.rows[2].points > 0;
+  const podium = t.rows.length >= 3 && (t.rankedBy === 'rating' ? t.rows[2].games > 0 : t.rows[2].points > 0);
   const list = podium ? t.rows.slice(3, 7) : t.rows.slice(0, 7);
-  const hasPoints = t.rows.some((r) => r.points > 0);
+  const hasPoints = t.rows.some((r) => r.points > 0 || r.games > 0);
   const shown = (podium ? 3 : 0) + list.length;
   const more = t.total - shown;
   const when = !t.games ? null : t.last ? `last ${t.games} match days` : `after ${t.games} match day${t.games === 1 ? '' : 's'}`;
@@ -241,10 +241,10 @@ function Card({ t }: { t: TableCard }) {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, marginTop: 26 }}>
-          {podium && <Podium rows={t.rows} />}
+          {podium && <Podium rows={t.rows} byRating={t.rankedBy === 'rating'} />}
           {list.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: podium ? 16 : 0 }}>
-              <Rows rows={list} from={podium ? 4 : 1} />
+              <Rows rows={list} from={podium ? 4 : 1} byRating={t.rankedBy === 'rating'} />
             </div>
           )}
         </div>

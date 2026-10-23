@@ -22,7 +22,7 @@ const full = (p: Player) => `${p.firstName} ${p.lastName}`;
 /**
  * The post-match ballot in short steps, one pick and one button each: Player of the Match; the best
  * on your own team; your Best VII of the Day (six starters and a sub, some from other teams); then
- * up to three awards, each optional. Everyone is grouped by side, your team first, with their photo.
+ * up to five awards, each optional. Everyone is grouped by side, your team first, with their photo.
  */
 export function BallotSteps({
   ballot,
@@ -311,11 +311,29 @@ export function BallotSteps({
         <>
           <h2 className="font-display text-2xl font-extrabold text-ink">Awards</h2>
           <p className="text-sm text-gray-600 mt-0.5">
-            Optional. Pick up to {ballot.maxAwards} you saw clearly; skip the rest.
+            Optional. Pick up to {ballot.maxAwards} of the {ballot.awards.length} for what you saw clearly; skip the rest.
           </p>
-          <p className="mt-2 text-[13px] font-semibold text-gray-600 tabular-nums" aria-live="polite">
-            {awardsPicked.length} of {ballot.maxAwards} picked
-          </p>
+          {/* Why there's a limit, said plainly: awards build players' cards */}
+          <div className="mt-3 rounded-2xl bg-chalk px-3.5 py-3 text-[13px] leading-snug text-gray-700">
+            <p className="font-bold text-ink">Why only {ballot.maxAwards}?</p>
+            <p className="mt-0.5">
+              Each award lifts that skill on the player’s card. A few honest picks say more than ticking every box, and one person can’t
+              hand a friend everything. An award only counts once 3 different people pick the same player.
+            </p>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-3" aria-live="polite">
+            <span className="text-[13px] font-semibold text-gray-600 tabular-nums">
+              {awardsPicked.length} of {ballot.maxAwards} picked
+            </span>
+            <span className="flex gap-1" aria-hidden>
+              {Array.from({ length: ballot.maxAwards }, (_, i) => (
+                <span key={i} className={`w-5 h-1.5 rounded-full transition-colors ${i < awardsPicked.length ? 'bg-pitch-600' : 'bg-gray-200'}`} />
+              ))}
+            </span>
+          </div>
+          {awardsPicked.length >= ballot.maxAwards && (
+            <p className="mt-1 text-[12px] text-gray-500">That’s {ballot.maxAwards}. Tap one you picked to change or clear it.</p>
+          )}
           <ul className="mt-2 bg-white rounded-3xl border border-gray-100 shadow-card divide-y divide-gray-100 overflow-hidden">
             {ballot.awards.map((a, i) => {
               const who = typeof picks[a.key] === 'string' ? byId(picks[a.key]) : undefined;
