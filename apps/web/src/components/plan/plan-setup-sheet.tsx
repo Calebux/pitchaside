@@ -9,7 +9,7 @@ import { btnPrimary } from '@/components/buttons';
 import { savePlan, type Lineup, type TeamKey } from '@/lib/api';
 import { teamName } from '@/lib/teams';
 import { useToast } from '@/components/toast';
-import { buildDay, clockAt } from '@/lib/match-plan';
+import { MAX_DRAW, buildDay, clockAt } from '@/lib/match-plan';
 import { WS_DEFAULTS } from '@/lib/winner-stays';
 
 type Settings = Omit<MatchPlan, 'away'>;
@@ -97,7 +97,10 @@ export function PlanSetupSheet({
   const titleId = useId();
   const toast = useToast();
   const start: Settings = lineup.plan ?? lineup.lastPlan ?? { pitchMinutes: 60, gameMinutes, onPitch: 5, swapMinutes: 0 };
-  const [s, setS] = useState<Settings>({
+  const [s, setS] = useState<Settings>(() => ({
+    // A new plan gets its own draw, so the day doesn't start with the same sides every week
+    // (last week's plan is only a starting point for the numbers). Changing a plan keeps its draw.
+    draw: lineup.plan ? lineup.plan.draw : 1 + Math.floor(Math.random() * MAX_DRAW),
     format: start.format ?? 'schedule',
     pitchMinutes: start.pitchMinutes,
     gameMinutes: start.gameMinutes,
@@ -106,7 +109,7 @@ export function PlanSetupSheet({
     firstMinutes: start.firstMinutes ?? WS_DEFAULTS.firstMinutes,
     firstTo: start.firstTo ?? WS_DEFAULTS.firstTo,
     twoAndOff: start.twoAndOff ?? WS_DEFAULTS.twoAndOff,
-  });
+  }));
   const ws = s.format === 'winner_stays';
   // Winner stays needs someone waiting: not with 2 teams.
   const wsPossible = lineup.teamCount >= 3;
@@ -171,7 +174,7 @@ export function PlanSetupSheet({
             </p>
           )}
           <button
-            onClick={() => save(ws ? s : { format: 'schedule', pitchMinutes: s.pitchMinutes, gameMinutes: s.gameMinutes, onPitch: s.onPitch, swapMinutes: s.swapMinutes })}
+            onClick={() => save(ws ? s : { format: 'schedule', pitchMinutes: s.pitchMinutes, gameMinutes: s.gameMinutes, onPitch: s.onPitch, swapMinutes: s.swapMinutes, draw: s.draw })}
             disabled={!!saving || s.gameMinutes > s.pitchMinutes || (ws && !wsPossible)} className={`${btnPrimary} w-full`}>
             {saving === 'save' && <BallSpinner />}
             {lineup.plan ? 'Save the changes' : 'Save the plan'}

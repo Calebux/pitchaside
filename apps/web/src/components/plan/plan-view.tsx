@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Bibs, KeeperPref, MatchPlan } from '@pitchaside/shared';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
@@ -157,6 +157,7 @@ export function DayPlanLive({
   onSetClock,
   onOpen,
   ws,
+  shuffle,
 }: {
   day: Day;
   plan: MatchPlan;
@@ -173,6 +174,8 @@ export function DayPlanLive({
   /** Organiser only: set the clock for the next game. */
   onSetClock?: (minutes: number) => Promise<void>;
   onOpen: () => void;
+  /** Before the first game: the organiser's way to shuffle who starts. */
+  shuffle?: ReactNode;
 }) {
   const nameOf = (id: string) => people.get(id)?.name ?? 'Someone';
   const total = gamesDone + (live.playing ? 1 : 0) + live.ahead.games.length;
@@ -308,6 +311,7 @@ export function DayPlanLive({
             <WsRule ws={ws} plan={plan} center />
           </div>
           {clockButton}
+          {shuffle}
         </div>
         {ws.line.length > 0 && (
           <div className="border-t border-gray-100 bg-chalk/50 px-4 py-3">
@@ -364,6 +368,7 @@ export function DayPlanLive({
           </p>
         )}
         {clockButton}
+        {shuffle}
       </div>
 
       {swapsPanel}

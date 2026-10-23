@@ -1,5 +1,5 @@
 import type { MatchPlan } from '@pitchaside/shared';
-import { sideRota, weekOf, type Day, type DayInput, type Fixture, type LiveDay, type Side } from './match-plan';
+import { drawOrder, sideRota, weekOf, type Day, type DayInput, type Fixture, type LiveDay, type Side } from './match-plan';
 
 /**
  * Winner stays, worked out the same way on every phone from the scores saved so far:
@@ -62,7 +62,13 @@ export const WS_DEFAULTS = { firstMinutes: 10, gameMinutes: 10, firstTo: 2, twoA
 
 const pairKey = (a: Side, b: Side) => (a < b ? a + b : b + a);
 
-export function winnerStays(sides: Side[], plan: Pick<MatchPlan, 'pitchMinutes' | 'gameMinutes' | 'firstMinutes' | 'firstTo' | 'twoAndOff'>, saved: WsGame[]): WsState {
+export function winnerStays(
+  teams: Side[],
+  plan: Pick<MatchPlan, 'pitchMinutes' | 'gameMinutes' | 'firstMinutes' | 'firstTo' | 'twoAndOff' | 'draw'>,
+  saved: WsGame[],
+): WsState {
+  // The draw picks who's on first and the queue behind them.
+  const sides = drawOrder(teams, plan.draw);
   const firstMinutes = plan.firstMinutes ?? WS_DEFAULTS.firstMinutes;
   const limitAfter = plan.gameMinutes || WS_DEFAULTS.gameMinutes;
   const minutes = Object.fromEntries(sides.map((s) => [s, 0])) as Record<Side, number>;
@@ -175,7 +181,7 @@ export function buildWsDay({ plan, teamCount, date, squad }: DayInput, saved: Ws
     const keeperOf = (m: DayInput['squad'][number]) => (plan.keepers ? (plan.keepers[m.id!] ?? null) : (m.keeper ?? null));
     const players = squad.filter((m) => m.team === side && m.id).map((m) => ({ id: m.id!, keeper: keeperOf(m) }));
     if (!players.length) continue;
-    rotas[side] = sideRota(players, all.filter((f) => f.teamA === side || f.teamB === side), plan, week);
+    rotas[side] = sideRota(players, all.filter((f) => f.teamA === side || f.teamB === side), plan, week, sides.indexOf(side) + 1);
   }
   return { sides, fixtures: all, rotas, ws };
 }
