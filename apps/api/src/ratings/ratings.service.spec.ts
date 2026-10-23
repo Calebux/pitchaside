@@ -155,6 +155,26 @@ describe('the table', () => {
     expect(open.rows.find((r) => r.player.id === 'bisi')).toMatchObject({ potmWins: 0, points: 1 });
   });
 
+  it('ranks by rating, not points: winning on the day isn’t enough to top it', async () => {
+    const { service } = setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) }), { games: day });
+    // Ada's side won (more points); Bisi's card is higher (goals and votes over time).
+    const clubCard = jest.spyOn(service as never as { clubCard: () => Promise<unknown> }, 'clubCard');
+    clubCard.mockResolvedValue({ skills: new Map(), everyone: [], trial: new Map(), card: new Map([['ada', 64], ['bisi', 81]]) });
+    const t = await service.getGroupTable('grp', 'org');
+    const ada = t.rows.find((r) => r.player.id === 'ada')!;
+    const bisi = t.rows.find((r) => r.player.id === 'bisi')!;
+    expect(ada.points).toBeGreaterThan(bisi.points);
+    expect(t.rows.map((r) => r.player.id)).toEqual(['bisi', 'ada']);
+    expect([bisi.ovr, ada.ovr]).toEqual([81, 64]);
+    expect(t.rankedBy).toBe('rating');
+  });
+
+  it('level on rating, points decide', async () => {
+    const { service } = setup(game({ voteOpensAt: new Date(Date.now() - 49 * HOUR) }), { games: day });
+    jest.spyOn(service as never as { clubCard: () => Promise<unknown> }, 'clubCard').mockResolvedValue({ skills: new Map(), everyone: [], trial: new Map(), card: new Map([['ada', 70], ['bisi', 70]]) });
+    expect((await service.getGroupTable('grp', 'org')).rows.map((r) => r.player.id)).toEqual(['ada', 'bisi']);
+  });
+
   it("leaves out players who didn't come", async () => {
     const { rows } = await setup(game(), { games: day }).service.getGroupTable('grp', 'org');
     expect(rows.some((r) => r.player.id === 'lanre')).toBe(false);
@@ -271,12 +291,12 @@ describe('the new ballot', () => {
     const ballot = await setup(ten()).service.getBallot('tok');
     expect(ballot.vii).toEqual({ starters: 6, subs: 1, minOtherTeams: 2 });
     expect(ballot.awards.map((a) => a.title)).toContain('The Engine');
-    expect(ballot.maxAwards).toBe(3);
+    expect(ballot.maxAwards).toBe(5);
     const few = game({ payments: [pay('ada', { team: 'A' }), pay('bisi', { team: 'B' })] });
     expect((await setup(few).service.getBallot('tok')).vii).toBeNull();
   });
 
-  it('takes a full ballot: six starters, a sub and up to three awards', async () => {
+  it('takes a full ballot: six starters, a sub and up to five awards', async () => {
     const { service, saved } = setup(ten());
     await service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5' });
     const rows = (saved.flat() as { category: string }[]).map((r) => r.category);
@@ -307,11 +327,11 @@ describe('the new ballot', () => {
     await expect(service.submitVotes('tok', ['ada'], { ...ballot, vii: ['a1', 'a2', 'a3', 'a4', 'a5', 'b2'] })).resolves.toBeDefined();
   });
 
-  it('refuses more than three awards, and categories it does not ask', async () => {
+  it('refuses more than five awards, and categories it does not ask', async () => {
     const { service } = setup(ten());
     await expect(
-      service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5', smartest: 'b1' }),
-    ).rejects.toThrow('Up to 3 awards');
+      service.submitVotes('tok', ['ada'], { ...full, passing: 'a2', engine: 'b4', keeper: 'b5', smartest: 'b1', dribbling: 'a3', playmaker: 'a4' }),
+    ).rejects.toThrow('Up to 5 awards');
     await expect(service.submitVotes('tok', ['ada'], { ...full, pace: 'b1' })).rejects.toThrow('Unknown category');
   });
 

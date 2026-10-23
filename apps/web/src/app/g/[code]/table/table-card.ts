@@ -7,6 +7,8 @@ export interface TableCard {
   /** Only the latest N match days, when the table was shared that way. */
   last: number | null;
   lastDate: string | null;
+  /** 'rating': ranked by the card's rating, points beside it. Missing: by points (older servers). */
+  rankedBy?: 'rating';
   points: { win: number; draw: number; teamOfDay: number; potm: number };
   /** Everyone in the table; `rows` is the top ten. */
   total: number;

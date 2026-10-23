@@ -77,7 +77,9 @@ export function GroupTable({
           </ShareCardButton>
         )}
         </div>
-        <p className="-mt-1 text-xs text-gray-500">Points from results, Team of the Day and Player of the Match</p>
+        <p className="-mt-1 text-xs text-gray-500">
+          {table?.rankedBy === 'rating' ? 'Ranked by rating: goals, votes and results. Points break a tie.' : 'Points from results, Team of the Day and Player of the Match'}
+        </p>
         {/* The table as an image for WhatsApp: the season, or the last few match days, as shown */}
       </div>
       {seasonDays > RECENT_DAYS && (

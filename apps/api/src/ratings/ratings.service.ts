@@ -86,7 +86,8 @@ export const AWARD_KEYS: VoteCategory[] = [
   VoteCategory.MOVEMENT,
   VoteCategory.KEEPER,
 ];
-export const MAX_AWARDS = 3;
+/** Up to five of the nine (Matt, 24 Oct; was three): enough to say what you saw, not so many one friend gets them all. */
+export const MAX_AWARDS = 5;
 /** Best VII of the Day: six starters and a sub, asked when there are at least 8 others to choose from. */
 export const VII_STARTERS = 6;
 const VII_MIN_OTHERS = 8;
@@ -601,7 +602,7 @@ export class RatingsService {
   /**
    * One ballot: Player of the Match; the best on your own team (when teams were set); Best VII of
    * the Day, six starters and a sub with at least two from other teams (when enough played); and
-   * up to three awards, each optional. Nobody can pick themselves or anyone who didn't play.
+   * up to five awards, each optional. Nobody can pick themselves or anyone who didn't play.
    */
   async submitVotes(token: string, playerIds: string[], picks: Record<string, string | string[] | null | undefined>) {
     const session = await this.loadSessionByToken(token);
@@ -1576,9 +1577,10 @@ export class RatingsService {
    * haven't played aren't in it: their card shows the level their organiser gave them.
    * `everyone` is the club's all-time ratings, with the old way's number still in `ovr`.
    */
-  private async clubCard(organizationId: string) {
-    const skills = await this.skills(organizationId);
-    const everyone = [...(await this.aggregate(await this.gamesQuery(organizationId).getMany(), skills)).values()];
+  private async clubCard(organizationId: string, without?: string) {
+    const skills = await this.skills(organizationId, without);
+    const sessions = (await this.gamesQuery(organizationId).getMany()).filter((s) => s.id !== without);
+    const everyone = [...(await this.aggregate(sessions, skills)).values()];
     const trial = trialRatings(everyone);
     const card = new Map<string, number>();
     for (const r of everyone) if (r.games > 0) card.set(r.player.id, trial.get(r.player.id)!.trial);
@@ -1590,12 +1592,14 @@ export class RatingsService {
    * order (each rating depends on everyone else's, so always the whole club). Players who
    * haven't played start from the level their organiser gave them, else average.
    */
-  async skills(organizationId: string): Promise<Map<string, Skill>> {
-    const [sessions, players] = await Promise.all([
+  async skills(organizationId: string, without?: string): Promise<Map<string, Skill>> {
+    const [all, players] = await Promise.all([
       this.gamesQuery(organizationId).orderBy('session.date', 'ASC').addOrderBy('session.createdAt', 'ASC').getMany(),
       this.sessionsRepo.manager.find(Player, { where: { organizationId }, select: ['id', 'level'] }),
     ]);
     const starts = new Map(players.map((p) => [p.id, p.level ? LEVEL_START[p.level] : DEFAULT_START]));
+    // `without`: as it stood before that match day (the table's "places moved").
+    const sessions = without ? all.filter((x) => x.id !== without) : all;
     if (!sessions.length) return replaySkill([], starts);
 
     const games = await this.gamesRepo.find({ where: { sessionId: In(sessions.map((s) => s.id)) }, order: { createdAt: 'ASC' } });
@@ -1890,24 +1894,34 @@ export class RatingsService {
     all.sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.createdAt.getTime() - b.createdAt.getTime());
     const sessions = lastDays ? all.slice(-lastDays) : all;
     const skills = await this.skills(organizationId);
-    const ranked = async (list: Session[]) =>
+    // Ranked by the card's rating (Matt, 24 Oct): 40% goals and assists, 40% votes, 20% results,
+    // so a player isn't top just for being on the winning side. The card's number is the club's,
+    // all time, whatever period the table covers; level on rating, points decide.
+    const { card } = await this.clubCard(organizationId);
+    const latest = sessions[sessions.length - 1];
+    const cardBefore = sessions.length > 1 ? (await this.clubCard(organizationId, latest.id)).card : null;
+    const ranked = async (list: Session[], ratings: Map<string, number>) =>
       [...(await this.aggregate(list, skills)).values()].sort(
-        // Level on points: more Player of the Match wins, then more wins, then more games.
-        (a, b) => b.points - a.points || b.potmWins - a.potmWins || b.record.w - a.record.w || b.games - a.games,
+        (a, b) =>
+          (ratings.get(b.player.id) ?? b.ovr ?? 0) - (ratings.get(a.player.id) ?? a.ovr ?? 0) ||
+          b.points - a.points ||
+          b.potmWins - a.potmWins ||
+          b.record.w - a.record.w ||
+          b.games - a.games,
       );
-    const rows = await ranked(sessions);
-    const before = sessions.length > 1 ? await ranked(sessions.slice(0, -1)) : [];
+    const rows = await ranked(sessions, card);
+    const before = cardBefore ? await ranked(sessions.slice(0, -1), cardBefore) : [];
     const placeBefore = new Map(before.map((r, i) => [r.player.id, i]));
     // Each of the latest six match days on its own, oldest first: form is a player's last three of them.
     const days = await Promise.all(sessions.slice(-6).map((s) => this.aggregate([s], skills)));
-    // The card's number is the club's, all time, whatever period the table covers.
-    const { card } = await this.clubCard(organizationId);
     return {
       games: sessions.length,
       /** The latest match day the table counts. */
       lastDate: sessions.length ? String(sessions[sessions.length - 1].date).slice(0, 10) : null,
       /** The group's join link code: the table's share link is built on it. */
       shareCode: group.inviteCode ?? null,
+      /** What the table is ranked by: the card's rating (points still shown, and break a tie). */
+      rankedBy: 'rating' as const,
       points: POINTS,
       rows: rows.map((r, i) => {
         const was = placeBefore.get(r.player.id);
@@ -1970,6 +1984,7 @@ export class RatingsService {
       games: t.games,
       last: lastDays ?? null,
       lastDate: t.lastDate,
+      rankedBy: t.rankedBy,
       points: t.points,
       total: t.rows.length,
       rows: t.rows.slice(0, 10).map((r) => ({

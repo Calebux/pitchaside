@@ -1161,6 +1161,8 @@ export interface LeagueTable {
   lastDate?: string | null;
   /** The group's join-link code: the table's share link is built on it. Null: can't be shared. */
   shareCode?: string | null;
+  /** 'rating': ranked by the card's rating, points shown beside it. Missing: by points (older servers). */
+  rankedBy?: 'rating';
   points: { win: number; draw: number; teamOfDay: number; potm: number };
   rows: (PlayerRatings & {
     player: SquadMember;

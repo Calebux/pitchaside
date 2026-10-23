@@ -235,7 +235,7 @@ export default function VotePage() {
             ) : (
               <PasswordSignIn
                 title="Vote on today’s game"
-                subtitle="Player of the Match, your Best VII of the Day and up to three awards. About a minute. Sign in to vote."
+                subtitle="Player of the Match, your Best VII of the Day and up to five awards. About a minute. Sign in to vote."
                 cta="Sign in & vote"
                 onSignedIn={onSignedIn}
               />

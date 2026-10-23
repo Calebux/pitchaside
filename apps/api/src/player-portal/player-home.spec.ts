@@ -36,10 +36,10 @@ describe('PlayerPortalService.home', () => {
     const svc = service({
       getPlayerRatings: jest.fn().mockRejectedValue(new Error('x')),
       openVotesFor: jest.fn().mockResolvedValue([]),
-      getGroupTable: jest.fn().mockResolvedValue({ games: 1, rows: [{ player: { id: 'ada', firstName: 'Ada', lastName: 'Obi' }, points: 3 }] }),
+      getGroupTable: jest.fn().mockResolvedValue({ games: 1, rows: [{ player: { id: 'ada', firstName: 'Ada', lastName: 'Obi' }, points: 3, ovr: 82 }] }),
     });
     const home = await svc.home(person);
-    expect(home.tables).toEqual([expect.objectContaining({ groupId: 'g1', me: { rank: 1, points: 3 } })]);
+    expect(home.tables).toEqual([expect.objectContaining({ groupId: 'g1', me: { rank: 1, points: 3, ovr: 82 } })]);
   });
 });
 

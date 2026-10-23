@@ -256,8 +256,9 @@ export interface PlayerHome {
     groupName: string;
     games: number;
     myPlayerId: string;
-    top: { rank: number; id: string; name: string; points: number }[];
-    me: { rank: number; points: number } | null;
+    top: { rank: number; id: string; name: string; points: number; ovr?: number | null }[];
+    /** `ovr`: their rating, which the table is ranked by (missing from older servers). */
+    me: { rank: number; points: number; ovr?: number | null } | null;
   }[];
 }
 
