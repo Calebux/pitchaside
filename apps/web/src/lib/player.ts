@@ -4,6 +4,7 @@
  */
 import type { GameTimer, PaymentType } from '@pitchaside/shared';
 import type { Bibs, KeeperPref } from '@pitchaside/shared';
+import { tableQuery, type TableRange } from './api';
 import type { GoalInput, Lineup, PlanInfo, MatchEventKind, RatingBreakdown, RatingTrial, LeagueTable, PlayerRatings, VoteCategory, VoteResults, GroupAccount, PublicGroup, TeamKey } from './api';
 import { serverMessage } from './http';
 
@@ -255,6 +256,8 @@ export interface PlayerHome {
     groupId: string;
     groupName: string;
     games: number;
+    /** How many are in the table (missing from older servers). */
+    of?: number;
     myPlayerId: string;
     top: { rank: number; id: string; name: string; points: number; ovr?: number | null }[];
     /** `ovr`: their rating, which the table is ranked by (missing from older servers). */
@@ -489,8 +492,8 @@ export function unsubscribePlayerPush(endpoint: string) {
 
 /** How a player's card number is made: theirs, or a clubmate's. Null before they've played. */
 /** The Club tab: a group's table (all season, or the last N match days), for a group they play in. */
-export function getMyGroupTable(groupId: string, lastDays?: number) {
-  return request<LeagueTable>('GET', `/me/groups/${groupId}/table${lastDays ? `?last=${lastDays}` : ''}`);
+export function getMyGroupTable(groupId: string, range?: TableRange) {
+  return request<LeagueTable>('GET', `/me/groups/${groupId}/table${tableQuery(range)}`);
 }
 
 /** The Club tab's rating parts (stats, votes, results) for everyone in a group they play in. */

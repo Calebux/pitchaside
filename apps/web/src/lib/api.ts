@@ -1216,8 +1216,25 @@ export function getRatingTrial(groupId: string): Promise<RatingTrial> {
 }
 
 /** The group's table; `lastDays` limits it to the latest match days. */
-export function getGroupTable(groupId: string, lastDays?: number): Promise<LeagueTable> {
-  return http.get(`/groups/${groupId}/table${lastDays ? `?last=${lastDays}` : ''}`);
+/** Which match days a table counts: the latest N, and/or between two dates (YYYY-MM-DD, inclusive). */
+export interface TableRange {
+  last?: number;
+  from?: string;
+  to?: string;
+}
+
+/** "?last=5", "?from=2026-10-01&to=2026-10-31", or nothing for the whole season. */
+export function tableQuery(range?: TableRange) {
+  const q = new URLSearchParams();
+  if (range?.last) q.set('last', String(range.last));
+  if (range?.from) q.set('from', range.from);
+  if (range?.to) q.set('to', range.to);
+  const s = q.toString();
+  return s ? `?${s}` : '';
+}
+
+export function getGroupTable(groupId: string, range?: TableRange): Promise<LeagueTable> {
+  return http.get(`/groups/${groupId}/table${tableQuery(range)}`);
 }
 
 export function getPlayerRatings(playerId: string): Promise<PlayerRatings> {

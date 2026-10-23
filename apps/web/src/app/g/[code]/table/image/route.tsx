@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { loadFonts } from '@/lib/og';
-import { getTableCard, lastOf, type TableCard } from '../table-card';
+import { getTableCard, rangeOf, type TableCard } from '../table-card';
 import { DISPLAY, initials, loadPhotos, names, oneLine, prettyDate } from '@/lib/og-card';
 
 export const dynamic = 'force-dynamic';
@@ -203,7 +203,8 @@ function Card({ t }: { t: TableCard }) {
   const hasPoints = t.rows.some((r) => r.points > 0 || r.games > 0);
   const shown = (podium ? 3 : 0) + list.length;
   const more = t.total - shown;
-  const when = !t.games ? null : t.last ? `last ${t.games} match days` : `after ${t.games} match day${t.games === 1 ? '' : 's'}`;
+  const dates = t.from ? `${prettyDate(t.from)}${t.to && t.to !== t.from ? ` – ${prettyDate(t.to)}` : ''}` : null;
+  const when = !t.games ? null : dates ? `${dates} · ${t.games} match day${t.games === 1 ? '' : 's'}` : t.last ? `last ${t.games} match days` : `after ${t.games} match day${t.games === 1 ? '' : 's'}`;
   const sub = [t.groupName, when, t.lastDate ? prettyDate(t.lastDate).replace(/^(\d+) (\w)(\w+)$/, (_, d, a, b) => `${d} ${a}${b.toLowerCase()}`) : null].filter(Boolean).join(' · ');
 
   return (
@@ -271,7 +272,8 @@ function Card({ t }: { t: TableCard }) {
 
 export async function GET(req: Request, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
-  const last = lastOf(new URL(req.url).searchParams.get('last'));
+  const query = new URL(req.url).searchParams;
+  const last = rangeOf((k) => query.get(k));
   const found = await getTableCard(code, last);
   if (!found) return new Response('Not found', { status: 404 });
   const [fonts, photos] = await Promise.all([loadFonts(), loadPhotos(found.rows.map((r) => r.photoKey))]);

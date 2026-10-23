@@ -1,18 +1,19 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getTableCard, lastOf } from './table-card';
+import { getTableCard, rangeOf, rangeQuery, type TableLinkRange } from './table-card';
 
 export const dynamic = 'force-dynamic';
 
-type Props = { params: Promise<{ code: string }>; searchParams: Promise<{ last?: string | string[] }> };
+type Props = { params: Promise<{ code: string }>; searchParams: Promise<{ last?: string | string[]; from?: string | string[]; to?: string | string[] }> };
 
-const imagePath = (code: string, last: number | null) => `/g/${code}/table/image${last ? `?last=${last}` : ''}`;
+const imagePath = (code: string, range: TableLinkRange) => `/g/${code}/table/image${rangeQuery(range)}`;
 
 /** The link shared to WhatsApp: its preview is the table image. */
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const { code } = await params;
-  const last = lastOf((await searchParams).last);
+  const sp = await searchParams;
+  const last = rangeOf((k) => sp[k as keyof typeof sp]);
   const t = await getTableCard(code, last);
   if (!t) return { title: 'PitchAside' };
   const leader = t.rows[0];
@@ -34,7 +35,8 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 /** A group's table, shared: the image, then a way in for anyone who isn't in the group yet. */
 export default async function SharedTablePage({ params, searchParams }: Props) {
   const { code } = await params;
-  const last = lastOf((await searchParams).last);
+  const sp = await searchParams;
+  const last = rangeOf((k) => sp[k as keyof typeof sp]);
   const t = await getTableCard(code, last);
   if (!t) notFound();
 

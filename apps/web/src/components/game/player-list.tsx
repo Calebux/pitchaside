@@ -3,6 +3,7 @@
 import { useId, useState } from 'react';
 import type { IPayment } from '@pitchaside/shared';
 import { Sheet } from '@/components/sheet';
+import { FilterBar, FilterMenu } from '@/components/filter-menu';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { stagger } from '@/components/motion';
@@ -199,32 +200,27 @@ export function PlayerList({
         </div>
       </div>
 
-      <div className="mt-2 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="radiogroup" aria-label="Show players">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            role="radio"
-            aria-checked={shown === f.key}
-            onClick={() => setFilter(f.key)}
-            className={`shrink-0 h-10 px-4 rounded-full border text-[13px] font-bold whitespace-nowrap tabular-nums transition-colors ${
-              shown === f.key ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
-            }`}
-          >
-            {f.label} {count(f.key)}
-          </button>
-        ))}
-      </div>
-
-      {rows.length > 10 && (
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Find a player"
-          aria-label="Find a player"
-          className="mt-2.5 w-full h-11 px-3.5 bg-white border border-gray-200 rounded-xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+      {/* Who to show as a dropdown, with search beside it once the list is long */}
+      <FilterBar className="mt-2">
+        <FilterMenu
+          label="Show players"
+          title="Show"
+          value={shown}
+          onChange={setFilter}
+          columns={2}
+          options={filters.map((f) => ({ value: f.key, label: `${f.label} · ${count(f.key)}` }))}
         />
-      )}
+        {rows.length > 10 && (
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Find a player"
+            aria-label="Find a player"
+            className="flex-1 min-w-0 min-h-11 px-3.5 bg-white border border-gray-200 rounded-2xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
+          />
+        )}
+      </FilterBar>
 
       {selecting && selectable.length > 0 && (
         <button
@@ -276,7 +272,7 @@ export function PlayerList({
                       {/* Money goes by real names: keep it next to the nickname. */}
                       {p.player?.nickname && <span className="font-semibold text-gray-500"> · {fullName(p)}</span>}
                     </span>
-                    <span className={`block text-[13px] truncate ${tone[s.key]}`}>{s.label}</span>
+                    <span className={`block text-[13px] leading-snug ${tone[s.key]}`}>{s.label}</span>
                   </span>
                   {s.key === 'to_pay' && !selecting && (
                     <button

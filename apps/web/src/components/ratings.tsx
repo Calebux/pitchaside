@@ -176,6 +176,14 @@ function Move({ move }: { move: number | null }) {
 }
 
 const nameOf = (r: TableRow) => r.player.nickname || `${r.player.firstName} ${r.player.lastName}`.trim();
+/**
+ * For the narrow table rows: the full name when it fits (about 10 letters), else first name and
+ * initial, so "Chidi Nwosu" reads "Chidi N." rather than "Chidi Nw…".
+ */
+const shortOf = (r: TableRow) => {
+  const full = nameOf(r);
+  return r.player.nickname || full.length <= 10 || !r.player.lastName ? full : `${r.player.firstName} ${r.player.lastName.charAt(0)}.`;
+};
 
 /** The top three on a striped pitch: their shirt (or photo), name and rating (points under it), tallest in the middle. */
 function Podium({ rows }: { rows: TableRow[] }) {
@@ -242,7 +250,7 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
   const podium = table.rows.length >= 3 && (byRating ? table.rows[2].games > 0 : table.rows[2].points > 0);
   const rest = podium ? table.rows.slice(3) : table.rows;
   const first = podium ? 4 : 1;
-  const cols = 'grid grid-cols-[30px_minmax(0,1fr)_24px_56px_40px] items-center gap-2';
+  const cols = 'grid grid-cols-[26px_minmax(0,1fr)_22px_54px_36px] items-center gap-2';
   return (
     <div className="space-y-3">
       {podium && <Podium rows={table.rows} />}
@@ -268,7 +276,9 @@ export function LeagueTableView({ table }: { table: LeagueTable }) {
                 <span className="min-w-0 flex items-center gap-2.5">
                   <Avatar name={`${row.player.firstName} ${row.player.lastName}`} photoKey={row.player.photoKey} className="w-8 h-8 text-[10px]" />
                   <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-bold text-ink truncate">{name}</span>
+                  <span className="block text-sm font-bold text-ink truncate" title={name}>
+                    {shortOf(row)}
+                  </span>
                   <span className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 tabular-nums whitespace-nowrap">
                     {/* Ranked by rating, the points stand in for the record: one short line that fits */}
                     {byRating ? `${row.points} pts` : `${row.record.w}W ${row.record.d}D ${row.record.l}L`}

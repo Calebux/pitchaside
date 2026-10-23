@@ -31,7 +31,8 @@ export function FilterBar({ children, className = '' }: { children: ReactNode; c
   return (
     <Bar.Provider value={{ open, setOpen }}>
       {open && <div className="fixed inset-0 z-30 bg-ink/40 animate-fade-in" aria-hidden />}
-      <div ref={ref} className={`relative z-40 flex items-center gap-2 ${className}`}>
+      {/* Lifted over the page only while a panel is open, so it never covers a sticky bar above it */}
+      <div ref={ref} className={`relative ${open ? 'z-40' : ''} flex items-center gap-2 ${className}`}>
         {children}
       </div>
     </Bar.Provider>

@@ -45,7 +45,7 @@ export function KeeperSetting({ value, onSaved }: { value: KeeperPref | undefine
         <span aria-hidden>🧤 </span>Going in goal
       </p>
       <p className="text-[13px] leading-snug text-gray-600">When the organiser plans the day, the swaps use this.</p>
-      <div className="mt-3 grid grid-cols-3 gap-1.5" role="radiogroup" aria-labelledby={id}>
+      <div className="mt-3 space-y-1.5" role="radiogroup" aria-labelledby={id}>
         {OPTIONS.map((o) => {
           const on = current === o.value;
           return (
@@ -54,15 +54,17 @@ export function KeeperSetting({ value, onSaved }: { value: KeeperPref | undefine
               role="radio"
               aria-checked={on}
               onClick={() => pick(o.value)}
-              className={`press min-h-16 px-2 py-2 rounded-2xl border text-center transition-colors ${
+              className={`press w-full min-h-14 px-3.5 py-2.5 rounded-2xl border flex items-center gap-3 text-left transition-colors ${
                 on ? 'bg-ink border-ink text-white' : 'bg-white border-gray-200 text-ink hover:border-ink'
               }`}
             >
-              <span className="flex items-center justify-center gap-1 text-[13px] font-bold leading-tight">
-                {saving === o.value && <BallSpinner className="w-3.5 h-3.5" />}
-                {o.label}
+              <span aria-hidden className={`w-5 h-5 shrink-0 rounded-full flex items-center justify-center ${on ? 'bg-volt-300' : 'border-2 border-gray-300'}`}>
+                {saving === o.value ? <BallSpinner className="w-3.5 h-3.5" /> : on && <span className="w-2 h-2 rounded-full bg-ink" />}
               </span>
-              <span className={`block mt-0.5 text-[11px] leading-tight ${on ? 'text-white/70' : 'text-gray-500'}`}>{o.sub}</span>
+              <span className="min-w-0">
+                <span className="block text-[14px] font-bold leading-tight">{o.label}</span>
+                <span className={`block mt-0.5 text-[12px] leading-snug ${on ? 'text-white/70' : 'text-gray-500'}`}>{o.sub}</span>
+              </span>
             </button>
           );
         })}

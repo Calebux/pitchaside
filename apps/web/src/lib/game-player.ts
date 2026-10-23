@@ -52,8 +52,8 @@ function stateNow(p: IPayment, coveredByDues: boolean, before: boolean): PlayerS
     return { key: 'paid', label: p.source === 'transfer' ? 'Paid by transfer' : 'Marked paid', owes: false };
   }
   if (p.status === PaymentStatus.WAIVED) return { key: 'free', label: before ? 'Plays free' : 'Played free', owes: false };
-  // Part paid by transfer: say what's in and what's left.
-  if (p.paidSoFar) return { key: 'to_pay', label: `${formatCurrency(p.paidSoFar)} paid · ${formatCurrency(leftToPay(p))} left`, owes: true };
+  // Part paid by transfer: what's left, in one line beside Mark paid (what's in shows in their options).
+  if (p.paidSoFar) return { key: 'to_pay', label: `${formatCurrency(leftToPay(p))} left to pay`, owes: true };
   // Before the game they've only said they're in: they pay once they've played (or ahead).
   return before
     ? { key: 'to_pay', label: 'Not paid yet', owes: true }

@@ -120,7 +120,7 @@ export function PlayerSheet({
             ? 'Free'
             : due.state === 'owes'
               ? due.paidSoFar
-                ? `${formatCurrency(due.paidSoFar)} paid · ${formatCurrency(due.amount)} left`
+                ? `${formatCurrency(due.amount)} left of ${formatCurrency(Number(due.amount) + Number(due.paidSoFar))}`
                 : `${formatCurrency(due.amount)} to pay`
               : 'Not in',
       tone: due.state === 'owes' ? 'text-amber-700' : due.state === 'paid' ? 'text-pitch-600' : 'text-gray-600',
@@ -269,7 +269,7 @@ export function PlayerSheet({
                 <div className="grid grid-cols-3 gap-1.5">
                   {(
                     [
-                      ['happy', 'Happy in goal'],
+                      ['happy', 'Happy'],
                       ['', 'Doesn’t mind'],
                       ['rather_not', 'Rather not'],
                     ] as const
@@ -279,7 +279,7 @@ export function PlayerSheet({
                       type="button"
                       aria-pressed={form.keeper === v}
                       onClick={() => setForm({ ...form, keeper: v })}
-                      className={`press min-h-11 px-2 rounded-xl border text-[13px] font-bold leading-tight ${
+                      className={`press min-h-11 px-2 rounded-xl border text-[13px] font-bold leading-tight whitespace-nowrap ${
                         form.keeper === v ? 'bg-ink border-ink text-white' : 'bg-white border-gray-200 text-ink hover:border-ink'
                       }`}
                     >

@@ -86,8 +86,8 @@ export const AWARD_KEYS: VoteCategory[] = [
   VoteCategory.MOVEMENT,
   VoteCategory.KEEPER,
 ];
-/** Up to five of the nine (Matt, 24 Oct; was three): enough to say what you saw, not so many one friend gets them all. */
-export const MAX_AWARDS = 5;
+/** Every award can be given (Matt, 24 Oct; was three). An award still needs AWARD_MIN_VOTERS different people before it names anyone. */
+export const MAX_AWARDS = AWARD_KEYS.length;
 /** Best VII of the Day: six starters and a sub, asked when there are at least 8 others to choose from. */
 export const VII_STARTERS = 6;
 const VII_MIN_OTHERS = 8;
@@ -110,6 +110,28 @@ const VOTE_UP_MAX = 20;
  * Player of the Match each add a bonus. Votes still shape the player card, not the table.
  */
 export const POINTS = { win: 3, draw: 1, teamOfDay: 2, potm: 3 };
+
+/** Which match days a table counts: the latest N, and/or between two dates (YYYY-MM-DD, inclusive). */
+export interface TableRange {
+  last?: number;
+  from?: string;
+  to?: string;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A table range from a link's query (?last=5, ?from=2026-10-01&to=2026-10-31); anything odd is left out. */
+export function tableRange(query: { last?: unknown; from?: unknown; to?: unknown }): TableRange {
+  const n = Number(query.last);
+  const day = (v: unknown) => (typeof v === 'string' && ISO_DAY.test(v) && !Number.isNaN(Date.parse(v)) ? v : undefined);
+  const out: TableRange = {};
+  if (Number.isInteger(n) && n >= 1 && n <= 52) out.last = n;
+  const from = day(query.from);
+  const to = day(query.to);
+  if (from) out.from = from;
+  if (to && (!from || to >= from)) out.to = to;
+  return out;
+}
 
 export function tablePoints(r: Pick<PlayerRatings, 'record' | 'teamOfDay' | 'potmWins'>) {
   return r.record.w * POINTS.win + r.record.d * POINTS.draw + r.teamOfDay * POINTS.teamOfDay + r.potmWins * POINTS.potm;
@@ -602,7 +624,7 @@ export class RatingsService {
   /**
    * One ballot: Player of the Match; the best on your own team (when teams were set); Best VII of
    * the Day, six starters and a sub with at least two from other teams (when enough played); and
-   * up to five awards, each optional. Nobody can pick themselves or anyone who didn't play.
+   * any of the awards, each optional. Nobody can pick themselves or anyone who didn't play.
    */
   async submitVotes(token: string, playerIds: string[], picks: Record<string, string | string[] | null | undefined>) {
     const session = await this.loadSessionByToken(token);
@@ -1886,13 +1908,16 @@ export class RatingsService {
    * lost, L fewer, D level; from the latest six), and `move`, places up (+) or down since before the latest match
    * day (null when they weren't in the table then).
    */
-  async getGroupTable(groupId: string, organizationId: string, lastDays?: number) {
+  async getGroupTable(groupId: string, organizationId: string, range?: number | TableRange) {
+    const { last: lastDays, from, to } = typeof range === 'number' ? { last: range, from: undefined, to: undefined } : (range ?? {});
     const group = await this.groupsRepo.findOne({ where: { id: groupId, organizationId } });
     if (!group) throw new NotFoundException('Group not found');
     const all = await this.gamesQuery(organizationId).andWhere('session.groupId = :groupId', { groupId }).getMany();
     // Oldest first, so the latest match days are at the end.
     all.sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.createdAt.getTime() - b.createdAt.getTime());
-    const sessions = lastDays ? all.slice(-lastDays) : all;
+    // A date range (this month, last month, this year), then the latest N match days of it.
+    const inRange = all.filter((x) => (!from || String(x.date).slice(0, 10) >= from) && (!to || String(x.date).slice(0, 10) <= to));
+    const sessions = lastDays ? inRange.slice(-lastDays) : inRange;
     const skills = await this.skills(organizationId);
     // Ranked by the card's rating (Matt, 24 Oct): 40% goals and assists, 40% votes, 20% results,
     // so a player isn't top just for being on the winning side. The card's number is the club's,
@@ -1974,12 +1999,15 @@ export class RatingsService {
    * A group's table for its share link, found by the group's join-link code (already public, and
    * the organiser can reset it): names, faces and points only, nothing about money. The top ten.
    */
-  async getPublicTable(code: string, lastDays?: number) {
+  async getPublicTable(code: string, range?: number | TableRange) {
+    const lastDays = typeof range === 'number' ? range : range?.last;
     const group = await this.groupsRepo.findOne({ where: { inviteCode: code }, relations: ['organization'] });
     if (!group) throw new NotFoundException('This table link is not valid any more.');
-    const t = await this.getGroupTable(group.id, group.organizationId, lastDays);
+    const t = await this.getGroupTable(group.id, group.organizationId, range);
     return {
       groupName: group.name,
+      from: typeof range === 'object' ? (range.from ?? null) : null,
+      to: typeof range === 'object' ? (range.to ?? null) : null,
       clubName: group.organization?.name ?? null,
       games: t.games,
       last: lastDays ?? null,

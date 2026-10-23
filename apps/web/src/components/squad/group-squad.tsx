@@ -221,6 +221,15 @@ export function GroupSquad({
   const inCount = members.filter((m) => m.coming).length;
   const outCount = members.filter((m) => m.coming === false).length;
   const newCount = members.filter((m) => m.fresh).length;
+  const filterOptions = (
+    [
+      { value: 'all', label: `Everyone · ${memberCount}`, show: true },
+      { value: 'in', label: `Coming · ${inCount}`, show: !!nextGame },
+      { value: 'out', label: `Not in yet · ${outCount}`, show: !!nextGame && outCount > 0 },
+      { value: 'new', label: `New · ${newCount}`, show: newCount > 0 },
+    ] as { value: typeof memberFilter; label: string; show: boolean }[]
+  ).filter((f) => f.show);
+  const filterSays = { all: '', in: `${inCount} coming to ${nextLabel}`, out: `${outCount} not in yet for ${nextLabel}`, new: `${newCount} new in the last 30 days` }[memberFilter];
   const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
   const LEVEL: Record<string, string> = { beginner: 'Beginner', average: 'Average', good: 'Good', strong: 'Strong' };
   const q = query.trim().toLowerCase();
@@ -360,7 +369,9 @@ export function GroupSquad({
                   {inCount}
                   {group.targetPlayers > 0 && <span className="text-[13px] font-bold text-gray-400"> / {group.targetPlayers}</span>}
                 </p>
-                <p className="mt-1 text-[12px] leading-snug text-gray-600">coming {nextLabel} ›</p>
+                <p className="mt-1 text-[12px] leading-snug text-gray-600">
+                  coming <span className="whitespace-nowrap">{nextLabel} ›</span>
+                </p>
               </Link>
             ) : (
               <div className="rounded-2xl bg-white border border-gray-100 shadow-card px-3 py-2.5">
@@ -391,13 +402,28 @@ export function GroupSquad({
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search name or nickname"
+                  placeholder="Search players"
                   aria-label="Search the squad"
                   className="w-full min-h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-2xl text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600"
                 />
               </div>
             ) : (
               <span className="flex-1" />
+            )}
+            {filterOptions.length > 1 && (
+              <FilterMenu
+                label="Show players"
+                title="Show"
+                value={memberFilter}
+                onChange={setMemberFilter}
+                columns={2}
+                options={filterOptions}
+                icon={
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5.25h18M6.75 12h10.5M10.5 18.75h3" />
+                  </svg>
+                }
+              />
             )}
             <FilterMenu
               label="Sort players"
@@ -422,33 +448,16 @@ export function GroupSquad({
             </p>
           )}
 
-          <div className="mt-3 flex items-center gap-2">
-            <div role="radiogroup" aria-label="Show" className="flex-1 min-w-0 -mx-4 px-4 flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {(
-                [
-                  { key: 'all', label: 'All', n: memberCount, show: true },
-                  { key: 'in', label: 'Coming', n: inCount, show: !!nextGame },
-                  { key: 'out', label: 'Not in yet', n: outCount, show: !!nextGame && outCount > 0 },
-                  { key: 'new', label: 'New', n: newCount, show: newCount > 0 },
-                ] as { key: typeof memberFilter; label: string; n: number; show: boolean }[]
-              )
-                .filter((f) => f.show)
-                .map((f) => (
-                  <button
-                    key={f.key}
-                    role="radio"
-                    aria-checked={memberFilter === f.key}
-                    onClick={() => setMemberFilter(f.key)}
-                    aria-label={f.key === 'in' ? `Coming to ${nextLabel}: ${f.n}` : undefined}
-                    className={`press shrink-0 min-h-11 px-3.5 text-[13px] font-bold rounded-full border whitespace-nowrap tabular-nums transition-colors ${
-                      memberFilter === f.key ? 'bg-ink border-ink text-volt-300' : 'bg-white border-gray-200 text-gray-700 hover:border-ink'
-                    }`}
-                  >
-                    {f.label} {f.n}
-                  </button>
-                ))}
-            </div>
-          </div>
+          {memberFilter !== 'all' && (
+            <p className="mt-2 px-1 flex items-center justify-between gap-3 text-[13px] text-gray-600" role="status">
+              <span className="min-w-0">
+                Showing <b className="text-ink">{filterSays}</b>
+              </span>
+              <button onClick={() => setMemberFilter('all')} className="shrink-0 min-h-11 px-1 font-bold text-pitch-700 hover:text-ink">
+                Show all
+              </button>
+            </p>
+          )}
 
           {shown.length === 0 && !(offerMe && !q && memberFilter === 'all') ? (
             <p className="mt-6 text-sm text-gray-600 text-center">

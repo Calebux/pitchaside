@@ -4,7 +4,7 @@ import { Type } from 'class-transformer';
 import { MATCH_EVENT_KINDS, type MatchEventKind } from './entities/match-event.entity';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
-import { RatingsService } from './ratings.service';
+import { RatingsService, tableRange } from './ratings.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
@@ -262,10 +262,9 @@ export class RatingsController {
   }
 
   @Get('groups/:id/table')
-  groupTable(@Param('id') id: string, @Query('last') last: string | undefined, @CurrentUser() user: User) {
-    // "Last 5 match days": any whole number from 1 to 52; anything else means the whole season.
-    const n = Number(last);
-    return this.ratings.getGroupTable(id, user.organizationId, Number.isInteger(n) && n >= 1 && n <= 52 ? n : undefined);
+  groupTable(@Param('id') id: string, @Query() query: { last?: string; from?: string; to?: string }, @CurrentUser() user: User) {
+    // "Last 5 match days" (1–52) and/or a date range; anything else means the whole season.
+    return this.ratings.getGroupTable(id, user.organizationId, tableRange(query));
   }
 
   @Get('players/:id/ratings')
@@ -312,9 +311,8 @@ export class PublicTableController {
   /** Fetched by the web server for every viewer of the shared table, like the match card. */
   @Throttle({ default: { limit: 300, ttl: 60_000 } })
   @Get(':code/table')
-  table(@Param('code') code: string, @Query('last') last?: string) {
-    const n = Number(last);
-    return this.ratings.getPublicTable(code, Number.isInteger(n) && n > 0 && n <= 52 ? n : undefined);
+  table(@Param('code') code: string, @Query() query: { last?: string; from?: string; to?: string }) {
+    return this.ratings.getPublicTable(code, tableRange(query));
   }
 }
 

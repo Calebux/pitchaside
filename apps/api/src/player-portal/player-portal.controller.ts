@@ -20,6 +20,7 @@ import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
 import { AwayDto, EventDto, GameDto, GoalDto } from '../ratings/ratings.controller';
 import { KEEPER_PREFS } from '../ratings/plan';
+import { tableRange } from '../ratings/ratings.service';
 import type { KeeperPref } from '@pitchaside/shared';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
@@ -334,9 +335,8 @@ export class PlayerPortalController {
 
   /** The Club tab: a group's table (all season, or the last N match days), for a group they play in. */
   @Get('groups/:groupId/table')
-  groupTable(@Param('groupId') groupId: string, @Query('last') last: string | undefined, @CurrentPerson() person: Person) {
-    const n = Number(last);
-    return this.portal.groupTable(person, groupId, Number.isInteger(n) && n >= 1 && n <= 52 ? n : undefined);
+  groupTable(@Param('groupId') groupId: string, @Query() query: { last?: string; from?: string; to?: string }, @CurrentPerson() person: Person) {
+    return this.portal.groupTable(person, groupId, tableRange(query));
   }
 
   /** The Club tab's Stats ranked by rating: each player's stats, votes and results parts. */

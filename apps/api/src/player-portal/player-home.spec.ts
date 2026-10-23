@@ -55,9 +55,9 @@ describe('PlayerPortalService Club tab', () => {
 
   it("shows the table and ratings for a group they're in, with that group's club", async () => {
     const { svc, ratings } = service();
-    await svc.groupTable(person, 'mine', 5);
+    await svc.groupTable(person, 'mine', { last: 5 });
     await svc.groupRatings(person, 'mine');
-    expect(ratings.getGroupTable).toHaveBeenCalledWith('mine', 'club', 5);
+    expect(ratings.getGroupTable).toHaveBeenCalledWith('mine', 'club', { last: 5 });
     expect(ratings.getRatingTrial).toHaveBeenCalledWith('mine', 'club');
   });
 
