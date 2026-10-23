@@ -10,6 +10,7 @@ import { savePlan, type Lineup, type TeamKey } from '@/lib/api';
 import { teamName } from '@/lib/teams';
 import { useToast } from '@/components/toast';
 import { buildDay, clockAt } from '@/lib/match-plan';
+import { WS_DEFAULTS } from '@/lib/winner-stays';
 
 type Settings = Omit<MatchPlan, 'away'>;
 
@@ -97,11 +98,20 @@ export function PlanSetupSheet({
   const toast = useToast();
   const start: Settings = lineup.plan ?? lineup.lastPlan ?? { pitchMinutes: 60, gameMinutes, onPitch: 5, swapMinutes: 0 };
   const [s, setS] = useState<Settings>({
+    format: start.format ?? 'schedule',
     pitchMinutes: start.pitchMinutes,
     gameMinutes: start.gameMinutes,
     onPitch: start.onPitch,
     swapMinutes: start.swapMinutes,
+    firstMinutes: start.firstMinutes ?? WS_DEFAULTS.firstMinutes,
+    firstTo: start.firstTo ?? WS_DEFAULTS.firstTo,
+    twoAndOff: start.twoAndOff ?? WS_DEFAULTS.twoAndOff,
   });
+  const ws = s.format === 'winner_stays';
+  // Winner stays needs someone waiting: not with 2 teams.
+  const wsPossible = lineup.teamCount >= 3;
+  // Once a score is in, the day's format is set.
+  const formatLocked = !!lineup.plan && lineup.locked;
   const [saving, setSaving] = useState<'save' | 'remove' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<Settings>) => setS((x) => ({ ...x, ...patch }));
@@ -118,9 +128,13 @@ export function PlanSetupSheet({
 
   // Things worth knowing before saving, said plainly.
   const notes: string[] = [];
-  if (sides.length > 2 && fewest !== most) notes.push(`Some teams play ${most} games and some ${fewest}: there isn’t time for everyone to play the same number.`);
-  if (sides.length > 2 && day.fixtures.length < (sides.length * (sides.length - 1)) / 2) notes.push('Not every team plays every other team: the booking is too short.');
-  if (last && last.minutes !== s.gameMinutes) notes.push(`The last game is ${last.minutes} min, to use the whole booking.`);
+  if (ws) {
+    if (sides.length === 3) notes.push('With 3 teams, after a draw one of the two going off comes straight back on: only one team is waiting.');
+    if (sides.length >= 5) notes.push(`With ${sides.length} teams there may not be time for every team to play every other.`);
+  }
+  if (!ws && sides.length > 2 && fewest !== most) notes.push(`Some teams play ${most} games and some ${fewest}: there isn’t time for everyone to play the same number.`);
+  if (!ws && sides.length > 2 && day.fixtures.length < (sides.length * (sides.length - 1)) / 2) notes.push('Not every team plays every other team: the booking is too short.');
+  if (!ws && last && last.minutes !== s.gameMinutes) notes.push(`The last game is ${last.minutes} min, to use the whole booking.`);
   const picked = sizes.filter((x) => x.n > 0);
   if (!picked.length) notes.push('Pick the teams to see each player’s swaps.');
   for (const { t, n } of picked) if (n < s.onPitch) notes.push(`${teamName(t as TeamKey, lineup.captains, lineup.bibs)} has ${n}, fewer than ${s.onPitch}: nobody sits out.`);
@@ -156,7 +170,9 @@ export function PlanSetupSheet({
               {error}
             </p>
           )}
-          <button onClick={() => save(s)} disabled={!!saving || s.gameMinutes > s.pitchMinutes} className={`${btnPrimary} w-full`}>
+          <button
+            onClick={() => save(ws ? s : { format: 'schedule', pitchMinutes: s.pitchMinutes, gameMinutes: s.gameMinutes, onPitch: s.onPitch, swapMinutes: s.swapMinutes })}
+            disabled={!!saving || s.gameMinutes > s.pitchMinutes || (ws && !wsPossible)} className={`${btnPrimary} w-full`}>
             {saving === 'save' && <BallSpinner />}
             {lineup.plan ? 'Save the changes' : 'Save the plan'}
           </button>
@@ -176,6 +192,41 @@ export function PlanSetupSheet({
         onClose={onClose}
       />
       <div className="mt-5 space-y-5">
+        {/* How the day is played: the rest of the sheet follows it */}
+        <div>
+          <p id={`${titleId}-format`} className="text-[13px] font-bold text-ink">
+            How do you play today?
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby={`${titleId}-format`}>
+            {(
+              [
+                ['schedule', 'Everyone plays everyone', 'Set games and times, worked out now'],
+                ['winner_stays', 'Winner stays', 'Who comes on is worked out from each result'],
+              ] as const
+            ).map(([value, label, sub]) => {
+              const on = s.format === value;
+              const off = (value === 'winner_stays' && !wsPossible) || (formatLocked && !on);
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={off}
+                  onClick={() => set({ format: value })}
+                  className={`press min-h-[88px] p-3 rounded-2xl border text-left transition-colors disabled:opacity-45 ${
+                    on ? 'bg-ink border-ink text-white' : 'bg-white border-gray-200 text-ink hover:border-ink'
+                  }`}
+                >
+                  <span className="block text-[14px] font-bold leading-tight">{label}</span>
+                  <span className={`block mt-1 text-[12px] leading-snug ${on ? 'text-white/70' : 'text-gray-500'}`}>{sub}</span>
+                </button>
+              );
+            })}
+          </div>
+          {!wsPossible && <p className="mt-1.5 px-1 text-[12px] text-gray-500">Winner stays needs 3 teams or more, so someone is waiting.</p>}
+          {formatLocked && <p className="mt-1.5 px-1 text-[12px] text-gray-500">The day has started, so the format stays as it is.</p>}
+        </div>
         <Picker
           id={`${titleId}-pitch`}
           label="The pitch is booked for"
@@ -189,17 +240,67 @@ export function PlanSetupSheet({
           format={hours}
           onChange={(v) => set({ pitchMinutes: v, gameMinutes: Math.min(s.gameMinutes, v) })}
         />
-        <Picker
-          id={`${titleId}-game`}
-          label="Each game lasts"
-          hint="Minutes. The timer is set to this too."
-          value={s.gameMinutes}
-          quick={[5, 7, 10, 15]}
-          min={1}
-          max={Math.min(60, s.pitchMinutes)}
-          unit="minutes"
-          onChange={(v) => set({ gameMinutes: v })}
-        />
+        {ws ? (
+          <>
+            <Picker
+              id={`${titleId}-first`}
+              label="First-round games last"
+              hint="Minutes, until every team has played once. Winner stays, loser off, whatever the score; level, both off."
+              value={s.firstMinutes ?? WS_DEFAULTS.firstMinutes}
+              quick={[5, 7, 10, 15]}
+              min={1}
+              max={Math.min(60, s.pitchMinutes)}
+              unit="minutes"
+              onChange={(v) => set({ firstMinutes: v })}
+            />
+            <Picker
+              id={`${titleId}-to`}
+              label="After that, a team goes off when it concedes"
+              hint="Goals."
+              value={s.firstTo ?? WS_DEFAULTS.firstTo}
+              quick={[1, 2, 3]}
+              min={1}
+              max={5}
+              unit="goals"
+              onChange={(v) => set({ firstTo: v })}
+            />
+            <Picker
+              id={`${titleId}-limit`}
+              label="Or when time’s up"
+              hint="Minutes. The team ahead wins; level, both go off."
+              value={s.gameMinutes}
+              quick={[5, 8, 10, 15]}
+              min={1}
+              max={Math.min(60, s.pitchMinutes)}
+              unit="minutes"
+              onChange={(v) => set({ gameMinutes: v })}
+            />
+            <label className="flex items-start gap-3 rounded-2xl bg-white border border-gray-200 p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={s.twoAndOff !== false}
+                onChange={(e) => set({ twoAndOff: e.target.checked })}
+                className="mt-0.5 w-5 h-5 shrink-0 accent-pitch-700"
+              />
+              <span>
+                <span className="block text-[14px] font-bold text-ink">Two wins in a row and off</span>
+                <span className="block text-[12px] leading-snug text-gray-500">A team that wins twice goes off too, so one strong team can’t stay on all day.</span>
+              </span>
+            </label>
+          </>
+        ) : (
+          <Picker
+            id={`${titleId}-game`}
+            label="Each game lasts"
+            hint="Minutes. The timer is set to this too."
+            value={s.gameMinutes}
+            quick={[5, 7, 10, 15]}
+            min={1}
+            max={Math.min(60, s.pitchMinutes)}
+            unit="minutes"
+            onChange={(v) => set({ gameMinutes: v })}
+          />
+        )}
         <Picker
           id={`${titleId}-on`}
           label="Players on the pitch per team"
@@ -226,6 +327,18 @@ export function PlanSetupSheet({
 
         {/* What that makes */}
         <div className="rounded-3xl bg-chalk p-4" aria-live="polite">
+          {ws ? (
+            <>
+              <p className="font-display text-[22px] leading-tight font-extrabold text-ink tabular-nums">
+                Winner stays<span className="text-gray-500"> · at least {Math.max(1, Math.floor(s.pitchMinutes / Math.max(s.gameMinutes, s.firstMinutes ?? 10)))} games</span>
+              </p>
+              <p className="mt-1 text-[13px] leading-snug text-gray-600">
+                The app says who comes on after each saved score: the team that has played least, then one the team staying on hasn’t played yet.
+                {ends ? ` Last whistle at ${ends}.` : ''}
+              </p>
+            </>
+          ) : (
+          <>
           <p className="font-display text-[22px] leading-tight font-extrabold text-ink tabular-nums">
             {day.fixtures.length} game{day.fixtures.length === 1 ? '' : 's'}
             {sides.length > 2 && <span className="text-gray-500"> · each team plays {fewest === most ? most : `${fewest}–${most}`}</span>}
@@ -238,6 +351,8 @@ export function PlanSetupSheet({
                 : 'The same two teams, game after game.'}
             {ends ? ` Last whistle at ${ends}.` : ''}
           </p>
+          </>
+          )}
           {notes.length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {notes.map((n) => (
@@ -250,7 +365,8 @@ export function PlanSetupSheet({
           )}
         </div>
         <p className="text-[12px] leading-snug text-gray-500">
-          Players say in their app if they’re happy in goal. Running late? The last game gets shorter so you still finish on time.
+          Players say in their app if they’re happy in goal.{' '}
+          {ws ? 'The last game ends when the booking does, whatever the score.' : 'Running late? The last game gets shorter so you still finish on time.'}
         </p>
       </div>
     </Sheet>

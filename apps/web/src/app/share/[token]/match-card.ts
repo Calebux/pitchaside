@@ -12,8 +12,10 @@ export interface MatchCard {
   ballots: number;
   squadSize: number;
   awards: { key: string; title: string; team?: string | null; captain?: string | null; name: string; votes: number; shared: boolean; ids?: string[] }[];
-  teamOfTheDay: { team: string; captain?: string | null; players: string[]; w: number; d: number; l: number; pts: number } | null;
-  standings: { team: string; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }[];
+  teamOfTheDay: { team: string; captain?: string | null; players: string[]; w: number; d: number; l: number; pts: number; ppg?: number } | null;
+  standings: { team: string; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number; ppg?: number }[];
+  /** Winner stays: the day is ranked by points per game (teams play different numbers of games). */
+  perGame?: boolean;
   games: { teamA: string; teamB: string; scoreA: number; scoreB: number }[];
   /** Each side's captain, for sides named after them. */
   captains?: Record<string, string>;

@@ -176,16 +176,21 @@ function Hero({ card, players }: { card: MatchCard; players: CardPlayer[] }) {
   );
 }
 
+/** A side's number on the day: points, or under winner stays points per game ("2.3"). */
+const dayValue = (card: MatchCard, r: { pts: number; ppg?: number }) => (card.perGame ? (r.ppg ?? 0) : r.pts);
+const dayLabel = (card: MatchCard, r: { pts: number; ppg?: number }) => (card.perGame ? (r.ppg ?? 0).toFixed(1) : String(r.pts));
+
 /** The day's points as bars in each side's bib colour, longest first; the winner's in volt type. */
 function DayBars({ card }: { card: MatchCard }) {
   const rows = card.standings.filter((r) => r.p > 0).slice(0, 4);
-  const max = Math.max(1, ...rows.map((r) => r.pts));
-  const barMax = 170;
+  const max = Math.max(card.perGame ? 0.1 : 1, ...rows.map((r) => dayValue(card, r)));
+  // "2.3" is wider than "9": a little less bar, a little more room for the number.
+  const barMax = card.perGame ? 150 : 170;
   return (
     <div style={{ ...PANEL, display: 'flex', flexDirection: 'column', flex: 1, padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <div style={LABEL}>THE DAY</div>
-        <div style={{ ...LABEL, color: C.muted }}>PTS</div>
+        <div style={{ ...LABEL, color: C.muted }}>{card.perGame ? 'PTS PER GAME' : 'PTS'}</div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-around', marginTop: 8 }}>
         {rows.map((r, i) => {
@@ -196,10 +201,10 @@ function DayBars({ card }: { card: MatchCard }) {
               <div style={{ display: 'flex', width: 30, fontFamily: DISPLAY, fontWeight: 800, fontSize: 24, color: won ? C.volt300 : C.muted }}>{i + 1}</div>
               <div style={{ ...oneLine, width: 196, paddingRight: 12, fontSize: 23, fontWeight: 700, color: won ? C.volt300 : '#ffffff' }}>{s.name}</div>
               <div style={{ display: 'flex', flex: 1, alignItems: 'center' }}>
-                <div style={{ display: 'flex', width: Math.max(10, Math.round((barMax * r.pts) / max)), height: 24, borderRadius: 8, background: s.bg, border: `2px solid ${C.ink}` }} />
+                <div style={{ display: 'flex', width: Math.max(10, Math.round((barMax * dayValue(card, r)) / max)), height: 24, borderRadius: 8, background: s.bg, border: `2px solid ${C.ink}` }} />
                 <div style={{ display: 'flex', marginLeft: 10, fontSize: 16, fontWeight: 700, color: C.muted }}>{`${r.w}-${r.d}-${r.l}`}</div>
               </div>
-              <div style={{ display: 'flex', width: 44, justifyContent: 'flex-end', fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, color: won ? C.volt300 : '#ffffff' }}>{r.pts}</div>
+              <div style={{ display: 'flex', width: card.perGame ? 60 : 44, justifyContent: 'flex-end', fontFamily: DISPLAY, fontWeight: 800, fontSize: 30, color: won ? C.volt300 : '#ffffff' }}>{dayLabel(card, r)}</div>
             </div>
           );
         })}
@@ -217,12 +222,12 @@ function Winners({ card, width }: { card: MatchCard; width: number }) {
   const panel = { ...PANEL, display: 'flex', flexDirection: 'column', width, padding: '20px 24px' } as const;
   if (!tod) {
     const top = card.standings.filter((r) => r.p > 0);
-    const level = top.filter((r) => r.pts === top[0]?.pts).map((r) => side(r.team, card).name);
+    const level = top.filter((r) => dayValue(card, r) === dayValue(card, top[0])).map((r) => side(r.team, card).name);
     return (
       <div style={panel}>
         <div style={LABEL}>TEAM OF THE DAY</div>
         <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, lineHeight: 1.05, marginTop: 14 }}>Level at the top</div>
-        <div style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', lineClamp: 2, fontSize: 22, color: C.muted, marginTop: 8 }}>{`${level.join(' and ')} finished on ${top[0]?.pts ?? 0} points`}</div>
+        <div style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', lineClamp: 2, fontSize: 22, color: C.muted, marginTop: 8 }}>{card.perGame ? `${level.join(' and ')} finished on ${top[0] ? dayLabel(card, top[0]) : '0'} points a game` : `${level.join(' and ')} finished on ${top[0]?.pts ?? 0} points`}</div>
       </div>
     );
   }
@@ -243,8 +248,8 @@ function Winners({ card, width }: { card: MatchCard; width: number }) {
         <div style={{ display: 'flex', width: 22, height: 22, borderRadius: 6, background: s.bg, border: `2px solid ${C.ink}`, marginRight: 12, flexShrink: 0 }} />
         <div style={{ ...oneLine, flex: 1, minWidth: 0, fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, lineHeight: 1.1 }}>{s.name}</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, marginLeft: 12 }}>
-          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, color: C.volt300 }}>{tod.pts}</div>
-          <div style={{ display: 'flex', fontSize: 15, fontWeight: 700, letterSpacing: 2, color: C.volt300 }}>PTS</div>
+          <div style={{ display: 'flex', fontFamily: DISPLAY, fontWeight: 800, fontSize: 36, color: C.volt300 }}>{dayLabel(card, tod)}</div>
+          <div style={{ display: 'flex', fontSize: 15, fontWeight: 700, letterSpacing: 2, color: C.volt300 }}>{card.perGame ? 'PER GAME' : 'PTS'}</div>
         </div>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 'auto' }}>

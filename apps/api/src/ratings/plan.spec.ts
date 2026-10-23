@@ -63,3 +63,24 @@ describe('withKeepers', () => {
     expect(cleanPlan({ pitchMinutes: 60, gameMinutes: 7, onPitch: 5, keepers: { a: 'happy' } })).not.toHaveProperty('keepers');
   });
 });
+
+describe('cleanPlan: winner stays', () => {
+  const base = { pitchMinutes: 120, gameMinutes: 10, onPitch: 6, swapMinutes: 5 };
+
+  it('fills in the usual rules', () => {
+    expect(cleanPlan({ ...base, format: 'winner_stays' })).toMatchObject({ format: 'winner_stays', firstMinutes: 10, firstTo: 2, twoAndOff: true });
+  });
+
+  it('keeps the organiser’s choices', () => {
+    expect(cleanPlan({ ...base, format: 'winner_stays', firstMinutes: 8, firstTo: 3, twoAndOff: false })).toMatchObject({ firstMinutes: 8, firstTo: 3, twoAndOff: false });
+  });
+
+  it('refuses odd values and unknown formats', () => {
+    expect(() => cleanPlan({ ...base, format: 'winner_stays', firstTo: 9 })).toThrow('Goals to go off');
+    expect(() => cleanPlan({ ...base, format: 'knockout' })).toThrow('Pick how you play');
+  });
+
+  it('a schedule plan carries no winner-stays fields', () => {
+    expect(cleanPlan({ ...base, format: 'schedule', firstTo: 2 })).not.toHaveProperty('firstTo');
+  });
+});

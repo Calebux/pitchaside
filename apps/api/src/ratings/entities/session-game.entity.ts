@@ -29,6 +29,10 @@ export class SessionGame {
   @Column({ name: 'score_b', type: 'int' })
   scoreB: number;
 
+  /** How long it lasted, from the timer when it was running; null when not known. */
+  @Column({ type: 'int', nullable: true })
+  seconds: number | null;
+
   /** "Tunde (organiser)", "Ada (captain)": who saved the score. */
   @Column({ name: 'recorded_by', type: 'varchar', nullable: true })
   recordedBy: string | null;

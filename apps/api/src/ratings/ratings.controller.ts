@@ -154,6 +154,13 @@ export class GameDto {
   @IsString()
   @MaxLength(40)
   clientKey?: string;
+
+  /** How long it lasted, from the timer (winner stays shares minutes out by it). */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(7200)
+  seconds?: number;
 }
 
 /** Organiser views: vote link + results per game, league table, player ratings. */
