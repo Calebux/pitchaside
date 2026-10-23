@@ -1,7 +1,7 @@
 'use client';
 
 import { retryKeys } from '@/lib/retry-keys';
-import { useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -17,6 +17,8 @@ import { Avatar } from '@/components/ratings';
 import { btnPrimary } from '@/components/buttons';
 import { useToast } from '@/components/toast';
 import { getTimer, setTimer } from '@/lib/api';
+import { DayPlan, type PlanClock } from '@/components/plan/day-plan';
+import { fixtures } from '@/lib/match-plan';
 
 const KEYS = Object.keys(TEAMS) as TeamKey[];
 
@@ -58,6 +60,9 @@ export function ScoresStep({
   timerWatch = false,
   canRemove = () => true,
   ended = false,
+  planRole = 'organiser',
+  planAway,
+  myTeam,
 }: {
   sessionId: string;
   lineup: Lineup;
@@ -78,6 +83,12 @@ export function ScoresStep({
   canRemove?: (recordedBy: string | null | undefined) => boolean;
   /** Full time: the results come first and adding a game is folded away. */
   ended?: boolean;
+  /** Who's looking at the day plan: the organiser sets it up, a captain follows it. */
+  planRole?: 'organiser' | 'captain';
+  /** A captain's route for "left early" in the plan. */
+  planAway?: (sessionId: string, playerId: string, at: number | null) => Promise<Lineup>;
+  /** A captain's own side, first in the plan's swaps. */
+  myTeam?: TeamKey | null;
 }) {
   const sideTitle = useId();
   const teams = KEYS.slice(0, lineup.teamCount);
@@ -115,6 +126,17 @@ export function ScoresStep({
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsaved]);
+  // The clock as the day plan follows it; a new key loads it again after the plan sets it.
+  const [clock, setClock] = useState<PlanClock | null>(null);
+  const [clockKey, setClockKey] = useState(0);
+  const onTimer = useCallback((t: PlanClock['timer'], offset: number) => setClock({ timer: t, offset }), []);
+  // With a plan, the score box starts on the plan's next game (until a goal is added to it).
+  const nextFixture = lineup.plan ? fixtures(lineup.teamCount, lineup.plan)[lineup.games.length] : undefined;
+  useEffect(() => {
+    if (!restored || unsaved || !nextFixture) return;
+    setDraft((d) => (d.teamA === nextFixture.teamA && d.teamB === nextFixture.teamB ? d : { ...d, teamA: nextFixture.teamA, teamB: nextFixture.teamB }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restored, nextFixture?.n, nextFixture?.teamA, nextFixture?.teamB]);
   // Asking who scored: for the game being played (`side`) or for one already saved (`gameId`).
   const [scoring, setScoring] = useState<{ team: TeamKey; side?: 'teamA' | 'teamB'; gameId?: string } | null>(null);
   // A saved game whose scorers are open.
@@ -539,10 +561,26 @@ export function ScoresStep({
         </>
       ) : (
         <>
-          {/* The match-day clock, above the score box while the day is on */}
+          {/* The day plan, then the match-day clock, above the score box while the day is on */}
           {timerOn && (
             <div className="mb-3 empty:hidden">
-              <GameTimer sessionId={sessionId} api={timer} watch={timerWatch} onError={onError} />
+              <DayPlan
+                sessionId={sessionId}
+                lineup={lineup}
+                onLineup={onLineup}
+                role={planRole}
+                live
+                clock={clock}
+                onClockChanged={() => setClockKey((k) => k + 1)}
+                onAway={planAway ? (playerId, at) => planAway(sessionId, playerId, at) : undefined}
+                myTeam={myTeam}
+              />
+            </div>
+          )}
+          {timerOn && (
+            // Captains only watch the clock: its light-on-dark strip needs the dark card behind it.
+            <div className={`mb-3 empty:hidden ${timerWatch ? 'rounded-2xl bg-ink' : ''}`}>
+              <GameTimer key={clockKey} sessionId={sessionId} api={timer} watch={timerWatch} onError={onError} onTimer={onTimer} />
             </div>
           )}
           {entry}

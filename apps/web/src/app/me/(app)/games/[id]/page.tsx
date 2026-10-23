@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { GameCard, LoadError, Section, daysFrom } from '@/components/player-ui';
+import { YourDay } from '@/components/plan/your-day';
 import { getPlayerGame, type GamePlayer, type PlayerGame } from '@/lib/player';
 
 /** One game from the player's side: their game card, where it is, and who's playing. */
@@ -60,7 +61,10 @@ export default function PlayerGamePage() {
             {game.status === 'cancelled' ? (
               <p className="text-sm font-semibold text-kit-600 bg-kit-500/10 rounded-2xl px-4 py-3">This game was cancelled.</p>
             ) : (
-              <GameCard game={game} onChange={load} showDetails={false} />
+              <>
+                <GameCard game={game} onChange={load} showDetails={false} />
+                {game.status === 'upcoming' && daysFrom(game.date) >= 0 && <YourDay sessionId={game.id} live={daysFrom(game.date) === 0} />}
+              </>
             )}
             {game.location && (
               <a

@@ -75,6 +75,8 @@ export interface IPlayer {
   email?: string | null;
   /** Level the organiser gave them; seeds their skill rating (null = average). */
   level?: PlayerLevel | null;
+  /** Happy in goal, or would rather not, for the match day plan's swaps; null: doesn't mind. */
+  keeper?: KeeperPref;
   createdAt: string;
 }
 
@@ -354,6 +356,25 @@ export interface GameTimer {
   startedAt: string | null;
   /** The server's time when sent, so every phone counts down from the same clock. */
   now: string;
+}
+
+// ── Match day plan: the day's games and each side's swaps ──
+
+/** Whether a player wants to go in goal when the swaps come round. Null: they don't mind. */
+export type KeeperPref = 'happy' | 'rather_not' | null;
+
+/** How the organiser set up the day. The games and swaps are worked out from it on every phone. */
+export interface MatchPlan {
+  /** How long the pitch is booked for, from kick-off. */
+  pitchMinutes: number;
+  /** How long each game lasts. */
+  gameMinutes: number;
+  /** Players on the pitch per side, keeper included. */
+  onPitch: number;
+  /** Swap players (and the keeper) every this many minutes; 0: no swaps. */
+  swapMinutes: number;
+  /** Players who left early: playerId → minutes after kick-off when they went. */
+  away?: Record<string, number>;
 }
 
 // ── Bibs: the colours a group's sides wear, and their names ──

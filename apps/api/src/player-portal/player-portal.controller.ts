@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsNumber, IsObject, IsOptional, IsString, Length, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +18,9 @@ import { PhotoDto } from '../players/dto/photo.dto';
 import { setAuthCookies, setPlayerAuthCookies, clearPlayerAuthCookies, COOKIE_NAMES } from '../auth/cookie.util';
 import { UsersService } from '../users/users.service';
 import { emailKey } from '../common/format.util';
-import { EventDto, GameDto, GoalDto } from '../ratings/ratings.controller';
+import { AwayDto, EventDto, GameDto, GoalDto } from '../ratings/ratings.controller';
+import { KEEPER_PREFS } from '../ratings/plan';
+import type { KeeperPref } from '@pitchaside/shared';
 
 const PHONE = /^[+\d][\d\s\-().]{6,}$/;
 
@@ -124,6 +126,13 @@ export class UpdateNameDto {
   @IsString()
   @MaxLength(24)
   nickname?: string;
+}
+
+/** Whether they're happy to go in goal when the plan swaps players round; null: don't mind. */
+export class KeeperDto {
+  @IsOptional()
+  @IsIn(KEEPER_PREFS)
+  keeper?: KeeperPref;
 }
 
 export class StartGroupDto {
@@ -379,6 +388,12 @@ export class PlayerPortalController {
     return this.portal.deleteEvent(person, id, eventId);
   }
 
+  /** A captain marks one of their players as gone early, or back. */
+  @Put('games/:id/match-day/away')
+  setAway(@Param('id') id: string, @Body() dto: AwayDto, @CurrentPerson() person: Person) {
+    return this.portal.setAway(person, id, dto.playerId, dto.at ?? null);
+  }
+
   @Delete('games/:id/match-day/goals/:goalId')
   deleteGoal(@Param('id') id: string, @Param('goalId') goalId: string, @CurrentPerson() person: Person) {
     return this.portal.deleteGoal(person, id, goalId);
@@ -437,6 +452,11 @@ export class PlayerPortalController {
   @Patch('account')
   updateName(@Body() dto: UpdateNameDto, @CurrentPerson() person: Person) {
     return this.playerAuth.updateName(person, dto.firstName, dto.lastName, dto.nickname);
+  }
+
+  @Patch('keeper')
+  setKeeper(@Body() dto: KeeperDto, @CurrentPerson() person: Person) {
+    return this.playerAuth.setKeeper(person, dto.keeper ?? null);
   }
 
   @Post('password')

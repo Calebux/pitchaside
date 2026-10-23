@@ -318,6 +318,7 @@ export class PlayerPortalService {
       lastName: person.lastName,
       nickname: person.players.find((p) => p.nickname)?.nickname ?? null,
       photoKey: person.players.find((p) => p.photoKey)?.photoKey ?? null,
+      keeper: person.players.find((p) => p.keeper)?.keeper ?? null,
       email: person.email,
       phone: person.phone,
       id: person.players[0]?.id ?? person.key,
@@ -549,6 +550,10 @@ export class PlayerPortalService {
 
   deleteEvent(person: Person, sessionId: string, eventId: string) {
     return this.ratings.captainDeleteEvent(sessionId, eventId, this.ids(person));
+  }
+
+  setAway(person: Person, sessionId: string, playerId: string, at: number | null) {
+    return this.ratings.captainSetAway(sessionId, this.ids(person), playerId, at);
   }
 
   pickTeam(person: Person, sessionId: string, team: string | null) {

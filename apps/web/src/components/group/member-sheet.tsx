@@ -12,7 +12,7 @@ import { useToast } from '@/components/toast';
 import { formatCurrency, removePlayerPhoto, setPlayerPhoto, updatePlayer } from '@/lib/api';
 import { Avatar } from '@/components/ratings';
 import { PhotoPicker } from '@/components/photo-picker';
-import type { IPlayer, PlayerLevel } from '@pitchaside/shared';
+import type { IPlayer, KeeperPref, PlayerLevel } from '@pitchaside/shared';
 
 export type MemberDue = { label: string; state: 'paid' | 'owes' | 'waived' | 'out'; amount: number; paidSoFar?: number } | null;
 
@@ -67,6 +67,7 @@ export function PlayerSheet({
     email: player.email ?? '',
     phone: player.phone ?? '',
     level: (player.level ?? 'average') as PlayerLevel,
+    keeper: (player.keeper ?? '') as Exclude<KeeperPref, null> | '',
   };
   const [form, setForm] = useState(initial);
   const [editing, setEditing] = useState(startEditing && canEdit);
@@ -85,6 +86,7 @@ export function PlayerSheet({
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
         level: form.level,
+        keeper: form.keeper || null,
       });
       onSaved(saved);
       setEditing(false);
@@ -258,6 +260,32 @@ export function PlayerSheet({
                 <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Optional" className={input} autoComplete="off" />
               </label>
               <PlayerLevelPicker value={form.level} onChange={(level) => setForm({ ...form, level })} />
+              <fieldset>
+                <legend className="block text-xs font-bold text-gray-700 mb-1">
+                  In goal <span className="font-semibold text-gray-500">(for the day plan’s swaps)</span>
+                </legend>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      ['happy', 'Happy in goal'],
+                      ['', 'Doesn’t mind'],
+                      ['rather_not', 'Rather not'],
+                    ] as const
+                  ).map(([v, label]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={form.keeper === v}
+                      onClick={() => setForm({ ...form, keeper: v })}
+                      className={`press min-h-11 px-2 rounded-xl border text-[13px] font-bold leading-tight ${
+                        form.keeper === v ? 'bg-ink border-ink text-white' : 'bg-white border-gray-200 text-ink hover:border-ink'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
               <button
                 onClick={save}
                 disabled={!changed || saving || !form.firstName.trim() || !form.lastName.trim()}

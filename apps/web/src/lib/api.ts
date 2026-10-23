@@ -1,4 +1,4 @@
-import type { Bibs, GroupScope } from '@pitchaside/shared';
+import type { Bibs, GroupScope, KeeperPref, MatchPlan } from '@pitchaside/shared';
 import type {
   ContributionsVisibility,
   IGroup,
@@ -205,6 +205,8 @@ export function updatePlayer(
     phone: string | null;
     email: string | null;
     level: PlayerLevel;
+    /** null: doesn't mind. */
+    keeper: KeeperPref;
   }>,
 ): Promise<IPlayer> {
   return http.patch<IPlayer>(`/players/${id}`, data);
@@ -857,7 +859,19 @@ export interface TeamStanding {
   pts: number;
 }
 
-export interface Lineup {
+/** The day's plan and what it's worked out from (see lib/match-plan). */
+export interface PlanInfo {
+  /** Null: no plan for this game yet. */
+  plan?: MatchPlan | null;
+  /** With no plan yet: the last one this group used, to start from. */
+  lastPlan?: MatchPlan | null;
+  /** "HH:mm", or null when the game has no kick-off time. */
+  kickoff?: string | null;
+  /** "YYYY-MM-DD": the swaps start from a different player each week. */
+  date?: string;
+}
+
+export interface Lineup extends PlanInfo {
   teamCount: number;
   /** Scores are in, so the teams are fixed until they're deleted. */
   locked: boolean;
@@ -868,7 +882,7 @@ export interface Lineup {
   /** Each side's bib colour and name for this game (its own, else the group's). */
   bibs?: Bibs;
   /** `paid`: for this game, or for the dues period it falls in when dues cover games. */
-  squad: (SquadMember & { team: TeamKey | null; captain: boolean; vice?: boolean; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
+  squad: (SquadMember & { team: TeamKey | null; captain: boolean; vice?: boolean; keeper?: KeeperPref; ovr: number | null; skill: number; paid?: 'paid' | 'unpaid' | 'waived' })[];
   games: MatchGame[];
   /** Cards and saves recorded today, oldest first. */
   events: MatchEvent[];
@@ -890,6 +904,16 @@ export function saveLineup(
   },
 ): Promise<Lineup> {
   return http.put(`/sessions/${sessionId}/lineup`, data);
+}
+
+/** Set up the day's plan, or take it away (null). */
+export function savePlan(sessionId: string, plan: Omit<MatchPlan, 'away'> | null): Promise<Lineup> {
+  return http.put(`/sessions/${sessionId}/plan`, { plan });
+}
+
+/** Someone left early (`at`: minutes after kick-off), or is back (null). */
+export function setPlanAway(sessionId: string, playerId: string, at: number | null): Promise<Lineup> {
+  return http.put(`/sessions/${sessionId}/plan/away`, { playerId, at });
 }
 
 /** The match-day clock. */
