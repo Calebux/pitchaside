@@ -4,7 +4,8 @@ import { Avatar } from '@/components/ratings';
 import { useId, useState, type CSSProperties } from 'react';
 import { Sheet } from '@/components/sheet';
 import { SheetTitle } from '@/components/home/sheet-title';
-import { btnPrimary } from '@/components/buttons';
+import { btnPrimary, btnSecondary } from '@/components/buttons';
+import { WhatsAppGlyph } from '@/components/game/group-message-sheet';
 import { buzz, stagger } from '@/components/motion';
 import { endGame, formatCurrency, type ISessionWithDetails } from '@/lib/api';
 import { gameTally, playerState, leftToPay } from '@/lib/game-player';
@@ -19,11 +20,14 @@ export function EndGameSheet({
   session,
   coveredByDues,
   onEnded,
+  onSendToGroup,
   onClose,
 }: {
   session: ISessionWithDetails;
   coveredByDues: boolean;
   onEnded: (s: ISessionWithDetails) => void;
+  /** Full time: the vote link for the group chat too (the players who came already have it). */
+  onSendToGroup?: (s: ISessionWithDetails) => void;
   onClose: () => void;
 }) {
   const titleId = useId();
@@ -71,9 +75,21 @@ export function EndGameSheet({
         titleId={titleId}
         onClose={() => onEnded(done)}
         footer={
-          <button onClick={() => onEnded(done)} className={`${btnPrimary} w-full`}>
-            Done
-          </button>
+          onSendToGroup && tally.playing >= 2 ? (
+            <div className="flex gap-2">
+              <button onClick={() => onEnded(done)} className={`${btnSecondary} shrink-0 w-[36%]`}>
+                Done
+              </button>
+              <button onClick={() => onSendToGroup(done)} className={`${btnPrimary} flex-1`}>
+                <WhatsAppGlyph className="w-5 h-5" />
+                Send to the group
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => onEnded(done)} className={`${btnPrimary} w-full`}>
+              Done
+            </button>
+          )
         }
       >
         <div className="flex flex-col items-center text-center pt-2">

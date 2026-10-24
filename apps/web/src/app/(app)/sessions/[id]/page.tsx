@@ -50,6 +50,7 @@ import { MatchQrSheet } from '@/components/game/match-qr-sheet';
 import { EditGameSheet } from '@/components/game/edit-game-sheet';
 import { PlayerList, type PlayerAction } from '@/components/game/player-list';
 import { EndGameSheet } from '@/components/game/end-game-sheet';
+import { GroupMessageSheet, SEND_KINDS, type SendKind } from '@/components/game/group-message-sheet';
 import { coveredByDues as coversByDues, gamePhase, gameTally, leftToPay } from '@/lib/game-player';
 import { AddToGameSheet } from '@/components/game/add-to-game-sheet';
 import { MovePaymentSheet } from '@/components/game/move-payment-sheet';
@@ -77,6 +78,8 @@ export default function GamePage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [reminding, setReminding] = useState(false);
   const [ending, setEnding] = useState(false);
+  // The message for the group chat, ready to send: from a notice's link, or after End game.
+  const [sending, setSending] = useState<{ kind: SendKind; justEnded?: { came: number } } | null>(null);
   // Match day in four steps, one on screen at a time: players, teams, scores, full time.
   const [step, setStep] = useState<Step | null>(null);
   const [lineup, setLineup] = useState<Lineup | null | undefined>(undefined);
@@ -179,6 +182,15 @@ export default function GamePage() {
     );
     // From the home's "End game": straight into who came.
     if (new URLSearchParams(window.location.search).get('end') === '1' && session.status === SessionStatus.UPCOMING) setEnding(true);
+    // From a "send it to the group" notice: the message, ready. Taken off the address so a
+    // refresh or the back button doesn't open it again.
+    const send = new URLSearchParams(window.location.search).get('send') as SendKind | null;
+    if (send && SEND_KINDS.includes(send)) {
+      setSending({ kind: send });
+      const url = new URL(window.location.href);
+      url.searchParams.delete('send');
+      window.history.replaceState(null, '', url);
+    }
   }, [session, step, lineup]);
 
   function chooseStep(t: Step) {
@@ -483,6 +495,27 @@ export default function GamePage() {
             setSession(s);
             fetchSession();
           }}
+          onSendToGroup={(s) => {
+            // Full time: the players who came have the vote link; this is the group chat's copy.
+            setEnding(false);
+            setSession(s);
+            fetchSession();
+            const came = (s.payments ?? []).filter((p) => p.attendance !== 'no_show').length;
+            window.setTimeout(() => setSending({ kind: 'vote', justEnded: { came } }), 320);
+          }}
+        />
+      )}
+
+      {sending && (
+        <GroupMessageSheet
+          kind={sending.kind}
+          justEnded={sending.justEnded}
+          session={session}
+          link={billing?.link ?? null}
+          inCount={tally.playing}
+          places={Number(session.group?.targetPlayers ?? 0) || undefined}
+          when={`${gameLabel(session)}${(session.kickoffTime || session.group?.kickoffTime) ? ` · ${prettyTime((session.kickoffTime || session.group?.kickoffTime)!)}` : ''}`}
+          onClose={() => setSending(null)}
         />
       )}
 

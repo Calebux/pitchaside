@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FaceStack } from '@/components/people-row';
-import { Avatar } from '@/components/ratings';
+import { Avatar, VoteClock } from '@/components/ratings';
 import { PushToggle } from '@/components/pwa';
 import { DidYouKnow } from '@/components/onboarding/did-you-know';
 import { GameCard, GameRow, LoadError, Section, niceDate } from '@/components/player-ui';
@@ -180,6 +180,8 @@ export default function PlayerHomePage() {
                 <span className="block text-xs text-ink/70 truncate">
                   {v.groupName} · {niceDate(v.date, { weekday: 'short', day: 'numeric', month: 'short' })}
                 </span>
+                {/* How long is left: a quiet line, then a countdown in the last 3 hours */}
+                <VoteClock closesAt={v.closesAt} tone="sun" className="mt-1 block w-fit" />
                 {/* Turnout, with the faces of who's voted: nobody is named for not voting */}
                 {v.squadSize ? (
                   <span className="mt-1.5 flex items-center gap-2">

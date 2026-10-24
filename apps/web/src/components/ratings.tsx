@@ -386,7 +386,11 @@ export function SessionVotingCard({
               <div className="bg-ink h-2 rounded-full transition-all" style={{ width: `${turnout}%` }} />
             </div>
             <div className="mt-2 flex items-start justify-between gap-3">
-              <p className="text-xs text-ink/70">{voting.open ? `Open until ${closes} · winners show when it closes` : 'Voting closed'}</p>
+              {voting.open && voting.closesAt && new Date(voting.closesAt).getTime() - Date.now() <= 3 * 3_600_000 ? (
+                <VoteClock closesAt={voting.closesAt} />
+              ) : (
+                <p className="text-xs text-ink/70">{voting.open ? `Open until ${closes} · winners show when it closes` : 'Voting closed'}</p>
+              )}
               <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-ink text-sun-400 tabular-nums whitespace-nowrap">
                 {voting.ballots}/{voting.squadSize} voted
               </span>
@@ -436,6 +440,55 @@ export function closeTime(at: string) {
   const day = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '');
   const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(':00', '').replace(' ', '');
   return `${day}, ${time}`;
+}
+
+/** When a vote closes, said the way people say it: "at 10pm", "tomorrow at 10pm", "Sun at 10pm". */
+export function closeWords(at: string, now = new Date()) {
+  const d = new Date(at);
+  const time = d.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).replace(':00', '').replace(' ', '');
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day(d) - day(now)) / 86_400_000);
+  if (days <= 0) return `at ${time}`;
+  if (days === 1) return `tomorrow at ${time}`;
+  return `${d.toLocaleDateString('en-GB', { weekday: 'short' })} at ${time}`;
+}
+
+/** How long a vote has left: "2h 40m", "35 min", or null once it's shut. */
+export function timeLeft(at: string, now = Date.now()) {
+  const ms = new Date(at).getTime() - now;
+  if (ms <= 0) return null;
+  const mins = Math.ceil(ms / 60_000);
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h >= 24 ? `${Math.round(h / 24) === 1 ? '1 day' : `${Math.round(h / 24)} days`}` : m ? `${h}h ${m}m` : `${h}h`;
+}
+
+/**
+ * When the vote closes, kept up to date: quiet while there's time ("Closes tomorrow at 10pm"),
+ * then a pulsing countdown for the last 3 hours ("Closes in 2h 40m"). Nothing once it's shut.
+ */
+export function VoteClock({ closesAt, tone = 'light', className = '' }: { closesAt?: string | null; tone?: 'light' | 'sun'; className?: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!closesAt) return;
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, [closesAt]);
+  if (!closesAt) return null;
+  const left = timeLeft(closesAt, now);
+  if (!left) return null;
+  const soon = new Date(closesAt).getTime() - now <= 3 * 3_600_000;
+  if (!soon) return <span className={`text-xs ${tone === 'sun' ? 'text-ink/70' : 'text-gray-500'} ${className}`}>Closes {closeWords(closesAt, new Date(now))}</span>;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full bg-kit-500 px-2 py-0.5 text-[11px] font-extrabold text-ink tabular-nums whitespace-nowrap animate-pop-in ${className}`} role="timer" aria-label={`Voting closes in ${left}`}>
+      <span className="relative flex w-1.5 h-1.5" aria-hidden>
+        <span className="absolute inset-0 rounded-full bg-ink animate-ping-soft" />
+        <span className="relative w-1.5 h-1.5 rounded-full bg-ink" />
+      </span>
+      Closes in {left}
+    </span>
+  );
 }
 
 /** Slim prompt linking to the latest open vote — sits on the Players page. */

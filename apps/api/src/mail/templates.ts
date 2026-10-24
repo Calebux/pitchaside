@@ -239,6 +239,10 @@ const noticeBanners: Record<string, Banner> = {
   reminder_kickoff: 'tactics',
   vote_open: 'trophy',
   vote_nudge: 'trophy',
+  vote_closing: 'trophy',
+  reminder_matchday: 'tactics',
+  share_invite: 'squad',
+  share_vote: 'trophy',
 };
 
 /** What the button says for each kind of notice. */
@@ -255,6 +259,10 @@ const noticeActions: Record<string, string> = {
   reminder_kickoff: 'View the game',
   vote_open: 'Vote now',
   vote_nudge: 'Vote now',
+  vote_closing: 'Vote now',
+  reminder_matchday: 'View the game',
+  share_invite: 'Send it to the group',
+  share_vote: 'Send it to the group',
 };
 
 export function noticeEmail(input: {

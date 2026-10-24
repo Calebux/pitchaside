@@ -300,12 +300,39 @@ export class NotificationsService implements OnModuleInit {
     return { delivered, missed };
   }
 
-  /** Push to everyone who runs this organisation (organisers don't get WhatsApp spam). */
-  async notifyOrganisers(organizationId: string, notice: Pick<Notice, 'title' | 'body' | 'url' | 'kind'>) {
+  /**
+   * Push to everyone who runs this organisation (organisers don't get WhatsApp spam). With
+   * `email`, an organiser no device reached gets it by email instead, when email is switched on.
+   */
+  async notifyOrganisers(organizationId: string, notice: Pick<Notice, 'title' | 'body' | 'url' | 'kind'>, opts: { email?: boolean } = {}) {
     const users = await this.usersRepo.find({ where: { organizationId } });
     if (!users.length) return;
     const subs = await this.subsRepo.find({ where: { userId: In(users.map((u) => u.id)) } });
-    const pushed = await this.push(subs, notice);
+    let pushed = 0;
+    for (const user of users) {
+      const theirs = subs.filter((s) => s.userId === user.id);
+      const sent = await this.push(theirs, notice);
+      pushed += sent;
+      if (opts.email && sent === 0 && this.fallback === 'email' && user.email) {
+        const record = this.messagesRepo.create({
+          organizationId,
+          channel: 'email',
+          to: user.email,
+          kind: notice.kind,
+          body: `${notice.title}\n${notice.body}`,
+          provider: 'smtp',
+          status: this.mail.mode === 'mock' ? 'mock' : 'sent',
+        });
+        try {
+          await this.mail.sendNotice(user.email, { name: user.firstName, clubName: 'your group', kind: notice.kind, title: notice.title, body: notice.body, path: notice.url });
+        } catch (err: any) {
+          record.status = 'failed';
+          record.error = String(err.cause?.message ?? err.message).slice(0, 250);
+          this.logger.warn(`Email to ${user.email} failed: ${record.error}`);
+        }
+        await this.messagesRepo.save(record);
+      }
+    }
     await this.messagesRepo.save(
       this.messagesRepo.create({
         organizationId,

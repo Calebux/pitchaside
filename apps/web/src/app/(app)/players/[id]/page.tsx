@@ -8,6 +8,7 @@ import { RatingBreakdownSheet } from '@/components/rating-breakdown-sheet';
 import { EmptyState } from '@/components/empty-state';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useToast } from '@/components/toast';
+import { whatsappNumber } from '@/lib/whatsapp';
 import { PlayerSheet } from '@/components/group/member-sheet';
 import { UserRole } from '@pitchaside/shared';
 import { useAuth } from '@/lib/auth';
@@ -106,8 +107,8 @@ export default function PlayerDetailPage() {
     g.memberships?.some((m) => m.player.id === id)
   );
 
-  const cleanPhone = (player.phone ?? '').replace(/[^\d+]/g, '');
-  const whatsappNumber = cleanPhone.startsWith('+') ? cleanPhone.slice(1) : cleanPhone;
+  // "0803…", "803…" or "+234…": WhatsApp needs 234 in front, or the chat doesn't open.
+  const waNumber = whatsappNumber(player.phone);
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto">
@@ -271,9 +272,9 @@ export default function PlayerDetailPage() {
 
               {/* Reaching them: one row of round buttons, each says what it does */}
               <div className="mt-auto pt-3 flex items-center gap-2">
-                {player.phone && (
+                {waNumber && (
                   <a
-                    href={`https://wa.me/${whatsappNumber}`}
+                    href={`https://wa.me/${waNumber}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`WhatsApp ${player.firstName}`}
