@@ -9,7 +9,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { RsvpService } from '../rsvp/rsvp.service';
 import { RatingsService } from '../ratings/ratings.service';
 import { naira } from '../common/format.util';
-import { localDate, prettyTime, zonedInstant } from '../common/time.util';
+import { APP_TZ, localDate, prettyTime, zonedInstant } from '../common/time.util';
 import { ReminderLog } from './entities/reminder-log.entity';
 import { partPaidAmounts } from '../payments/part-paid';
 
@@ -61,9 +61,12 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async tick(now = new Date()) {
+    await this.shareInGroup(now);
     await this.dayBefore(now);
+    await this.matchMorning(now);
     await this.kickOff(now);
     await this.morningAfter(now);
+    await this.voteClosing(now);
     await this.duesChasers(now);
   }
 
@@ -84,6 +87,40 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     if (!playerIds.length) return new Map<string, string>();
     const rows = await this.membershipsRepo.find({ where: { groupId, playerId: In(playerIds) } });
     return new Map(rows.map((m) => [m.playerId, m.paymentRef]));
+  }
+
+  // ── The day before, 6am and 5pm: the organiser sends the link to the group chat ──
+  // An app can't post in a WhatsApp group, so the organiser gets the message ready to send: the
+  // notice opens the game with it written, one tap to WhatsApp, pick the group, send.
+  private async shareInGroup(now: Date) {
+    const today = localDate(0, undefined, now);
+    const sixAm = zonedInstant(today, '06:00');
+    const fivePm = zonedInstant(today, '17:00');
+    if (now < sixAm) return;
+    for (const game of await this.games(localDate(1, undefined, now))) {
+      if (game.status !== SessionStatus.UPCOMING) continue;
+      const g = game.group;
+      const ko = kickoffFor(game);
+      const board = await this.rsvp.board(game);
+      const left = board.capacity - board.in.length;
+      // Full: nothing to ask the group for.
+      if (g.requireRsvp && board.capacity > 0 && left <= 0) continue;
+      const day = new Date(`${game.date.slice(0, 10)}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' });
+      const count = board.capacity > 0 ? `${board.in.length} of ${board.capacity} in, ${left} place${left === 1 ? '' : 's'} left.` : `${board.in.length} in so far.`;
+      const last = now >= fivePm;
+      // One of each a day: a game set up after 5pm only gets the last call.
+      if (!(await this.claim(`${last ? 'share-pm' : 'share-am'}:${game.id}`))) continue;
+      await this.notifications.notifyOrganisers(
+        g.organizationId,
+        {
+          kind: 'share_invite',
+          title: last ? `Last call for ${day}: send the link to the group` : `Send ${day}’s link to the group`,
+          body: `${g.name}${ko ? ` · ${prettyTime(ko)}` : ''}. ${count} Tap to send it on WhatsApp.`,
+          url: `/sessions/${game.id}?send=${last ? 'lastcall' : 'invite'}`,
+        },
+        { email: true },
+      );
+    }
   }
 
   // ── 6pm the day before ──
@@ -125,6 +162,34 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  // ── 6am on match day: the squad ──
+  private async matchMorning(now: Date) {
+    const today = localDate(0, undefined, now);
+    if (now < zonedInstant(today, '06:00')) return;
+    for (const game of await this.games(today)) {
+      if (game.status !== SessionStatus.UPCOMING) continue;
+      const time = kickoffFor(game);
+      // Too late once the game's on (or past noon without a time).
+      if (now >= (time ? zonedInstant(game.date, time) : zonedInstant(today, '12:00'))) continue;
+      if (!(await this.claim(`md:${game.id}`))) continue;
+      const g = game.group;
+      const squad = await this.squad(game);
+      const unpaid = owing(game);
+      const refs = await this.refs(g.id, [...unpaid.keys()]);
+      for (const playerId of squad) {
+        const owes = unpaid.get(playerId);
+        await this.notifications.notifyPlayers([playerId], {
+          kind: 'reminder_matchday',
+          title: `Match day: ${g.name} ⚽`,
+          body: `${time ? `Kick-off ${prettyTime(time)}` : 'Today'}${g.location ? ` at ${g.location}` : ''}. ${squad.length} playing.${
+            owes ? ` ${naira(owes)} to pay, ref ${refs.get(playerId) ?? ''}.` : ''
+          }`,
+          url: '/me',
+        });
+      }
+    }
+  }
+
   // ── 2 hours before kick-off ──
   private async kickOff(now: Date) {
     for (const game of await this.games(localDate(0, undefined, now))) {
@@ -133,6 +198,8 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
       if (!time || game.status !== SessionStatus.UPCOMING) continue;
       const ko = zonedInstant(game.date, time);
       if (now < new Date(ko.getTime() - 2 * 3600_000) || now >= ko) continue;
+      // An early kick-off already had the 6am message under 3 hours ago: one is enough.
+      if (ko.getTime() - zonedInstant(game.date, '06:00').getTime() <= 3 * 3600_000) continue;
       if (!(await this.claim(`ko:${game.id}`))) continue;
 
       const squad = await this.squad(game);
@@ -191,6 +258,41 @@ export class RemindersService implements OnModuleInit, OnModuleDestroy {
         body: `${g.name}: ${voted.size}/${squad.length} have voted. About a minute.`,
         url: `/v/${token}`,
       });
+    }
+  }
+
+  // ── 3 hours before the vote closes: the players still to vote, and the group ──
+  private async voteClosing(now: Date) {
+    for (const days of [-2, -1, 0]) {
+      for (const game of await this.games(localDate(days, undefined, now))) {
+        if (!this.ratings.isVoteOpen(game)) continue;
+        const closes = this.ratings.voteClosesAt(game);
+        if (!closes || now < new Date(closes.getTime() - 3 * 3600_000) || now >= closes) continue;
+        const squad = (game.payments ?? []).filter((p) => p.attendance !== 'no_show').map((p) => p.playerId);
+        if (squad.length < 2) continue;
+        const voted = new Set((await this.votesRepo.find({ where: { sessionId: game.id } })).map((v) => v.voterId));
+        const waiting = squad.filter((id) => !voted.has(id));
+        if (!waiting.length || !(await this.claim(`voteclose:${game.id}`))) continue;
+        const g = game.group;
+        const at = closes.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: APP_TZ }).replace(':00', '').replace(' ', '');
+        const token = await this.ratings.ensureVotingToken(game.id);
+        await this.notifications.notifyPlayers(waiting, {
+          kind: 'vote_closing',
+          title: `Voting closes at ${at} ⏳`,
+          body: `${g.name}: ${voted.size}/${squad.length} have voted. Last chance to pick Player of the Match.`,
+          url: `/v/${token}`,
+        });
+        await this.notifications.notifyOrganisers(
+          g.organizationId,
+          {
+            kind: 'share_vote',
+            title: `Voting closes at ${at}: send the last call`,
+            body: `${g.name}: ${waiting.length} still to vote. Tap to send the link to the group on WhatsApp.`,
+            url: `/sessions/${game.id}?send=voteclosing`,
+          },
+          { email: true },
+        );
+      }
     }
   }
 

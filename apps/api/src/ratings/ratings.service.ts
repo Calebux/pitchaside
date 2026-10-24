@@ -399,6 +399,11 @@ export class RatingsService {
     return this.window(session).open;
   }
 
+  /** For the reminders: when this game's vote closes (null before full time). */
+  voteClosesAt(session: Session) {
+    return this.window(session).closesAt;
+  }
+
   /** Once a score is in, the teams are the ones that score was played by: nobody moves until the scores are deleted. */
   private async scoresIn(sessionId: string) {
     return (await this.gamesRepo.count({ where: { sessionId } })) > 0;
@@ -536,6 +541,8 @@ export class RatingsService {
         groupId: s.groupId,
         groupName: s.group?.name,
         date: s.date,
+        /** When the vote shuts: the banner counts down to it. */
+        closesAt: this.window(s).closesAt,
         voted: voters.has(playerId),
         ballots: squad.filter((p) => voters.has(p.id)).length,
         squadSize: squad.length,

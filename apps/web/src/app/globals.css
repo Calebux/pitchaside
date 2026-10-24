@@ -159,6 +159,12 @@
     letter-spacing: normal;
   }
 
+  /* The chat behind a message preview: a faint dotted wallpaper, like a chat app's. */
+  .chat-wallpaper {
+    background-image: radial-gradient(color-mix(in oklab, var(--color-pitch-500) 12%, transparent) 1px, transparent 1.2px);
+    background-size: 14px 14px;
+  }
+
   ::selection {
     background: var(--color-volt-300);
     color: var(--color-ink);

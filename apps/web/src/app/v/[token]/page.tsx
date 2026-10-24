@@ -6,7 +6,9 @@ import { useParams } from 'next/navigation';
 import { KeepHyphens, Logo } from '@/components/brand';
 import { NightStadium, OffsideFlag, Trophy } from '@/components/illustrations';
 import { BallLoader, BallSpinner } from '@/components/skeleton';
-import { VoteResultsList, closeTime } from '@/components/ratings';
+import { VoteClock, VoteResultsList, closeTime, closeWords } from '@/components/ratings';
+import { groupVoteMessage, openWhatsApp } from '@/lib/whatsapp';
+import { buzz } from '@/components/motion';
 import { BallotSteps, type Picks } from '@/components/vote/ballot-steps';
 import { getBallot, getVoteResults, type Ballot, type VoteResults } from '@/lib/api';
 import { PasswordSignIn } from '@/components/password-sign-in';
@@ -138,8 +140,12 @@ export default function VotePage() {
         <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-volt-300">Post-match vote · {matchDate}</p>
         <h1 className="font-display text-[26px] font-extrabold text-white leading-tight"><KeepHyphens text={ballot.groupName ?? ''} /></h1>
       </div>
-      <span className="absolute top-3 right-3 text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white/90 text-ink tabular-nums">
-        {ballot.ballots}/{ballot.squadSize} voted
+      <span className="absolute top-3 right-3 flex flex-col items-end gap-1.5">
+        <span className="text-[11px] font-extrabold px-2.5 py-1 rounded-full bg-white/90 text-ink tabular-nums">
+          {ballot.ballots}/{ballot.squadSize} voted
+        </span>
+        {/* Only the last 3 hours show here: before that, the close time is on the ballot */}
+        {ballot.open && ballot.closesAt && new Date(ballot.closesAt).getTime() - Date.now() <= 3 * 3_600_000 && <VoteClock closesAt={ballot.closesAt} />}
       </span>
     </div>
   );
@@ -284,6 +290,36 @@ export default function VotePage() {
                 <VoteResultsList results={results} />
               </div>
                 </>
+              )}
+              {/* Voted, and others haven't: a player can nudge the group chat too */}
+              {ballot.open && results.hidden && results.ballots < results.squadSize && (
+                <div className="mt-5 rounded-3xl bg-white border border-gray-100 shadow-card p-4 animate-rise">
+                  <p className="text-[15px] font-bold text-ink">
+                    {results.squadSize - results.ballots} still to vote
+                  </p>
+                  <p className="mt-0.5 text-[13px] leading-snug text-gray-600">A nudge in the group chat usually does it.</p>
+                  <button
+                    onClick={() => {
+                      buzz(10);
+                      openWhatsApp(
+                        groupVoteMessage({
+                          groupName: ballot.groupName ?? 'The group',
+                          link: window.location.href.split('?')[0],
+                          ballots: results.ballots,
+                          squadSize: results.squadSize,
+                          closes: ballot.closesAt ? closeWords(ballot.closesAt) : null,
+                          closing: !!ballot.closesAt && new Date(ballot.closesAt).getTime() - Date.now() <= 3 * 3_600_000,
+                        }),
+                      );
+                    }}
+                    className="press mt-3 w-full min-h-12 rounded-2xl bg-white border border-gray-300 text-[15px] font-bold text-ink hover:border-ink inline-flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5 text-pitch-600" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.496A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.594-.822-6.343-2.2l-.444-.355-3.187 1.07 1.07-3.187-.355-.444A9.955 9.955 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z" />
+                    </svg>
+                    Nudge the group on WhatsApp
+                  </button>
+                </div>
               )}
               <Link
                 href="/me"

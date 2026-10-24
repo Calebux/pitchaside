@@ -245,6 +245,8 @@ export interface PlayerHome {
     groupId?: string;
     groupName?: string;
     date: string;
+    /** When the vote shuts (missing from an older server). */
+    closesAt?: string | null;
     voted: boolean;
     /** Turnout: who's voted so far (faces of the first few, never what they picked). */
     ballots?: number;

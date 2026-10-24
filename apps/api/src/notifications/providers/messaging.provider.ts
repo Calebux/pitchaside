@@ -4,6 +4,8 @@
  * provider sends for real.
  */
 
+import { dialNumber } from '../../common/format.util';
+
 export const MESSAGING_PROVIDER = Symbol('MESSAGING_PROVIDER');
 
 export type Channel = 'whatsapp' | 'sms';
@@ -34,12 +36,15 @@ export class TermiiMessagingProvider implements MessagingProvider {
   constructor(private readonly apiKey: string, private readonly senderId: string) {}
 
   async send({ to, body, channel }: { to: string; body: string; channel: Channel }) {
+    // Termii wants 234…: "0803…" as typed would never arrive.
+    const number = dialNumber(to);
+    if (!number) throw new Error(`Not a number we can message: ${to}`);
     const res = await fetch('https://api.ng.termii.com/api/sms/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: this.apiKey,
-        to: to.replace(/\D/g, ''),
+        to: number,
         from: this.senderId,
         sms: body,
         type: 'plain',

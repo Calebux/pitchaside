@@ -6,13 +6,31 @@ import { formatCurrency, type GroupAccount } from './api';
  * there is worded here, so the messages read the same wherever they're sent from.
  */
 
-/** A Nigerian number as WhatsApp wants it: digits with the country code ("0803 123 4567" → "2348031234567"). */
+/**
+ * A number as WhatsApp wants it: digits with the country code. Nigerian numbers come in every
+ * shape ("0803 123 4567", "803 123 4567", "+234 803 123 4567", "+234 0803 123 4567"): all of
+ * them read "2348031234567". A number from elsewhere keeps its own code when it starts with +.
+ * Anything too short to be a phone number is null (no link rather than a broken one).
+ */
 export function whatsappNumber(phone?: string | null) {
-  const digits = (phone ?? '').replace(/\D/g, '');
+  const raw = (phone ?? '').trim();
+  const digits = raw.replace(/\D/g, '');
   if (!digits) return null;
-  if (digits.startsWith('234')) return digits;
+  if (digits.startsWith('2340') && digits.length === 14) return `234${digits.slice(4)}`;
+  if (digits.startsWith('234') && digits.length === 13) return digits;
   if (digits.startsWith('0') && digits.length === 11) return `234${digits.slice(1)}`;
-  return digits.length >= 10 ? digits : null;
+  if (/^[789]\d{9}$/.test(digits)) return `234${digits}`;
+  if (raw.startsWith('+') && digits.length >= 8) return digits;
+  if (digits.startsWith('00') && digits.length >= 10) return digits.slice(2);
+  return null;
+}
+
+/** "+234 803 123 4567": a number written the same way everywhere, or the number as typed if it isn't one we know. */
+export function prettyPhone(phone?: string | null) {
+  const n = whatsappNumber(phone);
+  if (!n) return phone?.trim() || '';
+  if (n.startsWith('234') && n.length === 13) return `+234 ${n.slice(3, 6)} ${n.slice(6, 9)} ${n.slice(9)}`;
+  return `+${n}`;
 }
 
 /** Opens WhatsApp with the message ready: to that person when we have their number, else to pick a chat. */
@@ -59,4 +77,39 @@ export function gameInviteMessage(g: {
     g.places ? `${g.inCount} of ${g.places} in${left > 0 ? `, ${left} place${left === 1 ? '' : 's'} left` : ', full'}.` : `${g.inCount} in so far.`,
     `Say you're in here: ${g.link}`,
   ].join('\n');
+}
+
+/** A game's link for the group chat the day before: the first call, or the last one. */
+export function groupInviteMessage(g: Parameters<typeof gameInviteMessage>[0] & { last?: boolean }) {
+  const left = g.places ? g.places - g.inCount : null;
+  if (!g.last) return gameInviteMessage(g);
+  return [
+    `⏰ Last call for ${g.when.split(' · ')[0]}`,
+    `⚽ ${g.groupName} · ${g.when}${g.where ? ` at ${g.where}` : ''}`,
+    left === null
+      ? `${g.inCount} in so far.`
+      : left > 0
+        ? `${g.inCount} of ${g.places} in, ${left} place${left === 1 ? '' : 's'} left.`
+        : `Full (${g.places} of ${g.places}). Say you're in to go on the waiting list.`,
+    `Say you're in here: ${g.link}`,
+  ].join('\n');
+}
+
+/** The vote link for the group chat: at full time, or as the last call before it closes. */
+export function groupVoteMessage(v: { groupName: string; link: string; ballots: number; squadSize: number; closes?: string | null; closing?: boolean }) {
+  if (v.closing) {
+    return [
+      `⏳ Voting closes${v.closes ? ` ${v.closes}` : ' soon'}. ${v.ballots} of ${v.squadSize} have voted.`,
+      `${v.groupName}: pick Player of the Match and your Best VII (about a minute):`,
+      v.link,
+    ].join('\n');
+  }
+  return [
+    `🏆 Full time, ${v.groupName}!`,
+    `Vote for Player of the Match and your Best VII (about a minute):`,
+    v.link,
+    v.closes ? `Voting closes ${v.closes}.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
