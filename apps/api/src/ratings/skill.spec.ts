@@ -47,7 +47,7 @@ describe('skill ratings', () => {
   });
 
   it('maps ratings onto the card scale', () => {
-    expect(cardRating(1500)).toBe(70);
+    expect(cardRating(1500)).toBe(50);
     expect(cardRating(1900)).toBe(90);
     expect(cardRating(9999)).toBe(95);
     expect(cardRating(0)).toBe(45);

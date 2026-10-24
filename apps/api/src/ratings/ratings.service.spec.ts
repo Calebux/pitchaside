@@ -426,7 +426,7 @@ describe('trialRatings (40 stats / 40 votes / 20 results)', () => {
       votes: { ...blankRatings().votes, potm: o.potm ?? 0 },
     }) as any;
 
-  it('puts the scorer who is voted for and wins at the top, on the 40–99 scale', () => {
+  it('puts the scorer who is voted for and wins at the top, on the 1–99 scale', () => {
     const t = trialRatings([
       row('star', { goals: 20, assists: 10, potm: 20, vii: 50, skill: 1700 }),
       row('mid', { goals: 5, assists: 5, potm: 3, vii: 20, skill: 1500 }),
@@ -435,7 +435,7 @@ describe('trialRatings (40 stats / 40 votes / 20 results)', () => {
     expect(t.get('star')!.trial).toBeGreaterThan(t.get('mid')!.trial);
     expect(t.get('mid')!.trial).toBeGreaterThan(t.get('quiet')!.trial);
     for (const r of t.values()) {
-      expect(r.trial).toBeGreaterThanOrEqual(40);
+      expect(r.trial).toBeGreaterThanOrEqual(1);
       expect(r.trial).toBeLessThanOrEqual(99);
     }
   });
@@ -447,7 +447,7 @@ describe('trialRatings (40 stats / 40 votes / 20 results)', () => {
 
   it('keeps someone with little evidence near the middle, and no votes is not a penalty', () => {
     const t = trialRatings([row('new', { games: 1, goals: 3, ballots: 0 }), row('b', {}), row('c', { goals: 2 })]);
-    expect(t.get('new')!.parts.votes).toBe(70);
+    expect(t.get('new')!.parts.votes).toBe(50);
     expect(t.get('new')!.parts.stats).toBeLessThan(85);
   });
 });

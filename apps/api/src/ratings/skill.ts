@@ -82,7 +82,7 @@ export function replaySkill(games: SkillGame[], starts: Map<string, number> = ne
   return skill;
 }
 
-/** The skill rating on the card's 45–95 scale: 1300 → 60, 1500 → 70, 1700 → 80, 1900 → 90. */
+/** The skill rating on the card's 45–95 scale: 1500 → 50, 1700 → 70, 1900 → 90. */
 export function cardRating(rating: number) {
-  return Math.max(45, Math.min(95, Math.round(70 + (rating - DEFAULT_START) / 20)));
+  return Math.max(45, Math.min(95, Math.round(50 + (rating - DEFAULT_START) / 10)));
 }

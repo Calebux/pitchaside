@@ -248,7 +248,7 @@ export function trialRatings(rows: (PlayerRatings & { player: { id: string } })[
       const pct = v === null || values.length < 2 ? 0.5 : (values.filter((x) => x < v).length + 0.5 * (values.filter((x) => x === v).length - 1)) / (values.length - 1);
       const n = evidence[k](r);
       const pulled = 0.5 + (pct - 0.5) * (n / (n + TRIAL_PRIOR[k]));
-      p[k] = Math.round(40 + 59 * pulled);
+      p[k] = Math.round(1 + 98 * pulled);
     }
     out.set(r.player.id, { parts: p, trial: Math.round(TRIAL_WEIGHTS.stats * p.stats + TRIAL_WEIGHTS.votes * p.votes + TRIAL_WEIGHTS.results * p.results) });
   }
