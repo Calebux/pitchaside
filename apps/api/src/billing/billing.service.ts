@@ -47,6 +47,8 @@ export { periodFor };
 
 /** PitchAside service fee per outbound payout, transferred to the platform account. */
 const PLATFORM_FEE = 350;
+/** A payout still pending this long was left by a server stop mid-call, so it can be cancelled. */
+const PENDING_CANCEL_AFTER_MS = 15 * 60 * 1000;
 /** Transfers an organiser records by hand get this id prefix; they never count as withdrawable. */
 const MANUAL_PREFIX = 'manual_';
 
@@ -1691,8 +1693,8 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         reference,
       });
 
-      payout.status = result.status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.PROCESSING;
-      if (result.status === 'completed') payout.completedAt = new Date();
+      // Only from pending: if the bank's own status message already moved it, that wins.
+      await this.movePayout(payout, PayoutStatus.PENDING, result.status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.PROCESSING);
 
       // Transfer the platform fee to PitchAside's account
       const feeAccount = this.config.get<string>('PLATFORM_FEE_ACCOUNT');
@@ -1718,14 +1720,28 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn('PLATFORM_FEE_ACCOUNT not set — fee transfer skipped');
       }
     } catch (err: any) {
-      payout.status = PayoutStatus.FAILED;
-      payout.errorMessage = err.message?.slice(0, 200);
       this.logger.error(`Payout ${payout.id} failed: ${err.message}`);
-      await this.moveRefundCredit(payout, Number(payout.amount));
+      // A refund's credit goes back once, whichever of this and the bank's message gets here first.
+      if (await this.movePayout(payout, PayoutStatus.PENDING, PayoutStatus.FAILED, err.message?.slice(0, 200))) {
+        await this.moveRefundCredit(payout, Number(payout.amount));
+      }
     }
 
-    await this.payoutsRepo.save(payout);
-    return payout;
+    return this.payoutsRepo.findOneOrFail({ where: { id: payout.id } });
+  }
+
+  /**
+   * Moves a payout from one status to another only if it's still in `from`, so two callers (the
+   * bank's message twice, or the bank racing a cancel) can't both act on the same change. Returns
+   * whether this caller made the change.
+   */
+  private async movePayout(payout: OutgoingTransfer, from: PayoutStatus, to: PayoutStatus, errorMessage?: string) {
+    const changes: Partial<OutgoingTransfer> = { status: to };
+    if (to === PayoutStatus.COMPLETED) changes.completedAt = new Date();
+    if (errorMessage) changes.errorMessage = errorMessage;
+    const { affected } = await this.payoutsRepo.update({ id: payout.id, status: from }, changes);
+    if (affected) Object.assign(payout, changes);
+    return !!affected;
   }
 
   /**
@@ -1773,13 +1789,17 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
     if (!payout) throw new NotFoundException('Payout not found');
-    if (payout.status !== PayoutStatus.PENDING) {
-      throw new BadRequestException('Only pending payouts can be cancelled');
+    // A payout is pending while the bank call is in flight; only one left pending (the server
+    // stopped mid-call) can be cancelled, never one that may be on its way.
+    const stuck = Date.now() - new Date(payout.createdAt).getTime() > PENDING_CANCEL_AFTER_MS;
+    if (payout.status !== PayoutStatus.PENDING || !stuck) {
+      throw new BadRequestException('Only a payout stuck pending for 15 minutes can be cancelled');
     }
-    payout.status = PayoutStatus.CANCELLED;
-    const saved = await this.payoutsRepo.save(payout);
+    if (!(await this.movePayout(payout, PayoutStatus.PENDING, PayoutStatus.CANCELLED))) {
+      throw new BadRequestException('This payout has already moved on');
+    }
     await this.moveRefundCredit(payout, Number(payout.amount));
-    return saved;
+    return payout;
   }
 
   /** Called when PulseMFB notifies us about an outbound transfer status change. */
@@ -1846,15 +1866,15 @@ export class BillingService implements OnModuleInit, OnModuleDestroy {
     if (!payout) return;
     if (payout.status === PayoutStatus.COMPLETED || payout.status === PayoutStatus.CANCELLED) return;
 
-    const wasFailed = payout.status === PayoutStatus.FAILED;
-    payout.status = status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.FAILED;
-    if (status === 'completed') payout.completedAt = new Date();
-    if (errorMessage) payout.errorMessage = errorMessage;
-    await this.payoutsRepo.save(payout);
+    const from = payout.status;
+    const to = status === 'completed' ? PayoutStatus.COMPLETED : PayoutStatus.FAILED;
+    if (from === to) return;
+    // The same message can arrive twice at once: only the one that changes the status moves money.
+    if (!(await this.movePayout(payout, from, to, errorMessage))) return;
 
     // A refund's credit is given back when it fails, and taken again if it completes after all.
-    if (!wasFailed && payout.status === PayoutStatus.FAILED) await this.moveRefundCredit(payout, Number(payout.amount));
-    if (wasFailed && payout.status === PayoutStatus.COMPLETED) await this.moveRefundCredit(payout, -Number(payout.amount));
+    if (to === PayoutStatus.FAILED) await this.moveRefundCredit(payout, Number(payout.amount));
+    if (from === PayoutStatus.FAILED && to === PayoutStatus.COMPLETED) await this.moveRefundCredit(payout, -Number(payout.amount));
   }
 
   getNigerianBanks() {

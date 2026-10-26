@@ -314,7 +314,7 @@ export function PayoutsPanel({
       <ConfirmDialog
         open={!!cancelId}
         title="Cancel withdrawal"
-        message="This withdrawal hasn't been sent yet. Cancel it?"
+        message="This withdrawal got stuck before the bank confirmed it. Cancel it?"
         confirmLabel="Cancel withdrawal"
         variant="danger"
         onConfirm={handleCancel}
@@ -532,7 +532,8 @@ export function PayoutsPanel({
                   ) : (
                     p.category && <p className="mt-2 text-[13px] font-semibold text-ink">For: {PAYOUT[p.category]}</p>
                   ))}
-                {p.status === 'pending' && (
+                {/* Pending means the bank call is under way; only one stuck there (the server stopped) can be cancelled. */}
+                {p.status === 'pending' && Date.now() - new Date(p.createdAt).getTime() > 15 * 60 * 1000 && (
                   <button
                     onClick={() => setCancelId(p.id)}
                     className="mt-2 min-h-11 px-4 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"

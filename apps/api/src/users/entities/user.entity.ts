@@ -79,6 +79,10 @@ export class User {
   @Column({ name: 'transfer_pin_locked_until', type: 'timestamp', nullable: true })
   transferPinLockedUntil: Date | null;
 
+  /** Set when a club admin removes this co-organiser or treasurer: they can't sign in or use a session. */
+  @Column({ name: 'removed_at', type: 'timestamp', nullable: true })
+  removedAt: Date | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

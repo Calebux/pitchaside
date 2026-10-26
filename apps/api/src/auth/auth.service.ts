@@ -81,7 +81,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.usersService.findByEmail(dto.email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user || user.removedAt) throw new UnauthorizedException('Invalid credentials');
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
@@ -181,7 +181,7 @@ export class AuthService {
 
   async validate2FALogin(userId: string, code: string) {
     const user = await this.usersService.findById(userId);
-    if (!user || !user.twoFactorSecret) {
+    if (!user || !user.twoFactorSecret || user.removedAt) {
       throw new UnauthorizedException('Invalid request');
     }
 
@@ -207,8 +207,13 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await this.usersService.updatePassword(userId, passwordHash);
+    // Anyone holding an old session (a stolen cookie, a shared laptop) is signed out; this device
+    // gets a fresh session.
+    await this.usersService.revokeAllRefreshTokens(userId);
+    const accessToken = this.jwtService.sign({ sub: userId });
+    const refreshToken = await this.usersService.createRefreshToken(userId, null);
 
-    return { message: 'Password changed successfully.' };
+    return { message: 'Password changed successfully.', accessToken, refreshToken };
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -218,6 +223,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await this.usersService.updatePassword(reset.userId, passwordHash);
     await this.usersService.markResetTokenUsed(reset.id);
+    await this.usersService.revokeAllRefreshTokens(reset.userId);
 
     return { message: 'Password has been reset successfully.' };
   }
@@ -230,7 +236,7 @@ export class AuthService {
 
     if (result.userId) {
       const user = await this.usersService.findById(result.userId);
-      if (!user) throw new UnauthorizedException('User not found');
+      if (!user || user.removedAt) throw new UnauthorizedException('User not found');
       const accessToken = this.jwtService.sign({ sub: user.id });
       return { accessToken, refreshToken: result.newRawToken, user: this.sanitizeUser(user, user.organization) };
     }

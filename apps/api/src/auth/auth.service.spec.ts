@@ -56,6 +56,7 @@ describe('AuthService', () => {
       createResetToken: jest.fn(),
       createEmailVerificationToken: jest.fn().mockResolvedValue('verify-token'),
       createRefreshToken: jest.fn().mockResolvedValue('refresh-token'),
+      revokeAllRefreshTokens: jest.fn(),
     };
     orgsService = { create: jest.fn() };
     mailService = { sendPasswordReset: jest.fn(), sendEmailVerification: jest.fn().mockResolvedValue(undefined) };
@@ -174,6 +175,9 @@ describe('AuthService', () => {
 
       expect(result.message).toContain('changed');
       expect(usersService.updatePassword).toHaveBeenCalledWith('user-1', 'new-hashed');
+      // Other sessions end; this device gets a fresh one.
+      expect(usersService.revokeAllRefreshTokens).toHaveBeenCalledWith('user-1');
+      expect(result).toMatchObject({ accessToken: 'jwt-token', refreshToken: 'refresh-token' });
     });
   });
 
@@ -196,6 +200,7 @@ describe('AuthService', () => {
       expect(result.message).toContain('reset');
       expect(usersService.updatePassword).toHaveBeenCalledWith('user-1', 'new-hashed');
       expect(usersService.markResetTokenUsed).toHaveBeenCalledWith('reset-1');
+      expect(usersService.revokeAllRefreshTokens).toHaveBeenCalledWith('user-1');
     });
   });
 });
