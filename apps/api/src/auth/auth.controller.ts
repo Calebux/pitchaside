@@ -10,6 +10,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { IdentityDto } from './dto/identity.dto';
+import { assertClubAdmin } from './club-admin';
 import { TwoFactorVerifyDto, TwoFactorValidateDto } from './dto/two-factor.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { AllowTreasurer } from './decorators/allow-treasurer.decorator';
@@ -59,10 +60,11 @@ export class AuthController {
     return this.authService.updateProfile(user.id, dto);
   }
 
-  /** The organiser's BVN and/or NIN: either one unlocks a group collection account. */
+  /** The club admin's BVN and/or NIN: either one unlocks a group collection account. */
   @UseGuards(JwtAuthGuard)
   @Put('identity')
   setIdentity(@Body() dto: IdentityDto, @CurrentUser() user: any) {
+    assertClubAdmin(user);
     return this.authService.setIdentity(user.id, dto);
   }
 

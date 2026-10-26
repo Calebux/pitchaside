@@ -176,8 +176,9 @@ export function GroupAccountCard({
   const [busy, setBusy] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [showIdPrompt, setShowIdPrompt] = useState(false);
-  // A BVN or a NIN opens the account (the bank needs to know whose it is).
+  // A BVN or a NIN opens the account (the bank needs to know whose it is), and only the club admin's.
   const hasId = !!(user?.bvn || user?.nin);
+  const canOpen = user?.role === UserRole.ORG_ADMIN || user?.role === UserRole.SUPER_ADMIN;
   const [showRecord, setShowRecord] = useState(false);
   const router = useRouter();
   const account = billing.account;
@@ -328,11 +329,13 @@ export function GroupAccountCard({
           ) : (
             <div className="mt-5">
               <p className="text-sm text-white/70">
-                {hasId
-                  ? 'The group’s account isn’t open yet: the bank didn’t answer when the group was made. Try again.'
-                  : 'Add your BVN or NIN to open the group’s bank account. Players pay into it, and it’s in your name as the organiser.'}
+                {!canOpen
+                  ? 'The group’s bank account isn’t open yet. Ask your club admin to open it: it’s in their name, with their BVN or NIN.'
+                  : hasId
+                    ? 'The group’s account isn’t open yet: the bank didn’t answer when the group was made. Try again.'
+                    : 'Add your BVN or NIN to open the group’s bank account. Players pay into it, and it’s in your name as the organiser.'}
               </p>
-              {showIdPrompt ? (
+              {!canOpen ? null : showIdPrompt ? (
                 <div className="mt-4 bg-white rounded-2xl p-4">
                   <p className="text-xs text-gray-500 mb-3">The bank opens the account in your name. Your number isn’t shown to players.</p>
                   <IdentityForm

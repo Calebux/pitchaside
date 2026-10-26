@@ -19,6 +19,7 @@ import { ScheduleMatchDto } from './dto/schedule-match.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { assertClubAdmin } from '../auth/club-admin';
 import { CompetitionStatus, CompetitionScope } from './entities/competition.entity';
 import { UsersService } from '../users/users.service';
 import { BadRequestException } from '@nestjs/common';
@@ -74,6 +75,7 @@ export class CompetitionsController {
 
   @Post(':id/account')
   async provisionAccount(@Param('id') id: string, @CurrentUser() user: User) {
+    assertClubAdmin(user);
     const fresh = await this.users.findById(user.id);
     if (!fresh?.bvn && !fresh?.nin) {
       throw new BadRequestException('Add your BVN or NIN before opening a collection account (Settings → Identity).');

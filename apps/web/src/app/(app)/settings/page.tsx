@@ -9,6 +9,7 @@ import { subscribeOrganiserPush } from '@/lib/api';
 import { PageHeader } from '@/components/brand';
 import { VerifyEmailRow } from '@/components/verify-email-modal';
 import { IdentityForm } from '@/components/identity-form';
+import { UserRole } from '@pitchaside/shared';
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -206,7 +207,8 @@ export default function SettingsPage() {
         </button>
       </form>
 
-      {/* Identity: a BVN or NIN unlocks group collection accounts */}
+      {/* Identity: the club admin's BVN or NIN unlocks group collection accounts */}
+      {(user?.role === UserRole.ORG_ADMIN || user?.role === UserRole.SUPER_ADMIN) && (
       <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
         <h2 className="text-lg font-bold text-ink mb-1">Identity</h2>
         {user?.bvn || user?.nin ? (
@@ -218,6 +220,7 @@ export default function SettingsPage() {
         )}
         <IdentityForm submitLabel={user?.bvn || user?.nin ? 'Save' : 'Add'} onDone={() => toast.success('Saved')} />
       </div>
+      )}
 
       {/* Change Password */}
       <form onSubmit={handlePasswordChange} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
