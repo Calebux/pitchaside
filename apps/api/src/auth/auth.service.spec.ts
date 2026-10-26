@@ -12,9 +12,11 @@ jest.mock('bcrypt');
 
 // Mock the @nestjs/jwt module to avoid ESM issues
 const mockJwtSign = jest.fn().mockReturnValue('jwt-token');
+const mockJwtVerify = jest.fn();
 jest.mock('@nestjs/jwt', () => ({
   JwtService: class JwtService {
     sign = mockJwtSign;
+    verify = mockJwtVerify;
   },
 }));
 
@@ -66,7 +68,7 @@ describe('AuthService', () => {
         AuthService,
         { provide: UsersService, useValue: usersService },
         { provide: OrganizationsService, useValue: orgsService },
-        { provide: JwtService, useValue: { sign: mockJwtSign } },
+        { provide: JwtService, useValue: { sign: mockJwtSign, verify: mockJwtVerify } },
         { provide: MailService, useValue: mailService },
         { provide: CryptoService, useValue: { provisionUserWallets: jest.fn().mockResolvedValue([]) } },
       ],
@@ -152,7 +154,32 @@ describe('AuthService', () => {
         password: 'password123',
       });
 
-      expect(result).toEqual({ requires2FA: true, userId: 'user-1' });
+      // A short-lived challenge proves the password step; the user id itself is never handed out.
+      expect(result).toEqual({ requires2FA: true, challenge: 'jwt-token' });
+      expect(mockJwtSign).toHaveBeenCalledWith({ sub: 'user-1', typ: '2fa' }, { expiresIn: '5m' });
+    });
+  });
+
+  describe('validate2FALogin', () => {
+    it("refuses a bare user id: the code step only follows a correct password", async () => {
+      mockJwtVerify.mockImplementation(() => {
+        throw new Error('jwt malformed');
+      });
+      await expect(service.validate2FALogin('user-1', '123456')).rejects.toThrow(UnauthorizedException);
+      expect(usersService.findById).not.toHaveBeenCalled();
+    });
+
+    it('refuses a session token passed off as a challenge', async () => {
+      mockJwtVerify.mockImplementation(() => ({ sub: 'user-1' }));
+      await expect(service.validate2FALogin('session-token', '123456')).rejects.toThrow(UnauthorizedException);
+      expect(usersService.findById).not.toHaveBeenCalled();
+    });
+
+    it('checks the code for the user the challenge was issued to', async () => {
+      mockJwtVerify.mockImplementation(() => ({ sub: 'user-1', typ: '2fa' }));
+      usersService.findById.mockResolvedValue({ ...mockUser, twoFactorEnabled: true, twoFactorSecret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' });
+      await expect(service.validate2FALogin('challenge', '000000')).rejects.toThrow('Invalid 2FA code');
+      expect(usersService.findById).toHaveBeenCalledWith('user-1');
     });
   });
 

@@ -423,8 +423,8 @@ export function disable2FA(code: string): Promise<{ message: string }> {
   return http.post('/auth/2fa/disable', { code });
 }
 
-export function validate2FALogin(userId: string, code: string): Promise<any> {
-  return http.post('/auth/2fa/validate', { userId, code });
+export function validate2FALogin(challenge: string, code: string): Promise<any> {
+  return http.post('/auth/2fa/validate', { challenge, code });
 }
 
 /** The Games screens' lists: coming up (soonest first), played with money still to collect, played. */

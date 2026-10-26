@@ -23,7 +23,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string }) {
+  async validate(payload: { sub: string; typ?: string }) {
+    // Sessions carry only `sub`; anything typed (the 2FA challenge) is not a session.
+    if (payload.typ) throw new UnauthorizedException();
     const user = await this.usersService.findById(payload.sub);
     if (!user || user.removedAt) throw new UnauthorizedException();
     return user;
