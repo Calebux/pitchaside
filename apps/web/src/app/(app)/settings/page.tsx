@@ -8,6 +8,7 @@ import { PushToggle } from '@/components/pwa';
 import { subscribeOrganiserPush } from '@/lib/api';
 import { PageHeader } from '@/components/brand';
 import { VerifyEmailRow } from '@/components/verify-email-modal';
+import { IdentityForm } from '@/components/identity-form';
 
 export default function SettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -204,6 +205,19 @@ export default function SettingsPage() {
           {savingProfile ? 'Saving…' : 'Update profile'}
         </button>
       </form>
+
+      {/* Identity: a BVN or NIN unlocks group collection accounts */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
+        <h2 className="text-lg font-bold text-ink mb-1">Identity</h2>
+        {user?.bvn || user?.nin ? (
+          <p className="text-sm text-gray-500 mb-4">
+            {[user.bvn && `BVN ${user.bvn}`, user.nin && `NIN ${user.nin}`].filter(Boolean).join(' · ')}. Your groups can open collection accounts.
+          </p>
+        ) : (
+          <p className="text-sm text-gray-500 mb-4">Add your BVN or NIN. Until you do, your groups can’t get a collection account.</p>
+        )}
+        <IdentityForm submitLabel={user?.bvn || user?.nin ? 'Save' : 'Add'} onDone={() => toast.success('Saved')} />
+      </div>
 
       {/* Change Password */}
       <form onSubmit={handlePasswordChange} className="bg-white rounded-3xl border border-gray-100 shadow-card p-5 mb-4">
