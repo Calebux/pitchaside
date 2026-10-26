@@ -5,6 +5,7 @@ import { Payment, PaymentStatus } from './entities/payment.entity';
 import { Session, SessionStatus } from '../sessions/entities/session.entity';
 import { BankTransfer } from '../billing/entities/bank-transfer.entity';
 import { GroupMembership } from '../groups/entities/group-membership.entity';
+import { Player } from '../players/entities/player.entity';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { naira, shortDate } from '../common/format.util';
@@ -57,6 +58,8 @@ export class PaymentsService {
       .andWhere('group.organizationId = :organizationId', { organizationId })
       .getOne();
     if (!session) throw new NotFoundException('Game not found');
+    const inClub = await this.paymentsRepo.manager.getRepository(Player).exists({ where: { id: dto.playerId, organizationId } });
+    if (!inClub) throw new NotFoundException('Player not found');
 
     const payment = this.paymentsRepo.create(dto);
     if (dto.status === PaymentStatus.PAID) {

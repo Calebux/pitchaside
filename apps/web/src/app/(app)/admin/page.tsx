@@ -11,6 +11,7 @@ import { StatCard } from '@/components/stat-card';
 import { UserRole } from '@pitchaside/shared';
 import { PageHeader } from '@/components/brand';
 import { kitFor } from '@/components/illustrations';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 /** An activity-feed entry as the API sends it: `summary` names the people and game involved. */
 interface ActivityLog {
@@ -61,6 +62,7 @@ export default function AdminPage() {
 
   const [orgStats, setOrgStats] = useState<any>(null);
   const [orgMembers, setOrgMembers] = useState<any[]>([]);
+  const [removing, setRemoving] = useState<any | null>(null);
   const [auditLogs, setAuditLogs] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -111,6 +113,20 @@ export default function AdminPage() {
   }
 
   const inputClass = "w-full rounded-xl border border-gray-200 px-3.5 py-3 text-sm focus:outline-none focus:ring-4 focus:ring-volt-300/70 focus:border-pitch-600";
+
+  // Removing a co-organiser or treasurer signs them out everywhere; they can't sign back in.
+  const removeMember = async () => {
+    if (!removing) return;
+    try {
+      await http.delete(`/admin/org/members/${removing.id}`);
+      setOrgMembers((prev) => prev.filter((m) => m.id !== removing.id));
+      toast.success(`${removing.firstName} no longer has access`);
+    } catch (err: any) {
+      toast.error(err.message || 'Could not remove them');
+    } finally {
+      setRemoving(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -334,8 +350,26 @@ export default function AdminPage() {
                       ? 'Treasurer'
                       : 'Co-organiser'}
               </span>
+              {(member.role === 'member' || member.role === 'treasurer') && member.id !== user?.id && (
+                <button
+                  onClick={() => setRemoving(member)}
+                  className="ml-2 min-h-11 px-3 text-xs font-bold text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-ink transition-colors"
+                >
+                  Remove
+                </button>
+              )}
             </div>
           ))}
+
+          <ConfirmDialog
+            open={!!removing}
+            title="Remove from your team"
+            message={removing ? `${removing.firstName} will be signed out everywhere and won't be able to sign in to your club again.` : ''}
+            confirmLabel="Remove"
+            variant="danger"
+            onConfirm={removeMember}
+            onCancel={() => setRemoving(null)}
+          />
 
           {orgMembers.length === 0 && (
             <p className="text-sm text-gray-500 text-center py-8">No team members yet.</p>

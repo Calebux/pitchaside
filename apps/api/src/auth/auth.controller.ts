@@ -60,8 +60,10 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('change-password')
-  changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: any) {
-    return this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
+  async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: any, @Res({ passthrough: true }) res: Response) {
+    const { accessToken, refreshToken, message } = await this.authService.changePassword(user.id, dto.currentPassword, dto.newPassword);
+    setAuthCookies(res, this.configService, accessToken, refreshToken);
+    return { message };
   }
 
   @UseGuards(JwtAuthGuard)
