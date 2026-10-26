@@ -27,6 +27,9 @@ import { UserRole } from '../users/entities/user.entity';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
+/** `typ` of the token login hands out between the password and the 2FA code. */
+export const TWO_FACTOR_CHALLENGE = '2fa';
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -87,7 +90,10 @@ export class AuthService {
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
     if (user.twoFactorEnabled) {
-      return { requires2FA: true, userId: user.id };
+      // Proof the password was right, for the code step only: short-lived, and marked so the JWT
+      // strategy never accepts it as a session.
+      const challenge = this.jwtService.sign({ sub: user.id, typ: TWO_FACTOR_CHALLENGE }, { expiresIn: '5m' });
+      return { requires2FA: true, challenge };
     }
 
     const accessToken = this.jwtService.sign({ sub: user.id });
@@ -179,7 +185,16 @@ export class AuthService {
     return { message: '2FA disabled successfully' };
   }
 
-  async validate2FALogin(userId: string, code: string) {
+  /** The code step of sign-in: only after the password step, which issued `challenge`. */
+  async validate2FALogin(challenge: string, code: string) {
+    let userId: string;
+    try {
+      const claims = this.jwtService.verify<{ sub: string; typ?: string }>(challenge);
+      if (claims.typ !== TWO_FACTOR_CHALLENGE) throw new Error('not a 2FA challenge');
+      userId = claims.sub;
+    } catch {
+      throw new UnauthorizedException('Sign in again — that took too long');
+    }
     const user = await this.usersService.findById(userId);
     if (!user || !user.twoFactorSecret || user.removedAt) {
       throw new UnauthorizedException('Invalid request');

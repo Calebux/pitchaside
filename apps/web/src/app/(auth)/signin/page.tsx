@@ -21,7 +21,7 @@ export default function SignInPage() {
     if (email) setForm((f) => ({ ...f, email }));
   }, []);
   const [submitting, setSubmitting] = useState(false);
-  const [twoFA, setTwoFA] = useState<{ required: boolean; userId: string }>({ required: false, userId: '' });
+  const [twoFA, setTwoFA] = useState<{ required: boolean; challenge: string }>({ required: false, challenge: '' });
   const [code, setCode] = useState('');
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -34,7 +34,7 @@ export default function SignInPage() {
     try {
       const result = await login(form.email.trim(), form.password);
       if (result.requires2FA) {
-        setTwoFA({ required: true, userId: result.userId });
+        setTwoFA({ required: true, challenge: result.challenge });
       } else {
         router.push('/dashboard');
       }
@@ -62,7 +62,7 @@ export default function SignInPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await validate2FA(twoFA.userId, code);
+      await validate2FA(twoFA.challenge, code);
       router.push('/dashboard');
     } catch (err: any) {
       toast.error(err.message || 'Invalid 2FA code');
@@ -112,7 +112,7 @@ export default function SignInPage() {
 
           <button
             type="button"
-            onClick={() => { setTwoFA({ required: false, userId: '' }); setCode(''); }}
+            onClick={() => { setTwoFA({ required: false, challenge: '' }); setCode(''); }}
             className="w-full py-2 text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
           >
             Back to sign in

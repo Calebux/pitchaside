@@ -87,7 +87,7 @@ export class AuthController {
   @SkipCsrf()
   @Post('2fa/validate')
   async validate2FA(@Body() dto: TwoFactorValidateDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.authService.validate2FALogin(dto.userId, dto.code);
+    const result = await this.authService.validate2FALogin(dto.challenge, dto.code);
     setAuthCookies(res, this.configService, result.accessToken, result.refreshToken);
     return { accessToken: result.accessToken, user: result.user };
   }

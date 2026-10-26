@@ -13,6 +13,7 @@ import { CompetitionsService } from './competitions.service';
 import { CreateCompetitionDto } from './dto/create-competition.dto';
 import { UpdateCompetitionDto } from './dto/update-competition.dto';
 import { RegisterTeamDto } from './dto/register-team.dto';
+import { UpdateTeamDto } from './dto/update-team.dto';
 import { RecordResultDto } from './dto/record-result.dto';
 import { ScheduleMatchDto } from './dto/schedule-match.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -96,10 +97,10 @@ export class CompetitionsController {
   updateTeam(
     @Param('id') id: string,
     @Param('teamId') teamId: string,
-    @Body() data: any,
+    @Body() dto: UpdateTeamDto,
     @CurrentUser() user: User,
   ) {
-    return this.competitions.updateTeam(id, teamId, user.organizationId, data);
+    return this.competitions.updateTeam(id, teamId, user.organizationId, dto);
   }
 
   @Delete(':id/teams/:teamId')
